@@ -16,4 +16,5 @@ A folder on disk appears in the browser as a readable wiki. Nothing can be edite
 - `.xlsx` tables render as native tables, and full-text search covers pages and tables.
 - A sign-in gate sits in front, with access per library. The default is no access.
 - A static Samba share serves the same folder, and the web shows each file's share path.
+- Every change is kept as a version with user and time, and old versions can be restored (ADR-11).
 - **Acceptance: saving in real Excel and in LibreOffice over Samba changes what the web shows.**

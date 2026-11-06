@@ -61,7 +61,7 @@ flowchart LR
 - **Moves in Explorer:** the same hash at a new path counts as a move, anything else as “orphaned”.
 - **Addresses:** named tables and named cells are stable, `A1:D20` drifts.
 - **Files not written by Excel** may lack stored formula results, which the UI marks.
-- **Version history:** the server keeps a copy of every change, which a bare share lacks.
+- **Version history:** the server keeps a copy of every change, which a bare share lacks. See [Versions and audit](#versions-and-audit).
 - **The watcher only sees local disks.** A local Samba share uses inotify, a remote file server uses polling.
 - **Limit:** whoever cannot reach the share can only read and download until inline editing arrives.
 
@@ -109,6 +109,17 @@ flowchart LR
   released explicitly. Public pages only show frozen data, never a live query.
 - **Sources:** queries run only on the server, with read-only accounts, time and row limits and a target allowlist.
 
+## Versions and audit
+
+Who changed what and when, on every door, from M-1 on. See [ADR-11](../backlog/ADR-11-versions-and-audit.md).
+
+- **What and when:** every change is a stored version with hash, path, size and time. Deleted files can be restored.
+- **Who:** the app knows the user for web, WebDAV and check-out. For SMB, Samba's `vfs_full_audit` logs user, IP, operation
+  and file, and the app matches that to the version. Otherwise it says “user unknown” rather than guessing.
+- **Native lists** keep a history per row.
+- **Limits:** quick saves can merge into one version, and root on the server can alter the log.
+- **Personal data:** retention is configurable, and employers must check their own rules before using it.
+
 ## Ways to reach the files
 
 | Door | For whom | Limits |
@@ -117,6 +128,13 @@ flowchart LR
 | SMB in a domain | Companies that allow the join | Needs approval from their IT |
 | WebDAV over HTTPS, served by the app | Outside the network, macOS, Linux, rclone | The Windows WebClient service is deprecated and off by default |
 | Check-out in the browser | Anyone, without a client | Manual: download, edit, upload |
+
+| Platform | Way | Note |
+|---|---|---|
+| Windows | SMB on the network, otherwise rclone with WebDAV | |
+| Linux | SMB or WebDAV | |
+| Android | Web, plus a file manager app with WebDAV or SMB | No offline sync |
+| iOS | Web, plus an app with WebDAV. Check whether the Files app reaches SMB | No offline sync |
 
 All doors end in the same permission model. See [ADR-10](../backlog/ADR-10-file-access-doors.md).
 

@@ -7,7 +7,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 ## Meilensteine
 
-* ☐ **[M-1](M-1-read-core.md)** Read core: folders become a wiki — 0/2 erledigt
+* ☐ **[M-1](M-1-read-core.md)** Read core: folders become a wiki — 0/3 erledigt
 * ☐ **[M-2](M-2-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-3](M-3-sources.md)** External sources with cache — noch keine Aufgaben
 * ☐ **[M-4](M-4-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
@@ -23,6 +23,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-1](T-1-measure-office-saving.md)** Measure how Excel and LibreOffice save over Samba · M-1
 * ☐ **[T-2](T-2-go-ui-foundation.md)** Web foundation and design adapter for a Go app · M-1
 * ☐ **[T-3](T-3-mermaid-under-strict-csp.md)** Render Mermaid under a strict CSP · M-2
+* ☐ **[T-4](T-4-versions-and-audit.md)** Store versions and record who changed what · M-1
 
 ## Entscheidungen (ADR)
 
@@ -36,3 +37,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-8](ADR-8-one-source-per-list.md)** Every list has exactly one source
 * ☑ **[ADR-9](ADR-9-sign-in-gate.md)** TinySesam as the sign-in gate
 * ☑ **[ADR-10](ADR-10-file-access-doors.md)** Ways to reach the files: SMB, WebDAV, browser
+* ☑ **[ADR-11](ADR-11-versions-and-audit.md)** Versions and audit are built in, Seafile is not the base
