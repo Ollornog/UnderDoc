@@ -52,6 +52,26 @@ flowchart LR
 - Embedding has a depth limit and cycle detection.
 - Wiki, notes and folders are **one tree with three lenses**. “My notes” is a private library per user.
 
+## Ideas taken from other tools
+
+Concepts only. No code, text, translations or assets from these tools, see [ADR-1](../backlog/ADR-1-build-instead-of-fork.md).
+
+| Idea | Seen in | In UnderDoc |
+|---|---|---|
+| Notebook, section, page | OneNote | Top folder, folder, page. No free placement on the page |
+| Table of contents next to the page | Outline, Docmost | M-1 |
+| Backlinks | Outline | M-1 |
+| Search field on `/` and Ctrl+K | Outline | M-1, a command palette in M-12 |
+| Recently changed | Outline | M-1 |
+| Page history and restoring | Outline, Docmost, OneNote | M-2 |
+| Public share links | Outline, Docmost | M-5 |
+| Comments | Outline, Docmost | M-5 |
+| Favorites, recently viewed | Outline | M-5 |
+| Slash menu, templates | Outline, Docmost | M-8 |
+| Quick notes without choosing a place | OneNote | M-8 |
+| Diagrams in the page | Docmost | Mermaid in M-3, drawing in M-11 |
+| Tags that can be searched, text in images | OneNote | M-12 |
+
 ## Building blocks
 
 | Part | Choice | Reason |

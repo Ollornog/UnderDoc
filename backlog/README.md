@@ -7,7 +7,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 ## Meilensteine
 
-* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 0/1 erledigt
+* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 1/1 erledigt
 * ☐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 0/2 erledigt
 * ☐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
@@ -24,7 +24,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Aufgaben
 
 * ☐ **[T-1](T-1-measure-office-saving.md)** Measure how Excel and LibreOffice save over Samba · M-2
-* ☐ **[T-2](T-2-go-ui-foundation.md)** Web foundation and design adapter for a Go app · M-1
+* ☑ **[T-2](T-2-go-ui-foundation.md)** Web foundation and design adapter for a Go app · M-1
 * ☐ **[T-3](T-3-mermaid-under-strict-csp.md)** Render Mermaid under a strict CSP · M-3
 * ☐ **[T-4](T-4-versions-and-audit.md)** Store versions and record who changed what · M-2
 

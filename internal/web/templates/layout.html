@@ -1,0 +1,49 @@
+{{define "layout" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · UnderDoc</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.AssetVersion}}">
+  <script src="/assets/app/theme.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/c22/js/basecoat.min.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/c22/js/sidebar.min.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/app/app.js?v={{.AssetVersion}}"></script>
+</head>
+<body>
+  <aside class="sidebar" data-side="left" aria-hidden="false">
+    <nav aria-label="Pages">
+      <header>
+        <a href="/" class="brand px-2 py-1"><img src="/assets/logo.svg" alt="" class="size-6"><span>UnderDoc</span></a>
+        <form action="/search" method="get" role="search" class="px-2 py-1">
+          <input type="search" name="q" class="input" placeholder="Search" aria-label="Search" value="{{.Query}}">
+        </form>
+      </header>
+      <section>
+        <div role="group" aria-label="Folders and pages">
+          <ul>{{template "tree-items" .Tree}}</ul>
+        </div>
+      </section>
+      {{- if .ProblemCount}}
+      <footer>
+        <ul>
+          <li><a role="menuitem" href="/problems">{{template "icon-alert"}}<span>Problems</span><span class="badge ms-auto min-w-5 justify-center px-1.5" data-variant="destructive">{{.ProblemCount}}</span></a></li>
+        </ul>
+      </footer>
+      {{- end}}
+    </nav>
+  </aside>
+  <div class="flex flex-col">
+    <header class="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2">
+      <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Toggle navigation" data-sidebar-toggle>{{template "icon-panel"}}</button>
+      {{template "breadcrumb" .Crumbs}}
+    </header>
+    <main class="p-6">
+      {{template "content" .}}
+    </main>
+  </div>
+</body>
+</html>
+{{- end}}

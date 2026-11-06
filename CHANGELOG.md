@@ -13,6 +13,14 @@ All notable changes to this project are documented in this file. The format foll
 - Logo and favicon.
 - Plans for search (M-12) and AI (M-13).
 
+### Added
+
+- A folder of Markdown files appears as a wiki: tree, pages, `[[wiki links]]`, backlinks, table of contents, images next to a
+  page, full-text search, recent changes and a list of everything broken (M-1).
+- Pages with an `id:` in their front matter keep their address and their links when the file moves.
+- Changes on disk appear within seconds, without a restart.
+- One binary or one container, read-only access to the folder, a strict CSP and a health endpoint.
+
 ### Changed
 
 - Documents have their own identity and roles, separate from the folder tree (ADR-13, replaces ADR-3).
