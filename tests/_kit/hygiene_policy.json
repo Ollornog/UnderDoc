@@ -57,12 +57,16 @@
     "die dortige Fassung nicht — ein zweites System ist nicht nur doppelt, sondern doppelt",
     "unvollstaendig. Es zieht deshalb auf diese Liste um und loescht die eigene.",
     "(Der Repo-Name steht hier bewusst NICHT: diese Datei wandert per sync in oeffentliche",
-    "Repos, und der Name ist selbst einer der geschuetzten. Der Zaun hat genau das gefangen.)"
+    "Repos, und der Name ist selbst einer der geschuetzten. Der Zaun hat genau das gefangen.)",
+    "2026-11-06: Name eines Arbeitgebers aufgenommen. Gegenprobe in einem neuen oeffentlichen Repo:",
+    "die Pruefung schwieg, der Name war nie eingetragen. Abnehmer mit diesem Namen als Projektname",
+    "tragen ihn als eigener_name_sha256."
   ],
   "private_namen_sha256_16": [
     "061429fadd2701e3",
     "3e2559984ba426c0",
     "41b8e6744905305f",
+    "4cd67b11c3fc6f92",
     "6bb8c80cfa0e95ae",
     "84ef0efe0a878ba1",
     "a227c36a926bd7f6",

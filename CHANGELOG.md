@@ -9,3 +9,4 @@ All notable changes to this project are documented in this file. The format foll
 ### Added
 
 - Project skeleton: concept, backlog with milestones and decisions, CI, repository hygiene.
+- Plan for versions and audit (ADR-11), which became part of M-1.

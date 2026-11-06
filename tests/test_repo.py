@@ -4,7 +4,6 @@
 The code is Go (scripts/_go_check.sh), the hygiene comes from the kit's Python base. Excluded checks carry their
 reason in the call: leaving one out is allowed, hiding it is not. Runs with the system interpreter, stdlib only.
 """
-import hashlib
 import re
 import sys
 from pathlib import Path
@@ -52,23 +51,6 @@ check("no unknown bare hostnames", hygiene.pruefe_blanke_adressen(str(ROOT), FIL
     "draw.io"]))    # a product name in the concept and in M-10
 check("nothing is loaded from third parties", hygiene.pruefe_keine_fremdressourcen(str(ROOT), FILES, POLICY))
 check("every page has a favicon", hygiene.pruefe_favicon(str(ROOT), FILES, POLICY))
-
-# ---- Names that must never appear in this public repository
-# Stored as sha256(name)[:16], so this list does not publish what it protects. The kit's check did not catch these.
-FORBIDDEN_NAMES_SHA256_16 = {"4cd67b11c3fc6f92"}
-
-
-def forbidden_names():
-    found = []
-    for rel in FILES:
-        text = (ROOT / rel).read_text(encoding="utf-8", errors="replace").lower()
-        if any(hashlib.sha256(word.encode()).hexdigest()[:16] in FORBIDDEN_NAMES_SHA256_16
-               for word in set(re.findall(r"[a-z0-9]+", text))):
-            found.append(rel)
-    return found
-
-
-check("no forbidden names", forbidden_names())
 
 # ---- Workflows
 check("actions pinned by SHA", hygiene.pruefe_actions_sha_gepinnt(str(ROOT), FILES))
