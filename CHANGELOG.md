@@ -24,6 +24,10 @@ All notable changes to this project are documented in this file. The format foll
 - Changes on disk appear within seconds, without a restart.
 - One binary or one container, read-only access to the folder, a strict CSP and a health endpoint.
 
+### Fixed
+
+- A link to a folder opens that folder instead of counting as broken (B-1).
+
 ### Changed
 
 - Documents have their own identity and roles, separate from the folder tree (ADR-13, replaces ADR-3).

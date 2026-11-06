@@ -145,6 +145,36 @@ func TestRelativeLinksAndImages(t *testing.T) {
 	}
 }
 
+func TestLinksToFolders(t *testing.T) {
+	lib := Build(Input{
+		Pages: []Page{
+			page("a/page.md", "[sub](sub/) [plain](sub) [space](my%20docs/) [up](../) [root](/) [other](/b/) [none](nope/) [out](../../) [query](?x=1) [dot](/.sub)"),
+			page("a/sub/inner.md", "i"),
+			page("a/my docs/inner.md", "i"),
+			page("b/inner.md", "i"),
+			page("sub/inner.md", "i"),
+		},
+	})
+	doc := mustDoc(t, lib, "~a/page.md")
+	for _, want := range []string{`href="/f/a/sub"`, `href="/f/a/my%20docs"`, `href="/f/"`, `href="/f/b"`} {
+		if !strings.Contains(doc.HTML, want) {
+			t.Errorf("%q missing in %s", want, doc.HTML)
+		}
+	}
+	if got := strings.Count(doc.HTML, `data-variant="destructive"`); got != 4 {
+		t.Errorf("%d of 4 broken references visible: %s", got, doc.HTML)
+	}
+	problems := problemsOf(lib)
+	for _, want := range []string{"nope/", "../../", "?x=1", "/.sub"} {
+		if !strings.Contains(problems, want) {
+			t.Errorf("%q missing in the problems:\n%s", want, problems)
+		}
+	}
+	if strings.Contains(problems, "sub/") || strings.Contains(problems, "docs") {
+		t.Errorf("a link to a folder counts as broken:\n%s", problems)
+	}
+}
+
 func TestBacklinksSkipSelfAndDuplicates(t *testing.T) {
 	lib := Build(Input{Pages: []Page{
 		page("a.md", "---\nid: a\n---\n[[a]] [[b]] [[b]]\n"),

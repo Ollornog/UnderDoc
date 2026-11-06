@@ -116,6 +116,22 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
+func TestLinkToFolderOpensTheFolder(t *testing.T) {
+	s := newSite(t, Options{}, map[string]string{
+		"start.md":     "---\nid: start\n---\n[the folder](ops/)\n",
+		"ops/inner.md": "---\nid: inner\ntitle: Inner page\n---\n",
+	})
+	if got := s.body("/d/start"); !strings.Contains(got, `href="/f/ops"`) {
+		t.Errorf("no link to the folder in %s", got)
+	}
+	if got := s.body("/f/ops"); !strings.Contains(got, "Inner page") {
+		t.Errorf("the folder does not list its page: %s", got)
+	}
+	if got := s.body("/problems"); strings.Contains(got, "ops/") {
+		t.Errorf("the link is listed as broken: %s", got)
+	}
+}
+
 func TestContentsNeedTwoEntries(t *testing.T) {
 	s := newSite(t, Options{}, map[string]string{
 		"one.md": "---\nid: one\n---\n## Only\n",
