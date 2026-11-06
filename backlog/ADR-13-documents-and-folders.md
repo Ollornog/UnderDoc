@@ -28,7 +28,7 @@ The third option.
   and its versions.
 - **Content:** every version is stored unchanged under its hash. Markdown stays exact text, and an Excel file stays the
   exact file. This is also the version store of ADR-11.
-- **Folder tree:** separate records. A folder holds default roles for its contents, and a document adds its own. A
+- **Folder tree (now the workspace tree of ADR-15, where any document can have children):** separate records. A folder holds default roles for its contents, and a document adds its own. A
   document has one main location, and shortcuts in other folders can come later.
 - **Moving** keeps the ID, links, owner and own roles. Inherited roles change, and the UI says so before the move.
 - **Folder source:** a folder on disk can feed documents, with the path giving the location and an `id:` in the front

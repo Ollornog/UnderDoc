@@ -9,8 +9,9 @@ People who want Excel keep Excel on a share, and the web shows the same file.
 
 ## Core idea: documents with an owner, folders only arrange them
 
-A document has its own identity, roles and versions. The folder tree is a separate layer, so moving a document changes
-where it appears, not what it is. See [ADR-13](../backlog/ADR-13-documents-and-folders.md).
+A document has its own identity, type, roles and versions. Where it sits is a separate layer, so moving a document changes
+where it appears, not what it is. See [ADR-13](../backlog/ADR-13-documents-and-folders.md) and
+[ADR-15](../backlog/ADR-15-workspace-of-typed-documents.md).
 
 - **Roles:** one owner (person or group), plus editors, commenters and viewers, per person or group.
 - **Content stays unchanged:** Markdown is exact text, an Excel file is the exact file, and each version is kept under its hash.
@@ -23,7 +24,7 @@ flowchart LR
     share <-- watcher --> docs
     folder[Folder source, read-only phase] --> docs
     editor[Web editor, later] --> docs
-    docs[(Documents, roles, versions)] --- tree[(Folder tree)]
+    docs[(Documents, roles, versions)] --- tree[(Workspace tree)]
     ext[Databases, Baserow, REST] --> cache[(Cache and index)]
     docs --> web[Web: wiki, notes, folders]
     tree --> web
@@ -50,7 +51,7 @@ flowchart LR
 - **A missing value is a visible error** plus an entry in a list of broken references, never a silent gap.
 - A view can take its SQL from a snippet, so documentation and table share one query.
 - Embedding has a depth limit and cycle detection.
-- Wiki, notes and folders are **one tree with three lenses**. “My notes” is a private library per user.
+- “My notes” is a private collection per user.
 
 ## Ideas taken from other tools
 
@@ -76,39 +77,50 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 | Mentions with an inbox | Confluence | M-16 |
 | Calendars in the wiki | Confluence | M-18, as a view of existing dates |
 | Review, comments and issues on changes | Code forges | M-20, on the forge itself |
+| Pages under pages | Outline, Confluence | M-14, for every document type |
+| Site builder from sections | Google Sites | M-21 |
 
 ## Workspace
 
 A small shell holds everything, and modules plug into it ([ADR-14](../backlog/ADR-14-one-topic-at-a-time.md)). Variants
 are clicked through as mockups before any of this is built (T-5).
 
-- **Tabs:** a sticky top bar holds the areas, for example Documents and Data. Favorites, Inbox and Calendar join when
-  their modules exist.
-- **Tree:** the left navigation stays, slimmer, with collections above it. Folders open by themselves up to a set number of children.
+Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed-documents.md)):
+
+| View | Shows | Example |
+|---|---|---|
+| **Workspace** | My collections and hierarchy, arranged as I want | A page with a table and an Excel file below it |
+| **Files** | The folder structure on the disk or share, not strictly one to one | The folder with the images |
+| **Resources** | What has no place in a folder, and every database and view | Values, snippets, connections, external sources |
+
+- **Document types:** page, table, Excel file, image collection, database view, database, and later site. Each is a module.
+- **Hierarchy:** any document can have children. A folder is just a document without content.
+- **Tabs:** a sticky top bar holds the views. Favorites, Inbox and Calendar join when their modules exist.
+- **Tree:** the left navigation stays, slimmer, with collections above it. Documents open by themselves up to a set number of children.
 - **Windows:** 1 to 4 columns, each with its own document and table of contents. One document can be open twice.
 - **Page width:** a document recommends slim, wide or full, where full hides the rail. The reader decides.
-- **Facts panel:** name, location, who created it, who can see it, and what it uses: external and internal links,
+- **Facts panel:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links,
   internal data, values, databases. It grows with each module.
 
 ## Two kinds of data
 
 Some data can simply be changed: a save becomes the current version. Other data, such as code, needs someone to review and
-confirm a change. That is a property of the folder. The starting recommendation is to use Git for it, so review and issues stay
-on a forge instead of being rebuilt here (T-7).
+confirm a change. The starting recommendation is a self-hosted forge next to UnderDoc, such as Forgejo, so review and issues
+stay there instead of being rebuilt here, and nobody needs a GitHub account (T-7).
 
 ## Order of work
 
-One topic at a time, and each closes with its acceptance. Numbers are IDs, not an order.
+One topic at a time. Each starts with a talk with the maintainer and closes with its acceptance. Numbers are IDs, not an order.
 
-1. **Finish M-1:** B-1, the gate in front, acceptance.
-2. **M-14 workspace,** starting with the mockups (T-5). The shell comes first, so modules have something to plug into.
-3. **M-15 windows.**
-4. **M-2 files and Excel,** which brings versions, then **M-3 single source.**
-5. **M-4 sources, M-5 permissions and sharing, M-16 favorites and inbox.**
-6. **M-6 lists,** then **M-18 calendar** and **M-19 forms,** which build on them.
-7. **M-7 output, M-17 import and export.**
-8. **M-8 editor, M-9 inline editing, M-10 working together, M-20 reviewed documents and Git.**
-9. **M-21 websites, M-11 drawing, M-12 search, M-13 AI.**
+| Block | Milestones | Why here |
+|---|---|---|
+| 1. Reading | M-1, M-14, M-15 | Finish what exists, then the shell that modules plug into. No database needed |
+| 2. Foundation | M-2, M-3 | Database, versions, files and Excel, which is the biggest technical risk, then values and snippets |
+| 3. People | M-5, M-16 | Roles before anything shared or connected, so they are not added afterwards |
+| 4. Editing | M-6, M-8, M-10, M-20 | Tables first, as they need no JavaScript toolchain, then the editor, working together and review |
+| 5. Connected data | M-4, M-9, M-18, M-19 | Sources under real roles, then inline editing, calendar and forms |
+| 6. In and out | M-7, M-17 | API, reports, WebDAV, import and export |
+| 7. Extras | M-21, M-11, M-12, M-13 | Site builder, drawing, proper search, AI |
 
 The order can change between topics, not during one. M-12 in particular can move forward once there is enough to search.
 
@@ -124,6 +136,7 @@ The order can change between topics, not during one. M-12 in particular can move
 | Sign-in | TinySesam as a gate in front | OIDC, SAML, LDAP, group mapping, independent of language |
 | Editor (later) | TipTap, Yjs, Hocuspocus | Existing parts, check each package's license |
 | Excel in the browser (optional, later) | Collabora via WOPI | Check its limits first |
+| Review and issues (optional, later) | Forgejo as a separate service, to be decided in T-7 | Self-hosted, with an API |
 
 ## Excel and the share
 
@@ -236,3 +249,4 @@ customer boundaries. Web server and Samba on one host is the simplest setup.
 3. **The share next to a real-time editor:** open sessions and outside changes collide. Solved in M-10, with a per-page lock until then.
 4. **Markdown round trip:** the editor must not lose directives. Test before M-8.
 5. **Keeping the share and the store in step:** the projection is the most delicate part of the model and needs tests for every failure.
+6. **Two trees:** the workspace and the files can confuse, and they can disagree on permissions (T-9).

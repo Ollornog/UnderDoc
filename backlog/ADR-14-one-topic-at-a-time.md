@@ -25,10 +25,12 @@ The third option.
 
 - **One milestone is in progress at a time.** It closes with its acceptance before the next one starts. Bugs and small
   fixes may interrupt.
+- **Every milestone starts with a talk with the maintainer.** Goal, scope and open questions are agreed first, and nothing starts
+  without that.
 - **Mockups come before UI work.** Ways of working are chosen from variants that can be clicked through, and the choice
   is recorded in a decision.
-- **Modules plug into the shell.** A module adds its tab, its sections in the facts panel and its routes through one
-  small interface. A module with nothing to show adds no tab.
+- **Modules plug into the shell.** A module adds its document types, its tab, its sections in the facts panel and its routes
+  through one small interface. A module with nothing to show adds no tab.
 - **Modules do not reach into each other's data.** They use each other's public interfaces.
 - **The order of work is in [the concept](../docs/concept.md#order-of-work).** Milestone numbers are IDs, not an order.
 
@@ -36,4 +38,4 @@ The third option.
 
 - The shell (M-14) comes before the modules that plug into it, even though the technical risk sits in M-2.
 - A wish that arrives during a milestone becomes a backlog entry, not a part of the current work.
-- Each later milestone lists what it adds to the facts panel and to the tabs.
+- Each later milestone lists what it adds: document types, tabs and facts panel sections.

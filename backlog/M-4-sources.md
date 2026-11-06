@@ -15,4 +15,5 @@ Data from other systems appears as native tables.
 - Queries run on the server only, with read-only accounts, time and row limits and a target allowlist.
 - Every view shows how old its data is and falls back to the last good state.
 - Cached data is searchable.
-- Sources and views appear in the Data tab, and the facts panel adds the databases and views a document uses.
+- Adds the document types database and database view. Sources and connections appear in the Resources tab, and the facts panel
+  adds the databases and views a document uses.
