@@ -7,7 +7,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 ## Meilensteine
 
-* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 1/1 erledigt
+* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 1/2 erledigt
 * ☐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 0/2 erledigt
 * ☐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
@@ -20,6 +20,14 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ☐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
+* ☐ **[M-14](M-14-workspace.md)** Workspace: tabs, tree, page widths and facts — 0/1 erledigt
+* ☐ **[M-15](M-15-windows.md)** Windows: documents side by side — 0/1 erledigt
+* ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
+* ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
+* ☐ **[M-18](M-18-calendar.md)** Calendar — noch keine Aufgaben
+* ☐ **[M-19](M-19-forms.md)** Forms and simple surveys — noch keine Aufgaben
+* ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 0/1 erledigt
+* ☐ **[M-21](M-21-websites.md)** Showing websites — 0/1 erledigt
 
 ## Aufgaben
 
@@ -27,6 +35,14 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-2](T-2-go-ui-foundation.md)** Web foundation and design adapter for a Go app · M-1
 * ☐ **[T-3](T-3-mermaid-under-strict-csp.md)** Render Mermaid under a strict CSP · M-3
 * ☐ **[T-4](T-4-versions-and-audit.md)** Store versions and record who changed what · M-2
+* ☐ **[T-5](T-5-workspace-mockups.md)** Build workspace mockups in several variants and choose · M-14
+* ☐ **[T-6](T-6-window-loading.md)** Choose how windows load their documents · M-15
+* ☐ **[T-7](T-7-review-model.md)** Decide how reviews work, on Git or in the app · M-20
+* ☐ **[T-8](T-8-website-kinds.md)** Decide which kinds of website UnderDoc shows · M-21
+
+## Fehler
+
+* ☐ **[B-1](B-1-folder-links-broken.md)** Links to folders count as broken · M-1
 
 ## Entscheidungen (ADR)
 
@@ -43,3 +59,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-11](ADR-11-versions-and-audit.md)** Versions and audit are built in, Seafile is not the base
 * ☑ **[ADR-12](ADR-12-markdown-first.md)** Start with Markdown only
 * ☑ **[ADR-13](ADR-13-documents-and-folders.md)** Documents are objects, the folder tree is separate
+* ☑ **[ADR-14](ADR-14-one-topic-at-a-time.md)** One topic at a time, built as modules

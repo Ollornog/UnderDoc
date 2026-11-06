@@ -16,3 +16,4 @@ One change appears everywhere. Everything is still maintained as files.
 - Excel tables can be embedded in pages.
 - Mermaid diagrams render, also with values and snippets inside.
 - Every object shows where it is used, and a list names all broken references.
+- The facts panel adds the values, snippets and tables a document uses.
