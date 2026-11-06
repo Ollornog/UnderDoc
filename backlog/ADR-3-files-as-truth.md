@@ -2,7 +2,8 @@
 id: ADR-3
 type: Decision
 title: Files in folders are the source of truth
-status: erledigt
+status: verworfen
+superseded_by: ADR-13
 tags: [architecture, excel]
 created: 2026-11-06
 ---

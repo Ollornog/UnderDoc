@@ -7,18 +7,32 @@ Status: proposal. Decisions are recorded in [`backlog/`](../backlog/), which win
 All knowledge lives in one place. Pages are Markdown, media is only embedded, and every fact has exactly one source.
 People who want Excel keep Excel on a share, and the web shows the same file.
 
-## Core idea: objects with a source, pages only embed
+## Core idea: documents with an owner, folders only arrange them
+
+A document has its own identity, roles and versions. The folder tree is a separate layer, so moving a document changes
+where it appears, not what it is. See [ADR-13](../backlog/ADR-13-documents-and-folders.md).
+
+- **Roles:** one owner (person or group), plus editors, commenters and viewers, per person or group.
+- **Content stays unchanged:** Markdown is exact text, an Excel file is the exact file, and each version is kept under its hash.
+- **The share is a projection:** chosen folders appear as real files. Changes from there become new versions.
+- **Way out:** `underdoc export` writes everything as normal files at any time.
 
 ```mermaid
 flowchart LR
-    win[Windows, Excel, LibreOffice] -- SMB --> lib[(Library: folders on disk)]
-    editor[Web editor, later] --> lib
-    ext[Databases, Baserow, REST] --> cache[(Cache and index: Postgres)]
-    lib --> watch[Watcher] --> cache
-    cache --> web[Web: wiki, notes, folders]
-    cache --> share[Public sharing]
-    cache --> out[API, exports, reports]
+    win[Windows, Excel, LibreOffice] <-- SMB --> share[Share: real files]
+    share <-- watcher --> docs
+    folder[Folder source, read-only phase] --> docs
+    editor[Web editor, later] --> docs
+    docs[(Documents, roles, versions)] --- tree[(Folder tree)]
+    ext[Databases, Baserow, REST] --> cache[(Cache and index)]
+    docs --> web[Web: wiki, notes, folders]
+    tree --> web
+    cache --> web
+    docs --> public[Public sharing]
+    docs --> out[API, exports, reports]
 ```
+
+## Embedding: pages only reference their sources
 
 | Object | Source of truth in the read-only phase | Embedding in Markdown (proposal) |
 |---|---|---|
@@ -31,7 +45,7 @@ flowchart LR
 | Native list | Database, with web editing | `::view{list="contacts" filter="customer=4711"}`, `{{customers:4711.phone}}` |
 | Password | Encrypted store, never in Markdown | `::secret{id="router-admin"}` |
 
-- **In the read-only phase everything is a file**, so a single source works without an editor.
+- **In the read-only phase everything comes from a folder source**, so a single source works without an editor.
 - **Every object shows “used in”.** That makes a change predictable.
 - **A missing value is a visible error** plus an entry in a list of broken references, never a silent gap.
 - A view can take its SQL from a snippet, so documentation and table share one query.
@@ -58,7 +72,7 @@ flowchart LR
 - **Editing starts in the folder.** Open the file in Excel or LibreOffice. The web shows its path with a copy button.
 - **Office saves through renames.** The watcher waits for quiet, ignores temp and lock files (`~$…`, `.~lock.…#`),
   validates the ZIP before reading and shows the last good version on failure. The inode is no identity.
-- **Moves in Explorer:** the same hash at a new path counts as a move, anything else as “orphaned”.
+- **Moves in Explorer:** the same hash at a new path counts as a move of the same document, anything else as “orphaned”.
 - **Addresses:** named tables and named cells are stable, `A1:D20` drifts.
 - **Files not written by Excel** may lack stored formula results, which the UI marks.
 - **Version history:** the server keeps a copy of every change, which a bare share lacks. See [Versions and audit](#versions-and-audit).
@@ -99,9 +113,13 @@ flowchart LR
 
 ## Permissions
 
-- Inherited down the tree: library, folder, page. Roles: read, edit, manage. The default is no access.
+- **Roles belong to the document:** owner, editor, commenter, viewer. Folders pass default roles on to their contents. The
+  default is no access.
+- **A move changes inherited roles only**, and the UI says so first. Ownership can be transferred, and a group can be the owner.
 - **Two doors, one model:** the web and SMB must agree. The app is the source of truth and derives Samba permissions
-  from it. SMB only knows folders, so share-enabled libraries have permissions down to folder level, and the UI says so.
+  from it. Owner and editor can write, commenter and viewer can read, and commenting only exists in the web.
+- **Unproven:** whether per-file rights survive Office saving through renames (T-1). If not, share-enabled folders
+  fall back to rights per folder, and the UI says so.
 - **SMB cannot use OIDC.** Windows access needs a domain (AD, Kerberos) or a separate share password per user.
   Without a domain that means NTLMv2, which Microsoft lists as deprecated, although it keeps working for now.
 - **Embedding bypasses nothing:** without permission on an embedded view, the reader sees “no access”.
@@ -154,5 +172,6 @@ customer boundaries. Web server and Samba on one host is the simplest setup.
 
 1. **Scope:** this is a wiki, a list tool and a file server in one. Every milestone must be usable on its own.
 2. **SMB identity** differs per environment.
-3. **Files as truth versus a real-time editor:** open sessions and outside changes collide. Solved in M-10, with a per-page lock until then.
+3. **The share next to a real-time editor:** open sessions and outside changes collide. Solved in M-10, with a per-page lock until then.
 4. **Markdown round trip:** the editor must not lose directives. Test before M-8.
+5. **Keeping the share and the store in step:** the projection is the most delicate part of the model and needs tests for every failure.

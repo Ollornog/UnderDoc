@@ -11,10 +11,13 @@ Permissions are good enough for company data.
 
 **Done when this is true:**
 
-- Permissions are inherited from library to folder to page, and embedding bypasses nothing.
+- Every document has an owner, editors, commenters and viewers, per person or group, and ownership can be transferred.
+- Folders pass default roles on to their contents, and embedding bypasses nothing.
+- Commenters can comment on a document, without an editor.
 - Notes are private per user.
 - Public shares use a token, list all embedded objects for release and only show frozen data.
-- The app manages Samba users and permissions without running as root, with a password per user.
+- The app manages Samba users and permissions without running as root, with a password per user. Roles reach the share as
+  far as T-1 has proven them.
 - Samba can optionally join a domain.
 - Passwords in text work as described in ADR-7, and an attack round has looked at them.
 - Access and changes are logged.

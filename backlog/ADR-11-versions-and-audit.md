@@ -15,9 +15,9 @@ and when. A ready-made file server such as Seafile offers clients for these plat
 ## Options
 
 - **Seafile as the storage base:** native clients and versions, but files are split into blocks in its own store, so
-  they are not normal files on disk. That contradicts ADR-3, and the watcher, Samba and Excel on a share would no longer
-  work on them. Its audit logs are a feature of the Pro edition.
-- **Seafile as an external source:** keeps ADR-3. A library there is read like any other source, and Seafile remains the
+  they are not normal files on disk, so Samba and Excel on a share would not work on them. Its libraries and permissions
+  would be a second model next to the document roles of ADR-13, and its audit logs are a feature of the Pro edition.
+- **Seafile as an external source:** a library there is read like any other source, and Seafile remains the
   truth for it.
 - **Versions and audit in UnderDoc:** every door passes one store and one log, but mobile sync with offline use is not covered.
 

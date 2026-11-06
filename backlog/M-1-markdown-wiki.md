@@ -13,6 +13,7 @@ editing in the web. Pages are written in any text editor.
 **Done when this is true:**
 
 - A folder appears as a tree, and `.md` files render as pages with the C22 design system.
+- Documents and the folder tree are separate in the code (ADR-13). The folder on disk is only their source.
 - Pages link to each other, also with `[[Page]]`, and every page shows its backlinks.
 - Moving a page keeps links working, through an `id:` in its front matter.
 - Images next to a page render.

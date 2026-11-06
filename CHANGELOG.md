@@ -15,4 +15,5 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Documents have their own identity and roles, separate from the folder tree (ADR-13, replaces ADR-3).
 - The first milestone is now a Markdown wiki only. Excel, Samba and versions moved to M-2 (ADR-12).
