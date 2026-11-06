@@ -30,3 +30,6 @@ UnderDoc will hold company documents, personal data and passwords. Reports about
 - Reading a page, file, list or password without permission, including through embedding or public sharing.
 - Reaching internal systems through a configured source.
 - Password values appearing anywhere outside their encrypted store.
+
+<br /><br />
+<p align="right"><img src="docs/logo.svg" alt="UnderDoc" width="60" height="60"></p>

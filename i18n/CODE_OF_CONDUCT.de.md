@@ -82,3 +82,6 @@ Antworten auf häufig gestellte Fragen zu diesem Verhaltenskodex finden Sie in d
 [homepage]: https://www.contributor-covenant.org
 [v2.1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
 [mozilla]: https://github.com/mozilla/inclusion
+
+<br /><br />
+<p align="right"><img src="../docs/logo.svg" alt="UnderDoc" width="60" height="60"></p>

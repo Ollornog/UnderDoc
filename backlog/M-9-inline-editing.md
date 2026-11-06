@@ -1,5 +1,5 @@
 ---
-id: M-8
+id: M-9
 type: Milestone
 title: Inline editing
 status: offen

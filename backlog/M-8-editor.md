@@ -1,5 +1,5 @@
 ---
-id: M-7
+id: M-8
 type: Milestone
 title: Web editor
 status: offen

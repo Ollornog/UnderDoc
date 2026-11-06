@@ -35,3 +35,6 @@ fixes. If you found a vulnerability, please follow [SECURITY.md](SECURITY.md) in
 ## Code of Conduct
 
 By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+<br /><br />
+<p align="right"><img src="docs/logo.svg" alt="UnderDoc" width="60" height="60"></p>

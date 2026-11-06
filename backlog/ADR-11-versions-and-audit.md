@@ -23,7 +23,7 @@ and when. A ready-made file server such as Seafile offers clients for these plat
 
 ## Decision
 
-Versions and audit are part of UnderDoc from M-1. Seafile can become an optional external source. UnderDoc does not build
+Versions and audit are part of UnderDoc from M-2. Seafile can become an optional external source. UnderDoc does not build
 a sync client (ADR-10).
 
 ## Consequences
