@@ -1,3 +1,4 @@
+<p align="center"><img src="docs/logo.svg" width="250" height="250" alt="UnderDoc logo"></p>
 <h1 align="center">UnderDoc</h1>
 
 <p align="center"><b>English</b> · <a href="i18n/README.de.md">Deutsch</a></p>
@@ -24,13 +25,14 @@ fact has exactly one source.**
 - **External sources** with caching, plus exports, scheduled reports and an API for other systems.
 - **Mermaid diagrams**, also fed by values and snippets.
 - **Company permissions:** users, groups, OIDC and SAML, plus public sharing.
+- **Later:** proper search and optional AI over your own documents.
 
 Everything starts read-only: you edit at the source, and the web editor comes later. See the
 [milestones](backlog/README.md).
 
 ## Install
 
-Not yet. The first installable version arrives with milestone [M-1](backlog/M-1-read-core.md).
+Not yet. The first installable version arrives with milestone [M-1](backlog/M-1-markdown-wiki.md).
 
 ## License
 

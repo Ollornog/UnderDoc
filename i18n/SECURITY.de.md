@@ -30,3 +30,6 @@ UnderDoc wird Firmendokumente, Personendaten und Passwörter enthalten. Besonder
 - Lesen einer Seite, Datei, Liste oder eines Passworts ohne Recht, auch über Einbinden oder öffentliches Teilen.
 - Zugriff auf interne Systeme über eine eingerichtete Quelle.
 - Passwortwerten außerhalb ihres verschlüsselten Speichers.
+
+<br /><br />
+<p align="right"><img src="../docs/logo.svg" alt="UnderDoc" width="60" height="60"></p>

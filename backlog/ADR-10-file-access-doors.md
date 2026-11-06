@@ -21,7 +21,7 @@ Windows users on a company network want a normal folder. Others have no SMB acce
 
 ## Decision
 
-SMB with a per-user password first, and a domain join later where possible. WebDAV with per-user app passwords and browser check-out as further doors (M-6). No sync client of our own.
+SMB with a per-user password first, and a domain join later where possible. WebDAV with per-user app passwords and browser check-out as further doors (M-7). No sync client of our own.
 
 ## Consequences
 

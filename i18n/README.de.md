@@ -1,3 +1,4 @@
+<p align="center"><img src="../docs/logo.svg" width="250" height="250" alt="UnderDoc-Logo"></p>
 <h1 align="center">UnderDoc</h1>
 
 <p align="center"><a href="../README.md">English</a> · <b>Deutsch</b></p>
@@ -24,13 +25,14 @@ Angabe hat genau eine Quelle.**
 - **Externe Quellen** mit Zwischenspeicher, dazu Exporte, geplante Berichte und eine API für andere Systeme.
 - **Mermaid-Diagramme**, auch mit Werten und Snippets.
 - **Firmenrechte:** Nutzer, Gruppen, OIDC und SAML, dazu öffentliches Teilen.
+- **Später:** gute Suche und optionale KI über die eigenen Dokumente.
 
 Alles beginnt lesend: Bearbeitet wird an der Quelle, der Web-Editor kommt später. Siehe die
 [Meilensteine](../backlog/README.md).
 
 ## Installation
 
-Noch nicht. Die erste installierbare Fassung kommt mit Meilenstein [M-1](../backlog/M-1-read-core.md).
+Noch nicht. Die erste installierbare Fassung kommt mit Meilenstein [M-1](../backlog/M-1-markdown-wiki.md).
 
 ## Lizenz
 

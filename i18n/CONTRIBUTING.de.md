@@ -35,3 +35,6 @@ Hast du eine Schwachstelle gefunden, folge bitte [SECURITY](SECURITY.de.md), sta
 ## Verhaltenskodex
 
 Mit deiner Mitwirkung stimmst du dem [Verhaltenskodex](CODE_OF_CONDUCT.de.md) zu.
+
+<br /><br />
+<p align="right"><img src="../docs/logo.svg" alt="UnderDoc" width="60" height="60"></p>

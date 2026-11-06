@@ -23,4 +23,4 @@ Files are the truth for pages, media, values and snippets. The database holds th
 ## Consequences
 
 - The watcher has to cope with how Office saves, and moves need rename detection.
-- A real-time editor later collides with outside changes (M-9).
+- A real-time editor later collides with outside changes (M-10).

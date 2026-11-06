@@ -111,7 +111,7 @@ flowchart LR
 
 ## Versions and audit
 
-Who changed what and when, on every door, from M-1 on. See [ADR-11](../backlog/ADR-11-versions-and-audit.md).
+Who changed what and when, on every door, from M-2 on. See [ADR-11](../backlog/ADR-11-versions-and-audit.md).
 
 - **What and when:** every change is a stored version with hash, path, size and time. Deleted files can be restored.
 - **Who:** the app knows the user for web, WebDAV and check-out. For SMB, Samba's `vfs_full_audit` logs user, IP, operation
@@ -143,9 +143,16 @@ All doors end in the same permission model. See [ADR-10](../backlog/ADR-10-file-
 One instance per customer, no tenants in the code. That avoids the most expensive class of bug, data crossing
 customer boundaries. Web server and Samba on one host is the simplest setup.
 
+## Search and AI, later
+
+- **Search:** Pages, file contents, tables, lists and cached views, showing only what the reader may read. PostgreSQL
+  first, a separate service only if measurements call for it ([M-12](../backlog/M-12-search.md)).
+- **AI:** Optional and off by default, with a configurable and possibly self-hosted model. It only draws on what the asking
+  user may read, names its sources and never sees passwords ([M-13](../backlog/M-13-ai.md)).
+
 ## Risks
 
 1. **Scope:** this is a wiki, a list tool and a file server in one. Every milestone must be usable on its own.
 2. **SMB identity** differs per environment.
-3. **Files as truth versus a real-time editor:** open sessions and outside changes collide. Solved in M-9, with a per-page lock until then.
-4. **Markdown round trip:** the editor must not lose directives. Test before M-7.
+3. **Files as truth versus a real-time editor:** open sessions and outside changes collide. Solved in M-10, with a per-page lock until then.
+4. **Markdown round trip:** the editor must not lose directives. Test before M-8.

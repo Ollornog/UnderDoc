@@ -22,5 +22,5 @@ Read-only first. Exception: native lists have no other source, so they get web e
 
 ## Consequences
 
-- Whoever cannot reach the files can only read until M-6.
-- The JavaScript toolchain is only needed from M-7.
+- Whoever cannot reach the files can only read until M-7.
+- The JavaScript toolchain is only needed from M-8.

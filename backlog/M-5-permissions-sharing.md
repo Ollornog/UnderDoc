@@ -1,5 +1,5 @@
 ---
-id: M-4
+id: M-5
 type: Milestone
 title: Permissions and sharing
 status: offen

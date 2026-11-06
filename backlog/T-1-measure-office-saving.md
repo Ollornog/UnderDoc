@@ -3,7 +3,7 @@ id: T-1
 type: Task
 title: Measure how Excel and LibreOffice save over Samba
 status: offen
-milestone: M-1
+milestone: M-2
 tags: [excel, samba]
 created: 2026-11-06
 ---

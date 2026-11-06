@@ -3,7 +3,7 @@ id: T-3
 type: Task
 title: Render Mermaid under a strict CSP
 status: offen
-milestone: M-2
+milestone: M-3
 tags: [mermaid, security]
 created: 2026-11-06
 ---
