@@ -1,0 +1,13 @@
+{{define "content"}}
+<div class="grid gap-4">
+  {{template "page-title" "Components"}}
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Broken reference</h2><p>{{.Broken}}</p></section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Search result</h2>{{range .Results}}{{template "search-result" .}}{{end}}</section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Search without a result</h2><p class="text-muted-foreground text-sm">Nothing found for “router”.</p></section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Problem list</h2>{{template "problem-list" .Problems}}</section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Backlinks</h2>{{template "folder-list" .BacklinkList}}</section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Folder listing</h2>{{template "folder-list" .Folders}}{{template "folder-list" .Documents}}</section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Table of contents</h2><nav class="toc w-44 shrink-0 self-start" aria-label="On this page">{{template "contents" .Contents}}</nav></section>
+  <section class="grid gap-2"><h2 class="text-sm font-semibold">Empty library</h2>{{template "empty"}}</section>
+</div>
+{{end}}

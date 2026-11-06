@@ -17,4 +17,7 @@ order: this can move forward as soon as there is enough content to search.
 - German works: word forms, compounds as far as possible, typing errors.
 - Filters by library, type, author and date, with highlighted hits.
 - Passwords are never indexed.
+- A command palette jumps to pages and folders by keyboard.
+- Tags from the front matter and in the text can be searched and listed.
+- Text inside images can be found, if measuring shows that OCR is worth its cost.
 - PostgreSQL full-text search has been measured against real content before any separate search service is added.

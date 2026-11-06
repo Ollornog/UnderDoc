@@ -1,0 +1,12 @@
+{{define "content"}}
+<div class="grid gap-4">
+  {{template "page-title" "Search"}}
+  {{- if not .Searched}}
+  <p class="text-muted-foreground text-sm">Type a word into the search field. All words have to appear, also inside longer words.</p>
+  {{- else if not .Results}}
+  <p class="text-muted-foreground text-sm">Nothing found for “{{.Query}}”.</p>
+  {{- else}}
+  {{- range .Results}}{{template "search-result" .}}{{end}}
+  {{- end}}
+</div>
+{{end}}

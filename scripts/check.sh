@@ -35,10 +35,14 @@ if command -v shellcheck >/dev/null; then
     shellcheck scripts/*.sh || fail "shellcheck"
 fi
 
+# The browser test sits behind a tag, so it also has to pass vet and staticcheck explicitly.
+export GO_PRUEF_TAGS="browser"
 if [[ $FAST -eq 1 ]]; then
     scripts/_go_check.sh --fast
 else
     scripts/_go_check.sh
+    step "Browser test"
+    go test -count=1 -tags browser ./internal/browsertest/ || fail "browser test"
 fi
 
 step "Residue check"

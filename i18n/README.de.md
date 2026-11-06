@@ -5,8 +5,8 @@
 
 **Das Wissen deines Teams an einem Ort, ohne jemandem Excel wegzunehmen.**
 
-> **Stand: Konzept.** Ein nutzbares Programm gibt es noch nicht. Der Plan steht in
-> [`docs/concept.md`](../docs/concept.md) und [`backlog/`](../backlog/).
+> **Stand: früh.** Ein Ordner mit Markdown-Dateien funktioniert schon als Wiki zum Lesen (M-1). Alles Weitere unten ist noch
+> Plan, siehe [`docs/concept.md`](../docs/concept.md) und [`backlog/`](../backlog/).
 
 ## Warum
 
@@ -33,7 +33,45 @@ Alles beginnt lesend: Bearbeitet wird an der Quelle, der Web-Editor kommt späte
 
 ## Installation
 
-Noch nicht. Die erste installierbare Fassung kommt mit Meilenstein [M-1](../backlog/M-1-markdown-wiki.md).
+Releases gibt es noch nicht. Gebaut wird aus dem Quelltext mit Go oder Docker, wie unten gezeigt.
+
+## Ausprobieren
+
+UnderDoc hat keine eigene Anmeldung und lauscht deshalb standardmäßig nur auf Loopback. Bevor andere darauf zugreifen können, gehört eine Anmeldeschranke davor.
+
+```bash
+go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
+
+docker build -t underdoc .
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -p 127.0.0.1:8080:8080 -v ~/notes:/data:ro underdoc
+```
+
+| Einstellung | Bedeutung | Vorgabe |
+|---|---|---|
+| `UNDERDOC_DIR` | Der Ordner, oder das Argument von `serve` | keine |
+| `UNDERDOC_ADDR` | Adresse des Wikis | `127.0.0.1:8080`, im Container `:8080` |
+| `UNDERDOC_HEALTH_ADDR` | Adresse von `GET /healthz` | `127.0.0.1:8081` |
+| `UNDERDOC_SCAN_INTERVAL` | Wie oft der Ordner geprüft wird | `2s` |
+| `UNDERDOC_DEV_UI` | `1` zeigt alle Bausteine unter `/dev/ui` | aus |
+
+**Seiten schreiben:**
+
+- Eine Seite ist eine `.md`-Datei, geschrieben in einem beliebigen Texteditor. Versteckte Dateien und symbolische Links werden übersprungen.
+- Eine feste Adresse, die ein Verschieben übersteht, gibt der Kopfbereich der Seite:
+
+  ```markdown
+  ---
+  id: netzplan
+  title: Netzplan
+  ---
+  ```
+
+- Verlinken geht mit `[[netzplan]]`, `[[Netzplan]]`, `[[netzplan|anderer Text]]` oder `[[netzplan#Überschrift]]`. Links über ID oder
+  Titel funktionieren auch nach dem Verschieben. Normale relative Links gehen ebenfalls, hängen aber am Pfad.
+- Bilder neben einer Seite funktionieren wie gewohnt mit `![Karte](karte.png)`. Bilder von anderen Hosts werden zu Links, denn Seiten laden nichts von Dritten.
+- `index.md` oder `README.md` im obersten Ordner ist die Startseite.
+- Was kaputt ist, zeigt die Seite selbst und die Liste unter **Problems**.
 
 ## Lizenz
 

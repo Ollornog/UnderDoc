@@ -15,6 +15,7 @@ Permissions are good enough for company data.
 - Folders pass default roles on to their contents, and embedding bypasses nothing.
 - Commenters can comment on a document, without an editor.
 - Notes are private per user.
+- Favorites and recently viewed pages per user.
 - Public shares use a token, list all embedded objects for release and only show frozen data.
 - The app manages Samba users and permissions without running as root, with a password per user. Roles reach the share as
   far as T-1 has proven them.

@@ -5,8 +5,8 @@
 
 **Your team's knowledge in one place, without taking Excel away from anyone.**
 
-> **Status: concept.** There is no usable program yet. The plan is in [`docs/concept.md`](docs/concept.md)
-> and [`backlog/`](backlog/).
+> **Status: early.** A folder of Markdown files already works as a read-only wiki (M-1). Everything below that is not part
+> of it is still a plan, see [`docs/concept.md`](docs/concept.md) and [`backlog/`](backlog/).
 
 ## Why
 
@@ -33,7 +33,46 @@ Everything starts read-only: you edit at the source, and the web editor comes la
 
 ## Install
 
-Not yet. The first installable version arrives with milestone [M-1](backlog/M-1-markdown-wiki.md).
+There are no releases yet. Build it from source with Go or Docker, as shown below.
+
+## Try it
+
+UnderDoc has no sign-in of its own, so it binds to loopback by default. Put a sign-in gate in front of it before anyone
+else can reach it.
+
+```bash
+go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
+
+docker build -t underdoc .
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -p 127.0.0.1:8080:8080 -v ~/notes:/data:ro underdoc
+```
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_DIR` | The folder, or the argument of `serve` | none |
+| `UNDERDOC_ADDR` | Address of the wiki | `127.0.0.1:8080`, in the container `:8080` |
+| `UNDERDOC_HEALTH_ADDR` | Address of `GET /healthz` | `127.0.0.1:8081` |
+| `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
+| `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
+
+**Writing pages:**
+
+- A page is a `.md` file, written in any text editor. Hidden files and symbolic links are skipped.
+- Give a page a stable address with front matter, so it survives a move:
+
+  ```markdown
+  ---
+  id: network-plan
+  title: Network plan
+  ---
+  ```
+
+- Link with `[[network-plan]]`, `[[Network plan]]`, `[[network-plan|some text]]` or `[[network-plan#Heading]]`. A link by ID or
+  title keeps working when a file moves. Normal relative links work too, but they depend on the path.
+- Images next to a page work as usual, with `![Map](map.png)`. Images from other hosts become links, as pages load nothing from third parties.
+- `index.md` or `README.md` in the top folder is the start page.
+- Anything broken shows on the page itself and in the list under **Problems**.
 
 ## License
 

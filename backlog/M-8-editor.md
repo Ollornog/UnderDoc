@@ -15,3 +15,5 @@ Pages can be written in the browser as quickly as in a notebook app.
 - Autosave, pasting images and fast navigation from notebook to section to page.
 - The pipeline fully carries the JavaScript part.
 - No free placement on the page.
+- A slash menu inserts blocks, and templates start new pages.
+- Quick notes land in the private notes, without having to choose a place first.

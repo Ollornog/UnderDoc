@@ -1,0 +1,80 @@
+{{/* A thin adapter: the same canonical HTML as the design system, as Go templates. */}}
+
+{{define "icon-panel"}}<svg data-icon-lu="panel-left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>{{end}}
+{{define "icon-folder"}}<svg data-icon-lu="folder" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.91 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>{{end}}
+{{define "icon-page"}}<svg data-icon-lu="file-text" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>{{end}}
+{{define "icon-alert"}}<svg data-icon-lu="circle-alert" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>{{end}}
+{{define "icon-chevron"}}<svg data-icon-lu="chevron-right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-50"><path d="m9 18 6-6-6-6"/></svg>{{end}}
+
+{{define "tree-items"}}{{range .}}
+  <li>
+  {{- if .IsFolder}}
+    <details{{if .Open}} open{{end}}>
+      <summary>{{template "icon-folder"}}<span>{{.Label}}</span></summary>
+      <ul>{{template "tree-items" .Children}}</ul>
+    </details>
+  {{- else}}
+    <a role="menuitem" href="{{.Href}}" title="{{.Label}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-page"}}<span>{{.Label}}</span></a>
+  {{- end}}
+  </li>{{end}}
+{{end}}
+
+{{define "breadcrumb"}}{{if .}}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <ol>
+    {{- range $i, $crumb := .}}
+    {{- if $i}}<li aria-hidden="true">{{template "icon-chevron"}}</li>{{end}}
+    <li>{{if $crumb.Href}}<a href="{{$crumb.Href}}">{{$crumb.Label}}</a>{{else}}<span aria-current="page">{{$crumb.Label}}</span>{{end}}</li>
+    {{- end}}
+  </ol>
+</nav>
+{{end}}{{end}}
+
+{{define "page-title"}}<h1 class="scroll-m-20 text-4xl font-extrabold tracking-tight">{{.}}</h1>{{end}}
+
+{{define "contents"}}
+{{- range .}}
+<a href="{{.Href}}" data-level="{{.Level}}">{{.Label}}</a>
+{{- end}}
+{{end}}
+
+{{define "folder-list"}}
+<ul class="my-2 ml-6 list-disc text-sm [&>li]:mt-1">
+  {{- range .}}
+  <li><a class="font-medium underline underline-offset-4" href="{{.Href}}">{{.Label}}</a>{{if .Detail}} <span class="text-muted-foreground">{{.Detail}}</span>{{end}}</li>
+  {{- end}}
+</ul>
+{{end}}
+
+{{define "search-result"}}
+<div class="card" data-size="sm">
+  <header>
+    <h2 class="card-title"><a class="font-medium underline underline-offset-4" href="{{.Href}}">{{.Label}}</a></h2>
+    <p class="card-description">{{.Detail}}</p>
+  </header>
+  <section class="text-sm">{{range .Snippet}}{{if .Match}}<mark class="bg-primary text-primary-foreground rounded-sm px-1">{{.Text}}</mark>{{else}}{{.Text}}{{end}}{{end}}</section>
+</div>
+{{end}}
+
+{{define "problem-list"}}
+<div class="table-container w-full">
+  <table class="table text-sm">
+    <thead><tr><th>File</th><th>Problem</th></tr></thead>
+    <tbody>
+      {{- range .}}
+      <tr><td>{{.Source}}</td><td>{{.Message}}</td></tr>
+      {{- end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "empty"}}
+<div class="empty w-full max-w-md">
+  <header>
+    <figure>{{template "icon-folder"}}</figure>
+    <h2>No pages yet</h2>
+    <p>Put a Markdown file into the folder. It shows up here within seconds.</p>
+  </header>
+</div>
+{{end}}

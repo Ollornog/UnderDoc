@@ -29,8 +29,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Prove that nothing gets skipped silently
+        run: |
+          set -e
+          go version
+          python3 --version
+          command -v google-chrome || command -v chromium
       - name: check.sh
         run: scripts/check.sh
       # A test that fails on the second run is broken. Proven here, not claimed.
       - name: Second run, repeatability
         run: scripts/check.sh
+      - name: Container image
+        run: scripts/check-image.sh

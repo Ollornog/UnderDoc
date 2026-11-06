@@ -2,7 +2,7 @@
 id: T-2
 type: Task
 title: Web foundation and design adapter for a Go app
-status: offen
+status: erledigt
 milestone: M-1
 tags: [ui]
 created: 2026-11-06

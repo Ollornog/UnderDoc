@@ -1,15 +1,39 @@
 // SPDX-License-Identifier: MIT
 
-// Command underdoc is the UnderDoc server. For now it only knows its own version:
-// the server arrives with milestone M-1 (see backlog/).
+// Command underdoc serves a folder of Markdown files as a read-only wiki.
+//
+// Configuration comes from the environment, defaults in brackets:
+//
+//	UNDERDOC_DIR            the folder (or the argument of serve)
+//	UNDERDOC_ADDR           address of the wiki ("127.0.0.1:8080")
+//	UNDERDOC_HEALTH_ADDR    address of the health endpoint ("127.0.0.1:8081")
+//	UNDERDOC_SCAN_INTERVAL  how often the folder is checked for changes ("2s")
+//	UNDERDOC_DEV_UI         "1" turns on the component gallery at /dev/ui
+//
+// There is no sign-in in the application: it must only be reachable through a sign-in gate. That is why it binds to
+// loopback unless told otherwise.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/Ollornog/UnderDoc/internal/folder"
+	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/version"
+	"github.com/Ollornog/UnderDoc/internal/web"
+)
+
+const (
+	usage             = "usage: underdoc serve [folder] | underdoc probe | underdoc version"
+	defaultAddr       = "127.0.0.1:8080"
+	defaultHealthAddr = "127.0.0.1:8081"
 )
 
 func main() {
@@ -18,10 +42,62 @@ func main() {
 
 // run executes the command and returns the process exit code.
 func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 1 && args[0] == "version" {
-		fmt.Fprintln(stdout, "underdoc", version.Version)
-		return 0
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, usage)
+		return 2
 	}
-	fmt.Fprintln(stderr, "usage: underdoc version")
-	return 2
+	var err error
+	switch {
+	case args[0] == "version" && len(args) == 1:
+		fmt.Fprintln(stdout, "underdoc", version.Version)
+	case args[0] == "probe" && len(args) == 1:
+		err = web.Probe(context.Background(), env("UNDERDOC_HEALTH_ADDR", defaultHealthAddr))
+	case args[0] == "serve" && len(args) <= 2:
+		dir := os.Getenv("UNDERDOC_DIR")
+		if len(args) == 2 {
+			dir = args[1]
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+		defer stop()
+		err = serve(ctx, dir, stdout)
+	default:
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "underdoc:", err)
+		return 1
+	}
+	return 0
+}
+
+func serve(ctx context.Context, dir string, stdout io.Writer) error {
+	if dir == "" {
+		return fmt.Errorf("no folder: set UNDERDOC_DIR or pass it to serve")
+	}
+	interval, err := time.ParseDuration(env("UNDERDOC_SCAN_INTERVAL", "2s"))
+	if err != nil || interval <= 0 {
+		return fmt.Errorf("UNDERDOC_SCAN_INTERVAL: a positive duration is expected, like 2s")
+	}
+	log := slog.New(slog.NewJSONHandler(stdout, nil))
+	store := library.NewStore(folder.New(dir), log)
+	if err := store.Refresh(); err != nil {
+		return err
+	}
+	handler, err := web.New(store, log, web.Options{DevUI: os.Getenv("UNDERDOC_DEV_UI") == "1"})
+	if err != nil {
+		return err
+	}
+	go store.Run(ctx, interval)
+	log.Info("start", slog.String("version", version.Version))
+	return web.Serve(ctx, log,
+		web.NewServer(env("UNDERDOC_ADDR", defaultAddr), handler, log),
+		web.NewServer(env("UNDERDOC_HEALTH_ADDR", defaultHealthAddr), web.Health(store.Healthy), log))
+}
+
+func env(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }

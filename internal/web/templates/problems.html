@@ -1,0 +1,10 @@
+{{define "content"}}
+<div class="grid gap-4">
+  {{template "page-title" "Problems"}}
+  {{- if .Problems}}
+  {{template "problem-list" .Problems}}
+  {{- else}}
+  <p class="text-muted-foreground text-sm">Nothing is broken.</p>
+  {{- end}}
+</div>
+{{end}}
