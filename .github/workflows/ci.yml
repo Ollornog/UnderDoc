@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancel on main: every state there needs its own result.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Tests and hygiene
+    runs-on: ubuntu-latest   # public repository, so never self-hosted (fork pull requests)
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # No module cache: a check that loads from the Actions cache can inherit poisoned modules.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: check.sh
+        run: scripts/check.sh
+      # A test that fails on the second run is broken. Proven here, not claimed.
+      - name: Second run, repeatability
+        run: scripts/check.sh

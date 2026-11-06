@@ -1,0 +1,78 @@
+name: release
+
+# Building is allowed in every run, publishing only in the tag run. workflow_dispatch is the dry run: the normal CI
+# never touches a tag workflow, so this is the only way to test it before a tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # only this job creates the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          # What gets published must not come from the Actions cache that pull request runs also fill.
+          cache: false
+
+      # Check first, then build: a tag that does not match the source creates a release nobody can trace.
+      - name: Check tag against internal/version
+        if: github.ref_type == 'tag'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SOURCE="$(sed -n 's/^const Version = "\(.*\)"/\1/p' internal/version/version.go)"
+          if [ "$TAG" != "$SOURCE" ]; then
+            echo "Tag $TAG does not match internal/version/version.go ($SOURCE)" >&2
+            exit 1
+          fi
+          echo "Version $SOURCE confirmed"
+
+      - name: Dry run, version and changelog
+        if: github.ref_type != 'tag'
+        run: |
+          SOURCE="$(sed -n 's/^const Version = "\(.*\)"/\1/p' internal/version/version.go)"
+          [ -n "$SOURCE" ] || { echo "Version not readable from internal/version/version.go" >&2; exit 1; }
+          echo "Dry run without tag. Version in source: $SOURCE"
+          grep -q "\[$SOURCE\]" CHANGELOG.md \
+            || echo "::warning::CHANGELOG does not know version $SOURCE yet, a tag run would need it"
+
+      - name: Full suite
+        run: scripts/check.sh
+
+      - name: Build binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          VERSION="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != tag ]; then
+            VERSION="v$(sed -n 's/^const Version = "\(.*\)"/\1/p' internal/version/version.go)"
+          fi
+          for target in linux/amd64 linux/arm64; do
+            GOOS="${target%/*}"; GOARCH="${target#*/}"
+            export GOOS GOARCH
+            go build -trimpath -ldflags "-s -w" -o "dist/underdoc_${VERSION}_${GOOS}_${GOARCH}" ./cmd/underdoc
+          done
+          ls -l dist/
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

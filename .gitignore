@@ -1,0 +1,5 @@
+/dist/
+/underdoc
+*.test
+*.out
+__pycache__/

@@ -1,0 +1,41 @@
+name: audit
+
+# Vulnerability gate. govulncheck checks modules AND the standard library of the Go version used to build, and fails
+# only on reachable issues. Also nightly, because advisories appear without a code change. The tool comes from its
+# own module .github/audit (pinned, checksums in go.sum).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # GitHub cron is UTC only: 02:50 UTC = 04:50 Europe/Berlin (summer) or 03:50 (winter).
+    - cron: "50 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Zero packages would be a green run without findings: no evidence, but an error.
+      - name: Anything to check?
+        run: |
+          n="$(go list ./... | wc -l)"
+          echo "Packages: $n"
+          [ "$n" -gt 0 ] || { echo "::error::no packages found, the run checked nothing"; exit 1; }
+      - name: govulncheck
+        run: go -C .github/audit tool govulncheck -C "$GITHUB_WORKSPACE" -show verbose ./...

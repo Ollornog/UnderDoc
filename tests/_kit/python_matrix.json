@@ -1,0 +1,26 @@
+{
+  "_zweck": "Die EINE Quelle fuer die Python-Matrix aller Repos. Das Abbild ci-python-web fuehrt dieselbe Matrix in /opt/ci-matrix; diese Datei ist die Fassung, die auch auf ubuntu-latest und in einem fremden Klon greift (stdlib-only, offline).",
+  "_regel": "Die Matrix sind die letzten DREI stable Minors, nach oben begrenzt durch 'obergrenze'. Untergrenze wandert also von selbst mit, sobald eine Version EOL geht. Geprueft wird sie in hygiene.pruefe_python_matrix_regel — sie MELDET, sie aendert nichts.",
+  "_stand": "2026-10-22 (PO-Entscheid Obergrenze 3.15; Regel PO 2026-09-22)",
+
+  "matrix": ["3.13", "3.14", "3.15"],
+
+  "obergrenze": {
+    "version": "3.15",
+    "begruendung": "PO-Entscheid 2026-10-22: 3.15 ins Gate (3.15.0 final 2026-10-09, PEP 790; 3.15.1 am 2026-10-21). Damit wandert nach der Drei-Minors-Regel auch die Untergrenze auf 3.13 (requires-python >=3.13). Vorher geprueft: kein Kit-Repo laeuft auf einem Host mit System-Python 3.12 (FleetWatch und paperless: Debian 13 mit 3.13.5; Abbilder auf python:3.14-slim; ollornog-site hebt seine Basis mit). Bis 2026-10-22 stand hier 3.14 mit Pruefung bis 2026-10-15 (verschoben auf 2026-11-01, weil die Frist ohne Entscheid ablief und alle Repos rot wurden).",
+    "naechste_pruefung": "2027-10-31",
+    "_am_pruefdatum_zu_entscheiden": "3.16 (erwartet 2027-10-06) ins Gate? Vorher messen, ob die Abnehmer (Hosts, Abbilder) 3.14 als neue Untergrenze tragen."
+  },
+
+  "_releases_quelle": "python.org/downloads (Release-Termine) + devguide.python.org/versions (EOL). 3.15 nach PEP 790; 3.16 ist der fortgeschriebene Jahresrhythmus und noch nicht durch ein PEP belegt.",
+  "releases": {
+    "3.9":  {"erschienen": "2020-10-05", "eol": "2025-10-31"},
+    "3.10": {"erschienen": "2021-10-04", "eol": "2026-10-31"},
+    "3.11": {"erschienen": "2022-10-24", "eol": "2027-10-31"},
+    "3.12": {"erschienen": "2023-10-02", "eol": "2028-10-31"},
+    "3.13": {"erschienen": "2024-10-07", "eol": "2029-10-31"},
+    "3.14": {"erschienen": "2025-10-07", "eol": "2030-10-31"},
+    "3.15": {"erschienen": "2026-10-09", "eol": "2031-10-31"},
+    "3.16": {"erschienen": "2027-10-06", "eol": "2032-10-31"}
+  }
+}
