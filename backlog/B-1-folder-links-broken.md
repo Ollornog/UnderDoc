@@ -2,7 +2,7 @@
 id: B-1
 type: Bug
 title: Links to folders count as broken
-status: offen
+status: erledigt
 milestone: M-1
 tags: [links]
 created: 2026-11-06

@@ -270,7 +270,7 @@ func (r *resolver) relative(target string) string {
 	return path.Join(path.Dir(r.doc.Source), target)
 }
 
-// Link resolves a normal relative link, to a page or to an image.
+// Link resolves a normal relative link, to a page, an image or a folder.
 func (r *resolver) Link(linkPath string) (markdown.Target, bool) {
 	relative := r.relative(linkPath)
 	if doc, ok := r.lib.byPath[pathKey(relative)]; ok && isMarkdownPath(relative) {
@@ -278,6 +278,12 @@ func (r *resolver) Link(linkPath string) (markdown.Target, bool) {
 	}
 	if r.lib.images[relative] {
 		return markdown.Target{Href: route.File(relative)}, true
+	}
+	if relative == "." { // the root folder has the empty path
+		relative = ""
+	}
+	if folder, ok := r.lib.tree.Folder(relative); ok && linkPath != "" {
+		return markdown.Target{Href: route.Folder(folder.Path)}, true
 	}
 	return markdown.Target{}, false
 }

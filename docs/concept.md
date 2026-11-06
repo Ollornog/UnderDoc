@@ -93,8 +93,9 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 | **Files** | The folder structure on the disk or share, not strictly one to one | The folder with the images |
 | **Resources** | What has no place in a folder, and every database and view | Values, snippets, connections, external sources |
 
-- **Document types:** page, table, Excel file, image collection, database view, database, and later site. Each is a module.
-- **Hierarchy:** any document can have children. A folder is just a document without content.
+- **Document types:** folder, page, table, Excel file, image collection, database view, database, and later site. Each is a module.
+- **Hierarchy:** any document can have children. A folder is a document without content that the navigation shows differently,
+  and it has roles like any other document.
 - **Tabs:** a sticky top bar holds the views. Favorites, Inbox and Calendar join when their modules exist.
 - **Tree:** the left navigation stays, slimmer, with collections above it. Documents open by themselves up to a set number of children.
 - **Windows:** 1 to 4 columns, each with its own document and table of contents. One document can be open twice.

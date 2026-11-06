@@ -13,7 +13,7 @@ navigation is the baseline. They are thrown away afterwards.
 
 1. **Three views (ADR-15):** names and placement of the Workspace, Files and Resources tabs, and how an object in two views looks.
 2. **Workspace tree:** collections, how far documents open by themselves, how slim the list gets, icons per document type.
-3. **Folders:** an empty document only, or a visible folder type as well.
+3. **Folders:** how they look different from documents in the navigation: separators, extra spacing, icons.
 4. **Windows:** how to split the content area and how a document gets into a window (M-15).
 5. **Table of contents per window:** side panel, hidden, or a marker with a drop-down.
 6. **Facts panel:** right rail, tab or drawer, and how it looks in a narrow window.

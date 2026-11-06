@@ -16,6 +16,7 @@ wiki, with pages as the first document type. T-5 settles how it looks before any
 - A sticky top bar holds the tabs. A module with nothing to show adds no tab.
 - The Workspace tab keeps the left navigation, in a slimmer form, with collections above the tree.
 - A page can have subpages. `page.md` next to a folder `page/` appears as one document with children.
+- Folders look different from documents in the navigation, with separators or extra spacing, and work like documents otherwise.
 - Documents open by themselves up to a set number of children, and what the reader opens or closes wins.
 - The Files tab shows the folder structure on disk, including images.
 - A document can recommend a width in its front matter: slim, wide or full, where full hides the rail. The reader can override it.
