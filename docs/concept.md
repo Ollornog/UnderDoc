@@ -99,8 +99,8 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 - **Tabs:** a sticky top bar holds the views. Favorites, Inbox and Calendar join when their modules exist.
 - **Tree:** the left navigation stays, slimmer, with collections above it. Documents open by themselves up to a set number of children.
 - **Windows:** 1 to 4 columns, each with its own document and table of contents. One document can be open twice.
-- **Page width:** a document recommends slim, wide or full, where full hides the rail. The reader decides.
-- **Facts panel:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links,
+- **Page width:** slim, wide or full, where full hides the rail. It is stored in the document's metadata.
+- **Facts panel:** name, type, width, both locations, who created it, who can see it, and what it uses: external and internal links,
   internal data, values, databases. It grows with each module.
 
 ## Two kinds of data
