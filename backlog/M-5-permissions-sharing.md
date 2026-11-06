@@ -12,7 +12,7 @@ Permissions are good enough for company data.
 **Done when this is true:**
 
 - Every document has an owner, editors, commenters and viewers, per person or group, and ownership can be transferred.
-- Folders pass default roles on to their contents, and embedding bypasses nothing.
+- Parents pass default roles on to what is below them, as T-9 decides, and embedding bypasses nothing.
 - Commenters can comment on a document, without an editor.
 - Notes are private per user.
 - Public shares use a token, list all embedded objects for release and only show frozen data.

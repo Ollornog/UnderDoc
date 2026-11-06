@@ -13,7 +13,8 @@ All notable changes to this project are documented in this file. The format foll
 - Logo and favicon.
 - Plans for search (M-12) and AI (M-13).
 - Plans for the workspace with tabs and windows, favorites and inbox, import and export, calendar, forms, reviews through Git
-  and website display (M-14 to M-21), and an order of work: one topic at a time, built as modules (ADR-14).
+  and a site builder (M-14 to M-21), and an order of work: one topic at a time, built as modules (ADR-14).
+- Plan for a workspace of typed documents with three views: workspace, files and resources (ADR-15).
 
 ### Added
 

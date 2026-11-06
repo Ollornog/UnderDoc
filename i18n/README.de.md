@@ -26,8 +26,8 @@ Angabe hat genau eine Quelle.**
 - **Externe Quellen** mit Zwischenspeicher, dazu Exporte, geplante Berichte und eine API für andere Systeme.
 - **Mermaid-Diagramme**, auch mit Werten und Snippets.
 - **Firmenrechte:** Nutzer, Gruppen, OIDC und SAML, dazu öffentliches Teilen.
-- **Später:** Dokumente nebeneinander, ein Posteingang, ein Kalender, Formulare, Reviews über Git, gute Suche und optionale KI
-  über die eigenen Dokumente.
+- **Später:** Dokumente nebeneinander, ein Posteingang, ein Kalender, Formulare, Reviews über Git, ein Website-Baukasten, gute
+  Suche und optionale KI über die eigenen Dokumente.
 
 Alles beginnt lesend: Bearbeitet wird an der Quelle, der Web-Editor kommt später. Siehe die
 [Meilensteine](../backlog/README.md).

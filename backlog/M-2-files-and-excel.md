@@ -20,5 +20,6 @@ here, so T-1 can run before M-1 is finished.
 - Search also covers tables.
 - Every change is kept as a version with user and time, and old versions can be restored (ADR-11).
 - Access per library. The default is no access.
+- Adds the document types Excel file and image collection, and the share appears in the Files tab (ADR-15).
 - The facts panel adds who created and changed a document, and its versions.
 - **Acceptance: saving in real Excel and in LibreOffice over Samba changes what the web shows.**

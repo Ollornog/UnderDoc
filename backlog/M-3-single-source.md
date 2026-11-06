@@ -16,4 +16,5 @@ One change appears everywhere. Everything is still maintained as files.
 - Excel tables can be embedded in pages.
 - Mermaid diagrams render, also with values and snippets inside.
 - Every object shows where it is used, and a list names all broken references.
+- Adds the Resources tab with values and snippets (ADR-15).
 - The facts panel adds the values, snippets and tables a document uses.

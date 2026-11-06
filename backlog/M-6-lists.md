@@ -16,4 +16,5 @@ Customers, contacts and the like live in native lists instead of Excel.
 - Pages embed list views and single fields.
 - Excel files can be imported once and exported on a schedule as a marked read-only copy.
 - Personal data can be deleted including history and exports.
-- Lists appear in the Data tab, and the facts panel adds the lists a document uses.
+- A native list is the document type table, so it sits in the workspace like a page, and the facts panel adds the lists a
+  document uses.
