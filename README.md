@@ -16,7 +16,8 @@ fact has exactly one source.**
 
 ## What it will do
 
-- **Plain Markdown pages** in normal folders, shown as a wiki, as private notes and as a file tree.
+- **Plain Markdown pages** arranged in folders, shown as a wiki, as private notes and as a file tree.
+- **Documents with owners,** editors, commenters and viewers. Moving one changes where it appears, not what it is.
 - **Excel stays Excel.** Files live on a Windows share and open in Excel or LibreOffice as usual. The web
   shows the same file.
 - **Embed instead of copy.** Tables, database views, images, snippets and diagrams come from their source.

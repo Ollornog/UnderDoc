@@ -16,7 +16,8 @@ Angabe hat genau eine Quelle.**
 
 ## Was es können wird
 
-- **Einfache Markdown-Seiten** in normalen Ordnern, sichtbar als Wiki, als private Notizen und als Dateibaum.
+- **Einfache Markdown-Seiten**, in Ordnern angeordnet, sichtbar als Wiki, als private Notizen und als Dateibaum.
+- **Dokumente mit Eigentümern,** Bearbeitern, Kommentatoren und Betrachtern. Verschieben ändert, wo sie stehen, nicht was sie sind.
 - **Excel bleibt Excel.** Dateien liegen auf einem Windows-Share und öffnen sich wie gewohnt in Excel oder
   LibreOffice. Das Web zeigt dieselbe Datei.
 - **Einbinden statt kopieren.** Tabellen, Datenbank-Ansichten, Bilder, Snippets und Diagramme kommen aus ihrer Quelle.

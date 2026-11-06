@@ -32,7 +32,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 * ☑ **[ADR-1](ADR-1-build-instead-of-fork.md)** Build our own instead of forking a wiki
 * ☑ **[ADR-2](ADR-2-go-and-postgres.md)** Go and PostgreSQL
-* ☑ **[ADR-3](ADR-3-files-as-truth.md)** Files in folders are the source of truth
+* ✗ **[ADR-3](ADR-3-files-as-truth.md)** Files in folders are the source of truth · abgelöst durch ADR-13
 * ☑ **[ADR-4](ADR-4-read-only-first.md)** Read-only first
 * ☑ **[ADR-5](ADR-5-one-instance-per-customer.md)** One instance per customer
 * ☑ **[ADR-6](ADR-6-mit-license.md)** MIT license
@@ -42,3 +42,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-10](ADR-10-file-access-doors.md)** Ways to reach the files: SMB, WebDAV, browser
 * ☑ **[ADR-11](ADR-11-versions-and-audit.md)** Versions and audit are built in, Seafile is not the base
 * ☑ **[ADR-12](ADR-12-markdown-first.md)** Start with Markdown only
+* ☑ **[ADR-13](ADR-13-documents-and-folders.md)** Documents are objects, the folder tree is separate
