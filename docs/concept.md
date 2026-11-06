@@ -66,11 +66,51 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 | Page history and restoring | Outline, Docmost, OneNote | M-2 |
 | Public share links | Outline, Docmost | M-5 |
 | Comments | Outline, Docmost | M-5 |
-| Favorites, recently viewed | Outline | M-5 |
+| Favorites, recently viewed | Outline | M-16 |
 | Slash menu, templates | Outline, Docmost | M-8 |
 | Quick notes without choosing a place | OneNote | M-8 |
 | Diagrams in the page | Docmost | Mermaid in M-3, drawing in M-11 |
 | Tags that can be searched, text in images | OneNote | M-12 |
+| Collections above a tree that is mostly open | OneNote | M-14 |
+| Documents side by side | Code editors | M-15 |
+| Mentions with an inbox | Confluence | M-16 |
+| Calendars in the wiki | Confluence | M-18, as a view of existing dates |
+| Review, comments and issues on changes | Code forges | M-20, on the forge itself |
+
+## Workspace
+
+A small shell holds everything, and modules plug into it ([ADR-14](../backlog/ADR-14-one-topic-at-a-time.md)). Variants
+are clicked through as mockups before any of this is built (T-5).
+
+- **Tabs:** a sticky top bar holds the areas, for example Documents and Data. Favorites, Inbox and Calendar join when
+  their modules exist.
+- **Tree:** the left navigation stays, slimmer, with collections above it. Folders open by themselves up to a set number of children.
+- **Windows:** 1 to 4 columns, each with its own document and table of contents. One document can be open twice.
+- **Page width:** a document recommends slim, wide or full, where full hides the rail. The reader decides.
+- **Facts panel:** name, location, who created it, who can see it, and what it uses: external and internal links,
+  internal data, values, databases. It grows with each module.
+
+## Two kinds of data
+
+Some data can simply be changed: a save becomes the current version. Other data, such as code, needs someone to review and
+confirm a change. That is a property of the folder. The starting recommendation is to use Git for it, so review and issues stay
+on a forge instead of being rebuilt here (T-7).
+
+## Order of work
+
+One topic at a time, and each closes with its acceptance. Numbers are IDs, not an order.
+
+1. **Finish M-1:** B-1, the gate in front, acceptance.
+2. **M-14 workspace,** starting with the mockups (T-5). The shell comes first, so modules have something to plug into.
+3. **M-15 windows.**
+4. **M-2 files and Excel,** which brings versions, then **M-3 single source.**
+5. **M-4 sources, M-5 permissions and sharing, M-16 favorites and inbox.**
+6. **M-6 lists,** then **M-18 calendar** and **M-19 forms,** which build on them.
+7. **M-7 output, M-17 import and export.**
+8. **M-8 editor, M-9 inline editing, M-10 working together, M-20 reviewed documents and Git.**
+9. **M-21 websites, M-11 drawing, M-12 search, M-13 AI.**
+
+The order can change between topics, not during one. M-12 in particular can move forward once there is enough to search.
 
 ## Building blocks
 
@@ -190,7 +230,8 @@ customer boundaries. Web server and Samba on one host is the simplest setup.
 
 ## Risks
 
-1. **Scope:** this is a wiki, a list tool and a file server in one. Every milestone must be usable on its own.
+1. **Scope:** this is a wiki, a list tool, a file server and a calendar in one, next to a code forge. Every milestone must be
+   usable on its own, one is open at a time, and what a good tool already does stays there (issues, groupware, CRM).
 2. **SMB identity** differs per environment.
 3. **The share next to a real-time editor:** open sessions and outside changes collide. Solved in M-10, with a per-page lock until then.
 4. **Markdown round trip:** the editor must not lose directives. Test before M-8.

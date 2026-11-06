@@ -26,7 +26,8 @@ fact has exactly one source.**
 - **External sources** with caching, plus exports, scheduled reports and an API for other systems.
 - **Mermaid diagrams**, also fed by values and snippets.
 - **Company permissions:** users, groups, OIDC and SAML, plus public sharing.
-- **Later:** proper search and optional AI over your own documents.
+- **Later:** documents side by side, an inbox, a calendar, forms, reviews through Git, proper search and optional AI over
+  your own documents.
 
 Everything starts read-only: you edit at the source, and the web editor comes later. See the
 [milestones](backlog/README.md).

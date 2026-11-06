@@ -12,6 +12,8 @@ All notable changes to this project are documented in this file. The format foll
 - Plan for versions and audit (ADR-11).
 - Logo and favicon.
 - Plans for search (M-12) and AI (M-13).
+- Plans for the workspace with tabs and windows, favorites and inbox, import and export, calendar, forms, reviews through Git
+  and website display (M-14 to M-21), and an order of work: one topic at a time, built as modules (ADR-14).
 
 ### Added
 
