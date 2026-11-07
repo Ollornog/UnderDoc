@@ -11,5 +11,5 @@ Several people edit at once.
 
 **Done when this is true:**
 
-- Pages support real-time editing, and outside file changes during a session are handled.
+- Pages support real-time editing, block by block (ADR-19), and changes from the share during a session are handled.
 - Optionally, Excel files open in the browser.

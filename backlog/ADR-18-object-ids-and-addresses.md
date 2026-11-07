@@ -2,7 +2,7 @@
 id: ADR-18
 type: Decision
 title: Object IDs and addresses
-status: offen
+status: erledigt
 tags: [architecture, spot]
 created: 2026-11-07
 ---
@@ -26,7 +26,7 @@ M-1 already gives every page an ID: an `id:` chosen by hand in its front matter,
 
 ## Decision
 
-Proposed: the third option. The maintainer confirms it in the talk for M-28.
+The third option, confirmed by the maintainer, who asked for parts to get their ID right away.
 
 - **Objects get a short random ID** when they are created, such as `7k2m9q4x1c`. It never changes and is never given out twice,
   whatever the kind of object. An `id:` chosen by hand in the front matter stays valid, as long as it is unique.
@@ -35,8 +35,10 @@ Proposed: the third option. The maintainer confirms it in the talk for M-28.
   working.
 - **Parts get an ID local to their document**, addressed as `<object id>#<part id>`, such as `/o/7k2m9q4x1c#t4`. A part lives in
   exactly one document and moves with it, so here the nesting is true and the address may show it.
-- **A part gets its ID the first time something refers to it**, through copy link or embedding, and keeps it from then on. In
-  Markdown it is a short marker at the end of the part, so the file stays readable. Parts nobody refers to carry no marker.
+- **A part gets its ID when it is made**, so a new table can be embedded elsewhere at once. Pages live in the database as blocks
+  (ADR-19), so this costs nothing in the text. A Markdown export writes a short marker only for parts that something refers to.
+- **Pasting a part elsewhere embeds it**, so there is still one source. Pasting it as a copy, with new IDs and no tie to the
+  source, comes later.
 - **Object or part:** something with a life of its own, such as a table edited in the web, a list or a drawing, is an object.
   It sits below the page as a child and is embedded there. Text, headings and Markdown tables are parts of the page.
 - **Nobody types IDs.** Links come from search while typing, from copy link and from dragging. The app keeps every reference in
@@ -52,5 +54,4 @@ Proposed: the third option. The maintainer confirms it in the talk for M-28.
 - Still open:
   - Whether entries of the private area, such as to-dos, events and time records, are objects with addresses too, visible only to
     their user, or records inside one private object per kind (M-24).
-  - The exact form of the marker for parts in Markdown, and whether embedding a part needs a stable heading or paragraph at all
-    (M-3).
+  - The exact form of the marker for parts in a Markdown export (M-2).

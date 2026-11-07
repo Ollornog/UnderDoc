@@ -4,7 +4,8 @@ Status: proposal. Decisions are recorded in [`backlog/`](../backlog/), which win
 
 ## Goal
 
-All knowledge lives in one place. Pages are Markdown, media is only embedded, and every fact has exactly one source.
+All knowledge lives in one place. Pages are made of blocks that can always be exported as Markdown, media is only embedded, and
+every fact has exactly one source.
 People who want Excel keep Excel on a share, and the web shows the same file.
 
 ## Principles
@@ -26,7 +27,11 @@ where it appears, not what it is. See [ADR-13](../backlog/ADR-13-documents-and-f
 [ADR-15](../backlog/ADR-15-workspace-of-typed-documents.md).
 
 - **Roles:** one owner (person or group), plus editors, commenters and viewers, per person or group.
-- **Content stays unchanged:** Markdown is exact text, an Excel file is the exact file, and each version is kept under its hash.
+- **Pages live in the database as blocks**, each with its own ID, and Markdown is the way in and out
+  ([ADR-19](../backlog/ADR-19-pages-in-the-database.md)). An Excel file stays the exact file, kept under its hash. Every version is
+  kept.
+- **Who sees what before roles:** shared collections for everyone signed in, private ones for their user, and for all others edit,
+  comment or read, inherited down the tree ([ADR-20](../backlog/ADR-20-who-sees-what-before-roles.md)).
 - **The share is a projection:** chosen folders appear as real files. Changes from there become new versions.
 - **Way out:** `underdoc export` writes everything as normal files at any time.
 
@@ -160,7 +165,7 @@ One topic at a time. Each starts with a talk with the maintainer and closes with
 
 | Block | Milestones | Why here |
 |---|---|---|
-| 1. Reading and first build | M-1, M-28, M-14, M-15 | Finish what exists, then sign-in, accounts, collections and documents as objects with a first part of the shell, then the rest of the shell. M-28 brings the database forward, if its talk agrees |
+| 1. Reading and first build | M-1, M-28, M-14, M-15 | Finish what exists, then sign-in, accounts, collections and documents as objects with a first part of the shell, then the rest of the shell. M-28 brings the database forward |
 | 2. Foundation | M-2, M-3 | Database, versions, files and Excel, which is the biggest technical risk, then values and snippets |
 | 3. People | M-5, M-16 | Roles before anything shared or connected, so they are not added afterwards |
 | 4. Editing | M-6, M-8, M-10, M-20 | Tables first, as they need no JavaScript toolchain, then the editor, working together and review |

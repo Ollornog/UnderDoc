@@ -72,4 +72,6 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-15](ADR-15-workspace-of-typed-documents.md)** A workspace of typed documents, with three views
 * ☑ **[ADR-16](ADR-16-how-the-workspace-works.md)** How the workspace looks and works
 * ☑ **[ADR-17](ADR-17-guiding-principles.md)** Guiding principles for every feature
-* ☐ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses
+* ☑ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses
+* ☑ **[ADR-19](ADR-19-pages-in-the-database.md)** Pages live in the database, as blocks with IDs
+* ☑ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive
