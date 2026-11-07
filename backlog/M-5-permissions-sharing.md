@@ -18,7 +18,7 @@ Permissions are good enough for company data.
 - Public shares use a token, list all embedded objects for release and only show frozen data.
 - Share links can be listed and revoked, and each one shows who created it and when it expires.
 - The metadata adds the owner and who can see a document.
-- An administrator role switches modules on and off in the settings (ADR-16).
+- An administrator role sees the admin panel: modules, users and groups, and the rest of the system settings (ADR-16).
 - The app manages Samba users and permissions without running as root, with a password per user. Roles reach the share as
   far as T-1 has proven them.
 - Samba can optionally join a domain.

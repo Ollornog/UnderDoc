@@ -30,6 +30,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-21](M-21-websites.md)** Websites: build and publish — 0/1 erledigt
 * ☐ **[M-22](M-22-mail.md)** Mail in the workspace — noch keine Aufgaben
 * ☐ **[M-23](M-23-network-module.md)** IP addresses and devices — noch keine Aufgaben
+* ☐ **[M-24](M-24-private-area.md)** Private area — noch keine Aufgaben
 
 ## Aufgaben
 

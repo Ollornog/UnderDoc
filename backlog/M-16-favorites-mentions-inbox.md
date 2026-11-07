@@ -12,7 +12,7 @@ What concerns one person is in one place. This needs known users and comments fr
 
 **Done when this is true:**
 
-- Favorites and recently viewed documents per user, each with its own view in the icon column.
+- Favorites and recently viewed documents per user, each with its own view in nav1.
 - Favorite collections move from the browser (M-14) to the account.
 - `@name` in a comment or page mentions a person.
 - An inbox tab lists mentions and replies, with read and unread.
