@@ -4,8 +4,10 @@ package web
 
 import (
 	"html/template"
+	"net/http"
 	"slices"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
@@ -14,13 +16,39 @@ import (
 
 // The view models carry finished values. The templates only render them and calculate nothing.
 
+// shellView is what every page shares: the top row, the three columns and the head of the page (ADR-16).
 type shellView struct {
 	Title        string
+	Description  string
+	Tags         []tagLink
 	Query        string
-	Tree         []treeItem
 	Crumbs       []crumb
 	ProblemCount int
 	AssetVersion string
+	User         account.User
+	// View is the entry of nav1 that is active: "workspace", "search" or "profile".
+	View string
+	// Collections are listed in nav2. Until collections live in the database, each folder at the top is one (M-28).
+	Collections []collectionLink
+	// Open is the collection nav3 shows, or nil.
+	Open *openCollection
+}
+
+type tagLink struct {
+	Label string
+	Href  string
+}
+
+type collectionLink struct {
+	Label   string
+	Href    string
+	Current bool
+}
+
+type openCollection struct {
+	Label string
+	Href  string
+	Items []treeItem
 }
 
 type treeItem struct {
@@ -46,8 +74,9 @@ type linkItem struct {
 
 type documentView struct {
 	shellView
-	ShowTitle bool
 	Body      template.HTML
+	ID        string
+	Address   string
 	Source    string
 	Modified  string
 	PathBased bool
@@ -72,6 +101,8 @@ type folderView struct {
 type searchView struct {
 	shellView
 	Searched bool
+	Tag      string
+	Tagged   []linkItem
 	Results  []searchResult
 }
 
@@ -91,19 +122,46 @@ type statusView struct {
 	Message string
 }
 
+type profileView struct {
+	shellView
+	Admin bool
+}
+
 // makeShell builds what every page shares. current is the open document, or empty, and at is the open folder, or nil.
-func (h *handler) makeShell(lib *library.Library, title string, current document.ID, at *tree.Folder) shellView {
-	shell := shellView{Title: title, ProblemCount: len(lib.Problems()), AssetVersion: h.assetVersion}
-	var open []*tree.Folder
+func (h *handler) makeShell(r *http.Request, lib *library.Library, title string, current document.ID, at *tree.Folder) shellView {
+	shell := shellView{Title: title, ProblemCount: len(lib.Problems()), AssetVersion: h.assetVersion, View: "workspace"}
+	shell.User, _ = account.From(r.Context())
 	if current != "" {
 		at, _ = lib.Tree().Location(current)
 	}
+	var open []*tree.Folder
 	if at != nil {
 		open = tree.Ancestors(at)
 	}
-	shell.Tree = makeTree(lib, lib.Tree().Root(), current, open)
+	root := lib.Tree().Root()
+	// The collection of a page is the folder at the top it lies in. Pages directly in the root form "Home".
+	var collection *tree.Folder
+	if len(open) > 1 {
+		collection = open[1]
+	} else if at != nil {
+		collection = root
+	}
+	if len(root.Documents) > 0 {
+		shell.Collections = append(shell.Collections, collectionLink{Label: homeLabel, Href: route.Folder(""), Current: collection == root})
+	}
+	for _, sub := range root.Folders {
+		shell.Collections = append(shell.Collections, collectionLink{Label: sub.Name, Href: route.Folder(sub.Path), Current: collection == sub})
+	}
+	switch {
+	case collection == root:
+		shell.Open = &openCollection{Label: homeLabel, Href: route.Folder(""), Items: documentItems(lib, root, current)}
+	case collection != nil:
+		shell.Open = &openCollection{Label: collection.Name, Href: route.Folder(collection.Path), Items: makeTree(lib, collection, current, open)}
+	}
 	return shell
 }
+
+const homeLabel = "Home"
 
 func makeTree(lib *library.Library, folder *tree.Folder, current document.ID, open []*tree.Folder) []treeItem {
 	items := make([]treeItem, 0, len(folder.Folders)+len(folder.Documents))
@@ -116,6 +174,11 @@ func makeTree(lib *library.Library, folder *tree.Folder, current document.ID, op
 			Children: makeTree(lib, sub, current, open),
 		})
 	}
+	return append(items, documentItems(lib, folder, current)...)
+}
+
+func documentItems(lib *library.Library, folder *tree.Folder, current document.ID) []treeItem {
+	items := make([]treeItem, 0, len(folder.Documents))
 	for _, id := range folder.Documents {
 		doc, _ := lib.Document(id)
 		items = append(items, treeItem{Label: doc.Title, Href: route.Document(string(id)), Current: id == current})
@@ -125,7 +188,7 @@ func makeTree(lib *library.Library, folder *tree.Folder, current document.ID, op
 
 // makeCrumbs returns the way from the root down to a folder.
 func makeCrumbs(folder *tree.Folder) []crumb {
-	crumbs := []crumb{{Label: "Home", Href: route.Folder("")}}
+	crumbs := []crumb{{Label: homeLabel, Href: route.Folder("")}}
 	if folder == nil {
 		return crumbs
 	}
@@ -133,4 +196,12 @@ func makeCrumbs(folder *tree.Folder) []crumb {
 		crumbs = append(crumbs, crumb{Label: f.Name, Href: route.Folder(f.Path)})
 	}
 	return crumbs
+}
+
+func makeTags(tags []string) []tagLink {
+	links := make([]tagLink, 0, len(tags))
+	for _, tag := range tags {
+		links = append(links, tagLink{Label: "#" + tag, Href: route.Tag(tag)})
+	}
+	return links
 }

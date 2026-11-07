@@ -8,10 +8,21 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The interface is the workspace of ADR-16, first part (M-28): a top row with name, search and New, nav1 with the views, nav2
+  with the collections, nav3 with the open collection, and the window with its head. What is not built yet stays in sight,
+  greyed out. A click in nav3 opens the object in the window without reloading the list, and a double click or the arrow shows
+  or hides what is in it. The right edges of the columns can be dragged, nav1 and nav2 snap to four steps, and the browser keeps
+  the widths and the theme.
+- Every object opens at `/o/<id>` (ADR-18). Links to `/d/<id>` move there.
+- The title stands in the head of the window with the breadcrumbs, the tags and the description, not in the content.
+- The CSP allows requests to the own origin (`connect-src 'self'`), so the window can be swapped in.
 - `scripts/vendor-c22.sh` takes the licence text of the Inter font from C22 instead of keeping its own copy current by hand.
 
 ### Added
 
+- The user comes from the headers of the sign-in gate, and without them nothing but the health endpoint answers. A profile
+  shows the account, signing out, the theme and, to administrators, the administration still to come.
+- `description` and `tags` in the front matter. A click on a tag lists everything that carries it.
 - Project skeleton: concept, backlog with milestones and decisions, CI, repository hygiene.
 - Plan for versions and audit (ADR-11).
 - Logo and favicon.

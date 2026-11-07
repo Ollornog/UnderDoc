@@ -101,7 +101,9 @@ func (lib *Library) identify(page Page) (*document.Document, *markdown.Page) {
 	if parsed.Front.Title != "" {
 		doc.Title = parsed.Front.Title
 	}
-	doc.StartsWithTitle = parsed.StartsWithHeading
+	doc.StartsWithTitle = parsed.StartsWithHeading && doc.Title == parsed.Heading
+	doc.Description = strings.TrimSpace(parsed.Front.Description)
+	doc.Tags = cleanTags(parsed.Front.Tags)
 	doc.ID = document.PathID(page.Source)
 	switch id := parsed.Front.ID; {
 	case id == "":
@@ -116,6 +118,32 @@ func (lib *Library) identify(page Page) (*document.Document, *markdown.Page) {
 		doc.Stable = true
 	}
 	return doc, parsed
+}
+
+// Tagged returns the documents that carry a tag, sorted by title.
+func (lib *Library) Tagged(tag string) []*document.Document {
+	var out []*document.Document
+	for _, doc := range lib.documents {
+		if slices.Contains(doc.Tags, tag) {
+			out = append(out, doc)
+		}
+	}
+	slices.SortFunc(out, func(a, b *document.Document) int {
+		return cmp.Or(cmp.Compare(a.Title, b.Title), cmp.Compare(a.ID, b.ID))
+	})
+	return out
+}
+
+// cleanTags makes tags comparable: lower case, without a leading #, each once.
+func cleanTags(tags []string) []string {
+	var out []string
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(tag), "#"))
+		if tag != "" && !slices.Contains(out, tag) {
+			out = append(out, tag)
+		}
+	}
+	return out
 }
 
 // parse guards against a page that crashes the parser: one bad file must not stop the whole wiki.

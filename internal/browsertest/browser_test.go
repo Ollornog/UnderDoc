@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -329,21 +330,90 @@ func setup(t *testing.T) (*browser, string) {
 	}
 	// Without the cache every page loads its own assets, otherwise only the first would show an error.
 	b.call("Network.setCacheDisabled", map[string]any{"cacheDisabled": true}, nil)
+	b.signIn(true)
 	return b, server.URL
+}
+
+// signIn sets the headers the gate in front would set, on every request of the browser.
+func (b *browser) signIn(on bool) {
+	b.t.Helper()
+	headers := map[string]string{}
+	if on {
+		headers = map[string]string{"Remote-User": "anna", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}
+	}
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": headers}, nil)
+}
+
+type box struct{ X, Y, Left, Right, Top, Bottom, Width float64 }
+
+// rect returns where an element is on the screen, for real pointer input.
+func (b *browser) rect(selector string) box {
+	b.t.Helper()
+	raw := b.eval(`JSON.stringify((() => { const r = document.querySelector(` + strconv.Quote(selector) + `).getBoundingClientRect();
+		return {X: r.left + r.width / 2, Y: r.top + r.height / 2, Left: r.left, Right: r.right, Top: r.top, Bottom: r.bottom, Width: r.width}; })())`)
+	var r box
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		b.t.Fatalf("%s: %s", selector, raw)
+	}
+	return r
+}
+
+// mouse sends one real pointer event, as a hand on a mouse would.
+func (b *browser) mouse(kind string, x, y float64, clicks int, modifiers int) {
+	b.t.Helper()
+	button, buttons := "none", 0
+	if kind != "mouseMoved" {
+		button = "left"
+	}
+	if kind == "mousePressed" {
+		buttons = 1
+	}
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": x, "y": y, "button": button, "buttons": buttons, "clickCount": clicks, "modifiers": modifiers}, nil)
+}
+
+func (b *browser) click(x, y float64, clicks int) {
+	b.t.Helper()
+	b.mouse("mouseMoved", x, y, 0, 0)
+	b.mouse("mousePressed", x, y, clicks, 0)
+	b.mouse("mouseReleased", x, y, clicks, 0)
+}
+
+func (b *browser) drag(from box, dx float64) {
+	b.t.Helper()
+	x, y := from.Right-2, from.Top+200
+	b.mouse("mouseMoved", x, y, 0, 0)
+	b.mouse("mousePressed", x, y, 1, 0)
+	for step := 1.0; step <= 8; step++ {
+		b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": x + dx*step/8, "y": y, "button": "left", "buttons": 1}, nil)
+	}
+	b.mouse("mouseReleased", x+dx, y, 1, 0)
+}
+
+// waitFor polls an expression until it is true, since a swap of the window loads in the background.
+func (b *browser) waitFor(expression string) bool {
+	b.t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if b.eval(expression) == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 func TestEveryPageIsClean(t *testing.T) {
 	b, base := setup(t)
 	own, _ := url.Parse(base)
 	for name, target := range map[string]string{
-		"start":    "/d/start",
-		"plan":     "/d/plan",
-		"plain":    "/d/~ops/plain.md",
+		"start":    "/o/start",
+		"plan":     "/o/plan",
+		"plain":    "/o/~ops/plain.md",
 		"root":     "/f/",
 		"folder":   "/f/ops",
 		"search":   "/search?q=router",
 		"nothing":  "/search?q=xyzzy",
+		"tag":      "/search?tag=network",
 		"problems": "/problems",
+		"profile":  "/profile",
 		"gallery":  "/dev/ui",
 	} {
 		f := b.open(base + target)
@@ -370,22 +440,35 @@ func TestEveryPageIsClean(t *testing.T) {
 		if got := b.eval(`document.fonts.check('16px Inter')`); got != "true" {
 			t.Errorf("%s: the font did not load", name)
 		}
-		if got := b.eval(`getComputedStyle(document.querySelector('aside.sidebar nav')).position`); got != "fixed" {
-			t.Errorf("%s: sidebar position %q", name, got)
+		if got := b.eval(`getComputedStyle(document.querySelector('.ud-shell')).display`); got != "grid" {
+			t.Errorf("%s: the shell stylesheet did not apply, display %q", name, got)
 		}
-		if got := b.eval(`document.querySelector('aside.sidebar').dataset.sidebarInitialized`); got != "true" {
-			t.Errorf("%s: the sidebar script did not run", name)
+		if got := b.eval(`[...document.querySelectorAll('.ud-nav1, .ud-nav2, .ud-nav3, .ud-main')].map(n => n.getBoundingClientRect().width > 40).join()`); got != "true,true,true,true" {
+			t.Errorf("%s: a column is missing: %s", name, got)
 		}
-		if got := b.eval(`document.documentElement.scrollWidth > innerWidth`); got != "false" {
-			t.Errorf("%s: the page scrolls sideways", name)
+		if got := b.eval(`document.documentElement.scrollWidth > innerWidth || document.body.scrollHeight > innerHeight`); got != "false" {
+			t.Errorf("%s: the page itself scrolls, only the columns should", name)
 		}
 		b.shot(name)
 	}
 }
 
+func TestNothingWithoutTheGate(t *testing.T) {
+	b, base := setup(t)
+	b.signIn(false)
+	b.open(base + "/o/plan")
+	if got := b.eval(`document.querySelector('h1').textContent`); got != "Not signed in" {
+		t.Errorf("without the gate: %q", got)
+	}
+	if got := b.eval(`document.body.textContent.includes('Router')`); got != "false" {
+		t.Error("content showed without the gate")
+	}
+	b.shot("signed-out")
+}
+
 func TestMarkdownCannotRunScripts(t *testing.T) {
 	b, base := setup(t)
-	b.open(base + "/d/start")
+	b.open(base + "/o/start")
 	if got := b.eval(`String(window.injected)`); got != "undefined" {
 		t.Errorf("a script from Markdown ran: %s", got)
 	}
@@ -396,7 +479,7 @@ func TestMarkdownCannotRunScripts(t *testing.T) {
 
 func TestCSPReallyBlocks(t *testing.T) {
 	b, base := setup(t)
-	b.open(base + "/d/start")
+	b.open(base + "/o/start")
 	// The control for the clean pages above: an inline script injected here must be stopped and reported.
 	b.eval(`(() => { const s = document.createElement('script'); s.textContent = 'window.ran = true'; document.head.append(s); })()`)
 	if got := b.eval(`String(window.ran)`); got != "undefined" {
@@ -415,57 +498,147 @@ func TestCSPReallyBlocks(t *testing.T) {
 	}
 }
 
-func TestSidebarOnAPhone(t *testing.T) {
+// On a phone, roughly until its own layout is settled (T-10): nav2 and nav3 open over the window from the active view.
+func TestShellOnAPhone(t *testing.T) {
 	b, base := setup(t)
 	b.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": true}, nil)
-	b.open(base + "/d/plan")
-	if got := b.eval(`document.querySelector('aside.sidebar').getAttribute('aria-hidden')`); got != "true" {
-		t.Errorf("the sidebar should start closed on a phone, aria-hidden=%s", got)
+	b.open(base + "/o/plan")
+	visible := `[...document.querySelectorAll('.ud-nav2, .ud-nav3')].map(n => getComputedStyle(n).display !== 'none').join()`
+	if got := b.eval(visible); got != "false,false" {
+		t.Errorf("nav2 and nav3 should start closed on a phone: %s", got)
 	}
 	if got := b.eval(`document.documentElement.scrollWidth > innerWidth`); got != "false" {
 		t.Error("the page scrolls sideways on a phone")
 	}
-	if got := b.eval(`getComputedStyle(document.querySelector('nav.toc')).display`); got != "none" {
-		t.Errorf("the table of contents should be hidden on a phone, display=%s", got)
+	if got := b.eval(`document.querySelector('.ud-main').getBoundingClientRect().width > 250`); got != "true" {
+		t.Error("the window is too narrow to read")
 	}
-	b.eval(`document.querySelector('[data-sidebar-toggle]').click()`)
-	if got := b.eval(`document.querySelector('aside.sidebar').getAttribute('aria-hidden')`); got != "false" {
-		t.Error("the button did not open the sidebar")
+	view := b.rect(".ud-nav1 [data-ud-view]")
+	b.click(view.X, view.Y, 1)
+	if got := b.eval(visible); got != "true,true" {
+		t.Errorf("the active view should open nav2 and nav3: %s", got)
 	}
-	// The sidebar slides in, so wait for the end of the animation.
-	time.Sleep(500 * time.Millisecond)
-	if got := b.eval(`document.querySelector('aside.sidebar nav').getBoundingClientRect().left`); got != "0" {
-		t.Errorf("the open sidebar is at x=%s", got)
-	}
-	b.shot("phone-sidebar")
-	b.eval(`document.querySelector('[data-sidebar-toggle]').click()`)
-	if got := b.eval(`document.querySelector('aside.sidebar').getAttribute('aria-hidden')`); got != "true" {
-		t.Error("the button did not close the sidebar")
+	b.shot("phone-open")
+	b.click(view.X, view.Y, 1)
+	if got := b.eval(visible); got != "false,false" {
+		t.Errorf("a second tap closes them: %s", got)
 	}
 }
 
 func TestTreeFollowsThePage(t *testing.T) {
 	b, base := setup(t)
-	b.open(base + "/d/plan")
-	if got := b.eval(`[...document.querySelectorAll('aside details[open] > summary')].map(s => s.textContent.trim()).join()`); got != "ops,net" {
+	b.open(base + "/o/plan")
+	if got := b.eval(`document.querySelector('.ud-nav2 [aria-current]').textContent.trim()`); got != "ops" {
+		t.Errorf("collection: %s", got)
+	}
+	if got := b.eval(`[...document.querySelectorAll('.ud-nav3 [aria-expanded="true"]')].map(a => a.closest('li').querySelector('.ud-name').textContent.trim()).join()`); got != "net" {
 		t.Errorf("open folders: %s", got)
 	}
-	if got := b.eval(`document.querySelector('aside a[aria-current="page"]').textContent.trim()`); got != "Network plan" {
+	if got := b.eval(`document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim()`); got != "Network plan" {
 		t.Errorf("current page: %s", got)
 	}
-	if got := b.eval(`document.querySelector('.breadcrumb [aria-current="page"]').textContent.trim()`); got != "Network plan" {
-		t.Errorf("breadcrumb: %s", got)
+	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.ud-title').textContent`); got != "Home/ops/net|Network plan" {
+		t.Errorf("head: %s", got)
+	}
+}
+
+// A click on a name opens the object and keeps the list as it is. A double click or the arrow shows or hides what is in
+// it (ADR-16), with real pointer input.
+func TestClickOpensDoubleClickUnfolds(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/plan")
+	b.eval(`window.sameLoad = true`)
+	plain := b.rect(`.ud-nav3 .ud-name[href="/o/~ops/plain.md"]`)
+	b.click(plain.X, plain.Y, 1)
+	if !b.waitFor(`location.pathname === '/o/~ops/plain.md' && document.querySelector('.ud-title').textContent === 'plain'`) {
+		t.Fatalf("the click did not open the page: %s", b.eval(`location.pathname`))
+	}
+	if got := b.eval(`String(window.sameLoad) + document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim() + document.title`); got != "trueplainplain · UnderDoc" {
+		t.Errorf("the window should swap without a reload: %s", got)
+	}
+	hidden := `document.querySelector('.ud-nav3 .ud-name[href="/f/ops/net"]').closest('li').querySelector('.ud-tree').hidden`
+	if got := b.eval(hidden); got != "false" {
+		t.Fatal("net should start open, it holds the page that was open")
+	}
+	net := b.rect(`.ud-nav3 .ud-name[href="/f/ops/net"]`)
+	b.mouse("mouseMoved", net.X, net.Y, 0, 0)
+	for _, clicks := range []int{1, 2} {
+		b.mouse("mousePressed", net.X, net.Y, clicks, 0)
+		b.mouse("mouseReleased", net.X, net.Y, clicks, 0)
+	}
+	if !b.waitFor(hidden) {
+		t.Error("the double click did not close the folder")
+	}
+	arrow := b.rect(`.ud-nav3 .ud-name[href="/f/ops/net"]`)
+	b.click(arrow.Left-10, arrow.Y, 1)
+	if got := b.eval(hidden); got != "false" {
+		t.Error("the arrow did not open it again")
+	}
+	b.eval(`history.back()`)
+	if !b.waitFor(`location.pathname === '/f/ops/net' || location.pathname === '/o/~ops/plain.md' || location.pathname === '/o/plan'`) {
+		t.Error("back did not work")
+	}
+}
+
+// The right edge of each column can be dragged, nav1 and nav2 snap to four steps, nav3 moves freely, and the widths
+// stay after a reload (ADR-16).
+func TestColumnsSnapByDragging(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/plan")
+	b.eval(`localStorage.clear()`)
+	b.open(base + "/o/plan")
+	nav1, nav2 := b.rect(".ud-nav1"), b.rect(".ud-nav2")
+	if nav1.Width != 50 {
+		t.Fatalf("nav1 starts at the icon step, width %v", nav1.Width)
+	}
+	b.drag(nav1, 70)
+	if got := b.eval(`document.documentElement.dataset.udS1 + ':' + document.querySelector('.ud-nav1').getBoundingClientRect().width`); got != "2:116" {
+		t.Errorf("nav1 should snap to the third step: %s", got)
+	}
+	if moved := b.rect(".ud-nav2"); moved.Left <= nav2.Left {
+		t.Error("nav1 should push nav2")
+	}
+	nav3 := b.rect(".ud-nav3")
+	b.drag(nav3, 37)
+	if got := b.rect(".ud-nav3").Width; got < nav3.Width+30 || got > nav3.Width+44 {
+		t.Errorf("nav3 moves freely: %v to %v", nav3.Width, got)
+	}
+	b.shot("dragged")
+	b.open(base + "/o/plan")
+	if got := b.eval(`document.documentElement.dataset.udS1`); got != "2" {
+		t.Errorf("the width did not stay: %s", got)
 	}
 }
 
 func TestTableOfContentsJumps(t *testing.T) {
 	b, base := setup(t)
-	b.open(base + "/d/plan")
-	if got := b.eval(`getComputedStyle(document.querySelector('nav.toc')).display`); got != "flex" {
-		t.Errorf("table of contents display=%s", got)
+	b.open(base + "/o/plan")
+	marker := b.rect(".ud-marker > summary")
+	b.click(marker.X, marker.Y, 1)
+	if got := b.eval(`document.querySelector('.ud-marker').open`); got != "true" {
+		t.Fatal("the marker did not open")
 	}
-	if got := b.eval(`[...document.querySelectorAll('nav.toc a')].map(a => document.getElementById(decodeURIComponent(a.hash.slice(1))) ? 'ok' : a.hash).join()`); got != "ok,ok" {
+	if got := b.eval(`[...document.querySelectorAll('.ud-marker nav.toc a')].map(a => document.getElementById(decodeURIComponent(a.hash.slice(1))) ? 'ok' : a.hash).join()`); got != "ok,ok" {
 		t.Errorf("entries without a target: %s", got)
+	}
+	b.click(10, 400, 1)
+	if got := b.eval(`document.querySelector('.ud-marker').open`); got != "false" {
+		t.Error("a click outside should close it")
+	}
+}
+
+func TestGearOpensTheMetadata(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/plan")
+	gear := b.rect(".ud-tools [data-ud-gear]")
+	b.click(gear.X, gear.Y, 1)
+	if got := b.eval(`!document.getElementById('ud-drawer').hidden && document.getElementById('ud-drawer').textContent.includes('/o/plan')`); got != "true" {
+		t.Fatal("the gear did not open the metadata")
+	}
+	b.shot("gear")
+	b.press("Escape", "Escape", 27, 0)
+	if got := b.eval(`document.getElementById('ud-drawer').hidden`); got != "true" {
+		t.Error("Escape should close it")
 	}
 }
 
@@ -477,7 +650,7 @@ func TestSearchShortcuts(t *testing.T) {
 		"slash":  func() { b.press("/", "Slash", 191, 0) },
 		"ctrl+k": func() { b.press("k", "KeyK", 75, ctrl) },
 	} {
-		b.open(base + "/d/plan")
+		b.open(base + "/o/plan")
 		if got := b.eval(focused); got == "q" {
 			t.Fatalf("%s: the field already has the focus, the test proves nothing", name)
 		}
@@ -487,7 +660,7 @@ func TestSearchShortcuts(t *testing.T) {
 		}
 	}
 	// While typing, "/" stays a character.
-	b.open(base + "/d/plan")
+	b.open(base + "/o/plan")
 	b.eval(`document.querySelector('input[name="q"]').focus()`)
 	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "/", "code": "Slash", "windowsVirtualKeyCode": 191, "text": "/"}, nil)
 	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "/", "code": "Slash", "windowsVirtualKeyCode": 191}, nil)
@@ -498,7 +671,7 @@ func TestSearchShortcuts(t *testing.T) {
 
 func TestSearchFromTheField(t *testing.T) {
 	b, base := setup(t)
-	b.open(base + "/d/start")
+	b.open(base + "/o/start")
 	b.eval(`(() => { const f = document.querySelector('form[role=search]'); f.q.value = 'router'; f.submit(); })()`)
 	b.collect()
 	if got := b.eval(`location.pathname + location.search`); got != "/search?q=router" {
@@ -509,18 +682,31 @@ func TestSearchFromTheField(t *testing.T) {
 	}
 }
 
-func TestDarkModeFollowsTheSystem(t *testing.T) {
+func TestDarkModeFollowsTheSystemOrTheSetting(t *testing.T) {
 	b, base := setup(t)
 	b.call("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-color-scheme", "value": "dark"}}}, nil)
-	b.open(base + "/d/plan")
+	b.open(base + "/o/plan")
+	b.eval(`localStorage.clear()`)
+	b.open(base + "/o/plan")
 	dark := b.eval(`getComputedStyle(document.body).backgroundColor`)
 	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "true" {
 		t.Error("the dark class is missing")
 	}
 	b.shot("dark")
 	b.call("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-color-scheme", "value": "light"}}}, nil)
-	b.open(base + "/d/plan")
+	b.open(base + "/o/plan")
 	if light := b.eval(`getComputedStyle(document.body).backgroundColor`); light == dark {
 		t.Errorf("light and dark look the same: %s", light)
+	}
+	// The setting in the profile wins over the system, and stays after a reload.
+	b.open(base + "/profile")
+	button := b.rect(`[data-ud-theme="dark"]`)
+	b.click(button.X, button.Y, 1)
+	if got := b.eval(`document.documentElement.classList.contains('dark') + ':' + document.querySelector('[data-ud-theme="dark"]').getAttribute('aria-pressed')`); got != "true:true" {
+		t.Errorf("the setting did not apply: %s", got)
+	}
+	b.open(base + "/o/plan")
+	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "true" {
+		t.Error("the setting did not stay")
 	}
 }

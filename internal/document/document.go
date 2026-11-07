@@ -32,6 +32,10 @@ type Document struct {
 	ID ID
 	// Title is the display name.
 	Title string
+	// Description is one sentence about the document, from its front matter.
+	Description string
+	// Tags are lower case, without a leading #, unique and in their first order.
+	Tags []string
 	// Source says where the content came from. In the folder source it is the path inside the folder.
 	Source string
 	// Stable is true if the ID comes from the document itself.
@@ -41,7 +45,7 @@ type Document struct {
 	HTML string
 	// Text is the plain text of the body, on one line.
 	Text string
-	// StartsWithTitle is true if the body opens with its own top-level heading.
+	// StartsWithTitle is true if the body opens with a top-level heading that is the title.
 	StartsWithTitle bool
 	// Contents lists the main headings of the body.
 	Contents []Heading

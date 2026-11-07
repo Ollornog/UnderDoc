@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/library"
 )
 
@@ -28,13 +29,18 @@ func (h *handler) gallery(w http.ResponseWriter, _ *http.Request) {
 			AssetVersion: h.assetVersion,
 			ProblemCount: 2,
 			Crumbs:       []crumb{{Label: "Home", Href: "#"}, {Label: "Folder", Href: "#"}},
-			Tree: []treeItem{
+			View:         "workspace",
+			Description:  "Every component of this application in every state.",
+			Tags:         []tagLink{{Label: "#network", Href: "#"}, {Label: "#main-site", Href: "#"}},
+			User:         account.User{Login: "anna", Name: "Anna Berg"},
+			Collections:  []collectionLink{{Label: "Operations", Href: "#", Current: true}, {Label: "A collection with a very long name", Href: "#"}},
+			Open: &openCollection{Label: "Operations", Href: "#", Items: []treeItem{
 				{Label: "Open folder", IsFolder: true, Open: true, Href: "#", Children: []treeItem{
 					{Label: "Current page", Href: "#", Current: true},
 					{Label: "Nested folder", IsFolder: true, Href: "#", Children: []treeItem{{Label: "Hidden page", Href: "#"}}},
 				}},
-				{Label: "Page with a very long title that does not fit into the sidebar at all", Href: "#"},
-			},
+				{Label: "Page with a very long title that does not fit into the column at all", Href: "#"},
+			}},
 		},
 		Broken: `<span class="badge" data-variant="destructive">Missing page: no such page</span>`,
 		Results: []searchResult{{

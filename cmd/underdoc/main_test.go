@@ -86,7 +86,12 @@ func TestServeEndToEnd(t *testing.T) {
 	go func() { stopped <- serve(ctx, dir, &out) }()
 
 	fetch := func(url string) string {
-		response, err := http.Get(url) //nolint:gosec // local test server
+		request, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return ""
+		}
+		request.Header.Set("Remote-User", "anna") // what the gate in front sets
+		response, err := http.DefaultClient.Do(request)
 		if err != nil {
 			return ""
 		}
@@ -107,11 +112,11 @@ func TestServeEndToEnd(t *testing.T) {
 		t.Fatalf("%s never showed %q", url, want)
 	}
 	waitFor("http://"+healthAddr+"/healthz", "ok")
-	waitFor("http://"+addr+"/d/a", "first version")
+	waitFor("http://"+addr+"/o/a", "first version")
 	if err := os.WriteFile(page, []byte("---\nid: a\n---\nsecond, longer version\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	waitFor("http://"+addr+"/d/a", "second, longer version")
+	waitFor("http://"+addr+"/o/a", "second, longer version")
 
 	t.Setenv("UNDERDOC_HEALTH_ADDR", healthAddr)
 	var probeOut, probeErr bytes.Buffer

@@ -1,6 +1,5 @@
 {{define "content"}}
 <div class="grid gap-4">
-  {{template "page-title" "Components"}}
   <section class="grid gap-2"><h2 class="text-sm font-semibold">Broken reference</h2><p>{{.Broken}}</p></section>
   <section class="grid gap-2"><h2 class="text-sm font-semibold">Search result</h2>{{range .Results}}{{template "search-result" .}}{{end}}</section>
   <section class="grid gap-2"><h2 class="text-sm font-semibold">Search without a result</h2><p class="text-muted-foreground text-sm">Nothing found for “router”.</p></section>

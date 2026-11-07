@@ -38,8 +38,12 @@ func TestIdentityAndTitle(t *testing.T) {
 		page("a/plain name.md", "just text\n"),
 	}})
 	stable := mustDoc(t, lib, "abc")
-	if !stable.Stable || stable.Title != "From front matter" || !stable.StartsWithTitle {
+	// The heading differs from the title, so it is content and stays.
+	if !stable.Stable || stable.Title != "From front matter" || stable.StartsWithTitle {
 		t.Errorf("%+v", stable)
+	}
+	if same := mustDoc(t, Build(Input{Pages: []Page{page("s.md", "# Same\n\ntext\n")}}), "~s.md"); !same.StartsWithTitle {
+		t.Errorf("a page that opens with its title: %+v", same)
 	}
 	heading := mustDoc(t, lib, "~a/heading.md")
 	if heading.Stable || heading.Title != "From heading" || heading.StartsWithTitle {
@@ -63,7 +67,7 @@ func TestMovingKeepsIdentityLinksAndBacklinks(t *testing.T) {
 		if len(target.Backlinks) != 1 || target.Backlinks[0] != "~start.md" {
 			t.Errorf("%s: backlinks %v", name, target.Backlinks)
 		}
-		if start := mustDoc(t, lib, "~start.md"); strings.Count(start.HTML, `href="/d/abc"`) != 2 {
+		if start := mustDoc(t, lib, "~start.md"); strings.Count(start.HTML, `href="/o/abc"`) != 2 {
 			t.Errorf("%s: %s", name, start.HTML)
 		}
 	}
@@ -110,10 +114,10 @@ func TestWikiResolution(t *testing.T) {
 		page("b/two.md", "# Twin\n"),
 	}})
 	from := mustDoc(t, lib, "~x/from.md")
-	if got := strings.Count(from.HTML, `href="/d/byid"`); got != 6 {
+	if got := strings.Count(from.HTML, `href="/o/byid"`); got != 6 {
 		t.Errorf("%d of 6 links to the same page: %s", got, from.HTML)
 	}
-	if got := strings.Count(from.HTML, `href="/d/~x/sibling.md"`); got != 2 {
+	if got := strings.Count(from.HTML, `href="/o/~x/sibling.md"`); got != 2 {
 		t.Errorf("%d of 2 links to the sibling: %s", got, from.HTML)
 	}
 	problems := problemsOf(lib)
@@ -135,7 +139,7 @@ func TestRelativeLinksAndImages(t *testing.T) {
 		Images: []string{"a/b/pic.png", "root.png"},
 	})
 	doc := mustDoc(t, lib, "~a/b/page.md")
-	for _, want := range []string{`href="/d/~a/other.md"`, `href="/d/~other2.md"`, `src="/files/a/b/pic.png"`, `src="/files/root.png"`, `href="/files/a/b/pic.png"`} {
+	for _, want := range []string{`href="/o/~a/other.md"`, `href="/o/~other2.md"`, `src="/files/a/b/pic.png"`, `src="/files/root.png"`, `href="/files/a/b/pic.png"`} {
 		if !strings.Contains(doc.HTML, want) {
 			t.Errorf("%q missing in %s", want, doc.HTML)
 		}
@@ -339,5 +343,24 @@ func TestRecent(t *testing.T) {
 	recent := Build(Input{Pages: []Page{older, newer, third}}).Recent(2)
 	if len(recent) != 2 || recent[0].Source != "b.md" || recent[1].Source != "a.md" {
 		t.Errorf("recent = %+v", recent)
+	}
+}
+
+func TestDescriptionAndTagsReachTheDocument(t *testing.T) {
+	lib := Build(Input{Pages: []Page{page("a.md", "---\ndescription: \" About a. \"\ntags: [Network, '#network', main-site]\n---\nText")}})
+	doc := mustDoc(t, lib, "~a.md")
+	if doc.Description != "About a." || strings.Join(doc.Tags, ",") != "network,main-site" {
+		t.Fatalf("%q %q", doc.Description, doc.Tags)
+	}
+}
+
+func TestTagged(t *testing.T) {
+	lib := Build(Input{Pages: []Page{page("b.md", "---\ntags: [net]\n---\n# Beta"), page("a.md", "---\ntags: net, ops\n---\n# Alpha"), page("c.md", "# Gamma")}})
+	var titles []string
+	for _, doc := range lib.Tagged("net") {
+		titles = append(titles, doc.Title)
+	}
+	if strings.Join(titles, ",") != "Alpha,Beta" || len(lib.Tagged("none")) != 0 {
+		t.Fatal(titles)
 	}
 }
