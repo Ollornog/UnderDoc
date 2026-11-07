@@ -43,6 +43,7 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - A collection is an object like a document (ADR-17). It opens its overview in the window, and it can sit inside another collection,
   where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
   back onto nav2 makes it stand on its own again.
+- A collection inside a collection is treated much like a folder for now. What sets the two apart is still open (M-28).
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open only this, open as well or close, its
   overview, new in it, favorite, and settings. The settings open in nav3.
 - A click opens only that collection, and Ctrl with a click opens it as well or closes it again. There is no setting for this and

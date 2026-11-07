@@ -16,6 +16,8 @@ draft: the talk before the milestone (ADR-14) settles the scope.
 **To settle in that talk:**
 
 - The ID model of ADR-18.
+- What sets a collection apart from a folder, now that a collection can sit inside another. Until that is settled, both behave
+  alike: an object with children, a place and roles.
 - PostgreSQL arriving now instead of with M-2. The order of work in the concept changes with it.
 - Where pages live. Either the folder source of M-1 stays as it is and pages are still written in a text editor, or a page made in
   the web is stored in the database. The second needs at least a plain Markdown field to type into, with the full editor left to M-8.
