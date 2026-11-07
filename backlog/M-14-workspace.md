@@ -14,12 +14,12 @@ this milestone completes it.
 
 **Done when this is true:**
 
-- There is no bar of its own: the name, a place for New and the search field sit above the columns, and the tabs share that row,
+- There is no bar of its own: the name, the search field and a place for New sit above the columns, and the tabs share that row,
   which ends with a place for the AI drawer. New and the AI drawer show only when a module fills them. Nav1, at the far left, holds the views and Search, and at the bottom,
   always in sight, the profile. A module that is not built yet shows greyed out, and one switched off adds no entry.
 - The same kind of click gets the same kind of reaction (ADR-17): as a rule nav1 opens nav2, nav2 opens nav3, nav3 opens into the
   active window, and where a third column adds nothing, nav2 opens straight into the window. Ctrl with a click adds without
-  replacing, and a click on anything with children opens them, a second click closes them.
+  replacing, a click opens the object, and a double click or the arrow opens its children.
 - Everything has its own right-click menu: collections, entries in the lists, sections in nav2 and views in nav1.
 - Every view uses nav1, nav2 and nav3: view, section, list. What a list opens lands in the active window.
 - Menus float over the lists, so opening one moves nothing below it.
@@ -32,8 +32,8 @@ this milestone completes it.
   marked with a pin.
 - Open collections stack in nav3, each below a small heading with a separator.
 - A page can have subpages. `page.md` next to a folder `page/` appears as one document with children.
-- Folders look like documents, apart from their icon. A click on anything with children in nav3 opens it and them, and a second
-  click closes them. Ctrl with a click or a middle click opens an entry as a tab of its own.
+- Folders look like documents, apart from their icon. A click on an entry in nav3 opens the object, and a double click or the arrow
+  opens or closes its children. Ctrl with a click or a middle click opens an entry as a tab of its own.
 - Documents open by themselves up to a set number of children, and what the reader opens or closes wins.
 - The Files view shows the folder structure on disk, including images, and opening a folder lists its content with size, date
   and place in the workspace. Nav2 lists the roots: the share for now, the user's own folder once accounts exist (M-5), and more

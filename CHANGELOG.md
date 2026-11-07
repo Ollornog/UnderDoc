@@ -35,6 +35,9 @@ All notable changes to this project are documented in this file. The format foll
   roles arrive: an owner per object, and edit, comment or read for all others (ADR-20). The scope of the first build is settled
   (M-28): PostgreSQL now, comments, tables embedded by their ID, New collection in nav2 and from a right click on free space, and
   private lists that open like collections (ADR-16).
+- A click in a list opens the object, also a collection with its page, and a double click or the arrow opens its children. New
+  collection sits at the top of nav2, the plus moves to the right of the search field, bookmarks become a document type instead of
+  a view, and comments belong to an element of a page (ADR-16, ADR-17, ADR-20, M-25).
 
 ### Added
 

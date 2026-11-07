@@ -35,4 +35,4 @@ The second option.
 ## Consequences
 
 - M-5 replaces the one level for all others with roles per person and group, and keeps the owner.
-- Comments arrive with the first build, on a whole document. A comment on a block uses its ID (ADR-18) and comes later.
+- Comments arrive with the first build, each on an element of a page through its ID (ADR-18).
