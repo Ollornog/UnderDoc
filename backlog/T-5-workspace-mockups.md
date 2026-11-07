@@ -21,5 +21,5 @@ navigation is the baseline. They are thrown away afterwards.
 
 **Done when:** the choice for each question is recorded in a decision, and M-14 and M-15 are updated to match.
 
-The choice is recorded in ADR-16, from a first round with variants and four merged rounds. What is left is the maintainer's look at
-the fifth round.
+The choice is recorded in ADR-16, from a first round with variants and five merged rounds. What is left is the maintainer's look at
+the sixth round.

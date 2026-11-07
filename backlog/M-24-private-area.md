@@ -8,8 +8,8 @@ tags: [module, people]
 created: 2026-11-07
 ---
 
-Entries at the bottom of nav1 that only their user can see, as a module an administrator can switch off. They open straight into
-the active window, without a view of their own (ADR-16). Only an idea so far: the talk before this
+Views in nav1 that only their user can see, as a module an administrator can switch off. Each follows the same clicks as every
+other view: its lists in nav2, their entries in nav3, and what is opened in the active window (ADR-16). Only an idea so far: the talk before this
 milestone (ADR-14) settles the scope.
 
 **To settle in that talk:**
@@ -22,6 +22,9 @@ milestone (ADR-14) settles the scope.
 **Done when this is true:**
 
 - Nobody else can see the content, including administrators through the interface, and that is stated plainly in the view.
-- To-dos, calendar, time clock, vacation planning and notes each open in a tab like a document.
+- To-dos, calendar, time clock, vacation planning and notes each have their lists in nav2, sorted by dragging: several to-do lists,
+  several calendars including imported ones, periods, years and note boards.
+- A calendar can be imported from a file or read from an address.
+- Entries and whole lists open in a tab like a document.
 - A user can export and delete all of their private data.
 - Switched off, the module leaves no entry behind, and no data is touched.

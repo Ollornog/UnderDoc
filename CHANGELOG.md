@@ -23,8 +23,9 @@ All notable changes to this project are documented in this file. The format foll
   search strategies (ADR-16).
 - Plans for more document types (to-do list, kanban board, video, PowerPoint, quick notes), settings with modules an administrator
   switches on and off, mail (M-22), IP addresses and devices (M-23), and a private area (M-24).
-- Plans for bookmarks (M-25), news from feeds (M-26) and more file sources (M-27). Every window gets its own general tab, a New
-  menu makes drafts from typing, and an AI drawer sits at the right edge (ADR-16).
+- Plans for bookmarks (M-25), news from feeds (M-26) and more file sources (M-27). Every window gets its own general tab with a
+  history, tabs behave as in code editors, New lands in a chosen collection or in Quick notes, one rule for clicks holds in every
+  view, settings move into the profile, and an AI drawer sits at the right edge (ADR-16).
 
 ### Added
 

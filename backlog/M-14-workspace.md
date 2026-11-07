@@ -13,9 +13,11 @@ runs on the read-only wiki, with pages as the first document type. T-5 settles h
 
 **Done when this is true:**
 
-- A sticky top bar holds the search field, and places for New and the AI drawer that show only when a module fills them. Nav1, at the
-  far left, holds the views and Search, and at the bottom, always in sight, the profile, Settings and Admin. A module with nothing to
-  show adds no entry.
+- A sticky top bar holds, from the left, the name, a place for New and the search field, and at the right a place for the AI drawer.
+  New and the AI drawer show only when a module fills them. Nav1, at the far left, holds the views and Search, and at the bottom,
+  always in sight, the profile. A module with nothing to show adds no entry.
+- The same kind of click gets the same kind of reaction: nav1 opens nav2, nav2 opens nav3, nav3 opens into the active window, and a
+  right click opens the menu of what is under it.
 - Every view uses nav1, nav2 and nav3: view, section, list. What a list opens lands in the active window.
 - Menus float over the lists, so opening one moves nothing below it.
 - The right edge of each column can be dragged, a column pushes the ones to its right, and widths hold in every view. Nav1 and nav2 snap
@@ -41,7 +43,8 @@ runs on the read-only wiki, with pages as the first document type. T-5 settles h
 - Tags from the front matter show at the document and behind the gear, and a click lists every document with that tag.
 - One search field in the top bar shows hits in nav3 while typing, with the matching text, and Enter opens the first. Filters by type
   and tags stay behind a button.
-- Settings hold the theme with dark mode, the page scale, click behavior, how far lists open by themselves, and the column views. Until
+- The profile holds the account and the settings, and, set apart for administrators, the administration. Settings hold the theme
+  with dark mode, the page scale, click behavior, how far lists open by themselves, and the column views. Until
   accounts exist, the browser keeps them.
 - The profile shows who is signed in and offers signing out.
 - The metadata shows name, type, place in the workspace, path on disk, last change, external links, internal links and backlinks.

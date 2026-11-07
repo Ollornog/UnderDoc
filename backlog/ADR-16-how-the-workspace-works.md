@@ -10,18 +10,22 @@ created: 2026-11-07
 ## Context
 
 T-5 put seven questions into clickable mockups with two or three variants each. The maintainer's choice mixed variants and
-added what the mockups did not show, such as tabs inside a window. Four more rounds merged all of it.
+added what the mockups did not show, such as tabs inside a window. Five more rounds merged all of it.
 
 ## Decision
 
 **Navigation**
 
 - Three columns, called nav1, nav2 and nav3. Every view uses all three: nav1 picks the view, nav2 the section, nav3 lists what is in it.
-- Nav1 holds the views: Workspace, Files, Resources, Bookmarks, News, modules such as Mail, and Search. At the bottom follow the
-  private entries, then, always in sight, the profile, Settings for the user and Admin for the system. If room runs out, the views
-  scroll.
-- The top bar holds a plus for New, the search field and a button for the AI drawer.
-- Whatever a list opens lands in the active window. A second click on the active view hides nav2 and nav3.
+- The same kind of click gets the same kind of reaction everywhere. A click in nav1 opens something in nav2, a click in nav2 opens
+  something in nav3, and a click in nav3 opens into the active window. A right click opens the menu of what is under it.
+- Nav1 holds the views: Workspace, Files, Resources, Bookmarks, News, modules such as Mail, and Search. Below them follow the private
+  views, and at the bottom, always in sight, the profile. If room runs out, the views scroll.
+- The top bar holds, from the left, the name, a plus for New and the search field, and at the right a button for the AI drawer. There
+  is no button to hide the navigation: a second click on the active view hides nav2 and nav3, and the next click brings them back.
+- Whatever a list opens lands in the active window.
+- Lists that belong to the user sort by dragging in nav2: to-do lists, calendars, note boards and bookmark folders. Entries that act,
+  such as a new list or an import, sit apart below them.
 - The right edge of each column can be dragged, and a column pushes the ones to its right. Their widths hold in every view.
 - Nav1 and nav2 snap to four stages, in this order: icon, icon with text below, text, icon with text beside it. Nav3 moves freely and
   keeps its look. With this many entries, nav1 starts at the icon stage.
@@ -39,24 +43,27 @@ added what the mockups did not show, such as tabs inside a window. Four more rou
 - A plus at a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
 
-**New and drafts**
+**New**
 
-- The plus in the top bar opens New, and so does a click on an empty general tab. Typing and Enter makes a Markdown draft at once,
-  and picking a type makes an empty draft of that type.
-- A draft needs no place. Drafts sit in nav2 of the Workspace until they are placed, so a quick note needs no thought about
-  structure.
-- A draft shows where it can go and who sees it: private, a group or public. Rights beyond that come with M-5.
+- The plus in the top bar opens New, and so does a click on an empty general tab or a double click on the empty part of a tab row.
+- New always lands somewhere: in a collection chosen at its top, or in Quick notes. The last choice stays, and there are no drafts.
+- Typing and Enter makes a card in Quick notes, or a Markdown page at the top of the chosen collection, from where it is dragged to
+  its place. Other document types need a collection.
 
 **Tabs**
 
 - Every window has its own general tab, always its first tab. A list opens into the general tab of the active window, and the next
   document replaces it.
-- The general tab looks different from the others. Empty, it is an empty tab and carries no icon.
+- The general tab looks different from the others. Empty, it is an empty tab as wide as a normal one and carries no icon.
+- The active general tab has an arrow that lists what was opened in it, up to 15 documents, to open one again.
 - Dragging the general tab keeps its document as a tab of its own where it lands, and the general tab stays, empty. The tab menu
   does the same.
 - Opening a document that already has a tab in that window jumps to the tab.
 - Dragging sorts tabs and moves them to another window, and a dragged tab snaps: it takes its place in the row, and the others make
-  room. A tab can also be duplicated and closed.
+  room.
+- Tabs behave as in code editors. A right click on a tab and the dots below the tabs show the same menu: close, close others, close
+  to the right or left, close all, duplicate or keep, copy path, move to a new column or another window, and close the window. A
+  middle click closes a tab. A button at the end of the row lists all tabs of the window.
 - Tabs shrink like browser tabs, so none hides beyond the edge of a narrow window.
 
 **Document tools**
@@ -71,7 +78,8 @@ added what the mockups did not show, such as tabs inside a window. Four more rou
 - A window appears when a tab is split off, up to four, and it brings its own general tab. Dragging a tab to the left or right third
   of a window opens a column on that side, and a preview shows the result first. A button and the menu do the same.
 - The active window has a line along its top, and the others step back a little.
-- A window disappears when only its empty general tab is left, unless it is the last one.
+- A window disappears when only its empty general tab is left, unless it is the last one. With more than one window, each has a
+  button to close it with all its tabs.
 
 **One document, one gear**
 
@@ -104,19 +112,21 @@ added what the mockups did not show, such as tabs inside a window. Four more rou
 - A drawer at the right edge, opened from the top bar. It knows the document in the active window and can summarize it, find related
   documents or draft a note from it. Without a set-up AI, the button does not appear.
 
-**Settings and admin**
+**Profile, settings and administration**
 
+- The profile at the bottom of nav1 holds the account and the settings in nav2, and, set apart below them, the administration.
 - Settings belong to the user: theme with dark mode, page scale for the whole interface, how collections react to a click, how far lists
   open by themselves, and the column views.
-- The admin panel holds what concerns the system, and only administrators see it: modules, users and groups, sources, storage, sign-in
+- The administration holds what concerns the system, and only administrators see it: modules, users and groups, sources, storage, sign-in
   and the audit log.
 - An administrator switches modules on and off there, such as mail or a document type. Off means gone for everyone, and no data is
   touched.
 
 **Private area**
 
-- Only its user sees it: to-dos, calendar, time clock, vacation planning and notes. Its entries sit at the bottom of nav1 and open
-  straight into the active window, without a view of their own.
+- Only its user sees it: to-dos, calendar, time clock, vacation planning and notes. Each is a view in nav1 below the others, and
+  follows the same clicks: nav2 holds its lists, such as to-do lists, calendars including imported ones, periods, years or note
+  boards, nav3 their entries, and an entry or the whole list opens in the active window.
 
 ## Consequences
 
@@ -124,10 +134,10 @@ added what the mockups did not show, such as tabs inside a window. Four more rou
 - Dropping the window count means the layout in the URL (M-15) lists tabs per window, not a number of columns.
 - Saving contents, width and tags from the web comes with editing (M-8). Until then, they are read from the front matter, and a
   change in the view is not stored.
-- New and drafts need editing, so they come with M-8. Until then, the plus does not appear. Who may see a draft needs M-5.
+- New needs editing, so it comes with M-8. Until then, the plus does not appear.
 - Tags for what has no front matter, such as an Excel file or a database, need a place to live. That arrives with the database (M-2).
 - Switching modules needs a module interface that can leave one out, and an administrator role. M-14 reads the switches from the
-  configuration, and M-5 adds the panel.
+  configuration, and M-5 adds the administration.
 - Network documentation is a set of document types, not a view of its own (M-23). Its IP ranges and device lists sit in the workspace.
 - New modules: mail (M-22), IP addresses and devices (M-23), the private area (M-24), bookmarks (M-25), news (M-26) and further file
   sources (M-27). The AI drawer belongs to M-13.
