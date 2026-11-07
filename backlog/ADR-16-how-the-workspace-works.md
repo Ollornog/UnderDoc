@@ -10,7 +10,8 @@ created: 2026-11-07
 ## Context
 
 T-5 put seven questions into clickable mockups with two or three variants each. The maintainer's choice mixed variants and
-added what the mockups did not show, such as tabs inside a window. Six more rounds merged all of it.
+added what the mockups did not show, such as tabs inside a window. Seven more rounds merged all of it. The rules below are worked
+examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 
 ## Decision
 
@@ -37,16 +38,21 @@ added what the mockups did not show, such as tabs inside a window. Six more roun
 
 **Collections**
 
-- Nav2 holds the favorite collections, stacked. The Collections button at its top lists all of them in nav3, with a search, a star
-  and a gear each, sorted by dragging. A second click goes back to the open collections.
-- A right click on a collection, in nav2, in that list or on its heading in nav3, opens its menu: open only this, open as well,
-  close, new in it, favorite, and settings. The settings open in nav3.
-- By default, a click opens only that collection and Ctrl with a click opens several. A setting changes this: a click marks, so
-  several stay open, and a double click opens only that one. In nav3, a collection is a small heading with a separator.
-- Nav2 holds collections for now. Favorite documents join with M-16. Until accounts exist, the browser keeps the favorites.
+- Nav2 holds every collection, so an open one is always in sight: the favorites on top, the others below a line. They sort by
+  dragging, and a star at each one marks a favorite.
+- A collection is an object like a document (ADR-17). It opens its overview in the window, and it can sit inside another collection,
+  where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
+  back onto nav2 makes it stand on its own again.
+- A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open only this, open as well or close, its
+  overview, new in it, favorite, and settings. The settings open in nav3.
+- A click opens only that collection, and Ctrl with a click opens it as well or closes it again. There is no setting for this and
+  no double click. In nav3, an open collection is a small heading with a separator.
+- Favorite documents join nav2 with M-16. Until accounts exist, the browser keeps the favorites.
 - New with a plus at the heading of a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
-- A click on a folder in nav3 opens it there and shows its overview, and a second click closes it. In Files, folders start closed.
+- A click on anything with children in nav3, a folder, a document or a collection, opens it and its children, and a second click
+  closes the children. In Files, folders start closed.
+- Ctrl with a click or a middle click on an entry in nav3 opens it as a tab of its own, and the general tab stays as it is.
 
 **New**
 
@@ -74,11 +80,10 @@ added what the mockups did not show, such as tabs inside a window. Six more roun
 
 **Head of a document**
 
-- The heading is not part of the content. Title, description, when it was created and changed and by whom, and tags sit above the
-  content, with the breadcrumbs and the document tools.
-- Three variants are on the table. A shows the title in the breadcrumbs only, and everything else stays in the metadata. B adds one
-  line with description, tags and the last change. C adds a head with title, description, type, created, changed, path and tags.
-  The maintainer picks one in T-5. What the head leaves out stays in the metadata behind the gear.
+- The heading is not part of the content. It sits in the same bar as the breadcrumbs and the document tools: the breadcrumbs first,
+  the tags to their right, and below them the title in large type with the description under it.
+- Created, changed, by whom, type and path are metadata behind the gear, not part of the head. Of the three variants in T-5, this
+  keeps the large title of the third.
 
 **Document tools**
 
@@ -131,8 +136,8 @@ added what the mockups did not show, such as tabs inside a window. Six more roun
 **Profile, settings and administration**
 
 - The profile at the bottom of nav1 holds the account and the settings in nav2, and, set apart below them, the administration.
-- Settings belong to the user: theme with dark mode, page scale for the whole interface, how collections react to a click, how far lists
-  open by themselves, and the column views.
+- Settings belong to the user: theme with dark mode, page scale for the whole interface, how far lists open by themselves, and the
+  column views.
 - The administration holds what concerns the system, and only administrators see it: modules, users and groups, sources, storage, sign-in
   and the audit log.
 - An administrator switches modules on and off there, such as mail or a document type. Off means gone for everyone, and no data is
@@ -150,7 +155,9 @@ added what the mockups did not show, such as tabs inside a window. Six more roun
 - Dropping the window count means the layout in the URL (M-15) lists tabs per window, not a number of columns.
 - Saving contents, width and tags from the web comes with editing (M-8). Until then, they are read from the front matter, and a
   change in the view is not stored.
-- New needs editing, so it comes with M-8. Until then, the plus does not appear.
+- New needs somewhere to store what it makes, so it comes with M-28 or M-8. Until then, the plus is greyed out (ADR-17).
+- The first build (M-28) builds a part of this, and the rest stays in sight, greyed out.
+- The phone gets its own layout, settled in T-10.
 - Tags for what has no front matter, such as an Excel file or a database, need a place to live. That arrives with the database (M-2).
 - Switching modules needs a module interface that can leave one out, and an administrator role. M-14 reads the switches from the
   configuration, and M-5 adds the administration.

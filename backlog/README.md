@@ -34,6 +34,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-25](M-25-bookmarks.md)** Bookmarks — noch keine Aufgaben
 * ☐ **[M-26](M-26-news.md)** News from subscribed feeds — noch keine Aufgaben
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
+* ☐ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — 0/1 erledigt
 
 ## Aufgaben
 
@@ -46,6 +47,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-7](T-7-review-model.md)** Decide how reviews work, with which forge · M-20
 * ☐ **[T-8](T-8-website-kinds.md)** Settle what the site builder covers · M-21
 * ☐ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
+* ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-28
 
 ## Fehler
 
@@ -69,3 +71,5 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-14](ADR-14-one-topic-at-a-time.md)** One topic at a time, built as modules
 * ☑ **[ADR-15](ADR-15-workspace-of-typed-documents.md)** A workspace of typed documents, with three views
 * ☑ **[ADR-16](ADR-16-how-the-workspace-works.md)** How the workspace looks and works
+* ☑ **[ADR-17](ADR-17-guiding-principles.md)** Guiding principles for every feature
+* ☐ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses

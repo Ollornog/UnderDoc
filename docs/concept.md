@@ -7,6 +7,18 @@ Status: proposal. Decisions are recorded in [`backlog/`](../backlog/), which win
 All knowledge lives in one place. Pages are Markdown, media is only embedded, and every fact has exactly one source.
 People who want Excel keep Excel on a share, and the web shows the same file.
 
+## Principles
+
+Every feature is checked against these before it is built, see [ADR-17](../backlog/ADR-17-guiding-principles.md).
+
+- **The same action gets the same reaction, everywhere.** A click opens only this, Ctrl with a click adds without replacing, a
+  click on anything with children opens them, and a right click opens the menu of what is under the pointer.
+- **Everything is an object** with a stable ID, its own address and a way to be embedded elsewhere, down to a table or a
+  paragraph inside a page ([ADR-18](../backlog/ADR-18-object-ids-and-addresses.md)).
+- **One source per fact,** also for parts of a document: embed, never copy.
+- **Phone and desktop are both first-class,** with the same objects and actions and a layout of their own each.
+- **Built later means greyed out, switched off means gone.**
+
 ## Core idea: documents with an owner, folders only arrange them
 
 A document has its own identity, type, roles and versions. Where it sits is a separate layer, so moving a document changes
@@ -148,7 +160,7 @@ One topic at a time. Each starts with a talk with the maintainer and closes with
 
 | Block | Milestones | Why here |
 |---|---|---|
-| 1. Reading | M-1, M-14, M-15 | Finish what exists, then the shell that modules plug into. No database needed |
+| 1. Reading and first build | M-1, M-28, M-14, M-15 | Finish what exists, then sign-in, accounts, collections and documents as objects with a first part of the shell, then the rest of the shell. M-28 brings the database forward, if its talk agrees |
 | 2. Foundation | M-2, M-3 | Database, versions, files and Excel, which is the biggest technical risk, then values and snippets |
 | 3. People | M-5, M-16 | Roles before anything shared or connected, so they are not added afterwards |
 | 4. Editing | M-6, M-8, M-10, M-20 | Tables first, as they need no JavaScript toolchain, then the editor, working together and review |
