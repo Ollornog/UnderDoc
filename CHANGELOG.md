@@ -27,6 +27,10 @@ All notable changes to this project are documented in this file. The format foll
   history, tabs behave as in code editors, New lands in a chosen collection or in Quick notes, one rule for clicks holds in every
   view, settings move into the profile, and an AI drawer sits at the right edge. The tabs share the top row, the heading moves out
   of the content, and saved searches become a document type (ADR-16).
+- Guiding principles for every feature (ADR-17) and a proposal for object IDs and addresses (ADR-18). Every collection sits in nav2,
+  a collection is an object that can sit inside another and can be kept open, Ctrl with a click adds without replacing, and the document head keeps the
+  title below the breadcrumbs (ADR-16). A draft for the first build with sign-in, account, collections and documents as objects
+  (M-28), and mockups for the phone layout (T-10).
 
 ### Added
 
