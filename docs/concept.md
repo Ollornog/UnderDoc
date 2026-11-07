@@ -78,6 +78,9 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 | Quick notes as cards on a board | Google Keep | M-8 |
 | Kanban board | Many | M-6 |
 | IP addresses, VLANs and devices | NetBox | M-23 |
+| Bookmarks with an import from the browser | Browsers | M-25 |
+| News from subscribed feeds | Feed readers | M-26 |
+| An assistant next to the open document | Many | M-13 |
 | Mentions with an inbox | Confluence | M-16 |
 | Calendars in the wiki | Confluence | M-18, as a view of existing dates |
 | Review, comments and issues on changes | Code forges | M-20, on the forge itself |
@@ -103,22 +106,25 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 - **Hierarchy:** any document can have children. A folder is a document without content, with its own icon and with roles like
   any other document.
 - **Three columns:** every view uses nav1 for the view, nav2 for the section and nav3 for the list. Their edges can be dragged, and a
-  column pushes the ones to its right. Nav1 and nav2 snap to icon, icon with text below, text, and icon with text beside it. Settings
-  and Admin sit set apart at the bottom of nav1. A sticky top bar holds the search field and the profile.
-- **Collections:** favorites sit in nav2. A click opens only that one, Ctrl with a click opens several, and a setting offers marking
-  with a double click instead. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
+  column pushes the ones to its right. Nav1 and nav2 snap to icon, icon with text below, text, and icon with text beside it. The private
+  entries, the profile, Settings and Admin sit at the bottom of nav1. A sticky top bar holds New, the search field and the AI drawer.
+  Menus float over the lists, so nothing below them moves.
+- **Collections:** favorites sit in nav2, each with a menu for favorite and settings at every width. A click opens only that one, Ctrl
+  with a click opens several, and a setting offers marking with a double click instead. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
   document, which is then dragged to its place.
-- **Tabs:** everything opens in the general tab, always first in the leftmost window, which the next document replaces. An icon in it
-  makes the document a tab of its own. Dragging sorts tabs, and they snap into place.
+- **Tabs:** every window has a general tab, always its first, and a list opens into the one of the active window. The next document
+  replaces it, and dragging it keeps the document as a tab of its own. Dragging sorts tabs, and they snap into place.
 - **Windows:** one column by default. Dragging a tab to the left or right third of a window opens a new column there, up to four, with a
-  preview first. A window goes with its last tab, and the active one has a clear frame.
+  preview first. A window goes with its last tab, and the active one has a line along its top.
 - **Document tools:** all on one level below the tabs: contents, find on the page, source view, split, gear and more, with a word count below.
 - **Gear at the document:** contents, width, tags and metadata stay behind it, and are stored per document. Contents are a marker,
   a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window. Content starts at the left, next
   to the navigation.
 - **Modules:** an administrator switches them on and off in the admin panel, such as mail or a document type. Off means gone, with no
   data touched.
-- **Private:** a view only its user can see, with to-dos, calendar, time clock, vacation planning and notes.
+- **New and drafts:** typing in New makes a Markdown draft at once. Where it belongs and who sees it can wait.
+- **Private:** entries only their user can see, with to-dos, calendar, time clock, vacation planning and notes.
+- **Files** lists the user's own folder, the share and later more sources. **Bookmarks** and **News** are views of their own.
 - **Metadata:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links, internal
   data, values, databases. It grows with each module.
 - **Tags:** every object can carry them, and a click lists what carries one.
@@ -141,7 +147,7 @@ One topic at a time. Each starts with a talk with the maintainer and closes with
 | 4. Editing | M-6, M-8, M-10, M-20 | Tables first, as they need no JavaScript toolchain, then the editor, working together and review |
 | 5. Connected data | M-4, M-9, M-18, M-19 | Sources under real roles, then inline editing, calendar and forms |
 | 6. In and out | M-7, M-17 | API, reports, WebDAV, import and export |
-| 7. Extras | M-21, M-11, M-12, M-13, M-22, M-23, M-24 | Site builder, drawing, proper search, AI, mail, network documentation, private area |
+| 7. Extras | M-21, M-11, M-12, M-13, M-22, M-23, M-24, M-25, M-26, M-27 | Site builder, drawing, proper search, AI, mail, network documentation, private area, bookmarks, news, more file sources |
 
 The order can change between topics, not during one. M-12 in particular can move forward once there is enough to search.
 

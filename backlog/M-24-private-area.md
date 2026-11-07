@@ -8,7 +8,8 @@ tags: [module, people]
 created: 2026-11-07
 ---
 
-A view in nav1 that only its user can see, as a module an administrator can switch off. Only an idea so far: the talk before this
+Entries at the bottom of nav1 that only their user can see, as a module an administrator can switch off. They open straight into
+the active window, without a view of their own (ADR-16). Only an idea so far: the talk before this
 milestone (ADR-14) settles the scope.
 
 **To settle in that talk:**
