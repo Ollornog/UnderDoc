@@ -37,7 +37,7 @@ is in sight, greyed out. The switch First build in the mockup shows what that lo
 - A table made in a page can be pasted into another page by its address and shows there live, with a link back. Every object and
   block shows where it is used.
 - Every object opens at its own address, also after a move or a rename, and links from M-1 keep working.
-- Access works as ADR-20 says, and comments can be added to a whole document where others may comment.
+- Access works as ADR-20 says, and comments can be added to each element of a page where others may comment.
 - The pages of the folder source from M-1 can be imported, and the whole state can be exported as Markdown and files.
 - The shell parts needed for this are built as ADR-16 describes: nav1 to nav3 with their widths and stages, the Workspace view,
   Search with full text, one window with the general tab and tabs, the document head, the gear with the metadata, comments, and the

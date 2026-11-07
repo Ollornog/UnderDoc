@@ -22,14 +22,15 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   nav2 opens something in nav3, and a click in nav3 opens into the active window. Where a third column adds nothing, nav2 opens
   straight into the window, such as an import or a new subscription.
 - Everything has its own right-click menu: tabs, collections, entries in the lists, sections in nav2 and views in nav1.
-- Nav1 holds the views: Workspace, Files, Resources, Bookmarks, News, modules such as Mail, and Search. Below them follow the private
-  views, and at the bottom, always in sight, the profile. If room runs out, the views scroll.
-- There is no bar of its own. The name, the plus for New and the search field sit above the columns, and the tabs of each window
-  sit in the same row beside them. The button for the AI drawer ends that row. Without nav2 and nav3, only the plus stays there.
+- Nav1 holds the views: Workspace, Files, Resources, News, modules such as Mail, and Search. Below them follow the private views, and at
+  the bottom, always in sight, the profile. If room runs out, the views scroll.
+- There is no bar of its own. The name, the search field and the plus for New sit above the columns, in that order, and the tabs of
+  each window sit in the same row beside them. The button for the AI drawer ends that row. Without nav2 and nav3, only the plus stays
+  there.
 - There is no button to hide the navigation: a second click on the active view hides nav2 and nav3, and the next click brings them
   back.
 - Whatever a list opens lands in the active window.
-- Lists that belong to the user sort by dragging in nav2: to-do lists, calendars, note boards and bookmark folders. Entries that act,
+- Lists that belong to the user sort by dragging in nav2: to-do lists, calendars and note boards. Entries that act,
   such as a new list or an import, sit apart below them.
 - The right edge of each column can be dragged, and a column pushes the ones to its right. Their widths hold in every view.
 - Nav1 and nav2 snap to four stages, in this order: icon, icon with text below, text, icon with text beside it. Nav3 moves freely and
@@ -44,9 +45,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
   back onto nav2 makes it stand on its own again.
 - A collection inside a collection is treated much like a folder for now. What sets the two apart is still open (M-28).
-- New collection sits apart below the list in nav2, like every entry that acts. A right click on the free part of nav2 offers it
-  too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a collection
-  offers a new collection inside it. A new collection opens with its settings, ready to be named.
+- New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
+  offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
+  collection offers a new collection inside it. A new collection opens with its settings, ready to be named.
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
   new in it, favorite, and settings. The settings open in nav3.
 - A collection can be kept open. A click opens a collection and closes every open one that is not kept open. Ctrl with a click,
@@ -56,7 +57,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - Favorite documents join nav2 with M-16. Until accounts exist, the browser keeps the favorites.
 - New with a plus at the heading of a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
-- A click on anything with children in nav3, a folder, a document or a collection, opens it and its children, and a second click
+- A click on an entry in nav3 opens the object, whatever it is: a document, a folder with its overview, or a collection with its
+  page. That page shows the name and description in the head, and the owner, what others may do, who sees it and its entries. A click
+  on the heading of an open collection opens that page too, it does not close the collection. A double click or the arrow opens or
   closes the children. In Files, folders start closed.
 - Ctrl with a click or a middle click on an entry in nav3 opens it as a tab of its own, and the general tab stays as it is.
 
@@ -95,7 +98,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 
 - All buttons for a document sit on one level below the tabs: contents, find on the page with its field right at the magnifier,
   source view, split, comments, gear and more.
-- Comments open in a drawer over the window, like the gear, with their number at the button.
+- Comments belong to an element of the page: a paragraph, heading, list or table, through its ID (ADR-18). Pointing at an element
+  shows a speech bubble beside it, which carries the number of its comments and opens them in a drawer over the window, like the
+  gear. The comments button in the tools lists every commented element of the page.
 - Every table in a page shows a small button with its ID, which copies its address. Pasted into another page, the table shows there
   live, framed and with a link to its source (ADR-18).
 - A menu with no room below the button that opens it opens above it.
@@ -135,7 +140,8 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 
 - Files lists its roots in nav2: the user's own folder, the share, and later further sources a user adds, such as an SMB share,
   WebDAV, SFTP or S3.
-- Bookmarks sit in folders and can be imported from the HTML file every browser exports. Nothing is loaded from the linked sites.
+- Bookmarks are not a view of their own but objects: a bookmark is a document type, placed in folders and collections like any other.
+  New at a collection imports the HTML file every browser exports. Nothing is loaded from the linked sites.
 - News lists entries from subscribed feeds, per user. It comes later.
 
 **AI drawer**

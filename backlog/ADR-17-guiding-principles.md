@@ -24,12 +24,11 @@ principles that every feature is checked against before it is built.
 The third option. These hold for every feature, and an exception needs a reason recorded in a decision.
 
 1. **The same action gets the same reaction, everywhere.** A feature should be guessable from the ones the user already knows.
-   - A click opens only this.
+- A click opens only this. In a list, that is the object itself: a collection opens its page, a folder its overview.
    - Ctrl with a click adds it, or takes it away again, and leaves the rest as it is. For a collection that means keeping it open
      or no longer, which a double click does too, and for a document opening it as a tab of its own, as in a browser.
    - A middle click does what it does in a browser: it opens a tab of its own or closes a tab.
-   - A click on anything with children opens the children in the list, and a second click closes them. This holds for folders,
-     documents and collections alike.
+- A double click or the arrow opens or closes the children of anything in a list, folders, documents and collections alike.
    - A right click opens the menu of what is under the pointer, wherever that is. On the free part of a list it offers what can
      be made there.
    - Several open lists follow one rule, for collections and private lists alike: a click opens one and closes the others that

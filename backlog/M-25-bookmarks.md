@@ -19,8 +19,9 @@ this milestone (ADR-14) settles the scope.
 
 **Done when this is true:**
 
-- Bookmarks have a view in nav1, with folders in nav2 and the links in nav3, and each opens in a tab like a document.
-- The HTML file that every browser exports imports with its folders, and links already there are skipped.
+- A bookmark is a document type, not a view of its own: it sits in folders and collections like any document and opens in a tab
+  (ADR-16).
+- New at a collection imports the HTML file that every browser exports, with its folders, and links already there are skipped.
 - Nothing is loaded from a linked site to show a bookmark, no preview and no icon (ADR-16).
 - Bookmarks export to the same HTML format.
-- Switched off, the module leaves no entry behind, and no data is touched.
+- Switched off, the document type disappears, and no data is touched.
