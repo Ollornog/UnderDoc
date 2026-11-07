@@ -25,8 +25,8 @@ The third option. These hold for every feature, and an exception needs a reason 
 
 1. **The same action gets the same reaction, everywhere.** A feature should be guessable from the ones the user already knows.
    - A click opens only this.
-   - Ctrl with a click adds it, or takes it away again, and leaves the rest as it is. For a collection that means opening it as
-     well or closing it, and for a document opening it as a tab of its own, as in a browser.
+   - Ctrl with a click adds it, or takes it away again, and leaves the rest as it is. For a collection that means keeping it open
+     or no longer, which a double click does too, and for a document opening it as a tab of its own, as in a browser.
    - A middle click does what it does in a browser: it opens a tab of its own or closes a tab.
    - A click on anything with children opens the children in the list, and a second click closes them. This holds for folders,
      documents and collections alike.
@@ -45,7 +45,7 @@ The third option. These hold for every feature, and an exception needs a reason 
 
 - Every mockup round and every milestone talk checks its features against these principles first.
 - ADR-16 records the rules of the workspace as worked examples of the first principle. Its click rule for collections is replaced
-  by Ctrl with a click, and the setting for it goes.
+  by collections kept open, and the setting for it goes.
 - The private area does not fit the second principle yet. Its entries, such as to-dos and time records, may or may not be objects
   with IDs of their own. This stays open until M-24 (ADR-18).
 - The phone needs mockups of its own before its layout is built (T-10).

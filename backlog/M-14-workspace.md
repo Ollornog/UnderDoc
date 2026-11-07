@@ -28,7 +28,8 @@ this milestone completes it.
 - In the Workspace view, nav2 holds every collection, the favorites on top, each with a star. A collection opens its overview in
   the window and can sit inside another one.
 - New with a plus at the heading of a collection is easy to see.
-- A click opens only that collection, and Ctrl with a click opens it as well or closes it again.
+- A click opens a collection and closes the open ones not kept open. Ctrl with a click or a double click keeps it open or stops,
+  marked with a pin.
 - Open collections stack in nav3, each below a small heading with a separator.
 - A page can have subpages. `page.md` next to a folder `page/` appears as one document with children.
 - Folders look like documents, apart from their icon. A click on anything with children in nav3 opens it and them, and a second

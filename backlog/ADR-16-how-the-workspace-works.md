@@ -44,10 +44,12 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
   back onto nav2 makes it stand on its own again.
 - A collection inside a collection is treated much like a folder for now. What sets the two apart is still open (M-28).
-- A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open only this, open as well or close, its
-  overview, new in it, favorite, and settings. The settings open in nav3.
-- A click opens only that collection, and Ctrl with a click opens it as well or closes it again. There is no setting for this and
-  no double click. In nav3, an open collection is a small heading with a separator.
+- A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
+  new in it, favorite, and settings. The settings open in nav3.
+- A collection can be kept open. A click opens a collection and closes every open one that is not kept open. Ctrl with a click,
+  or a double click, keeps it open, or stops and closes it. A pin marks what is kept open, in nav2 and at its heading in nav3, and
+  closing it at its heading stops keeping it open. There is no setting for this. In nav3, an open collection is a small heading
+  with a separator.
 - Favorite documents join nav2 with M-16. Until accounts exist, the browser keeps the favorites.
 - New with a plus at the heading of a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
