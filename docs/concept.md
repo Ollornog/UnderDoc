@@ -107,23 +107,28 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
   any other document.
 - **Three columns:** every view uses nav1 for the view, nav2 for the section and nav3 for the list. Their edges can be dragged, and a
   column pushes the ones to its right. Nav1 and nav2 snap to icon, icon with text below, text, and icon with text beside it. The private
-  entries, the profile, Settings and Admin sit at the bottom of nav1. A sticky top bar holds New, the search field and the AI drawer.
-  Menus float over the lists, so nothing below them moves.
+  views and the profile sit at the bottom of nav1, and the profile holds the settings and the administration. A sticky top bar holds
+  the name, New and the search field at the left, and the AI drawer at the right. Menus float over the lists, so nothing below them
+  moves.
+- **One rule for clicks:** nav1 opens nav2, nav2 opens nav3, nav3 opens into the active window, and a right click opens the menu of
+  what is under it.
 - **Collections:** favorites sit in nav2, each with a menu for favorite and settings at every width. A click opens only that one, Ctrl
   with a click opens several, and a setting offers marking with a double click instead. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
   document, which is then dragged to its place.
 - **Tabs:** every window has a general tab, always its first, and a list opens into the one of the active window. The next document
-  replaces it, and dragging it keeps the document as a tab of its own. Dragging sorts tabs, and they snap into place.
+  replaces it, its arrow lists the last 15, and dragging it keeps the document as a tab of its own. Dragging sorts tabs, and they
+  snap into place. A right click offers what code editors offer: close others, close to the right, close all, close the window.
 - **Windows:** one column by default. Dragging a tab to the left or right third of a window opens a new column there, up to four, with a
   preview first. A window goes with its last tab, and the active one has a line along its top.
 - **Document tools:** all on one level below the tabs: contents, find on the page, source view, split, gear and more, with a word count below.
 - **Gear at the document:** contents, width, tags and metadata stay behind it, and are stored per document. Contents are a marker,
   a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window. Content starts at the left, next
   to the navigation.
-- **Modules:** an administrator switches them on and off in the admin panel, such as mail or a document type. Off means gone, with no
+- **Modules:** an administrator switches them on and off in the administration, such as mail or a document type. Off means gone, with no
   data touched.
-- **New and drafts:** typing in New makes a Markdown draft at once. Where it belongs and who sees it can wait.
-- **Private:** entries only their user can see, with to-dos, calendar, time clock, vacation planning and notes.
+- **New:** always lands in a chosen collection or in Quick notes, and typing is enough.
+- **Private:** views only their user can see, with to-dos, calendar, time clock, vacation planning and notes, each with its own
+  lists in nav2.
 - **Files** lists the user's own folder, the share and later more sources. **Bookmarks** and **News** are views of their own.
 - **Metadata:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links, internal
   data, values, databases. It grows with each module.

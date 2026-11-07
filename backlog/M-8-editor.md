@@ -16,9 +16,9 @@ Pages can be written in the browser as quickly as in a notebook app.
 - The pipeline fully carries the JavaScript part.
 - No free placement on the page.
 - A slash menu inserts blocks, and templates start new pages.
-- New, from the plus in the top bar or a click on an empty general tab: typing and Enter makes a Markdown draft, and a type makes an
-  empty draft of that type. Drafts sit in the Workspace until placed, and show where they can go and who sees them: private, a
-  group or public (ADR-16).
+- New, from the plus in the top bar or a click on an empty general tab, always lands in a chosen collection or in Quick notes, and
+  the last choice stays. Typing and Enter makes a Quick notes card or a Markdown page in the collection. Other types need a
+  collection (ADR-16).
 - Quick notes land in the private notes, without having to choose a place first. They are a document type: small cards on a board,
   with a field on top to add one.
 - Blocks in a page can be aligned left, center or right (ADR-16).
