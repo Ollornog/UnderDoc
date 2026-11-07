@@ -20,7 +20,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ☐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
-* ☐ **[M-14](M-14-workspace.md)** Workspace: three views, hierarchy, page widths and facts — 0/1 erledigt
+* ☐ **[M-14](M-14-workspace.md)** Workspace: three views, hierarchy, page widths and metadata — 0/1 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
@@ -28,6 +28,8 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-19](M-19-forms.md)** Forms and simple surveys — noch keine Aufgaben
 * ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 0/1 erledigt
 * ☐ **[M-21](M-21-websites.md)** Websites: build and publish — 0/1 erledigt
+* ☐ **[M-22](M-22-mail.md)** Mail in the workspace — noch keine Aufgaben
+* ☐ **[M-23](M-23-network-module.md)** IP addresses and devices — noch keine Aufgaben
 
 ## Aufgaben
 

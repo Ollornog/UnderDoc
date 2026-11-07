@@ -12,13 +12,16 @@ Documents open in tabs, and tabs split off into windows, so documents can be rea
 
 **Done when this is true:**
 
-- Everything opens in the first window, in a general tab that the next document replaces.
-- Pinning a tab keeps it, and the next document opens in a new general tab. Opening a document that has a tab there jumps to it.
-- A tab can be moved to another window, duplicated and closed.
-- A tab split off by dragging it to the right edge, with a button or from its menu makes a new window, up to four as columns.
-  A window disappears with its last tab.
+- Every link and list opens in the main window, in the general tab, which the next document replaces.
+- The general tab is always first and looks different from the others.
+- A button keeps the document as a tab of its own at once. Opening a document that has a tab there jumps to it.
+- Dragging sorts tabs and moves them to another window. A tab can also be duplicated and closed.
+- Dragging a tab to the right or left edge opens a new column on that side, up to four, and a button and the tab's menu do the same.
+  A window disappears with its last tab, and the main window stays.
 - Each tab has its own scroll position, and the same document can be open in two tabs and two windows.
-- Each tab offers find on the page and a source view, and a status line counts words, characters and lines.
+- Each tab offers find on the page, with the field right at the magnifier, and a source view. A status line counts words,
+  characters and lines.
 - The layout is part of the URL, so it survives a reload and can be sent as a link.
 - A phone shows one window at a time.
-- **Acceptance: a browser test opens four windows, one document twice, and each one scrolls and navigates on its own.**
+- **Acceptance: a browser test opens four windows, one document twice, sorts tabs by dragging, and each window scrolls and navigates
+  on its own.**

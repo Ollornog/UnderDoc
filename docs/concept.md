@@ -75,6 +75,9 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 | Collections above a tree that is mostly open | OneNote | M-14 |
 | Documents side by side | Code editors | M-15 |
 | Tabs with find on the page, source view and word count | Text editors | M-15 |
+| Quick notes as cards on a board | Google Keep | M-8 |
+| Kanban board | Many | M-6 |
+| IP addresses, VLANs and devices | NetBox | M-23 |
 | Mentions with an inbox | Confluence | M-16 |
 | Calendars in the wiki | Confluence | M-18, as a view of existing dates |
 | Review, comments and issues on changes | Code forges | M-20, on the forge itself |
@@ -95,18 +98,23 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 | **Files** | The folder structure on the disk or share, not strictly one to one | The folder with the images |
 | **Resources** | What has no place in a folder, and every database and view | Values, snippets, connections, external sources |
 
-- **Document types:** folder, page, table, Excel file, image collection, database view, database, and later site. Each is a module.
+- **Document types:** folder, page, table, to-do list, kanban board, Excel file, PowerPoint file, video, image collection, quick notes,
+  database view, database, and later site. Each is a module.
 - **Hierarchy:** any document can have children. A folder is a document without content, with its own icon and with roles like
   any other document.
-- **Icon column:** the views and Search sit at the far left, and each switches the list next to it. Favorites, Inbox and Calendar
-  join when their modules exist. A sticky top bar holds the search field.
-- **Collections:** favorites sit in a strip next to the list as icons, text or both. A click opens or closes one, and open ones stack.
-  A list of all collections has a star and a gear per row. Documents open by themselves up to a set number of children.
-- **Tabs:** everything opens in the first window, in a general tab that the next document replaces. A pinned tab stays. Tabs bring
-  find on the page, a source view and a word count.
-- **Windows:** one column by default. A tab split off makes a new window, up to four, and a window goes with its last tab.
+- **Nav1:** the views and Search sit at the far left, with Profile and Settings set apart at the bottom. Each view switches the
+  navigation next to it, which keeps one width that can be dragged. Favorites, Inbox and Calendar join when their modules exist. A
+  sticky top bar holds the search field.
+- **Collections:** favorites sit in nav2 as icons, text or both. A click opens or closes one, and open ones stack in nav3. A button
+  widens nav2 over nav3 to search and edit all collections. Documents open by themselves up to a set number of children.
+- **Tabs:** everything opens in the general tab, always the first one and marked as such, which the next document replaces. A button
+  keeps a document as its own tab. Dragging sorts tabs. Tabs bring find on the page, a source view and a word count.
+- **Windows:** one column by default. Dragging a tab to the left or right edge opens a new column there, up to four, and a window goes
+  with its last tab.
 - **Gear at the document:** contents, width, tags and metadata stay behind it, and are stored per document. Contents are a marker,
-  a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window.
+  a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window. Content starts at the left, next
+  to the navigation.
+- **Modules:** an administrator switches them on and off, such as mail, network or a document type. Off means gone, with no data touched.
 - **Metadata:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links, internal
   data, values, databases. It grows with each module.
 - **Tags:** every object can carry them, and a click lists what carries one.
@@ -129,7 +137,7 @@ One topic at a time. Each starts with a talk with the maintainer and closes with
 | 4. Editing | M-6, M-8, M-10, M-20 | Tables first, as they need no JavaScript toolchain, then the editor, working together and review |
 | 5. Connected data | M-4, M-9, M-18, M-19 | Sources under real roles, then inline editing, calendar and forms |
 | 6. In and out | M-7, M-17 | API, reports, WebDAV, import and export |
-| 7. Extras | M-21, M-11, M-12, M-13 | Site builder, drawing, proper search, AI |
+| 7. Extras | M-21, M-11, M-12, M-13, M-22, M-23 | Site builder, drawing, proper search, AI, mail, network documentation |
 
 The order can change between topics, not during one. M-12 in particular can move forward once there is enough to search.
 

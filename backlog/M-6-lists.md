@@ -16,5 +16,7 @@ Customers, contacts and the like live in native lists instead of Excel.
 - Pages embed list views and single fields.
 - Excel files can be imported once and exported on a schedule as a marked read-only copy.
 - Personal data can be deleted including history and exports.
-- A native list is the document type table, so it sits in the workspace like a page, and the facts panel adds the lists a
+- A native list is the document type table, so it sits in the workspace like a page, and the metadata adds the lists a
   document uses.
+- A list can also be a to-do list with check boxes or a kanban board with cards to drag. Both are document types and views of the
+  same data, so one can switch to the other.

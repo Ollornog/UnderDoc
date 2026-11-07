@@ -17,6 +17,8 @@ All notable changes to this project are documented in this file. The format foll
 - Plan for a workspace of typed documents with three views: workspace, files and resources (ADR-15).
 - How the workspace looks and works: icon column, favorite collections, tabs, windows that come and go, a gear per document, tags and
   search strategies (ADR-16).
+- Plans for more document types (to-do list, kanban board, video, PowerPoint, quick notes), settings with modules an administrator
+  switches on and off, mail (M-22), and IP addresses and devices (M-23).
 
 ### Added
 
