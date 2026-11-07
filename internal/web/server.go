@@ -11,8 +11,9 @@ import (
 	"time"
 )
 
-// CSP allows only what comes from the application itself, and no inline code at all.
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
+// CSP allows only what comes from the application itself, and no inline code at all. connect-src lets the shell load
+// the window it swaps in from the same origin.
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 // imageCSP is for images opened directly. An SVG is a document that can carry scripts, so it runs sandboxed, and its

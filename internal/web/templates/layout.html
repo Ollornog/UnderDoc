@@ -7,43 +7,96 @@
   <title>{{.Title}} · UnderDoc</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.AssetVersion}}">
+  <link rel="stylesheet" href="/assets/app/shell.css?v={{.AssetVersion}}">
   <script src="/assets/app/theme.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/c22/js/basecoat.min.js?v={{.AssetVersion}}"></script>
-  <script defer src="/assets/c22/js/sidebar.min.js?v={{.AssetVersion}}"></script>
-  <script defer src="/assets/app/app.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/app/shell.js?v={{.AssetVersion}}"></script>
 </head>
 <body>
-  <aside class="sidebar" data-side="left" aria-hidden="false">
-    <nav aria-label="Pages">
-      <header>
-        <a href="/" class="brand px-2 py-1"><img src="/assets/logo.svg" alt="" class="size-6"><span>UnderDoc</span></a>
-        <form action="/search" method="get" role="search" class="px-2 py-1">
-          <input type="search" name="q" class="input" placeholder="Search" aria-label="Search" value="{{.Query}}">
-        </form>
-      </header>
-      <section>
-        <div role="group" aria-label="Folders and pages">
-          <ul>{{template "tree-items" .Tree}}</ul>
-        </div>
-      </section>
-      {{- if .ProblemCount}}
-      <footer>
-        <ul>
-          <li><a role="menuitem" href="/problems">{{template "icon-alert"}}<span>Problems</span><span class="badge ms-auto min-w-5 justify-center px-1.5" data-variant="destructive">{{.ProblemCount}}</span></a></li>
-        </ul>
-      </footer>
-      {{- end}}
-    </nav>
-  </aside>
-  <div class="flex flex-col">
-    <header class="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2">
-      <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Toggle navigation" data-sidebar-toggle>{{template "icon-panel"}}</button>
-      {{template "breadcrumb" .Crumbs}}
-    </header>
-    <main class="p-6">
-      {{template "content" .}}
-    </main>
+<div class="ud-shell" data-ud-shell>
+  {{/* No bar of its own: name, search and New sit above the columns, the tabs of the window beside them (ADR-16). */}}
+  <div class="ud-top">
+    <a href="/" class="ud-brand" title="UnderDoc"><img src="/assets/logo.svg" alt="" class="size-6"><span class="ud-label">UnderDoc</span></a>
+    <form action="/search" method="get" role="search" class="ud-search">
+      <input type="search" name="q" class="input" placeholder="Search /" aria-label="Search" value="{{.Query}}">
+    </form>
+    <span class="ud-icon" aria-disabled="true" title="New: not built yet, it comes with the database (M-28)">{{template "icon-plus"}}</span>
   </div>
+  <div class="ud-tabs" role="tablist" aria-label="Open in this window">
+    <span class="ud-tab" role="tab" aria-selected="true" data-ud-tab title="General tab: the next document replaces it">{{template "icon-page"}}<span class="ud-label">{{.Title}}</span></span>
+  </div>
+  <nav class="ud-nav1" aria-label="Views">
+    <div class="ud-navlist">
+      <a class="ud-navitem" href="/" title="Workspace"{{if eq .View "workspace"}} aria-current="page" data-ud-view{{end}}>{{template "icon-panel"}}<span class="ud-label">Workspace</span></a>
+      {{template "later-view" "files"}}{{template "later-view" "resources"}}{{template "later-view" "news"}}{{template "later-view" "mail"}}
+      <span class="ud-sep"></span>
+      <a class="ud-navitem" href="/search" title="Search"{{if eq .View "search"}} aria-current="page"{{end}}>{{template "icon-search"}}<span class="ud-label">Search</span></a>
+      <span class="ud-fill"></span>
+      <span class="ud-navgroup" title="Only you see this">{{template "icon-lock"}}<span class="ud-label">Private</span></span>
+      {{template "later-view" "todo"}}{{template "later-view" "calendar"}}{{template "later-view" "time"}}{{template "later-view" "vacation"}}{{template "later-view" "notes"}}
+    </div>
+    <div class="ud-navlist ud-bottom">
+      <span class="ud-sep"></span>
+      {{- if .ProblemCount}}
+      <a class="ud-navitem" href="/problems" title="Problems: {{.ProblemCount}}">{{template "icon-alert"}}<span class="ud-label">Problems</span><span class="badge" data-variant="destructive">{{.ProblemCount}}</span></a>
+      {{- end}}
+      <a class="ud-navitem" href="/profile" title="Profile: {{.User.Name}}"{{if eq .View "profile"}} aria-current="page"{{end}}><span class="ud-avatar">{{.User.Initials}}</span><span class="ud-label">Profile</span></a>
+    </div>
+    <span class="ud-grip" data-ud-grip="1" role="separator" aria-orientation="vertical" aria-label="Width of the views" tabindex="0"></span>
+  </nav>
+  <nav class="ud-nav2" aria-label="Collections">
+    <div class="ud-colhead"><span class="ud-label">Collections</span><span class="ud-new" aria-disabled="true" title="New collection: not built yet, it comes with the database (M-28)"><span class="ud-label">New</span>{{template "icon-plus"}}</span></div>
+    <ul class="ud-collections">
+      {{- range .Collections}}
+      <li><a class="ud-navitem" href="{{.Href}}" title="{{.Label}}"{{if .Current}} aria-current="true"{{end}}>{{template "icon-folder"}}<span class="ud-label">{{.Label}}</span></a></li>
+      {{- end}}
+    </ul>
+    <span class="ud-grip" data-ud-grip="2" role="separator" aria-orientation="vertical" aria-label="Width of the collections" tabindex="0"></span>
+  </nav>
+  <nav class="ud-nav3" aria-label="Open collection">
+    {{- with .Open}}
+    <div class="ud-colhead"><a href="{{.Href}}" class="ud-chead" title="Open {{.Label}}">{{.Label}}</a><span class="ud-new" aria-disabled="true" title="New: not built yet, it comes with the database (M-28)"><span class="ud-label">New</span>{{template "icon-plus"}}</span></div>
+    <ul class="ud-tree" data-ud-tree>{{template "tree-items" .Items}}</ul>
+    {{- else}}
+    <p class="ud-hint">Pick a collection.</p>
+    {{- end}}
+    <span class="ud-grip" data-ud-grip="3" role="separator" aria-orientation="vertical" aria-label="Width of the list" tabindex="0"></span>
+  </nav>
+  <main class="ud-main" data-ud-main>
+    {{/* The heading is not part of the content: breadcrumbs with the tags beside them, the title below (ADR-16). */}}
+    <header class="ud-head">
+      <div class="ud-tools">
+        {{template "breadcrumb" .Crumbs}}
+        {{- range .Tags}}<a class="badge" data-variant="outline" href="{{.Href}}">{{.Label}}</a>{{end}}
+        <span class="ud-fill"></span>
+        {{template "tools" .}}
+      </div>
+      <h1 class="ud-title">{{.Title}}</h1>
+      {{- if .Description}}<p class="ud-desc">{{.Description}}</p>{{end}}
+    </header>
+    <div class="ud-scroll">
+      <div class="ud-content">{{template "content" .}}</div>
+    </div>
+    {{template "drawer" .}}
+  </main>
+</div>
 </body>
 </html>
 {{- end}}
+
+{{define "tools"}}{{end}}
+{{define "drawer"}}{{end}}
+
+{{/* Built later means greyed out (ADR-17). */}}
+{{define "later-view"}}
+{{- if eq . "files"}}<span class="ud-navitem" aria-disabled="true" title="Files: not built yet (M-2)">{{template "icon-drive"}}<span class="ud-label">Files</span></span>
+{{- else if eq . "resources"}}<span class="ud-navitem" aria-disabled="true" title="Resources: not built yet (M-3)">{{template "icon-db"}}<span class="ud-label">Resources</span></span>
+{{- else if eq . "news"}}<span class="ud-navitem" aria-disabled="true" title="News: not built yet (M-26)">{{template "icon-globe"}}<span class="ud-label">News</span></span>
+{{- else if eq . "mail"}}<span class="ud-navitem" aria-disabled="true" title="Mail: not built yet (M-22)">{{template "icon-mail"}}<span class="ud-label">Mail</span></span>
+{{- else if eq . "todo"}}<span class="ud-navitem" aria-disabled="true" title="To-do: not built yet (M-24)">{{template "icon-check"}}<span class="ud-label">To-do</span></span>
+{{- else if eq . "calendar"}}<span class="ud-navitem" aria-disabled="true" title="Calendar: not built yet (M-24)">{{template "icon-calendar"}}<span class="ud-label">Calendar</span></span>
+{{- else if eq . "time"}}<span class="ud-navitem" aria-disabled="true" title="Time: not built yet (M-24)">{{template "icon-clock"}}<span class="ud-label">Time</span></span>
+{{- else if eq . "vacation"}}<span class="ud-navitem" aria-disabled="true" title="Vacation: not built yet (M-24)">{{template "icon-sun"}}<span class="ud-label">Vacation</span></span>
+{{- else if eq . "notes"}}<span class="ud-navitem" aria-disabled="true" title="Notes: not built yet (M-24)">{{template "icon-note"}}<span class="ud-label">Notes</span></span>
+{{- end}}
+{{end}}

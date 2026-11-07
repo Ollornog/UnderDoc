@@ -41,8 +41,32 @@ var engine = goldmark.New(
 
 // Front is the front matter a page may start with. All other keys are ignored.
 type Front struct {
-	ID    string `yaml:"id"`
-	Title string `yaml:"title"`
+	ID          string `yaml:"id"`
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Tags        Tags   `yaml:"tags"`
+}
+
+// Tags accepts a YAML list as well as one string with commas, since both are common in hand-written front matter.
+type Tags []string
+
+// UnmarshalYAML reads either form.
+func (t *Tags) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		*t = nil
+		for _, part := range strings.Split(node.Value, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				*t = append(*t, part)
+			}
+		}
+		return nil
+	}
+	var list []string
+	if err := node.Decode(&list); err != nil {
+		return err
+	}
+	*t = list
+	return nil
 }
 
 // Page is a parsed page that has not been rendered yet.

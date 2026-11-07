@@ -4,6 +4,7 @@ package markdown
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -271,5 +272,26 @@ func TestContents(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("entry %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+func TestDescriptionAndTags(t *testing.T) {
+	for name, c := range map[string]struct {
+		source string
+		tags   []string
+	}{
+		"list":   {"---\ndescription: One line.\ntags: [network, main-site]\n---\nText", []string{"network", "main-site"}},
+		"string": {"---\ndescription: One line.\ntags: network, main-site\n---\nText", []string{"network", "main-site"}},
+		"none":   {"---\ndescription: One line.\n---\nText", nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			page := Parse([]byte(c.source))
+			if page.FrontError != nil || page.Front.Description != "One line." || !slices.Equal([]string(page.Front.Tags), c.tags) {
+				t.Errorf("got %q %q %v", page.Front.Description, page.Front.Tags, page.FrontError)
+			}
+		})
+	}
+	if page := Parse([]byte("---\ntags: {a: b}\n---\nText")); page.FrontError == nil {
+		t.Error("a map is no list of tags and must be reported")
 	}
 }

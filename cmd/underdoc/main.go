@@ -9,9 +9,11 @@
 //	UNDERDOC_HEALTH_ADDR    address of the health endpoint ("127.0.0.1:8081")
 //	UNDERDOC_SCAN_INTERVAL  how often the folder is checked for changes ("2s")
 //	UNDERDOC_DEV_UI         "1" turns on the component gallery at /dev/ui
+//	UNDERDOC_ADMIN_GROUP    the group of the gate whose members see the administration ("underdoc-admins")
+//	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
 //
-// There is no sign-in in the application: it must only be reachable through a sign-in gate. That is why it binds to
-// loopback unless told otherwise.
+// There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
+// request headers. That is why it binds to loopback unless told otherwise, and answers nothing without those headers.
 package main
 
 import (
@@ -24,6 +26,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/version"
@@ -84,7 +87,12 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	if err := store.Refresh(); err != nil {
 		return err
 	}
-	handler, err := web.New(store, log, web.Options{DevUI: os.Getenv("UNDERDOC_DEV_UI") == "1"})
+	options := web.Options{DevUI: os.Getenv("UNDERDOC_DEV_UI") == "1", AdminGroup: env("UNDERDOC_ADMIN_GROUP", "underdoc-admins")}
+	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
+		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}
+		log.Warn("UNDERDOC_DEV_USER is set: every request counts as signed in, never use this behind a real gate", slog.String("user", login))
+	}
+	handler, err := web.New(store, log, options)
 	if err != nil {
 		return err
 	}

@@ -38,11 +38,13 @@ There are no releases yet. Build it from source with Go or Docker, as shown belo
 
 ## Try it
 
-UnderDoc has no sign-in of its own, so it binds to loopback by default. Put a sign-in gate in front of it before anyone
-else can reach it.
+UnderDoc has no sign-in of its own, so it binds to loopback by default. A sign-in gate in front of it checks who someone
+is and passes that on in the headers `Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email` and `Remote-Groups`, which
+the gate must remove from every incoming request first. Without `Remote-User`, UnderDoc shows only a page that says so.
+To try it on your own machine, let a made-up user stand in for the gate:
 
 ```bash
-go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
+UNDERDOC_DEV_USER=me go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
 
 docker build -t underdoc .
 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
@@ -56,6 +58,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_HEALTH_ADDR` | Address of `GET /healthz` | `127.0.0.1:8081` |
 | `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
+| `UNDERDOC_ADMIN_GROUP` | Group of the gate whose members see the administration | `underdoc-admins` |
+| `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 
 **Writing pages:**
 
@@ -66,6 +70,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
   ---
   id: network-plan
   title: Network plan
+  description: Router, switches and the radio link.
+  tags: [network, main-site]
   ---
   ```
 
