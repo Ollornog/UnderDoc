@@ -8,8 +8,8 @@ tags: [module]
 created: 2026-11-07
 ---
 
-Network documentation as a module an administrator can switch off, with ideas from tools such as NetBox. Only an idea so far: the
-talk before this milestone (ADR-14) settles the scope.
+Network documentation as document types an administrator can switch off, with ideas from tools such as NetBox. Only an idea so far:
+the talk before this milestone (ADR-14) settles the scope.
 
 **To settle in that talk:**
 
@@ -18,7 +18,7 @@ talk before this milestone (ADR-14) settles the scope.
 
 **Done when this is true:**
 
-- Nav1 shows Network, nav3 lists IP ranges, VLANs and devices, and each opens in a tab like a document.
+- IP ranges and device lists are document types, so they sit in the workspace like any other document, with roles, tags and children.
 - Pages embed a range or a device, and a value (M-3) can come from an address, so a changed address shows everywhere.
 - It documents what should be. It does not scan the network.
-- Switched off, the module leaves no entry behind, and no data is touched.
+- Switched off, the types disappear, and no data is touched.

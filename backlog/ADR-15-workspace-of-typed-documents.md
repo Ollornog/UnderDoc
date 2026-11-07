@@ -28,7 +28,7 @@ The third option.
 - **Folders stay, as a document type without content.** Apart from their icon they look like documents (ADR-16). A folder has
   children, roles and everything else a document has.
 - **Document types:** folder, page, table, to-do list, kanban board, Excel file, PowerPoint file, video, image collection, quick
-  notes, database view, database, and later site (M-21). Each type is a module (ADR-14).
+  notes, IP range, device list, database view, database, and later site (M-21). Each type is a module (ADR-14).
 - **Files:** a tab with the folder structure on the disk or share, where images and the like are stored. It follows the disk
   closely but not strictly: temp and lock files stay hidden, for example.
 - **Resources:** a tab for what has no place in a folder, such as values, snippets, connections and external sources. It also
