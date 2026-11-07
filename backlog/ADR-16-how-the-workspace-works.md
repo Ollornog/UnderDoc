@@ -10,19 +10,23 @@ created: 2026-11-07
 ## Context
 
 T-5 put seven questions into clickable mockups with two or three variants each. The maintainer's choice mixed variants and
-added what the mockups did not show, such as tabs inside a window. Five more rounds merged all of it.
+added what the mockups did not show, such as tabs inside a window. Six more rounds merged all of it.
 
 ## Decision
 
 **Navigation**
 
 - Three columns, called nav1, nav2 and nav3. Every view uses all three: nav1 picks the view, nav2 the section, nav3 lists what is in it.
-- The same kind of click gets the same kind of reaction everywhere. A click in nav1 opens something in nav2, a click in nav2 opens
-  something in nav3, and a click in nav3 opens into the active window. A right click opens the menu of what is under it.
+- The same kind of click gets the same kind of reaction everywhere. As a rule, a click in nav1 opens something in nav2, a click in
+  nav2 opens something in nav3, and a click in nav3 opens into the active window. Where a third column adds nothing, nav2 opens
+  straight into the window, such as an import or a new subscription.
+- Everything has its own right-click menu: tabs, collections, entries in the lists, sections in nav2 and views in nav1.
 - Nav1 holds the views: Workspace, Files, Resources, Bookmarks, News, modules such as Mail, and Search. Below them follow the private
   views, and at the bottom, always in sight, the profile. If room runs out, the views scroll.
-- The top bar holds, from the left, the name, a plus for New and the search field, and at the right a button for the AI drawer. There
-  is no button to hide the navigation: a second click on the active view hides nav2 and nav3, and the next click brings them back.
+- There is no bar of its own. The name, the plus for New and the search field sit above the columns, and the tabs of each window
+  sit in the same row beside them. The button for the AI drawer ends that row. Without nav2 and nav3, only the plus stays there.
+- There is no button to hide the navigation: a second click on the active view hides nav2 and nav3, and the next click brings them
+  back.
 - Whatever a list opens lands in the active window.
 - Lists that belong to the user sort by dragging in nav2: to-do lists, calendars, note boards and bookmark folders. Entries that act,
   such as a new list or an import, sit apart below them.
@@ -33,19 +37,20 @@ added what the mockups did not show, such as tabs inside a window. Five more rou
 
 **Collections**
 
-- Nav2 holds the favorite collections, stacked. The Collections button at its top shows all of them in nav2, and its search field
-  takes the place of the button, so the list does not move. In the narrowest stage the field floats next to it.
-- Every collection has a menu, behind three dots on hover or a right click, at every width: open only this, open as well, favorite,
-  and settings. The settings open in nav3.
+- Nav2 holds the favorite collections, stacked. The Collections button at its top lists all of them in nav3, with a search, a star
+  and a gear each, sorted by dragging. A second click goes back to the open collections.
+- A right click on a collection, in nav2, in that list or on its heading in nav3, opens its menu: open only this, open as well,
+  close, new in it, favorite, and settings. The settings open in nav3.
 - By default, a click opens only that collection and Ctrl with a click opens several. A setting changes this: a click marks, so
   several stay open, and a double click opens only that one. In nav3, a collection is a small heading with a separator.
 - Nav2 holds collections for now. Favorite documents join with M-16. Until accounts exist, the browser keeps the favorites.
-- A plus at a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
+- New with a plus at the heading of a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
+- A click on a folder in nav3 opens it there and shows its overview, and a second click closes it. In Files, folders start closed.
 
 **New**
 
-- The plus in the top bar opens New, and so does a click on an empty general tab or a double click on the empty part of a tab row.
+- The plus in the top row opens New, and so does a double click on the empty part of a tab row.
 - New always lands somewhere: in a collection chosen at its top, or in Quick notes. The last choice stays, and there are no drafts.
 - Typing and Enter makes a card in Quick notes, or a Markdown page at the top of the chosen collection, from where it is dragged to
   its place. Other document types need a collection.
@@ -54,10 +59,11 @@ added what the mockups did not show, such as tabs inside a window. Five more rou
 
 - Every window has its own general tab, always its first tab. A list opens into the general tab of the active window, and the next
   document replaces it.
-- The general tab looks different from the others. Empty, it is an empty tab as wide as a normal one and carries no icon.
-- The active general tab has an arrow that lists what was opened in it, up to 15 documents, to open one again.
-- Dragging the general tab keeps its document as a tab of its own where it lands, and the general tab stays, empty. The tab menu
-  does the same.
+- The general tab looks different from the others, and it only exists while it holds a document. There is no empty tab.
+- One click on it selects it, like any tab. What was opened in it before lies below it, drawn as a stack of tabs, and its arrow lists
+  those, up to 15, to open one again. The arrow means history, the right click means actions.
+- When the general tab gives up its document, by closing it or keeping it as a tab of its own, the one opened before takes its
+  place. Dragging the general tab keeps its document as a tab where it lands. The tab menu does the same.
 - Opening a document that already has a tab in that window jumps to the tab.
 - Dragging sorts tabs and moves them to another window, and a dragged tab snaps: it takes its place in the row, and the others make
   room.
@@ -65,6 +71,14 @@ added what the mockups did not show, such as tabs inside a window. Five more rou
   to the right or left, close all, duplicate or keep, copy path, move to a new column or another window, and close the window. A
   middle click closes a tab. A button at the end of the row lists all tabs of the window.
 - Tabs shrink like browser tabs, so none hides beyond the edge of a narrow window.
+
+**Head of a document**
+
+- The heading is not part of the content. Title, description, when it was created and changed and by whom, and tags sit above the
+  content, with the breadcrumbs and the document tools.
+- Three variants are on the table. A shows the title in the breadcrumbs only, and everything else stays in the metadata. B adds one
+  line with description, tags and the last change. C adds a head with title, description, type, created, changed, path and tags.
+  The maintainer picks one in T-5. What the head leaves out stays in the metadata behind the gear.
 
 **Document tools**
 
@@ -78,7 +92,7 @@ added what the mockups did not show, such as tabs inside a window. Five more rou
 - A window appears when a tab is split off, up to four, and it brings its own general tab. Dragging a tab to the left or right third
   of a window opens a column on that side, and a preview shows the result first. A button and the menu do the same.
 - The active window has a line along its top, and the others step back a little.
-- A window disappears when only its empty general tab is left, unless it is the last one. With more than one window, each has a
+- A window disappears when it has no tab left, unless it is the last one. With more than one window, each has a
   button to close it with all its tabs.
 
 **One document, one gear**
@@ -99,6 +113,8 @@ added what the mockups did not show, such as tabs inside a window. Five more rou
 - Nav2 picks the strategy: exact words, full text or similar meaning, and an AI answer on top if one is set up. Filters by type and
   tags stay behind a button. Hits come with the matching text, and Enter opens the first.
 - Every object can carry tags, and a click on a tag lists what carries it.
+- A saved search is a document type: a query with strategy, filters and sources, placed in a collection like any document. It runs
+  again each time it opens.
 
 **Files, bookmarks and news**
 

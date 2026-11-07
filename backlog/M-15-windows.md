@@ -14,10 +14,11 @@ Documents open in tabs, and tabs split off into windows, so documents can be rea
 
 - Every window has its own general tab, always its first tab. Every link and list opens in the general tab of the active window, and
   the next document replaces it.
-- The general tab looks different from the others. Empty, it is an empty tab as wide as a normal one, without an icon, and a click
-  on it opens New once editing exists (M-8). Active, it has an arrow listing the last 15 documents opened in it.
-- Dragging the general tab keeps its document as a tab of its own where it lands, and the general tab stays, empty. Opening a
-  document that has a tab in that window jumps to it.
+- The general tab looks different from the others and only exists while it holds a document. One click selects it. What was opened
+  in it before shows as a stack of tabs below it, and its arrow lists the last 15.
+- When the general tab gives up its document, by closing it, keeping it or dragging it to a place of its own, the one opened before
+  takes its place. Opening a document that has a tab in that window jumps to it.
+- The tabs sit in the top row, beside the name and the search field above the columns.
 - Dragging sorts tabs and moves them to another window, and a dragged tab snaps into its place while the others make room.
 - A right click on a tab and the dots below the tabs show the same menu: close, close others, close to the right or left, close all,
   duplicate or keep, copy path, move, and close the window. A middle click closes a tab, a double click on the empty part of the row

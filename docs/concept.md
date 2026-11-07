@@ -102,24 +102,26 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 | **Resources** | What has no place in a folder, and every database and view | Values, snippets, connections, external sources |
 
 - **Document types:** folder, page, table, to-do list, kanban board, Excel file, PowerPoint file, video, image collection, quick notes,
-  IP range, device list, database view, database, and later site. Each is a module.
+  saved search, IP range, device list, database view, database, and later site. Each is a module.
 - **Hierarchy:** any document can have children. A folder is a document without content, with its own icon and with roles like
   any other document.
 - **Three columns:** every view uses nav1 for the view, nav2 for the section and nav3 for the list. Their edges can be dragged, and a
   column pushes the ones to its right. Nav1 and nav2 snap to icon, icon with text below, text, and icon with text beside it. The private
-  views and the profile sit at the bottom of nav1, and the profile holds the settings and the administration. A sticky top bar holds
-  the name, New and the search field at the left, and the AI drawer at the right. Menus float over the lists, so nothing below them
+  views and the profile sit at the bottom of nav1, and the profile holds the settings and the administration. The name, New and the
+  search field sit above the columns, and the tabs share that row. Menus float over the lists, so nothing below them
   moves.
-- **One rule for clicks:** nav1 opens nav2, nav2 opens nav3, nav3 opens into the active window, and a right click opens the menu of
-  what is under it.
-- **Collections:** favorites sit in nav2, each with a menu for favorite and settings at every width. A click opens only that one, Ctrl
+- **One rule for clicks:** as a rule nav1 opens nav2, nav2 opens nav3, nav3 opens into the active window. Everything has its own
+  right-click menu.
+- **Collections:** favorites sit in nav2, and Collections lists all of them in nav3 with stars and gears. A click opens only that one, Ctrl
   with a click opens several, and a setting offers marking with a double click instead. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
   document, which is then dragged to its place.
 - **Tabs:** every window has a general tab, always its first, and a list opens into the one of the active window. The next document
-  replaces it, its arrow lists the last 15, and dragging it keeps the document as a tab of its own. Dragging sorts tabs, and they
+  replaces it, the older ones show as a stack with an arrow to list the last 15, and dragging it keeps the document as a tab of its
+  own. Dragging sorts tabs, and they
   snap into place. A right click offers what code editors offer: close others, close to the right, close all, close the window.
 - **Windows:** one column by default. Dragging a tab to the left or right third of a window opens a new column there, up to four, with a
   preview first. A window goes with its last tab, and the active one has a line along its top.
+- **Head:** the heading is not part of the content. Title, description, dates and tags sit above it with the breadcrumbs.
 - **Document tools:** all on one level below the tabs: contents, find on the page, source view, split, gear and more, with a word count below.
 - **Gear at the document:** contents, width, tags and metadata stay behind it, and are stored per document. Contents are a marker,
   a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window. Content starts at the left, next
