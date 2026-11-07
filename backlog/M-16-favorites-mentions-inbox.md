@@ -12,7 +12,8 @@ What concerns one person is in one place. This needs known users and comments fr
 
 **Done when this is true:**
 
-- Favorites and recently viewed documents per user, each with its own tab.
+- Favorites and recently viewed documents per user, each with its own view in the icon column.
+- Favorite collections move from the browser (M-14) to the account.
 - `@name` in a comment or page mentions a person.
 - An inbox tab lists mentions and replies, with read and unread.
 - A mention grants nothing: if the person cannot read the document, the author is told, and the inbox reveals no content.

@@ -74,6 +74,7 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 | Tags that can be searched, text in images | OneNote | M-12 |
 | Collections above a tree that is mostly open | OneNote | M-14 |
 | Documents side by side | Code editors | M-15 |
+| Tabs with find on the page, source view and word count | Text editors | M-15 |
 | Mentions with an inbox | Confluence | M-16 |
 | Calendars in the wiki | Confluence | M-18, as a view of existing dates |
 | Review, comments and issues on changes | Code forges | M-20, on the forge itself |
@@ -83,7 +84,8 @@ Concepts only. No code, text, translations or assets from these tools, see [ADR-
 ## Workspace
 
 A small shell holds everything, and modules plug into it ([ADR-14](../backlog/ADR-14-one-topic-at-a-time.md)). Variants
-are clicked through as mockups before any of this is built (T-5).
+are clicked through as mockups before any of this is built (T-5), and the choice is in
+[ADR-16](../backlog/ADR-16-how-the-workspace-works.md).
 
 Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed-documents.md)):
 
@@ -94,14 +96,20 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
 | **Resources** | What has no place in a folder, and every database and view | Values, snippets, connections, external sources |
 
 - **Document types:** folder, page, table, Excel file, image collection, database view, database, and later site. Each is a module.
-- **Hierarchy:** any document can have children. A folder is a document without content that the navigation shows differently,
-  and it has roles like any other document.
-- **Tabs:** a sticky top bar holds the views. Favorites, Inbox and Calendar join when their modules exist.
-- **Tree:** the left navigation stays, slimmer, with collections above it. Documents open by themselves up to a set number of children.
-- **Windows:** 1 to 4 columns, each with its own document and table of contents. One document can be open twice.
-- **Page width:** slim, wide or full, where full hides the rail. It is stored in the document's metadata.
-- **Facts panel:** name, type, width, both locations, who created it, who can see it, and what it uses: external and internal links,
-  internal data, values, databases. It grows with each module.
+- **Hierarchy:** any document can have children. A folder is a document without content, with its own icon and with roles like
+  any other document.
+- **Icon column:** the views and Search sit at the far left, and each switches the list next to it. Favorites, Inbox and Calendar
+  join when their modules exist. A sticky top bar holds the search field.
+- **Collections:** favorites sit in a strip next to the list as icons, text or both. A click opens or closes one, and open ones stack.
+  A list of all collections has a star and a gear per row. Documents open by themselves up to a set number of children.
+- **Tabs:** everything opens in the first window, in a general tab that the next document replaces. A pinned tab stays. Tabs bring
+  find on the page, a source view and a word count.
+- **Windows:** one column by default. A tab split off makes a new window, up to four, and a window goes with its last tab.
+- **Gear at the document:** contents, width, tags and metadata stay behind it, and are stored per document. Contents are a marker,
+  a side panel or hidden. Width is slim, wide or full, where full uses all the room in its window.
+- **Metadata:** name, type, both locations, who created it, who can see it, and what it uses: external and internal links, internal
+  data, values, databases. It grows with each module.
+- **Tags:** every object can carry them, and a click lists what carries one.
 
 ## Two kinds of data
 

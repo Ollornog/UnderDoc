@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file. The format foll
 - Plans for the workspace with tabs and windows, favorites and inbox, import and export, calendar, forms, reviews through Git
   and a site builder (M-14 to M-21), and an order of work: one topic at a time, built as modules (ADR-14).
 - Plan for a workspace of typed documents with three views: workspace, files and resources (ADR-15).
+- How the workspace looks and works: icon column, favorite collections, tabs, windows that come and go, a gear per document, tags and
+  search strategies (ADR-16).
 
 ### Added
 
