@@ -13,13 +13,16 @@ runs on the read-only wiki, with pages as the first document type. T-5 settles h
 
 **Done when this is true:**
 
-- A sticky top bar holds the search field and the profile. Nav1, at the far left, holds the views and Search, and at the bottom, set
-  apart, Settings and Admin. A module with nothing to show adds no entry.
-- Every view uses nav1, nav2 and nav3: view, section, list. What a list opens lands in the same content area.
+- A sticky top bar holds the search field, and places for New and the AI drawer that show only when a module fills them. Nav1, at the
+  far left, holds the views and Search, and at the bottom, always in sight, the profile, Settings and Admin. A module with nothing to
+  show adds no entry.
+- Every view uses nav1, nav2 and nav3: view, section, list. What a list opens lands in the active window.
+- Menus float over the lists, so opening one moves nothing below it.
 - The right edge of each column can be dragged, a column pushes the ones to its right, and widths hold in every view. Nav1 and nav2 snap
-  to icon, icon with text below, text, and icon with text beside it. Nav3 moves freely.
-- In the Workspace view, nav2 holds the favorite collections, and a Collections button shows all of them there with search, stars and
-  gears. Until accounts exist, the browser keeps the favorites.
+  to icon, icon with text below, text, and icon with text beside it. Nav3 moves freely. Nav1 starts at the icon stage.
+- In the Workspace view, nav2 holds the favorite collections, and a Collections button shows all of them there. Its search field takes
+  the place of the button. Every collection has a menu behind three dots or a right click, at every width, with favorite and
+  settings. Until accounts exist, the browser keeps the favorites.
 - A click opens only that collection and Ctrl with a click opens several. A setting changes this to a click that marks and a double
   click that opens only that one.
 - Open collections stack in nav3, each below a small heading with a separator.
@@ -27,7 +30,8 @@ runs on the read-only wiki, with pages as the first document type. T-5 settles h
 - Folders look like documents, apart from their icon.
 - Documents open by themselves up to a set number of children, and what the reader opens or closes wins.
 - The Files view shows the folder structure on disk, including images, and opening a folder lists its content with size, date
-  and place in the workspace.
+  and place in the workspace. Nav2 lists the roots: the share for now, the user's own folder once accounts exist (M-5), and more
+  sources later (M-27).
 - The Resources view groups what has no place in a folder. Modules fill it, and an empty group does not appear.
 - A gear at the document opens a drawer with contents, width, tags and metadata.
 - Contents and width are part of a document's metadata, in the front matter. Contents default to a marker with a drop-down, or

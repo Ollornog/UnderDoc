@@ -12,18 +12,22 @@ Documents open in tabs, and tabs split off into windows, so documents can be rea
 
 **Done when this is true:**
 
-- Every link and list opens in the general tab, which the next document replaces.
-- The general tab is always the first tab of the leftmost window, looks different from the others and cannot be dragged.
-- An icon in the general tab opens its document as a tab of its own at once. Opening a document that has a tab there jumps to it.
+- Every window has its own general tab, always its first tab. Every link and list opens in the general tab of the active window, and
+  the next document replaces it.
+- The general tab looks different from the others. Empty, it is an empty tab without an icon, and a click on it opens New once
+  editing exists (M-8).
+- Dragging the general tab keeps its document as a tab of its own where it lands, and the general tab stays, empty. Opening a
+  document that has a tab in that window jumps to it.
 - Dragging sorts tabs and moves them to another window, and a dragged tab snaps into its place while the others make room. A tab can
   also be duplicated and closed. Tabs shrink like browser tabs, so none hides beyond the edge.
 - Dragging a tab to the left or right third of a window opens a new column on that side, up to four, and a preview shows the result
-  first. A button and the menu do the same. A column on the far left takes the general tab along.
-- The active window has a clear frame. A window disappears with its last tab, except the leftmost one. Windows have no numbers.
+  first. A button and the menu do the same. A new column brings its own general tab.
+- The active window has a line along its top, and the others step back a little. A window disappears when only its empty general
+  tab is left, unless it is the last one. Windows have no numbers.
 - Each tab has its own scroll position, and the same document can be open in two tabs and two windows.
 - All buttons for a document sit on one level below the tabs. Find on the page has its field right at the magnifier, and a status line
   counts words, characters and lines.
 - The layout is part of the URL, so it survives a reload and can be sent as a link.
 - A phone shows one window at a time.
-- **Acceptance: a browser test with real pointer input opens four windows, one document twice, sorts tabs by dragging, and each window
-  scrolls and navigates on its own.**
+- **Acceptance: a browser test with real pointer input opens four windows, one document twice, sorts tabs by dragging, drags a general tab
+  into another window, and each window scrolls and navigates on its own.**

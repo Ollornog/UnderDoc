@@ -31,6 +31,9 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-22](M-22-mail.md)** Mail in the workspace — noch keine Aufgaben
 * ☐ **[M-23](M-23-network-module.md)** IP addresses and devices — noch keine Aufgaben
 * ☐ **[M-24](M-24-private-area.md)** Private area — noch keine Aufgaben
+* ☐ **[M-25](M-25-bookmarks.md)** Bookmarks — noch keine Aufgaben
+* ☐ **[M-26](M-26-news.md)** News from subscribed feeds — noch keine Aufgaben
+* ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 
 ## Aufgaben
 
