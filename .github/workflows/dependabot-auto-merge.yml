@@ -134,7 +134,7 @@ jobs:
           # --- je Repo: Anfang
           # Ökosysteme, die die Pflicht-Checks dieses Repos abnehmen (Branch `dependabot/<ökosystem>/…`).
           # Je Ökosystem gehört hierher, WELCHER Job es abnimmt.
-          AUTO_OEKO: "github_actions gomod"
+          AUTO_OEKO: "github_actions gomod docker"
           # Die Workflows, deren Jobs die Abnahme sind. Jeder läuft auf `pull_request` ohne Pfadfilter.
           PFLICHT_WORKFLOWS: "ci.yml audit.yml"
           # --- je Repo: Ende
