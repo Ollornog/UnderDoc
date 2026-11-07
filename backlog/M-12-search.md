@@ -19,6 +19,8 @@ order: this can move forward as soon as there is enough content to search.
 - Passwords are never indexed.
 - Search offers the strategies exact words and full text (ADR-16).
 - A command palette jumps to pages and folders by keyboard.
+- A saved search is a document type: a query with strategy, filters and sources, placed in a collection, that runs again each time
+  it opens (ADR-16).
 - Tags from the front matter and in the text can be searched and listed.
 - Text inside images can be found, if measuring shows that OCR is worth its cost.
 - PostgreSQL full-text search has been measured against real content before any separate search service is added.

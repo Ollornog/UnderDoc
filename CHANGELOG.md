@@ -25,7 +25,8 @@ All notable changes to this project are documented in this file. The format foll
   switches on and off, mail (M-22), IP addresses and devices (M-23), and a private area (M-24).
 - Plans for bookmarks (M-25), news from feeds (M-26) and more file sources (M-27). Every window gets its own general tab with a
   history, tabs behave as in code editors, New lands in a chosen collection or in Quick notes, one rule for clicks holds in every
-  view, settings move into the profile, and an AI drawer sits at the right edge (ADR-16).
+  view, settings move into the profile, and an AI drawer sits at the right edge. The tabs share the top row, the heading moves out
+  of the content, and saved searches become a document type (ADR-16).
 
 ### Added
 
