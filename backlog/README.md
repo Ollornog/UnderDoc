@@ -21,7 +21,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
 * ☐ **[M-14](M-14-workspace.md)** Workspace: three views, hierarchy, page widths and facts — 0/1 erledigt
-* ☐ **[M-15](M-15-windows.md)** Windows: documents side by side — 0/1 erledigt
+* ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
 * ☐ **[M-18](M-18-calendar.md)** Calendar — noch keine Aufgaben
@@ -62,3 +62,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-13](ADR-13-documents-and-folders.md)** Documents are objects, the folder tree is separate
 * ☑ **[ADR-14](ADR-14-one-topic-at-a-time.md)** One topic at a time, built as modules
 * ☑ **[ADR-15](ADR-15-workspace-of-typed-documents.md)** A workspace of typed documents, with three views
+* ☑ **[ADR-16](ADR-16-how-the-workspace-works.md)** How the workspace looks and works

@@ -20,3 +20,10 @@ navigation is the baseline. They are thrown away afterwards.
 7. **Page widths:** slim, wide and full.
 
 **Done when:** the choice for each question is recorded in a decision, and M-14 and M-15 are updated to match.
+
+The choice is recorded in ADR-16, from a first round with variants and a merged second round. Still to confirm with the
+maintainer against the second round:
+
+- The gear opens as a drawer over its window. The question about the facts panel was not answered directly.
+- Favorite collections stay in the browser until accounts exist, and move to the account with M-16.
+- The strip holds collections for now. Favorite documents join with M-16.

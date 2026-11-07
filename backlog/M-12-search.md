@@ -17,6 +17,7 @@ order: this can move forward as soon as there is enough content to search.
 - German works: word forms, compounds as far as possible, typing errors.
 - Filters by library, type, author and date, with highlighted hits.
 - Passwords are never indexed.
+- Search offers the strategies exact words and full text (ADR-16).
 - A command palette jumps to pages and folders by keyboard.
 - Tags from the front matter and in the text can be searched and listed.
 - Text inside images can be found, if measuring shows that OCR is worth its cost.
