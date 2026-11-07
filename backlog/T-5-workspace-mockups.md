@@ -22,5 +22,6 @@ navigation is the baseline. They are thrown away afterwards.
 **Done when:** the choice for each question is recorded in a decision, and M-14 and M-15 are updated to match.
 
 The choice is recorded in ADR-16, from a first round with variants and seven merged rounds. The eighth round settled the document
-head and the clicks, and led to the principles of ADR-17. What is left is the maintainer's look at the eighth round. The phone
-layout has a task of its own (T-10).
+head and the clicks, and led to the principles of ADR-17. The ninth added new collections, private lists that open like
+collections, access levels, comments and tables embedded by their ID. What is left is the maintainer's look at the ninth round.
+The phone layout has a task of its own (T-10).

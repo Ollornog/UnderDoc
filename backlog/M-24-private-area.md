@@ -26,5 +26,7 @@ milestone (ADR-14) settles the scope.
   several calendars including imported ones, periods, years and note boards.
 - A calendar can be imported from a file or read from an address.
 - Entries and whole lists open in a tab like a document.
+- Its lists open like collections: a click opens one and closes those not kept open, and Ctrl with a click or a double click keeps
+  one open (ADR-16).
 - A user can export and delete all of their private data.
 - Switched off, the module leaves no entry behind, and no data is touched.

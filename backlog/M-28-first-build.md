@@ -8,38 +8,42 @@ tags: [shell, people, architecture]
 created: 2026-11-07
 ---
 
-The maintainer wants the basics of the mockup to become real: the gate, an account, collections and documents as objects with IDs
-(ADR-17, ADR-18). This takes a first part of the shell from M-14, the account from M-5 and the database from M-2. Everything else
-that ADR-16 describes is in sight, greyed out. The mockup has a switch, First build, that shows what that looks like. This is a
-draft: the talk before the milestone (ADR-14) settles the scope.
+The basics of the mockup become real: the gate, an account, collections, and documents as objects with IDs (ADR-17, ADR-18). This
+takes a first part of the shell from M-14, the account from M-5 and the database from M-2. Everything else that ADR-16 describes
+is in sight, greyed out. The switch First build in the mockup shows what that looks like.
 
-**To settle in that talk:**
+**Settled in the talk on 2026-11-07:**
 
-- The ID model of ADR-18.
-- What sets a collection apart from a folder, now that a collection can sit inside another. Until that is settled, both behave
-  alike: an object with children, a place and roles.
-- PostgreSQL arriving now instead of with M-2. The order of work in the concept changes with it.
-- Where pages live. Either the folder source of M-1 stays as it is and pages are still written in a text editor, or a page made in
-  the web is stored in the database. The second needs at least a plain Markdown field to type into, with the full editor left to M-8.
-- Who sees what before M-5. As in M-1, everyone past the gate could see everything except the private collection of each user.
-- Whether the phone layout belongs in this milestone or follows it. Its mockups come first (T-10).
+- IDs as ADR-18 describes them, with an ID for every block from the moment it is made.
+- PostgreSQL arrives now. Pages live in the database as blocks, and Markdown is the way in and out (ADR-19).
+- Who sees and changes what follows ADR-20: shared collections for everyone signed in, private ones for their user, an owner per
+  object, and edit, comment or read for all others.
+- The phone is kept in mind roughly. Its layout is worked out later (T-10).
+- Still open: what sets a collection apart from a folder. Until then, both behave alike: an object with children, a place and an
+  access level.
 
-**Done when this is true, as proposed:**
+**Done when this is true:**
 
 - The app trusts only the signed user headers of the gate (ADR-9). Without them, nothing but the health endpoint answers.
 - The first sign-in creates an account from the gate, with name, mail and groups. Administrators come from a group. The profile shows
   the account and offers signing out through the gate.
-- Favorites and settings belong to the account, not to the browser.
-- Collections can be made, renamed, described, starred and sorted by dragging, and a collection can sit inside another one and move
-  back out (ADR-16). Deleting one that is not empty asks first.
-- Pages and folders are objects with an ID, a place, children, a description and tags. They are made with New, moved by dragging,
-  and deleting one that is in use asks first.
+- Favorites, settings and which collections are kept open belong to the account, not to the browser.
+- Collections can be made, renamed, described, starred, kept open and sorted by dragging, and a collection can sit inside another
+  one and move back out (ADR-16). Deleting one that is not empty asks first.
+- Pages and folders are objects with an ID, an owner, a place, children, a description and tags. They are made with New and from a
+  right click on the free part of a list, moved by dragging, and deleting one that is in use asks first.
+- A page is edited block by block, each in a plain Markdown field, and every version is kept. Its blocks get their IDs when they
+  are made.
+- A table made in a page can be pasted into another page by its address and shows there live, with a link back. Every object and
+  block shows where it is used.
 - Every object opens at its own address, also after a move or a rename, and links from M-1 keep working.
+- Access works as ADR-20 says, and comments can be added to a whole document where others may comment.
+- The pages of the folder source from M-1 can be imported, and the whole state can be exported as Markdown and files.
 - The shell parts needed for this are built as ADR-16 describes: nav1 to nav3 with their widths and stages, the Workspace view,
-  Search with the full-text search of M-1, one window with the general tab and tabs, the document head, the gear with the metadata,
-  and the profile with account and settings. Whatever is left for later is greyed out (ADR-17).
+  Search with full text, one window with the general tab and tabs, the document head, the gear with the metadata, comments, and the
+  profile with account and settings. Whatever is left for later is greyed out (ADR-17).
 - The same clicks hold everywhere, as ADR-17 lists them, and a browser test with real pointer input covers them.
-- PostgreSQL holds accounts, collections, objects, places and references. A backup of the database and the folder together
-  restores the whole state.
-- **Acceptance: the maintainer signs in, builds a few collections with pages, moves and nests them, and opens a copied link in
-  another browser.**
+- At phone width, nothing is cut off and everything can be reached, even before the phone has a layout of its own.
+- A backup of the database and the content store together restores the whole state, proven by a restore.
+- **Acceptance: the maintainer signs in, builds a few collections with pages, nests them, embeds a table of one page in another,
+  sets a collection to read only, and opens a copied link in another browser.**

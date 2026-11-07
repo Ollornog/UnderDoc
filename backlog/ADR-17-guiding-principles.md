@@ -30,7 +30,10 @@ The third option. These hold for every feature, and an exception needs a reason 
    - A middle click does what it does in a browser: it opens a tab of its own or closes a tab.
    - A click on anything with children opens the children in the list, and a second click closes them. This holds for folders,
      documents and collections alike.
-   - A right click opens the menu of what is under the pointer, wherever that is.
+   - A right click opens the menu of what is under the pointer, wherever that is. On the free part of a list it offers what can
+     be made there.
+   - Several open lists follow one rule, for collections and private lists alike: a click opens one and closes the others that
+     are not kept open.
 2. **Everything is an object.** Collections, documents, folders, saved searches, values, snippets and lists are objects, and so
    are the parts of a document meant to be used elsewhere. Every object has a stable ID, opens through its own URL, can be embedded
    in other objects and can carry tags. [ADR-18](ADR-18-object-ids-and-addresses.md) settles the IDs.

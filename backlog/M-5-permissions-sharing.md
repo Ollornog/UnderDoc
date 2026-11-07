@@ -13,7 +13,9 @@ Permissions are good enough for company data.
 
 - Every document has an owner, editors, commenters and viewers, per person or group, and ownership can be transferred.
 - Parents pass default roles on to what is below them, as T-9 decides, and embedding bypasses nothing.
-- Commenters can comment on a document, without an editor.
+- Commenters can comment on a document, without an editor. Comments on a whole document arrive with M-28, and here a comment on
+  one block joins them (ADR-18).
+- Roles per person and group replace the one level for all others of ADR-20, and the owner stays.
 - Notes are private per user.
 - Public shares use a token, list all embedded objects for release and only show frozen data.
 - Share links can be listed and revoked, and each one shows who created it and when it expires.

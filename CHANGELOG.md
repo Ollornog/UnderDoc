@@ -31,6 +31,10 @@ All notable changes to this project are documented in this file. The format foll
   a collection is an object that can sit inside another and can be kept open, Ctrl with a click adds without replacing, and the document head keeps the
   title below the breadcrumbs (ADR-16). A draft for the first build with sign-in, account, collections and documents as objects
   (M-28), and mockups for the phone layout (T-10).
+- Pages live in the database as blocks with IDs, and Markdown is the way in and out (ADR-19). Who sees and changes what before
+  roles arrive: an owner per object, and edit, comment or read for all others (ADR-20). The scope of the first build is settled
+  (M-28): PostgreSQL now, comments, tables embedded by their ID, New collection in nav2 and from a right click on free space, and
+  private lists that open like collections (ADR-16).
 
 ### Added
 

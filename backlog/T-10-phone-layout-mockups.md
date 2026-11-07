@@ -9,7 +9,8 @@ created: 2026-11-07
 ---
 
 The phone gets a layout of its own, not a squeezed desktop (ADR-17). Today the mockup only shrinks the columns at phone width.
-Mockups that can be clicked through, in two or three variants where the answer is not obvious:
+The first build only keeps the phone in mind roughly, so this task can follow it. Mockups that can be clicked through, in two or
+three variants where the answer is not obvious:
 
 1. **Navigation:** how nav1, nav2 and nav3 become screens, and how the way back works.
 2. **Tabs and windows:** how open documents are reached without a tab row, and whether a phone has more than one window at all.

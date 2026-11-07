@@ -44,6 +44,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
   back onto nav2 makes it stand on its own again.
 - A collection inside a collection is treated much like a folder for now. What sets the two apart is still open (M-28).
+- New collection sits apart below the list in nav2, like every entry that acts. A right click on the free part of nav2 offers it
+  too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a collection
+  offers a new collection inside it. A new collection opens with its settings, ready to be named.
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
   new in it, favorite, and settings. The settings open in nav3.
 - A collection can be kept open. A click opens a collection and closes every open one that is not kept open. Ctrl with a click,
@@ -91,7 +94,11 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 **Document tools**
 
 - All buttons for a document sit on one level below the tabs: contents, find on the page with its field right at the magnifier,
-  source view, split, gear and more.
+  source view, split, comments, gear and more.
+- Comments open in a drawer over the window, like the gear, with their number at the button.
+- Every table in a page shows a small button with its ID, which copies its address. Pasted into another page, the table shows there
+  live, framed and with a link to its source (ADR-18).
+- A menu with no room below the button that opens it opens above it.
 - A status line counts words.
 
 **Windows**
@@ -151,6 +158,15 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - Only its user sees it: to-dos, calendar, time clock, vacation planning and notes. Each is a view in nav1 below the others, and
   follows the same clicks: nav2 holds its lists, such as to-do lists, calendars including imported ones, periods, years or note
   boards, nav3 their entries, and an entry or the whole list opens in the active window.
+- Its lists open like collections: a click opens one and closes the others that are not kept open, and Ctrl with a click or a
+  double click keeps one open, marked with a pin. Open lists stack in nav3 below small headings.
+
+**Access**
+
+- What others may do shows where it matters, as ADR-20 sets it: a lock at the heading of a collection that others may only read or
+  comment, and a note next to the tags of such a document. What the level forbids is greyed out, such as New, New page below it or
+  dragging.
+- The settings of a collection and the gear of a document set the level: edit, comment or read, or inherited from above.
 
 ## Consequences
 
