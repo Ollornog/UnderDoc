@@ -36,6 +36,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Pages in the database, edited block by block (ADR-19, M-28): New in a collection, or New page below it, makes a page that
+  opens with its first block ready to write. Edit in the window turns every block into a plain Markdown field, saved when it
+  loses the focus or on Ctrl+Enter; Escape takes a change back. A block gets its ID when it is made (`b1`, `b2` …, never
+  given out twice in a page), and a table shows the ID of its block. Every change is kept as a version with who and when,
+  listed in the gear. Deleting a block with text asks first, in place. Others may change a page only where they may edit
+  (ADR-20). API: `POST /api/pages`, `POST /api/pages/<id>/blocks`, `PUT` and `DELETE /api/pages/<id>/blocks/<block>`,
+  `GET /api/pages/<id>/versions`. The look of the fields comes from C22 (`.bedit`, `.bbar`).
 - A JSON API for the workspace: `/api/state` (account and collections with their trees), `/api/doc/<id>`, `/api/search`,
   `POST /api/collections` and `PATCH /api/objects/<id>` (rename, for the owner or where others may edit, ADR-20). Changes are
   taken only from this application's own pages.
@@ -80,6 +87,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- A collection could be made inside another one where others may only comment or read. Now that needs the right to edit
+  there, as everything else does (ADR-20).
+- The Markdown of a block stays text in its field, and its view drops raw HTML like every page; a browser test proves both.
 - Names, descriptions, tags and paths from files and from people are shown as text everywhere in the workspace; a browser
   test proves it with names full of markup.
 

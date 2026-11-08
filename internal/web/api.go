@@ -65,6 +65,11 @@ type apiDocument struct {
 	UsedIn      []string   `json:"usedIn"`
 	Links       []string   `json:"links"`
 	Stable      bool       `json:"stable"`
+	// Blocks, CanEdit and Owner belong to pages of the database.
+	Blocks  []apiBlock `json:"blocks,omitempty"`
+	CanEdit bool       `json:"canEdit,omitempty"`
+	Owner   string     `json:"owner,omitempty"`
+	Created string     `json:"created,omitempty"`
 }
 
 type apiHit struct {
@@ -196,6 +201,10 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 	objectID := r.PathValue("id")
 	if h.options.DB != nil && id.Valid(objectID) {
 		o, err := h.options.DB.Object(ctx, objectID, user.ID)
+		if err == nil && o.Kind == db.KindPage {
+			h.pageDocument(w, r, o)
+			return
+		}
 		if err == nil {
 			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: []string{},
 				Path: "not a file, lives in the database", Changed: o.Changed.Format("Jan 02"), Intro: "", Sections: [][]string{},
@@ -272,67 +281,33 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 
 // apiCreateCollection makes a collection, from the workspace, and answers with it.
 func (h *handler) apiCreateCollection(w http.ResponseWriter, r *http.Request) {
-	if h.options.DB == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "collections need the database"})
-		return
-	}
-	if !sameOrigin(r) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only from this application"})
-		return
-	}
 	var in struct {
 		Title  string `json:"title"`
 		Parent string `json:"parent"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
 		return
 	}
-	user, _ := account.From(r.Context())
 	created, err := h.options.DB.CreateCollection(r.Context(), user, in.Title, in.Parent)
-	switch {
-	case errors.Is(err, db.ErrTitle):
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-	case errors.Is(err, db.ErrNotFound):
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such collection"})
-	case err != nil:
-		h.log.Error("collection not made", slog.String("error", err.Error()))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-	default:
-		writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
+	if h.failed(w, err, "collection") {
+		return
 	}
+	writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
 }
 
 // apiRename gives an object of the database a new title.
 func (h *handler) apiRename(w http.ResponseWriter, r *http.Request) {
-	if h.options.DB == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "objects need the database"})
-		return
-	}
-	if !sameOrigin(r) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only from this application"})
-		return
-	}
 	var in struct {
 		Title string `json:"title"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
 		return
 	}
-	user, _ := account.From(r.Context())
 	o, err := h.options.DB.Rename(r.Context(), r.PathValue("id"), user.ID, in.Title)
-	switch {
-	case errors.Is(err, db.ErrTitle):
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-	case errors.Is(err, db.ErrNotFound):
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such object"})
-	case errors.Is(err, db.ErrNotAllowed):
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
-	case err != nil:
-		h.log.Error("rename failed", slog.String("error", err.Error()))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-	default:
-		writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Kids: []apiNode{}})
+	if h.failed(w, err, "rename") {
+		return
 	}
+	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Kids: []apiNode{}})
 }

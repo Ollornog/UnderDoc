@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -46,14 +47,15 @@ func titles(objects []Object) []string {
 func TestMigrationsRunOnce(t *testing.T) {
 	url := pgtest.URL(t)
 	ctx := context.Background()
+	files, _ := fs.Glob(migrations, "migrations/*.sql")
 	for range 2 {
 		db, err := Open(ctx, url)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var n int
-		if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&n); err != nil || n != 1 {
-			t.Fatalf("%d migrations recorded, %v", n, err)
+		if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&n); err != nil || n != len(files) || n < 2 {
+			t.Fatalf("%d migrations recorded for %d files, %v", n, len(files), err)
 		}
 		if !db.Healthy(ctx) {
 			t.Fatal("not healthy")
