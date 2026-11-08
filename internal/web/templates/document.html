@@ -11,9 +11,15 @@
   </div>
 </div>
 {{- end}}
-<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Comments: not built yet, they come with the database (M-28)">{{template "icon-note"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Find on this page: not built yet">{{template "icon-search"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Source view: not built yet, it comes with editing (M-28)">{{template "icon-code"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Show also in a new column: not built yet (M-15)">{{template "icon-columns"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Comments: not built yet, they come with the database (M-28)">{{template "icon-chat"}}</button>
 <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-drawer-toggle="ud-drawer" aria-controls="ud-drawer" aria-expanded="false" aria-label="Document settings and metadata" title="Document settings and metadata">{{template "icon-gear"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="More: not built yet, it comes with the tabs">{{template "icon-more"}}</button>
 {{end}}
+
+{{define "status"}}<footer class="ud-status"><span>{{.Status}}</span><span>Markdown · UTF-8</span></footer>{{end}}
 
 {{define "drawer"}}
 <aside data-drawer id="ud-drawer" aria-label="Document settings and metadata" hidden>

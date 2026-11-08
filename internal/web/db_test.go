@@ -87,7 +87,7 @@ func TestCreateCollections(t *testing.T) {
 	if !strings.Contains(nested, `<a href="`+place+`">Operations</a>`) || !strings.Contains(nested, `aria-current="page"><svg`) {
 		t.Error("the inner collection shows its way and its place in nav3")
 	}
-	if !strings.Contains(s.body(place), ">Network</a>") {
+	if !strings.Contains(s.body(place), "<span>Network</span><small>Collection</small>") {
 		t.Error("the outer collection lists it")
 	}
 	if !strings.Contains(s.getWith("/o/plan", map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}).Body.String(), `title="Operations"`) {

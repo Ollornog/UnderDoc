@@ -297,7 +297,12 @@ func (h *handler) document(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Description = doc.Description
 	view.Tags = makeTags(doc.Tags)
-	view.Crumbs = makeCrumbs(folder)
+	// The way starts at the collection, as in the mockup: the root is no place of its own.
+	if view.Crumbs = makeCrumbs(folder); len(view.Crumbs) > 1 {
+		view.Crumbs = view.Crumbs[1:]
+	}
+	words := len(strings.Fields(doc.Text))
+	view.Status = fmt.Sprintf("%d words · %d characters · %d min read", words, len([]rune(doc.Text)), max(1, (words+199)/200))
 	if len(doc.Contents) >= minContentsEntries {
 		for _, heading := range doc.Contents {
 			view.Contents = append(view.Contents, contentsItem{Label: heading.Text, Href: "#" + heading.Anchor, Level: heading.Level})
@@ -338,8 +343,9 @@ func (h *handler) folder(w http.ResponseWriter, r *http.Request) {
 		title = "Home"
 	}
 	view := folderView{shellView: h.makeShell(r, lib, title, "", folder), Empty: lib.Len() == 0}
-	if crumbs := makeCrumbs(folder); folder != lib.Tree().Root() {
-		view.Crumbs = crumbs[:len(crumbs)-1]
+	// The way to a folder, without the root and without the folder itself, which is the title (ADR-16).
+	if crumbs := makeCrumbs(folder); len(crumbs) > 2 {
+		view.Crumbs = crumbs[1 : len(crumbs)-1]
 	}
 	if folder == lib.Tree().Root() {
 		for _, doc := range lib.Recent(maxRecentDocuments) {
@@ -347,11 +353,11 @@ func (h *handler) folder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, sub := range folder.Folders {
-		view.Folders = append(view.Folders, linkItem{Label: sub.Name, Href: route.Folder(sub.Path)})
+		view.Folders = append(view.Folders, linkItem{Label: sub.Name, Href: route.Folder(sub.Path), Detail: "Folder", Folder: true})
 	}
 	for _, id := range folder.Documents {
 		doc, _ := lib.Document(id)
-		view.Documents = append(view.Documents, linkItem{Label: doc.Title, Href: route.Document(string(id)), Detail: doc.Modified.Format("2006-01-02 15:04")})
+		view.Documents = append(view.Documents, linkItem{Label: doc.Title, Href: route.Document(string(id)), Detail: "Page"})
 	}
 	h.render(w, "folder", http.StatusOK, view)
 }
@@ -497,7 +503,7 @@ func (h *handler) object(w http.ResponseWriter, r *http.Request) bool {
 		h.log.Error("children failed", slog.String("error", err.Error()))
 	}
 	for _, child := range children {
-		view.Entries = append(view.Entries, linkItem{Label: child.Title, Href: route.Object(child.ID), Detail: view.kindOf(child.Kind)})
+		view.Entries = append(view.Entries, linkItem{Label: child.Title, Href: route.Object(child.ID), Detail: view.kindOf(child.Kind), Folder: child.Kind != db.KindPage})
 	}
 	h.openFromDatabase(r, &view.shellView, o.ID)
 	h.render(w, "object", http.StatusOK, view)

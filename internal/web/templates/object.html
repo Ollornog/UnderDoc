@@ -11,7 +11,7 @@
   </dl>
   <section>
     <h2 class="text-sm font-semibold">In it</h2>
-    {{- if .Entries}}{{template "folder-list" .Entries}}{{else}}<p class="text-muted-foreground text-sm">Nothing yet. New in its heading in the list on the left makes a collection inside it. Pages come with editing.</p>{{end}}
+    {{- if .Entries}}{{template "entries" .Entries}}{{else}}<p class="text-muted-foreground text-sm">Nothing yet. New in its heading in the list on the left makes a collection inside it. Pages come with editing.</p>{{end}}
   </section>
 </div>
 {{end}}

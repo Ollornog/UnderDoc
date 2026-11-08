@@ -28,6 +28,7 @@
         <button type="button" role="tab" aria-selected="true" data-ud-tab>{{template "icon-page"}}<span>{{.Title}}</span></button>
       </div>
     </div>
+    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="All tabs of this window: not built yet, it comes with the tabs">{{template "icon-list"}}</button>
   </div>
   <nav class="workspace-nav" data-level="1" data-step="0" aria-label="Views">
     <div>
@@ -88,6 +89,7 @@
       {{- if .Description}}<p>{{.Description}}</p>{{end}}
     </header>
     <section>{{template "content" .}}</section>
+    {{template "status" .}}
     {{template "drawer" .}}
   </main>
 </div>
@@ -96,6 +98,7 @@
 {{- end}}
 
 {{define "tools"}}{{end}}
+{{define "status"}}{{end}}
 {{define "drawer"}}{{end}}
 
 {{/* The menu of a row in nav3, from a right click (ADR-16). What is not built yet is greyed out. */}}
