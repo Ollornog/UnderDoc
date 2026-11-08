@@ -5,6 +5,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -17,10 +18,14 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Ollornog/UnderDoc/docs"
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
+	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
 )
@@ -56,6 +61,8 @@ type Options struct {
 	DevUser *account.User
 	// AdminGroup is the group of the gate whose members see the administration.
 	AdminGroup string
+	// DB keeps accounts and the objects made in the web (ADR-19). Without it, the folder source is all there is.
+	DB *db.DB
 }
 
 type handler struct {
@@ -64,16 +71,19 @@ type handler struct {
 	pages        map[string]*template.Template
 	assetVersion string
 	options      Options
+	// seen keeps when an account was last written, so not every request writes it.
+	seenMu sync.Mutex
+	seen   map[string]time.Time
 }
 
 // New returns the complete handler with logging and security headers.
 func New(store *library.Store, log *slog.Logger, options Options) (http.Handler, error) {
-	h := &handler{store: store, log: log, pages: map[string]*template.Template{}, options: options}
+	h := &handler{store: store, log: log, pages: map[string]*template.Template{}, options: options, seen: map[string]time.Time{}}
 	base, err := template.ParseFS(templateFiles, "templates/layout.html", "templates/components.html")
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"document", "folder", "search", "problems", "status", "gallery", "profile"} {
+	for _, name := range []string{"document", "folder", "search", "problems", "status", "gallery", "profile", "object"} {
 		page, err := template.Must(base.Clone()).ParseFS(templateFiles, "templates/"+name+".html")
 		if err != nil {
 			return nil, err
@@ -98,6 +108,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("GET /profile", h.profile)
+	mux.HandleFunc("POST /collections", h.createCollection)
 	mux.HandleFunc("GET /f/{path...}", h.folder)
 	mux.HandleFunc("GET /files/{path...}", h.file)
 	mux.HandleFunc("GET /search", h.search)
@@ -136,8 +147,73 @@ func (h *handler) signedIn(next http.Handler) http.Handler {
 			_, _ = w.Write(out.Bytes())
 			return
 		}
+		h.seeAccount(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(account.With(r.Context(), user)))
 	})
+}
+
+// seeAccount writes the account at its first request and then at most every few minutes (ADR-20: the owner of what
+// someone makes must exist). A database that does not answer is logged; reading goes on.
+func (h *handler) seeAccount(ctx context.Context, user account.User) {
+	if h.options.DB == nil {
+		return
+	}
+	h.seenMu.Lock()
+	last, ok := h.seen[user.ID]
+	if ok && time.Since(last) < 5*time.Minute {
+		h.seenMu.Unlock()
+		return
+	}
+	h.seen[user.ID] = time.Now()
+	h.seenMu.Unlock()
+	if err := h.options.DB.SeeAccount(ctx, user); err != nil {
+		h.log.Error("account not written", slog.String("error", err.Error()))
+		h.seenMu.Lock()
+		delete(h.seen, user.ID)
+		h.seenMu.Unlock()
+	}
+}
+
+// sameOrigin lets a change through only from a page of this application. The gate signs in with a cookie, so a form on
+// another site could otherwise post here in someone's name.
+func sameOrigin(r *http.Request) bool {
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" {
+		return site == "same-origin"
+	}
+	origin := r.Header.Get("Origin")
+	return origin != "" && strings.TrimPrefix(strings.TrimPrefix(origin, "https://"), "http://") == r.Host
+}
+
+// createCollection makes a collection from the form in nav2, at the top or inside another, and opens it.
+func (h *handler) createCollection(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		http.Error(w, "collections need the database", http.StatusNotImplemented)
+		return
+	}
+	if !sameOrigin(r) {
+		http.Error(w, "only from this application", http.StatusForbidden)
+		return
+	}
+	user, _ := account.From(r.Context())
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	created, err := h.options.DB.CreateCollection(r.Context(), user, r.PostForm.Get("title"), r.PostForm.Get("parent"))
+	switch {
+	case errors.Is(err, db.ErrTitle):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	case errors.Is(err, db.ErrNotFound):
+		h.notFound(w, r)
+		return
+	case err != nil:
+		h.log.Error("collection not made", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, route.Object(created.ID), http.StatusSeeOther)
 }
 
 func hashAssets() (string, error) {
@@ -197,6 +273,11 @@ func (h *handler) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) document(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB != nil && id.Valid(r.PathValue("id")) {
+		if h.object(w, r) {
+			return
+		}
+	}
 	lib := h.store.Library()
 	doc, ok := lib.Document(document.ID(r.PathValue("id")))
 	if !ok {
@@ -377,4 +458,48 @@ func (h *handler) notFound(w http.ResponseWriter, r *http.Request) {
 		Heading:   "Page not found",
 		Message:   "It may have moved. Pages without an id in their front matter get a new address when they move.",
 	})
+}
+
+var accessLabels = map[string]string{"edit": "can edit", "comment": "can comment", "read": "can only read"}
+
+// object shows an object of the database, so far a collection: its name and description in the head, its owner, what
+// others may do, who sees it and its entries (ADR-16). It reports false if there is no such object for the viewer, so
+// the folder source gets its turn.
+func (h *handler) object(w http.ResponseWriter, r *http.Request) bool {
+	ctx := r.Context()
+	user, _ := account.From(ctx)
+	o, err := h.options.DB.Object(ctx, r.PathValue("id"), user.ID)
+	if errors.Is(err, db.ErrNotFound) {
+		return false
+	}
+	if err != nil {
+		h.log.Error("object failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return true
+	}
+	view := objectView{shellView: h.makeShell(r, h.store.Library(), o.Title, "", nil)}
+	view.Description = o.Description
+	view.ID = o.ID
+	view.Kind = map[string]string{db.KindCollection: "Collection", db.KindFolder: "Folder", db.KindPage: "Page"}[o.Kind]
+	view.Owner = h.options.DB.AccountName(ctx, o.Owner)
+	access, err := h.options.DB.Access(ctx, o.ID)
+	if err != nil {
+		h.log.Error("access failed", slog.String("error", err.Error()))
+	}
+	view.Access = accessLabels[access]
+	view.Inherited = o.Access == ""
+	view.Visible = "Everyone signed in"
+	if top, err := h.options.DB.Top(ctx, o.ID, user.ID); err == nil && top.Private {
+		view.Visible = "Only you"
+	}
+	children, err := h.options.DB.Children(ctx, o.ID, user.ID)
+	if err != nil {
+		h.log.Error("children failed", slog.String("error", err.Error()))
+	}
+	for _, child := range children {
+		view.Entries = append(view.Entries, linkItem{Label: child.Title, Href: route.Object(child.ID), Detail: view.kindOf(child.Kind)})
+	}
+	h.openFromDatabase(r, &view.shellView, o.ID)
+	h.render(w, "object", http.StatusOK, view)
+	return true
 }

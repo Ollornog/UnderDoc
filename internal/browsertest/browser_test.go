@@ -13,6 +13,7 @@ package browsertest
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/web"
@@ -287,6 +290,22 @@ const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfD
 
 func setup(t *testing.T) (*browser, string) {
 	t.Helper()
+	return setupWith(t, web.Options{DevUI: true})
+}
+
+// setupWithDatabase starts the handler with a throwaway PostgreSQL behind it.
+func setupWithDatabase(t *testing.T) (*browser, string) {
+	t.Helper()
+	database, err := db.Open(context.Background(), pgtest.URL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(database.Close)
+	return setupWith(t, web.Options{DevUI: true, DB: database})
+}
+
+func setupWith(t *testing.T, options web.Options) (*browser, string) {
+	t.Helper()
 	dir := t.TempDir()
 	picture, err := base64.StdEncoding.DecodeString(pixel)
 	if err != nil {
@@ -312,7 +331,7 @@ func setup(t *testing.T) (*browser, string) {
 	if err := store.Refresh(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := web.New(store, log, web.Options{DevUI: true})
+	handler, err := web.New(store, log, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -772,4 +791,49 @@ func TestRightClickOnAnEntry(t *testing.T) {
 	if !b.waitFor(`location.pathname === '/o/~ops/plain.md'`) {
 		t.Error("Open in the menu did not open the entry")
 	}
+}
+
+func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
+
+// New collection in nav2, by mouse and keyboard: the popover, a name, Enter, and the new collection is open (M-28).
+func TestNewCollectionByHand(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	const nav2 = `.workspace-nav[data-level="2"]`
+	if got := b.eval(`!!document.querySelector('` + nav2 + ` [title="My notes, only you see it"]')`); got != "true" {
+		t.Fatal("the private notes of the account are missing")
+	}
+	trigger := b.rect("#ud-new-top-trigger")
+	b.click(trigger.X, trigger.Y, 1)
+	if !b.waitFor(`document.getElementById('ud-new-top-popover').getAttribute('aria-hidden') === 'false'`) {
+		t.Fatal("the form did not open")
+	}
+	// The popover fades and moves in. A click before it stands still could miss the field and close it again.
+	if !b.waitFor(`(() => { const p = document.getElementById('ud-new-top-popover'), r = p.getBoundingClientRect();
+		const still = window.lastBox === r.top + ',' + r.left; window.lastBox = r.top + ',' + r.left;
+		return still && getComputedStyle(p).opacity === '1' && r.height > 0; })()`) {
+		t.Fatal("the form did not come to rest")
+	}
+	field := b.rect("#ud-new-top-title")
+	b.click(field.X, field.Y, 1)
+	if got := b.eval(`document.activeElement.id`); got != "ud-new-top-title" {
+		t.Fatalf("the name field did not get the focus: %q", got)
+	}
+	b.call("Input.insertText", map[string]any{"text": "Operations"}, nil)
+	if got := b.eval(`document.getElementById('ud-new-top-title').value`); got != "Operations" {
+		t.Fatalf("typed %q", got)
+	}
+	b.shot("new-collection")
+	// A real Enter carries the character "\r", and only that submits a form.
+	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
+	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}, nil)
+	// Asking the page while the form is sent keeps the old page alive in Chrome, so wait a moment first.
+	time.Sleep(500 * time.Millisecond)
+	if !b.waitFor(`/^\/o\/[0-9a-z]{10}$/.test(location.pathname) && document.querySelector('.workspace-main h1')?.textContent === 'Operations'`) {
+		t.Fatalf("the new collection did not open: %s", b.eval(`location.pathname`))
+	}
+	if got := b.eval(`document.querySelector('` + nav2 + ` [aria-current]')?.textContent.trim() + '|' + document.querySelector('.workspace-nav[data-level="3"] section > header > a').textContent`); got != "Operations|Operations" {
+		t.Errorf("nav2 and nav3 should show it: %s", got)
+	}
+	b.shot("collection")
 }

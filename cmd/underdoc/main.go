@@ -11,6 +11,7 @@
 //	UNDERDOC_DEV_UI         "1" turns on the component gallery at /dev/ui
 //	UNDERDOC_ADMIN_GROUP    the group of the gate whose members see the administration ("underdoc-admins")
 //	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
+//	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
 //
 // There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
 // request headers. That is why it binds to loopback unless told otherwise, and answers nothing without those headers.
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/version"
@@ -88,6 +90,16 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		return err
 	}
 	options := web.Options{DevUI: os.Getenv("UNDERDOC_DEV_UI") == "1", AdminGroup: env("UNDERDOC_ADMIN_GROUP", "underdoc-admins")}
+	healthy := store.Healthy
+	if url := os.Getenv("UNDERDOC_DATABASE_URL"); url != "" {
+		database, err := db.Open(ctx, url)
+		if err != nil {
+			return fmt.Errorf("database: %w", err)
+		}
+		defer database.Close()
+		options.DB = database
+		healthy = func() bool { return store.Healthy() && database.Healthy(context.Background()) }
+	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
 		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}
 		log.Warn("UNDERDOC_DEV_USER is set: every request counts as signed in, never use this behind a real gate", slog.String("user", login))
@@ -100,7 +112,7 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	log.Info("start", slog.String("version", version.Version))
 	return web.Serve(ctx, log,
 		web.NewServer(env("UNDERDOC_ADDR", defaultAddr), handler, log),
-		web.NewServer(env("UNDERDOC_HEALTH_ADDR", defaultHealthAddr), web.Health(store.Healthy), log))
+		web.NewServer(env("UNDERDOC_HEALTH_ADDR", defaultHealthAddr), web.Health(healthy), log))
 }
 
 func env(name, fallback string) string {

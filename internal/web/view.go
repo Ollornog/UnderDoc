@@ -4,10 +4,12 @@ package web
 
 import (
 	"html/template"
+	"log/slog"
 	"net/http"
 	"slices"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
@@ -34,6 +36,8 @@ type shellView struct {
 	Open *openCollection
 	// Profile fills nav2 and nav3 in the profile view, and is nil in every other view (ADR-16).
 	Profile *profileState
+	// CanCreate is true when there is a database to keep what New makes (M-28).
+	CanCreate bool
 }
 
 // profileState is the profile view: its sections in nav2, the chosen one in nav3.
@@ -63,12 +67,31 @@ type collectionLink struct {
 	Label   string
 	Href    string
 	Current bool
+	Private bool
 }
 
 type openCollection struct {
 	Label string
 	Href  string
+	// ID is set for a collection of the database, so New in its heading can make something inside it.
+	ID    string
 	Items []treeItem
+}
+
+// objectView is the page of an object of the database, so far a collection.
+type objectView struct {
+	shellView
+	ID        string
+	Kind      string
+	Owner     string
+	Access    string
+	Inherited bool
+	Visible   string
+	Entries   []linkItem
+}
+
+func (objectView) kindOf(kind string) string {
+	return map[string]string{db.KindCollection: "Collection", db.KindFolder: "Folder", db.KindPage: "Page"}[kind]
 }
 
 type treeItem struct {
@@ -150,6 +173,16 @@ type profileView struct {
 func (h *handler) makeShell(r *http.Request, lib *library.Library, title string, current document.ID, at *tree.Folder) shellView {
 	shell := shellView{Title: title, ProblemCount: len(lib.Problems()), AssetVersion: h.assetVersion, View: "workspace"}
 	shell.User, _ = account.From(r.Context())
+	if h.options.DB != nil {
+		shell.CanCreate = true
+		collections, err := h.options.DB.Collections(r.Context(), shell.User.ID)
+		if err != nil {
+			h.log.Error("collections failed", slog.String("error", err.Error()))
+		}
+		for _, c := range collections {
+			shell.Collections = append(shell.Collections, collectionLink{Label: c.Title, Href: route.Object(c.ID), Private: c.Private})
+		}
+	}
 	if current != "" {
 		at, _ = lib.Tree().Location(current)
 	}
@@ -165,6 +198,7 @@ func (h *handler) makeShell(r *http.Request, lib *library.Library, title string,
 	} else if at != nil {
 		collection = root
 	}
+	// Collections of the folder source follow those of the database, until the import moves them in (M-28).
 	if len(root.Documents) > 0 {
 		shell.Collections = append(shell.Collections, collectionLink{Label: homeLabel, Href: route.Folder(""), Current: collection == root})
 	}
@@ -223,4 +257,58 @@ func makeTags(tags []string) []tagLink {
 		links = append(links, tagLink{Label: "#" + tag, Href: route.Tag(tag)})
 	}
 	return links
+}
+
+// openFromDatabase puts the collection an object of the database belongs to into nav2 and nav3, marks the object and
+// fills the breadcrumbs with the way down to it.
+func (h *handler) openFromDatabase(r *http.Request, shell *shellView, objectID string) {
+	ctx, viewer := r.Context(), shell.User.ID
+	var way []db.Object
+	for o, err := h.options.DB.Object(ctx, objectID, viewer); err == nil; o, err = h.options.DB.Object(ctx, o.Parent, viewer) {
+		way = append([]db.Object{o}, way...)
+		if o.Parent == "" {
+			break
+		}
+	}
+	if len(way) == 0 {
+		return
+	}
+	top := way[0]
+	for i := range shell.Collections {
+		shell.Collections[i].Current = shell.Collections[i].Href == route.Object(top.ID)
+	}
+	open := map[string]bool{}
+	for _, o := range way {
+		open[o.ID] = true
+	}
+	shell.Open = &openCollection{Label: top.Title, Href: route.Object(top.ID), ID: top.ID, Items: h.databaseTree(r, top.ID, objectID, open, 0)}
+	shell.Crumbs = nil
+	for _, o := range way[:len(way)-1] {
+		shell.Crumbs = append(shell.Crumbs, crumb{Label: o.Title, Href: route.Object(o.ID)})
+	}
+}
+
+// databaseTree lists what is inside an object, nested, as deep as it is open or a few levels.
+func (h *handler) databaseTree(r *http.Request, parent, current string, open map[string]bool, depth int) []treeItem {
+	if depth > 8 {
+		return nil
+	}
+	user, _ := account.From(r.Context())
+	children, err := h.options.DB.Children(r.Context(), parent, user.ID)
+	if err != nil {
+		h.log.Error("children failed", slog.String("error", err.Error()))
+		return nil
+	}
+	items := make([]treeItem, 0, len(children))
+	for _, c := range children {
+		items = append(items, treeItem{
+			Label:    c.Title,
+			Href:     route.Object(c.ID),
+			Current:  c.ID == current,
+			IsFolder: c.Kind != db.KindPage,
+			Open:     open[c.ID] || depth == 0,
+			Children: h.databaseTree(r, c.ID, current, open, depth+1),
+		})
+	}
+	return items
 }
