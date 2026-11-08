@@ -1019,5 +1019,9 @@ async function boot(){
   else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
   S.booted=true;render();
 }
+/* A link inside a page to another page opens it in the window, as a click in the list does; Ctrl or the middle button
+   leave it to the browser. */
+document.addEventListener('click',e=>{const l=e.target.closest&&e.target.closest('article.doc a[href^="/o/"]');if(!l||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;
+  const id=decodeURI(l.getAttribute('href').slice(3).split('#')[0]);if(!D[id])return;e.preventDefault();e.stopPropagation();openDoc(id);render();},true);
 window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
 boot();
