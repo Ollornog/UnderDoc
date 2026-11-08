@@ -1,17 +1,23 @@
 {{define "tools"}}
 {{- if .Contents}}
-<details class="ud-marker">
-  <summary class="btn" data-variant="outline" data-size="sm">{{template "icon-list"}}<span>{{len .Contents}} sections</span></summary>
-  <nav class="toc ud-pop" aria-label="On this page">{{template "contents" .Contents}}</nav>
-</details>
+<div class="dropdown-menu" id="ud-toc">
+  <button type="button" class="btn" data-variant="outline" data-size="xs" id="ud-toc-trigger" aria-haspopup="menu" aria-controls="ud-toc-menu" aria-expanded="false">{{template "icon-list"}}{{len .Contents}} sections</button>
+  <div id="ud-toc-popover" data-popover data-align="end" aria-hidden="true">
+    <div role="menu" id="ud-toc-menu" aria-labelledby="ud-toc-trigger">
+      <div role="group" aria-labelledby="ud-toc-heading"><div role="heading" id="ud-toc-heading">In this document</div>
+        {{- range .Contents}}<a role="menuitem" href="{{.Href}}" data-level="{{.Level}}">{{.Label}}</a>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
 {{- end}}
-<span class="ud-icon" aria-disabled="true" title="Comments: not built yet, they come with the database (M-28)">{{template "icon-note"}}</span>
-<button type="button" class="ud-icon" data-ud-gear aria-expanded="false" aria-controls="ud-drawer" title="Document settings and metadata">{{template "icon-gear"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-disabled="true" title="Comments: not built yet, they come with the database (M-28)">{{template "icon-note"}}</button>
+<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-drawer-toggle="ud-drawer" aria-controls="ud-drawer" aria-expanded="false" aria-label="Document settings and metadata" title="Document settings and metadata">{{template "icon-gear"}}</button>
 {{end}}
 
 {{define "drawer"}}
-<aside class="ud-drawer" id="ud-drawer" aria-label="Document settings and metadata" hidden>
-  <div class="ud-drawerhead"><span class="font-semibold">Metadata</span><button type="button" class="ud-icon" data-ud-gear aria-label="Close">{{template "icon-x"}}</button></div>
+<aside data-drawer id="ud-drawer" aria-label="Document settings and metadata" hidden>
+  <header><span class="font-semibold">Metadata</span><button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-drawer-toggle="ud-drawer" aria-label="Close">{{template "icon-x"}}</button></header>
   <dl class="ud-facts">
     <dt>Name</dt><dd>{{.Title}}</dd>
     <dt>Type</dt><dd>Page</dd>

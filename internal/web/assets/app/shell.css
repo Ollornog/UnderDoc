@@ -1,210 +1,33 @@
 /* SPDX-License-Identifier: MIT */
 /*
- * The workspace shell of ADR-16: a top row, three columns and the window. It is a special path until C22 takes it over
- * (C22 M-2), so it uses only the tokens of C22 and no colors, sizes of type or radii of its own. A test checks that.
+ * UnderDoc's own look on top of the C22 workspace (ADR-16, C22 T-13). C22 brings the structure and the behavior; here
+ * stand only UnderDoc's sizes from the approved mockup, and a few small parts of its own pages. No colors, type sizes or
+ * radii of its own: everything else comes from the tokens of C22. A test checks that.
  */
 
-:root {
-  --ud-w1: 50px;
-  --ud-w2: 172px;
-  --ud-w3: 280px;
-  --ud-row: 2.75rem;
-}
-
 html, body { height: 100%; }
-body { margin: 0; overflow: hidden; background: var(--background); color: var(--foreground); }
+body { margin: 0; overflow: hidden; }
 
-.ud-shell {
-  display: grid;
-  grid-template-columns: var(--ud-w1) var(--ud-w2) var(--ud-w3) minmax(0, 1fr);
-  grid-template-rows: var(--ud-row) minmax(0, 1fr);
+.workspace {
   height: 100dvh;
+  --workspace-row: 43px;
+  --workspace-step-0: 50px;
+  --workspace-step-1: 84px;
+  --workspace-step-2: 116px;
+  --workspace-step-3: 172px;
+  --workspace-nav3: 300px;
 }
-
-/* Top row: name, search and New above the columns, the tabs of the window beside them. */
-.ud-top {
-  grid-column: 1 / 4; grid-row: 1;
-  display: flex; align-items: center; gap: .5rem; min-width: 0; padding: 0 .5rem;
-  border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--sidebar);
-}
-.ud-brand { display: flex; align-items: center; gap: .4rem; flex: none; color: var(--foreground); font-weight: var(--font-weight-semibold); text-decoration: none; }
-.ud-search { flex: 1; min-width: 0; }
-.ud-search .input { width: 100%; height: 2rem; }
-.ud-tabs {
-  grid-column: 4; grid-row: 1;
-  display: flex; align-items: flex-end; gap: 2px; min-width: 0; padding: 0 .5rem; overflow: hidden;
-  border-bottom: 1px solid var(--border);
-}
-.ud-tab {
-  display: flex; align-items: center; gap: .4rem; min-width: 0; max-width: 16rem; height: calc(var(--ud-row) - .4rem); padding: 0 .75rem;
-  border: 1px dashed var(--border); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: var(--background); font-size: var(--text-sm); font-style: italic;
-}
-.ud-tab svg { width: 1rem; height: 1rem; flex: none; }
-
-/* The columns */
-.ud-nav1, .ud-nav2, .ud-nav3 {
-  grid-row: 2; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0;
-  border-right: 1px solid var(--border); background: var(--sidebar); color: var(--sidebar-foreground);
-}
-.ud-nav1 { grid-column: 1; justify-content: space-between; padding: .4rem .25rem; }
-.ud-nav2 { grid-column: 2; padding: .4rem .3rem; }
-.ud-nav3 { grid-column: 3; padding: .4rem; overflow-y: auto; }
-.ud-main { grid-column: 4; grid-row: 2; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-
-.ud-navlist { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; }
-.ud-navlist:first-child { flex: 1; }
-.ud-bottom { flex: none; }
-.ud-fill { flex: 1; }
-.ud-sep { flex: none; height: 1px; margin: .3rem .2rem; background: var(--border); }
-.ud-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.ud-navitem {
-  display: flex; align-items: center; gap: .5rem; min-width: 0; padding: .35rem .5rem;
-  border-radius: var(--radius-md); color: inherit; font-size: var(--text-sm); text-decoration: none;
-}
-.ud-navitem svg { width: 1.1rem; height: 1.1rem; flex: none; }
-.ud-navitem:hover { background: var(--sidebar-accent); }
-.ud-navitem[aria-current] {
-  background: var(--sidebar-accent); color: var(--sidebar-accent-foreground);
-  font-weight: var(--font-weight-semibold); box-shadow: inset 2px 0 0 var(--foreground);
-}
-.ud-navitem .badge { margin-left: auto; }
-[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
-.ud-navitem[aria-disabled="true"]:hover { background: none; }
-.ud-navgroup {
-  display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem; color: var(--muted-foreground);
-  font-size: var(--text-xs); font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase;
-}
-.ud-navgroup svg { width: .85rem; height: .85rem; flex: none; }
-.ud-collections { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
-
-/* Nav1 and nav2 snap to four steps: icon, icon with text below, text, icon with text beside it (ADR-16). */
-html[data-ud-s1="0"] .ud-nav1 .ud-navitem, html[data-ud-s2="0"] .ud-nav2 .ud-navitem { justify-content: center; padding: .45rem 0; }
-html[data-ud-s1="0"] .ud-nav1 .ud-label, html[data-ud-s2="0"] .ud-nav2 .ud-label,
-html[data-ud-s1="0"] .ud-nav1 .badge, html[data-ud-s2="0"] .ud-nav2 .badge { display: none; }
-html[data-ud-s1="1"] .ud-nav1 .ud-navitem, html[data-ud-s2="1"] .ud-nav2 .ud-navitem { flex-direction: column; gap: .15rem; padding: .35rem .1rem; font-size: var(--text-xs); text-align: center; }
-html[data-ud-s1="1"] .ud-nav1 .ud-label, html[data-ud-s2="1"] .ud-nav2 .ud-label { max-width: 100%; }
-html[data-ud-s1="1"] .ud-nav1 .badge, html[data-ud-s2="1"] .ud-nav2 .badge { display: none; }
-html[data-ud-s1="2"] .ud-nav1 .ud-navitem svg, html[data-ud-s2="2"] .ud-nav2 .ud-navitem svg { display: none; }
-html[data-ud-s1="0"] .ud-navgroup .ud-label, html[data-ud-s1="1"] .ud-navgroup .ud-label { display: none; }
-html[data-ud-s1="0"] .ud-navgroup, html[data-ud-s1="1"] .ud-navgroup { justify-content: center; }
-html[data-ud-s2="0"] .ud-colhead > .ud-label, html[data-ud-s2="1"] .ud-colhead > .ud-label { display: none; }
-html[data-ud-s2="0"] .ud-nav2 .ud-colhead, html[data-ud-s2="1"] .ud-nav2 .ud-colhead { justify-content: center; padding-left: 0; padding-right: 0; }
-
-/* Headings of the columns, with New + where things are made. */
-.ud-colhead {
-  display: flex; align-items: center; justify-content: space-between; gap: .3rem; flex: none; padding: .1rem .2rem .45rem .5rem;
-  color: var(--muted-foreground); font-size: var(--text-xs); font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-wide); text-transform: uppercase;
-}
-.ud-chead { min-width: 0; overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-.ud-chead:hover { color: var(--foreground); }
-.ud-new {
-  display: inline-flex; align-items: center; gap: .25rem; flex: none; padding: .1rem .45rem;
-  border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--foreground);
-  font-size: var(--text-xs); font-weight: var(--font-weight-semibold); letter-spacing: normal; text-transform: none;
-}
-.ud-new svg { width: .8rem; height: .8rem; }
-.ud-hint { padding: .5rem; color: var(--muted-foreground); font-size: var(--text-sm); }
-
-/* The list in nav3 */
-.ud-tree { list-style: none; margin: 0; padding: 0; }
-.ud-tree .ud-tree { padding-left: .9rem; }
-.ud-row { display: flex; align-items: center; gap: .1rem; border-radius: var(--radius-md); }
-.ud-row:hover { background: var(--sidebar-accent); }
-.ud-row:has([aria-current]) { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font-weight: var(--font-weight-semibold); }
-.ud-arrow { display: inline-grid; place-items: center; flex: none; width: 1.25rem; height: 1.7rem; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted-foreground); }
-.ud-arrow svg { width: .85rem; height: .85rem; transition: transform var(--default-transition-duration) var(--default-transition-timing-function); }
-.ud-arrow[aria-expanded="true"] svg { transform: rotate(90deg); }
-.ud-name {
-  display: flex; align-items: center; gap: .45rem; flex: 1; min-width: 0; padding: .3rem;
-  color: inherit; font-size: var(--text-sm); text-decoration: none; user-select: none;
-}
-.ud-name svg { width: 1rem; height: 1rem; flex: none; color: var(--muted-foreground); }
-
-/* The right edge of a column can be dragged. */
-.ud-grip { position: absolute; top: 0; right: -4px; z-index: 5; width: 8px; height: 100%; cursor: col-resize; touch-action: none; }
-.ud-grip:hover, .ud-grip:focus-visible, html.ud-resizing .ud-grip { background: linear-gradient(var(--ring), var(--ring)) center / 2px 100% no-repeat; outline: none; }
-html.ud-resizing, html.ud-resizing * { cursor: col-resize; user-select: none; }
-
-/* Head of the window: breadcrumbs with the tags beside them and the tools, the title below. */
-.ud-head { flex: none; padding: .45rem 1rem .6rem 1.25rem; border-bottom: 1px solid var(--border); }
-.ud-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; min-height: 2rem; }
-.ud-tools .breadcrumb { min-width: 0; }
-.ud-title { margin: .15rem 0 0; font-family: var(--font-heading); font-size: var(--text-xl); font-weight: var(--font-weight-heading); line-height: var(--leading-tight); letter-spacing: var(--tracking-heading); overflow-wrap: anywhere; }
-.ud-desc { margin: .15rem 0 0; color: var(--muted-foreground); font-size: var(--text-sm); }
-.ud-icon {
-  display: inline-grid; place-items: center; flex: none; width: 2rem; height: 2rem; padding: 0;
-  border: 0; border-radius: var(--radius-md); background: none; color: var(--foreground);
-}
-.ud-icon svg { width: 1.05rem; height: 1.05rem; }
-.ud-icon:not([aria-disabled]):hover, .ud-icon[aria-expanded="true"] { background: var(--accent); }
-.ud-scroll { flex: 1; min-height: 0; overflow: auto; }
-.ud-content { padding: 1.25rem 1.5rem 3rem 1.25rem; }
-
-/* Contents of a page: a marker with a drop-down. */
-.ud-marker { position: relative; }
-.ud-marker > summary { list-style: none; cursor: pointer; }
-.ud-marker > summary::-webkit-details-marker { display: none; }
-.ud-pop {
-  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; display: flex; flex-direction: column; gap: .2rem;
-  min-width: 14rem; max-height: 60vh; padding: .5rem; overflow: auto;
-  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--popover); color: var(--popover-foreground); box-shadow: var(--shadow-md);
-}
-
-/* The gear opens a drawer over the window, so it also works in a narrow one. */
-.ud-drawer {
-  position: absolute; top: 0; right: 0; bottom: 0; z-index: 15; display: flex; flex-direction: column; gap: .6rem;
-  width: min(22rem, 100%); padding: .75rem 1rem; overflow: auto;
-  border-left: 1px solid var(--border); background: var(--background); box-shadow: var(--shadow-lg);
-}
-.ud-drawer[hidden] { display: none; }
-.ud-drawerhead { display: flex; align-items: center; justify-content: space-between; }
-.ud-facts { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: var(--text-sm); }
-.ud-facts dt { color: var(--muted-foreground); }
-.ud-facts dd { margin: 0; overflow-wrap: anywhere; }
 
 /* A page of its own, such as the one for a request without the gate. */
 .ud-center { display: grid; place-items: center; min-height: 100dvh; padding: 1.5rem; }
 
-/* Profile */
-.ud-panel { display: grid; gap: .75rem; padding: .25rem .5rem; font-size: var(--text-sm); }
-.ud-colhead svg { width: .85rem; height: .85rem; flex: none; }
-.ud-narrow { max-width: 36rem; }
+/* Profile and metadata */
+.ud-panel { display: grid; align-content: start; gap: .75rem; padding: .25rem .5rem; font-size: var(--text-sm); }
 .ud-who { display: flex; align-items: center; gap: .75rem; }
-.ud-avatar {
-  display: inline-grid; place-items: center; flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%;
-  background: var(--foreground); color: var(--background); font-size: var(--text-xs); font-weight: var(--font-weight-bold);
-}
-.ud-avatar.ud-big { width: 2.75rem; height: 2.75rem; font-size: var(--text-base); }
 .ud-badges { display: flex; flex-wrap: wrap; gap: .3rem; }
 .ud-setrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: var(--text-sm); }
 .ud-seg { display: inline-flex; gap: .25rem; }
 .ud-seg [aria-pressed="true"] { background: var(--foreground); color: var(--background); font-weight: var(--font-weight-semibold); }
-.ud-later { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
-
-/* A second click on the active view hides nav2 and nav3. Then only the plus stays in the top row (ADR-16). */
-html.ud-navhide .ud-shell { grid-template-columns: var(--ud-w1) 0 0 minmax(0, 1fr); }
-html.ud-navhide .ud-nav2, html.ud-navhide .ud-nav3, html.ud-navhide .ud-search, html.ud-navhide .ud-brand .ud-label { display: none; }
-html.ud-navhide .ud-top { padding: 0 .25rem; justify-content: center; }
-
-/* Phone: roughly, until its own layout is settled (T-10). Nav2 and nav3 open over the window. */
-@media (max-width: 760px) {
-  .ud-shell { grid-template-columns: 4.25rem minmax(0, 1fr); }
-  .ud-top { grid-column: 1 / 3; border-right: 0; }
-  .ud-tabs, .ud-grip, .ud-brand .ud-label { display: none; }
-  .ud-nav1 { grid-column: 1; }
-  .ud-main { grid-column: 2; }
-  .ud-nav1 .ud-navitem { flex-direction: column; gap: .15rem; padding: .35rem .1rem; font-size: var(--text-xs); text-align: center; }
-  .ud-nav1 .ud-navitem svg { display: block; }
-  .ud-nav1 .ud-label { display: block; max-width: 100%; }
-  .ud-nav1 .badge, .ud-navgroup .ud-label { display: none; }
-  .ud-nav2, .ud-nav3 { position: fixed; top: var(--ud-row); bottom: 0; z-index: 30; display: none; box-shadow: var(--shadow-lg); }
-  .ud-nav2 { left: 4.25rem; width: 9rem; }
-  .ud-nav3 { left: 13.25rem; width: calc(100vw - 13.25rem); }
-  html.ud-navopen .ud-nav2, html.ud-navopen .ud-nav3 { display: flex; }
-  html.ud-navhide .ud-shell { grid-template-columns: 4.25rem minmax(0, 1fr); }
-  .ud-head { padding-left: .75rem; padding-right: .5rem; }
-  .ud-content { padding: 1rem .75rem 3rem; }
-}
+.ud-facts { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: var(--text-sm); }
+.ud-facts dt { color: var(--muted-foreground); }
+.ud-facts dd { margin: 0; overflow-wrap: anywhere; }
