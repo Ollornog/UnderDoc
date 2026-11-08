@@ -58,5 +58,9 @@ problems in the workspace, and the restore test.
 **State on 2026-11-08 (pages as blocks):** pages of the database are made in a collection (New, or New page below it) and
 edited block by block, each block a plain Markdown field with its ID from the start; every change is kept as a version and
 listed in the gear. Still to build here: access levels set in the web and comments, embedding by ID, settings on the account,
-deleting and moving objects, folders in the database, import and export, the list of problems in the workspace, and the
-restore test.
+deleting objects, folders in the database, import and export, the list of problems in the workspace, and the restore test.
+
+**State on 2026-11-08 (New and dragging):** New in nav2 and in the head of a collection is one menu in groups (make, set
+apart, bring in), and typing filters it. A new collection is made at once as "New collection (n)", with the first free
+number, and its name is written in place. Dragging pulls the entry out of its list and opens a gap where it would land; in
+nav3 moving it to the right puts it below the entry above it. Import and Link in New come later.

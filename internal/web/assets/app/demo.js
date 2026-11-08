@@ -155,7 +155,7 @@ function rowHtml(id){
   const d=D[id],open=kidsOpen(id),t=at(S.focus),cur=t&&t.d===id;
   return `<li><div class="row${cur?' cur':''}${S.just===id?' just':''}" data-row="${id}">
     <button class="arrow ${d.kids.length?(open?'open':''):'none'}" data-act="tog" data-id="${id}" aria-label="Toggle ${d.n}">${ic('chev')}</button>
-    <button class="name" data-act="open" data-id="${id}" title="${d.n}">${ic(d.i||TYPE[d.t][0])}<span>${d.n}</span></button></div>
+    ${S.ren===id?`<span class="name">${ic(d.i||TYPE[d.t][0])}<input class="renin" data-ren="${id}" value="${d.n}" aria-label="Name"></span>`:`<button class="name" data-act="open" data-id="${id}" title="${d.n}">${ic(d.i||TYPE[d.t][0])}<span>${d.n}</span></button>`}</div>
     ${d.kids.length&&open?`<ul class="t">${d.kids.map(rowHtml).join('')}</ul>`:''}</li>`;
 }
 const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','notes','excel','slides','video','images','view','db','ipnet','devices'];
@@ -170,11 +170,35 @@ function treeHtml(){
   return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
     <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
 }
-/* Menus float over the list, so nothing below them moves. */
+/* New, in nav2 and in the head of a collection: one menu in groups, and typing filters it (the command menu of C22).
+   It floats over everything below its button, so nothing moves. */
+Object.assign(I,{link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',hr:'<path d="M4 12h16"/>',gap:'<path d="M4 5h16M4 19h16M12 9v6"/>'});
+const SOON=' disabled data-later="1" title="Comes later"';
 function addPop(){
-  if(!S.addIn)return '';const c=C.find(x=>x.id===S.addIn);
-  return `<div class="pop addpop" data-style="top:${S.addTop||0}px" role="menu"><b>Add to ${c.n}</b>${addTypes().map(k=>`<button data-act="add" data-id="${k}" data-c="${c.id}"${off('add',k)}>${ic(TYPE[k][0])}${TYPE[k][1]}</button>`).join('')}${S.mods.bookmarks?`<hr><button data-act="open" data-id="bm:import"${off('add','bookmark')}>${ic('down')}Import bookmarks</button>`:''}</div>`;
+  if(!S.addIn)return '';
+  const n2=S.addIn==='n2',c=!n2&&D[S.addIn];if(!n2&&!c)return '';
+  const it=(act,id,label,icon,extra='')=>`<button role="menuitem" data-act="${act}" data-id="${id}" data-filter="${label}" ${extra}>${ic(icon)}<span>${label}</span></button>`;
+  const grp=(h,items)=>`<div role="group"><span role="heading">${h}</span>${items}</div>`;
+  const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
+  const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
+    :[grp('Make',addTypes().map(k=>it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+off('add',k))).join('')+it('newcoll',S.addIn,'Collection','grid')),
+      grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
+      grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON)+(S.mods.bookmarks?it('open','bm:import','Import bookmarks','down',off('add','bookmark')):''))];
+  return `<div class="pop ctxpop cmdpop" data-style="left:${S.addAt.x}px;top:${S.addAt.y}px"><div class="command" aria-label="New ${n2?'in nav2':'in '+c.n}"><header>${ic('search')}<input data-nfilter value="${esc(S.addQ)}" placeholder="Type to filter" aria-label="Filter" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true"></header><div role="menu" data-empty="Nothing matches.">${groups.join('<hr role="separator">')}</div></div></div>`;
 }
+/* Typing filters the entries by their names; arrows move the choice, Enter takes it. The focus stays in the field. */
+function filterNew(q){
+  const items=[...document.querySelectorAll('.cmdpop [role="menuitem"]')],w=q.trim().toLowerCase();
+  items.forEach(n=>{n.classList.remove('active');n.setAttribute('aria-hidden',String(!!w&&!n.dataset.filter.toLowerCase().includes(w)));});
+  const first=items.find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(first&&w)first.classList.add('active');
+}
+function stepNew(dir){
+  const items=[...document.querySelectorAll('.cmdpop [role="menuitem"]')].filter(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(!items.length)return;
+  const k=items.findIndex(n=>n.classList.contains('active'));items.forEach(n=>n.classList.remove('active'));
+  const n=items[(k<0?(dir>0?0:items.length-1):k+dir+items.length)%items.length];n.classList.add('active');n.scrollIntoView({block:'nearest'});
+}
+/* A new collection gets the first free number, and its name is written in place. */
+function freeName(base){const used=new Set(Object.values(D).filter(d=>d.t==='coll').map(d=>plain(d.n)));let n=1;while(used.has(`${base} (${n})`))n++;return `${base} (${n})`;}
 /* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
@@ -196,8 +220,9 @@ function nav2Html(){
     /* Open for now or kept open: kept open draws the line on the left. Lines and spaces set groups apart; all of it is
        sorted by dragging, and the browser keeps the order until the account does. */
     const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}" data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
+      :S.ren===c.id?`<div class="collrow ren">${ic(c.i||'grid')}<input class="renin" data-ren="${c.id}" value="${D[c.id].n}" aria-label="Name of the collection"></div>`
       :`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}">${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}</div>`;
-    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="newcoll" aria-label="New collection" title="New collection"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(row).join('')}</div>`;
+    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(row).join('')}</div>`;
   }
   if(S.view==='search') return [['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+`<span class="favsep"></span>`+navItem('ai','ai','Also ask AI','ai',S.ai);
   if(S.view==='profile') return PROFSET.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+`<span class="favsep"></span><span class="n2lab">${ic('shield')}<span class="lbl">Administration</span></span>`+PROFADM.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('');
@@ -507,7 +532,7 @@ function accountHtml(){
 }
 function nav3Html(){
   const v=S.view,sec=S.sec[v];
-  if(v==='workspace') return S.cgear?collForm():`<div class="tree" id="tree">${treeHtml()}</div>${addPop()}`;
+  if(v==='workspace') return S.cgear?collForm():`<div class="tree" id="tree">${treeHtml()}</div>`;
   if(v==='search') return searchHtml();
   if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
   if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
@@ -528,7 +553,7 @@ function nav3Html(){
 function render(){
   if(S.booted)saveSettings();
   /* A block being written keeps the focus through a render; a new block asks for it with S.focusNext. */
-  const ae=document.activeElement,want=S.focusNext||(ae&&ae.dataset&&ae.dataset.blk!==undefined?{d:ae.dataset.d,id:ae.dataset.blk,pos:ae.selectionStart}:null);S.focusNext=null;
+  const ae=document.activeElement,ren=ae&&ae.dataset&&ae.dataset.ren!==undefined?{v:ae.value,a:ae.selectionStart,b:ae.selectionEnd}:null,want=S.focusNext||(ae&&ae.dataset&&ae.dataset.blk!==undefined?{d:ae.dataset.d,id:ae.dataset.blk,pos:ae.selectionStart}:null);S.focusNext=null;
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -549,12 +574,15 @@ function render(){
   const name=w=>{const t=w.tabs[w.a];return t&&t.d?D[t.d].n:'Empty';};
   const winbar=S.wins.length>1?`<div class="winbar">${S.wins.map((w,i)=>`<button class="chip" data-act="focus" data-id="${i}" aria-pressed="${i===S.focus}">${name(w)}</button>`).join('')}</div>`:'';
   const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
-  document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}`;
+  rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}`;
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
-  refocusBlock(want);
+  rendering=false;refocusBlock(want);
+  /* A name being written keeps its text and the focus through a render. */
+  const rn=ren&&document.querySelector('[data-ren]');if(rn){rn.value=ren.v;rn.focus();rn.setSelectionRange(ren.a,ren.b);}
   const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
   /* A menu with no room below its heading opens above it. */
-  const ap=document.querySelector('.addpop');if(ap){const n3=ap.closest('.nav3');if(n3&&ap.getBoundingClientRect().bottom>n3.getBoundingClientRect().bottom+1)ap.style.top=Math.max(0,(S.addTop||0)-(S.addH||0)-ap.offsetHeight)+'px';}
+  /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
+  const ap=document.querySelector('.cmdpop');if(ap){const z=S.scale/100,r=ap.getBoundingClientRect();if(r.bottom>innerHeight-4)ap.style.top=Math.max(4,S.addAt.up-r.height/z)+'px';if(r.right>innerWidth-4)ap.style.left=Math.max(4,(innerWidth-4)/z-r.width/z)+'px';filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
   document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
@@ -625,6 +653,8 @@ function newColumn(i,k,pos){
 function onlyThis(id){const o={};C.forEach(c=>{if(S.pin[c.id])o[c.id]=true;});o[id]=true;S.open=o;}
 function togglePin(id){if(S.pin[id]){S.pin[id]=false;S.open[id]=false;}else{S.pin[id]=true;S.open[id]=true;}}
 /* The second click of a double click comes with a click count of 2. The list is drawn anew after the first click, so the browser's dblclick event may never arrive. */
+/* New opens below its row: the head of nav2 or of the collection. */
+function openNew(id,anchor){const z=S.scale/100,r=anchor?anchor.getBoundingClientRect():{left:0,top:0,bottom:0};S.addIn=id;S.addQ='';S.addAt={x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2,up:Math.round(r.top/z)-2};}
 function collClick(id,e){if(e.ctrlKey||e.metaKey||e.detail===2)togglePin(id);else if(e.detail<2)onlyThis(id);}
 function openTab(id){const w0=S.wins[S.focus];let k=w0.tabs.findIndex((x,j)=>j>0&&x.d===id);if(k<0){w0.tabs.push(newTab(id));k=w0.tabs.length-1;}w0.a=k;}
 document.addEventListener('scroll',e=>{const x=e.target;if(!x.dataset)return;if(x.dataset.sc!==undefined){const t=at(+x.dataset.sc);if(t)t.top=x.scrollTop;}else if(x.id==='tree')S.treeTop=x.scrollTop;},true);
@@ -661,7 +691,7 @@ document.addEventListener('click',e=>{
     case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
     case 'newdoc':openDoc(createIn(S.into,a.id,''));break;
     case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
-    case 'addmenu2':{S.view='workspace';S.cgear=null;S.rail=true;S.open[a.id]=true;render();const r=document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`),tr=document.getElementById('tree');S.addIn=a.id;S.addTop=r&&tr?r.offsetTop-tr.scrollTop+r.offsetHeight:0;S.addH=r?r.offsetHeight:0;break;}
+    case 'addmenu2':{S.view='workspace';S.cgear=null;S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
     case 'opentab':openTab(a.id);break;
     case 'opencol':S.wins.splice(S.focus+1,0,{tabs:[newTab(null,true),newTab(a.id)],a:1,hist:[]});S.focus++;break;
     case 'addchild':if(D[a.id].db){createPage(a.id,'New page');break;}{const id='new'+(++S.newN);D[id]={t:'page',n:'New page',w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its parent',...none,stat:'new',html:'<p class="lab">Empty.</p>'};D[a.id].kids.unshift(id);S.tog[a.id]=true;rebuildPlaces();openDoc(id);S.just=id;break;}
@@ -670,9 +700,9 @@ document.addEventListener('click',e=>{
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
     case 'copen':onlyThis(a.id);S.cgear=null;break;
     case 'cpin':togglePin(a.id);break;
-    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'');return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,'New collection',[],'grid');
+    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'',freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
       if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
-      rebuildPlaces();S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}return;}
+      rebuildPlaces();S.view='workspace';S.rail=true;S.just=id;renameHere(id);return;}
     case 'cacc':if(a.id==='edit')delete D[S.cgear].acc;else D[S.cgear].acc=a.id;break;
     case 'setacc':if(a.id==='inherit')delete D[t.d].acc;else D[t.d].acc=a.id;break;
     case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt)t.gear=false;break;
@@ -696,7 +726,8 @@ document.addEventListener('click',e=>{
     case 'lineafter':case 'spaceafter':addDivider(act.startsWith('line')?'line':'space',contOf(a.id),a.id);break;
     case 'decodel':removeDivider(a.id);break;
     case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
-    case 'addmenu':{S.addIn=hadAdd===a.id?null:a.id;const r=b.closest('.cheadrow'),tr=document.getElementById('tree');if(r&&tr){S.addTop=r.offsetTop-tr.scrollTop+r.offsetHeight;S.addH=r.offsetHeight;}break;}
+    case 'addmenu':if(hadAdd!==a.id)openNew(a.id,b.closest('.cheadrow,.n2head')||b);break;
+    case 'lineend':case 'spaceend':{const k=D[a.id].kids;addDivider(act==='lineend'?'line':'space',a.id,k[k.length-1]||'');break;}
     case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
     case 's1':S.s1=+a.id;break;
     case 's2':S.s2=+a.id;break;
@@ -745,12 +776,15 @@ document.addEventListener('click',e=>{
 },true);
 function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=resultsHtml();}
 document.addEventListener('input',e=>{
+  if(e.target.dataset&&e.target.dataset.nfilter!==undefined){S.addQ=e.target.value;filterNew(S.addQ);return;}
   const x=e.target;
   if(x.dataset.blk!==undefined){const b=blockIn(x);if(b)b.draft=x.value;return;}
   if(x.id==='search'){S.sq=x.value;searchServer();if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
   if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
 });
+let rendering=false;
+document.addEventListener('focusout',e=>{const x=e.target;if(!rendering&&x.dataset&&x.dataset.ren!==undefined)renameDone(x);});
 document.addEventListener('change',e=>{
   const x=e.target;
   if(x.dataset.blk!==undefined){saveBlock(x.dataset.d,x.dataset.blk,x.value,x);return;}
@@ -782,6 +816,8 @@ document.addEventListener('keydown',e=>{
   const x=e.target;
   if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
   if(e.key==='/'&&!x.closest('input,select,textarea')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
+  if(x.dataset&&x.dataset.nfilter!==undefined&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){e.preventDefault();if(e.key==='Enter'){const n=document.querySelector('.cmdpop [role="menuitem"].active')||[...document.querySelectorAll('.cmdpop [role="menuitem"]')].find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(n)n.click();}else stepNew(e.key==='ArrowDown'?1:-1);return;}
+  if(x.dataset&&x.dataset.ren!==undefined&&(e.key==='Enter'||e.key==='Escape')){e.preventDefault();if(e.key==='Escape')x.value=x.defaultValue;x.blur();return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
@@ -797,7 +833,7 @@ document.addEventListener('keydown',e=>{
 /* Dragging runs on pointer events: it starts anywhere on the item, also on its text, and the whole row counts as the target. */
 let drag=null,noClick=false;
 const clampW3=v=>Math.min(640,Math.max(180,Math.round(v)));
-const clearMarks=()=>document.querySelectorAll('.drop-before,.drop-after,.drop-into,.zone-left,.zone-right,.zone-mid').forEach(n=>n.classList.remove('drop-before','drop-after','drop-into','zone-left','zone-right','zone-mid'));
+const clearMarks=()=>document.querySelectorAll('.zone-left,.zone-right,.zone-mid').forEach(n=>n.classList.remove('zone-left','zone-right','zone-mid'));
 function startGrip(g,e){
   const n=g.dataset.grip,z=S.scale/100,x0=e.clientX,w0=n==='3'?S.w3:STAGES[S['s'+n]];
   const move=m=>{const want=w0+(m.clientX-x0)/z;
@@ -816,9 +852,9 @@ document.addEventListener('pointerdown',e=>{
   const tab=e.target.closest('.dtab:not(.blank)'),row=e.target.closest('[data-row]'),fav=e.target.closest('[data-favid]'),sec=e.target.closest('[data-secid]');
   if(row&&contAcc(row.dataset.row)==='read')return;
   if(tab)drag={kind:'tab',src:tab,w:+tab.dataset.dw,t:+tab.dataset.dt,label:tab.querySelector('.sel span').textContent};
-  else if(row)drag={kind:'row',id:row.dataset.row,label:D[row.dataset.row].n};
-  else if(fav)drag={kind:'fav',id:fav.dataset.favid,label:C.find(c=>c.id===fav.dataset.favid).n};
-  else if(sec)drag={kind:'sec',view:S.view,id:sec.dataset.secid,label:sec.textContent.trim()};
+  else if(row)drag={kind:'row',id:row.dataset.row,label:D[row.dataset.row].n,el:row};
+  else if(fav)drag={kind:'fav',id:fav.dataset.favid,label:C.find(c=>c.id===fav.dataset.favid).n,el:fav};
+  else if(sec)drag={kind:'sec',view:S.view,id:sec.dataset.secid,label:esc(sec.textContent.trim()),el:sec};
   if(drag){drag.x0=e.clientX;drag.y0=e.clientY;drag.on=false;drag.to=null;}
 });
 /* Tabs snap: the window comes from the pointer's x, the row has a tolerance around it, and the tab takes its place while dragging. */
@@ -849,75 +885,105 @@ function showSlot(t){
   return true;
 }
 const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return false;};
-function rowTarget(e,el){const t=rowTarget0(e,el);return t&&fits(drag.id,t)?t:null;}
 /* Where a drop puts the entry: the container it goes into. An object of the database goes only into the database, where
    one may edit, and made-up content stays made up. */
 function dropCont(t){return t.type==='coll'?t.c:t.type==='into'?t.id:t.type==='nav2'?'':contOf(t.id);}
 function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
-function rowTarget0(e,el){
-  if(D[drag.id].t==='coll'&&el&&el.closest('.nav2')){const n=el.closest('#clist')||el.closest('.nav2');return {type:'nav2',node:n,cls:'drop-into'};}
-  const h=el&&el.closest('[data-cdrop]');if(h)return accOf(h.dataset.cdrop)==='read'?null:{type:'coll',c:h.dataset.cdrop,node:h,cls:'drop-into'};
-  const n=el&&el.closest('[data-row]');if(!n)return null;
-  const id=n.dataset.row;if(within(drag.id,id))return null;
-  const r=n.getBoundingClientRect(),y=(e.clientY-r.top)/r.height;
-  if(isDeco(id))return {type:y<.5?'before':'after',id,node:n,cls:y<.5?'drop-before':'drop-after'};
-  return y<.3?{type:'before',id,node:n,cls:'drop-before'}:y>.7?{type:'after',id,node:n,cls:'drop-after'}:{type:'into',id,node:n,cls:'drop-into'};
+/* Dragging an entry of nav2 or nav3 pulls it out of its list, and the others move apart where it would land, live. Up
+   and down picks the place; in nav3 the left edge of the dragged entry picks the depth, so moving it to the right puts
+   it below the entry above it, as in an outliner. The lists are measured once without the gap, so the gap moving does
+   not move the place under the pointer, and the middle of the dragged entry decides, not the pointer. */
+const liftOf=d=>d.kind==='row'?d.el.closest('li'):d.el;
+function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.parentElement)if(x.matches('ul.t'))k++;return k;}
+function measure(d){
+  const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null;
+  const rowsOf=(nodes,f)=>nodes.filter(shown).map(n=>{const r=n.getBoundingClientRect();return {el:n,top:r.top,bot:r.bottom,...f(n)};});
+  const n2=document.querySelector('.nav2'),list=document.getElementById('clist');
+  if(list&&(d.kind==='fav'||(d.kind==='row'&&D[d.id].t==='coll')))zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.querySelectorAll(':scope>.collrow[data-favid]')],n=>({id:n.dataset.favid}))});
+  if(d.kind==='sec'&&n2)zones.push({box:n2,sc:n2,s0:n2.scrollTop,flat:true,where:'sec',rows:rowsOf([...n2.querySelectorAll('[data-secid]')],n=>({id:n.dataset.secid}))});
+  const tr=document.getElementById('tree'),top=tr&&tr.querySelector('ul.t.top');
+  if(top&&(d.kind==='row'||(d.kind==='fav'&&!isDeco(d.id)))){
+    const p=document.createElement('ul');p.className='t';top.append(p);const ind=parseFloat(getComputedStyle(p).paddingLeft)*z;p.remove();
+    zones.push({box:tr.closest('.nav3'),sc:tr,s0:tr.scrollTop,flat:false,where:'n3',base:top.getBoundingClientRect().left,ind,
+      rows:rowsOf([...tr.querySelectorAll('.cheadrow,.row')],n=>n.classList.contains('cheadrow')?{id:n.dataset.cdrop,head:true,depth:-1,hold:true}:{id:n.dataset.row,depth:depthOf(n),hold:!isDeco(n.dataset.row)})});
+  }
+  return zones;
 }
-function secTarget(e,el){
-  const n=el&&el.closest('[data-secid]');if(!n||n.dataset.secid===drag.id)return null;
-  const r=n.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;return {id:n.dataset.secid,after,node:n,cls:after?'drop-after':'drop-before'};
+/* The place of slot k at a depth, if the entry may go there: the parent it goes into and the entry it follows. */
+function slotAt(z,k,dep){
+  const d=drag;
+  if(z.flat){if(z.where==='n2'&&d.kind==='row'&&!fits(d.id,{type:'nav2'}))return null;return {z,k,dep:0,after:k>0?z.rows[k-1].id:'',top:k>0?z.rows[k-1].bot:z.rows[0].top};}
+  k=Math.max(1,k);const prev=z.rows[k-1],next=z.rows[k];
+  const hi=prev.head?0:prev.depth+(prev.hold?1:0),lo=next&&!next.head?Math.min(next.depth,hi):0;dep=Math.max(lo,Math.min(hi,dep));
+  let par=null,after='';for(let j=k-1;j>=0;j--){const r=z.rows[j];if(r.depth<dep){par=r;break;}if(r.depth===dep&&!after)after=r.id;}
+  if(!par)return null;const c=par.id;
+  if(accOf(c)==='read'||!fits(d.id,par.head?{type:'coll',c}:{type:'into',id:c}))return null;
+  if(d.kind==='fav'&&(c===d.id||(COLL[c]&&COLL[c].id===d.id)))return null;
+  if(d.kind==='row'&&within(d.id,c))return null;
+  return {z,k,dep,p:c,after,top:prev.bot,prev};
 }
-function favTarget(e,el){
-  if(el&&el.closest('.nav3')&&isDeco(drag.id))return null;
-  if(el&&el.closest('.nav3')){const t=rowTarget0(e,el);if(t&&!fits(drag.id,t))return null;if(!t)return null;const home=t.type==='coll'?t.c:COLL[t.id]&&COLL[t.id].id;return home===drag.id?null:{...t,down:true};}
-  const n=el&&el.closest('[data-favid]');if(!n||n.dataset.favid===drag.id)return null;
-  const r=n.getBoundingClientRect();return {id:n.dataset.favid,after:e.clientY>r.top+r.height/2,node:n,cls:e.clientY>r.top+r.height/2?'drop-after':'drop-before'};
+function liveTarget(e){
+  const d=drag,cx=e.clientX-d.gx,cy=e.clientY-d.gy+d.h/2;
+  const z=d.zones.find(z=>{const r=z.box.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<r.right&&e.clientY>=r.top&&e.clientY<r.bottom;});
+  if(!z||!z.rows.length)return null;
+  const y=cy+(z.sc.scrollTop-z.s0),g=d.to&&d.to.z===z?d.to:null;let k;
+  if(g&&y>=g.top&&y<g.top+d.h)k=g.k;
+  else{const ny=g&&y>=g.top+d.h?y-d.h:y;k=z.rows.findIndex(r=>ny<(r.top+r.bot)/2);if(k<0)k=z.rows.length;}
+  return slotAt(z,k,z.flat?0:Math.round((cx-z.base)/z.ind));
+}
+/* The gap opens where the entry would land, and what moves for it slides there. */
+function showGap(t){
+  const d=drag,o=d.to;if(o===t||(o&&t&&o.z===t.z&&o.k===t.k&&o.dep===t.dep))return;
+  const z=S.scale/100,all=d.zones.flatMap(x=>x.rows.map(r=>r.el)),was=all.map(n=>n.getBoundingClientRect().top);
+  document.querySelectorAll('.dropgap').forEach(n=>n.remove());
+  if(t){const gap=document.createElement(!t.z.flat&&t.prev.head?'li':'div');gap.className='dropgap';gap.style.height=d.h/z+'px';
+    if(t.z.flat){const nx=t.z.rows[t.k];if(nx)nx.el.before(gap);else t.z.rows[t.k-1].el.after(gap);}
+    else if(t.prev.head)t.prev.el.nextElementSibling.prepend(gap);
+    else{t.prev.el.after(gap);gap.style.marginLeft=(t.dep-t.prev.depth)*t.z.ind/z+'px';}}
+  all.forEach((n,i)=>{const dy=was[i]-n.getBoundingClientRect().top;if(Math.abs(dy)>.5)n.animate([{transform:`translateY(${dy/z}px)`},{transform:'none'}],{duration:140,easing:'ease-out'});});
+  d.to=t;
+}
+/* Lifting hides the entry and opens the gap in its place, so nothing jumps. After a render it lifts again. */
+function lift(d,first){
+  if(!first){const sel=d.kind==='row'?`[data-row="${d.id}"]`:d.kind==='fav'?`[data-favid="${d.id}"]`:`[data-secid="${d.id}"]`;d.el=document.querySelector(sel);d.to=null;if(!d.el)return;}
+  const z=S.scale/100,r=d.el.getBoundingClientRect();d.h=r.height;
+  if(first){d.gx=d.x0-r.left;d.gy=d.y0-r.top;}
+  liftOf(d).style.display='none';d.zones=measure(d);
+  const home=d.zones.find(x=>x.where===(d.kind==='fav'?'n2':d.kind==='sec'?'sec':'n3'));
+  if(first&&home){let k=home.rows.findIndex(x=>x.top>=r.top-.5);if(k<0)k=home.rows.length;showGap(slotAt(home,k,d.kind==='row'?depthOf(d.el):0));}
 }
 addEventListener('pointermove',e=>{
   if(!drag)return;
+  const z=S.scale/100;
   if(!drag.on){if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.on=true;document.body.classList.add('dragging');
-    const g=document.createElement('div');g.className='ghost';g.textContent=drag.label;g.id='ghost';document.body.append(g);if(drag.src&&!drag.src.classList.contains('general'))drag.src.style.display='none';}
-  const z=S.scale/100,g=document.getElementById('ghost');g.style.left=(e.clientX/z+12)+'px';g.style.top=(e.clientY/z+12)+'px';
-  const el=document.elementFromPoint(e.clientX,e.clientY);
-  drag.to=drag.kind==='tab'?tabTarget(e):drag.kind==='row'?rowTarget(e,el):drag.kind==='sec'?secTarget(e,el):favTarget(e,el);
-  clearMarks();const t=drag.to;
-  if(drag.kind==='tab')g.style.display=showSlot(t)?'none':'';
+    const g=document.createElement('div');g.id='ghost';
+    if(drag.el){const wd=drag.el.getBoundingClientRect().width;lift(drag,true);g.className='ghost lift';g.innerHTML=ic(drag.kind==='sec'?'grip':isDeco(drag.id)?(D[drag.id].t==='line'?'hr':'gap'):D[drag.id].i||TYPE[D[drag.id].t][0])+`<span>${drag.label}</span>`;g.style.width=wd/z+'px';}
+    else{g.className='ghost';g.textContent=drag.label;}
+    document.body.append(g);if(drag.src&&!drag.src.classList.contains('general'))drag.src.style.display='none';}
+  const g=document.getElementById('ghost');
+  if(drag.el){if(!drag.el.isConnected)lift(drag,false);g.style.left=(e.clientX-drag.gx)/z+'px';g.style.top=(e.clientY-drag.gy)/z+'px';showGap(liveTarget(e));return;}
+  g.style.left=(e.clientX/z+12)+'px';g.style.top=(e.clientY/z+12)+'px';
+  drag.to=tabTarget(e);clearMarks();const t=drag.to;
+  g.style.display=showSlot(t)?'none':'';
   if(t&&t.node)t.node.classList.add(t.cls);
 });
 function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id]?COLL[id].top:C.find(c=>c.id===id)?[]:[];}
+/* A drop takes the entry to the gap. In the database the server moves it too, and if it refuses, the lists go back. */
 function applyDrop(d){
-  const t=d.to;if(!t)return;
-  const real=(d.kind==='row'||(d.kind==='fav'&&t.down))&&D[d.id]&&D[d.id].db;
-  const lists=real?[C,parentList(d.id)].concat(t.type==='coll'?[C.find(c=>c.id===t.c).top]:t.type==='into'?[D[t.id].kids]:t.id&&t.type!=='nav2'?[parentList(t.id)]:[]):[];
-  const before=lists.map(l=>[l,l.slice()]);
-  applyDrop0(d);
-  if(real){const l=t.type==='nav2'?null:parentList(d.id),k=l?l.indexOf(d.id):-1;
-    moveObject(d.id,t.type==='nav2'?'':contOf(d.id),k>0?l[k-1]:'',()=>{before.forEach(([l,c])=>{l.length=0;l.push(...c);});rebuildPlaces();});}
-}
-function applyDrop0(d){
   const t=d.to;if(!t)return;
   if(d.kind==='tab'){
     if(t.type==='row'){if(t.i!==d.w||t.idx!==d.t)placeTab(d.w,d.t,t.i,t.idx);else{S.wins[d.w].a=d.t;S.focus=d.w;}}
     else if(t.type==='new')newColumn(d.w,d.t,t.pos);
-    else placeTab(d.w,d.t,t.i,Infinity);
-  }else if(d.kind==='row'){
-    const list=parentList(d.id);list.splice(list.indexOf(d.id),1);
-    if(t.type==='nav2'){C.push(asTop({id:d.id,i:D[d.id].i||'grid'}));S.open[d.id]=true;rebuildPlaces();return;}
-    if(t.type==='coll')C.find(c=>c.id===t.c).top.push(d.id);
-    else if(t.type==='into'){D[t.id].kids.push(d.id);S.tog[t.id]=true;}
-    else{const l=parentList(t.id);l.splice(l.indexOf(t.id)+(t.type==='after'?1:0),0,d.id);}
-    rebuildPlaces();S.just=d.id;
-  }else if(d.kind==='sec'){
-    const L=SORT[d.view],a=L.findIndex(x=>x.id===d.id),[m]=L.splice(a,1);let b=L.findIndex(x=>x.id===t.id);if(t.after)b++;L.splice(b,0,m);
-  }else if(t.down){
-    C.splice(C.findIndex(c=>c.id===d.id),1);delete S.open[d.id];delete S.fav[d.id];delete S.pin[d.id];
-    if(t.type==='coll')C.find(c=>c.id===t.c).top.push(d.id);
-    else if(t.type==='into'){D[t.id].kids.push(d.id);S.tog[t.id]=true;}
-    else{const l=parentList(t.id);l.splice(l.indexOf(t.id)+(t.type==='after'?1:0),0,d.id);}
-    rebuildPlaces();S.just=d.id;
-  }else{
-    const a=C.findIndex(c=>c.id===d.id),[m]=C.splice(a,1);let b=C.findIndex(c=>c.id===t.id);if(t.after)b++;C.splice(b,0,m);
-  }
+    else placeTab(d.w,d.t,t.i,Infinity);return;}
+  const id=d.id,w=t.z.where;
+  if(w==='sec'){const L=SORT[d.view],[m]=L.splice(L.findIndex(x=>x.id===id),1);L.splice(t.after?L.findIndex(x=>x.id===t.after)+1:0,0,m);return;}
+  const from=d.kind==='fav'?C:parentList(id),dest=w==='n2'?C:D[t.p].kids,snap=[...new Set([C,from,dest])].map(l=>[l,l.slice()]);
+  let m=null;if(d.kind==='fav')[m]=C.splice(C.findIndex(c=>c.id===id),1);else from.splice(from.indexOf(id),1);
+  if(w==='n2'){if(!m){m=asTop({id,i:D[id].i||'grid'});S.open[id]=true;}C.splice(t.after?C.findIndex(c=>c.id===t.after)+1:0,0,m);}
+  else{if(m){delete S.open[id];delete S.fav[id];delete S.pin[id];}dest.splice(t.after?dest.indexOf(t.after)+1:0,0,id);S.tog[t.p]=true;S.just=id;}
+  rebuildPlaces();
+  /* nav2 keeps its order in the browser; only a move into or out of a collection reaches the server. */
+  if(D[id].db&&!(d.kind==='fav'&&w==='n2'))moveObject(id,w==='n2'?'':t.p,w==='n2'?'':t.after,()=>{snap.forEach(([l,c])=>{l.length=0;l.push(...c);});rebuildPlaces();render();});
 }
 addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;
@@ -926,7 +992,7 @@ addEventListener('pointerup',e=>{
   document.body.classList.remove('dragging');const g=document.getElementById('ghost');if(g)g.remove();clearMarks();
   applyDrop(d);render();
 });
-addEventListener('keydown',e=>{if(e.key==='Escape'&&drag){const g=document.getElementById('ghost');if(g)g.remove();drag=null;document.body.classList.remove('dragging');clearMarks();}});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&drag){const g=document.getElementById('ghost');if(g)g.remove();const on=drag.on;drag=null;document.body.classList.remove('dragging');clearMarks();if(on)render();}});
 /* Documents that need the helpers above */
 const fill=o=>{const def={w:'slim',toc:'marker',tags:[],kids:[],vis:'Only you',...none};for(const k in def)if(!(k in o))o[k]=def[k];return o;};
 D['priv:time']=fill({t:'time',n:'This week',w:'wide',path:'not a file, private',place:'Private › Time',by:'you',ch:'today',stat:'31:40 this week',
@@ -1040,14 +1106,19 @@ function idFromPath(){
 
 /* Collections of the database: made and renamed through the API (ADR-19). */
 const same={credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'}};
-async function createCollection(parent){
-  try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title:'New collection',parent})});if(!r.ok)throw new Error(String(r.status));
+async function createCollection(parent,title){
+  try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title,parent})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='collection';node.owner=S.user.name;const id=addNode(node);
     if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
     else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'folder'}));rebuildPlaces();onlyThis(id);}
-    S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}
+    S.view='workspace';S.rail=true;S.just=id;renameHere(id);
   }catch(e){S.toast='The collection could not be made.';render();setTimeout(()=>{S.toast='';render();},2400);}
 }
+/* The name of something new is written where it appears, in nav2 or in nav3: Enter or leaving the field keeps it,
+   Escape keeps the name it got. */
+function renameHere(id){S.ren=id;render();const f=document.querySelector('[data-ren]');if(f){f.focus();f.select();}}
+function renameDone(x){const id=x.dataset.ren,v=x.value.trim();if(S.ren!==id)return;S.ren=null;
+  if(v&&v!==plain(D[id].n)){D[id].n=esc(v);if(D[id].real)renameObject(id,v);}render();}
 async function renameObject(id,title){
   try{const r=await fetch('/api/objects/'+encodeURIComponent(id),{...same,method:'PATCH',body:JSON.stringify({title})});if(!r.ok)throw new Error(String(r.status));}
   catch(e){S.toast='The new name could not be saved.';render();setTimeout(()=>{S.toast='';render();},2400);}

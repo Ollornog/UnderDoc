@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Dragging in nav2 and nav3 pulls the entry out of its list, and the others move apart where it would land, live, instead of
+  a line on one edge or the other of each entry. Up and down picks the place; in nav3 moving it to the right puts it below
+  the entry above it. Where one may only read, no gap opens. The private lists of nav2 sort the same way.
+- New in nav2 and in the head of a collection is one menu in groups, and typing filters it; arrows and Enter pick. In nav2 it
+  offers a collection, a line and a space; Import and Link come later. A new collection is made at once as
+  "New collection (n)" with the first free number, and its name is written in place, in nav2 or nav3.
+
 - nav2 tells kept open from open for now: only a collection kept open draws the line on the left, which replaces the pin.
   The favorite star is gone; nav2 keeps the order it is dragged into, with its lines and spaces. While dragging in nav2, a
   line shows where the entry lands. At the step Text, New in the head of nav2 is no longer cut off, and the first
