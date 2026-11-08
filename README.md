@@ -62,6 +62,7 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
 | `UNDERDOC_ADMIN_GROUP` | Group of the gate whose members see the administration | `underdoc-admins` |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
+| `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 
 **Writing pages:**
 

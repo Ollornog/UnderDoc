@@ -50,10 +50,10 @@
   </nav>
   <nav class="workspace-nav" data-level="2" data-step="3" aria-label="{{if .Profile}}Profile{{else}}Collections{{end}}">
     {{- if .Profile}}{{template "profile-nav2" .Profile}}{{else}}
-    <header><span>Collections</span><button type="button" class="btn" data-variant="outline" data-size="xs" aria-disabled="true" title="New collection: not built yet, it comes with the database (M-28)"><span>New</span>{{template "icon-plus"}}</button></header>
+    <header><span>Collections</span>{{if .CanCreate}}{{template "new-collection" ""}}{{else}}<button type="button" class="btn" data-variant="outline" data-size="xs" aria-disabled="true" title="New collection: not built yet, it comes with the database (M-28)"><span>New</span>{{template "icon-plus"}}</button>{{end}}</header>
     <div>
       {{- range .Collections}}
-      <a class="workspace-item" href="{{.Href}}" title="{{.Label}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{template "icon-folder"}}<span>{{.Label}}</span></a>
+      <a class="workspace-item" href="{{.Href}}" title="{{.Label}}{{if .Private}}, only you see it{{end}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{if .Private}}{{template "icon-lock"}}{{else}}{{template "icon-folder"}}{{end}}<span>{{.Label}}</span></a>
       {{- end}}
     </div>
     {{- end}}
@@ -65,7 +65,7 @@
     <div class="context-menu">
       <div>
         <section>
-          <header><a href="{{.Href}}" title="Open {{.Label}}"><span>{{.Label}}</span></a><button type="button" class="btn" data-variant="outline" data-size="xs" aria-disabled="true" title="New: not built yet, it comes with the database (M-28)"><span>New</span>{{template "icon-plus"}}</button></header>
+          <header><a href="{{.Href}}" title="Open {{.Label}}"><span>{{.Label}}</span></a>{{if .ID}}{{template "new-collection" .ID}}{{else}}<button type="button" class="btn" data-variant="outline" data-size="xs" aria-disabled="true" title="New: not built yet, it comes with the database (M-28)"><span>New</span>{{template "icon-plus"}}</button>{{end}}</header>
           <ul class="workspace-tree">{{template "tree-items" .Items}}</ul>
         </section>
       </div>
@@ -123,4 +123,20 @@
 {{- else if eq . "vacation"}}<span class="workspace-item" aria-disabled="true" title="Vacation: not built yet (M-24)">{{template "icon-sun"}}<span>Vacation</span></span>
 {{- else if eq . "notes"}}<span class="workspace-item" aria-disabled="true" title="Notes: not built yet (M-24)">{{template "icon-note"}}<span>Notes</span></span>
 {{- end}}
+{{end}}
+
+{{/* New collection, at the top (no parent) or inside a collection. A plain form: it works without scripts, and the
+     server takes it only from this application. Pages come with the editing of M-28. */}}
+{{define "new-collection"}}
+<div class="popover" id="ud-new-{{if .}}{{.}}{{else}}top{{end}}">
+  <button type="button" class="btn" data-variant="outline" data-size="xs" id="ud-new-{{if .}}{{.}}{{else}}top{{end}}-trigger" aria-expanded="false" aria-controls="ud-new-{{if .}}{{.}}{{else}}top{{end}}-popover" title="{{if .}}New collection inside{{else}}New collection{{end}}"><span>New</span>{{template "icon-plus"}}</button>
+  <div id="ud-new-{{if .}}{{.}}{{else}}top{{end}}-popover" data-popover data-side="bottom" data-align="end" aria-hidden="true">
+    <form method="post" action="/collections" class="grid gap-2 p-3">
+      {{- if .}}<input type="hidden" name="parent" value="{{.}}">{{end}}
+      <label class="text-sm font-semibold" for="ud-new-{{if .}}{{.}}{{else}}top{{end}}-title">{{if .}}New collection inside{{else}}New collection{{end}}</label>
+      <input class="input" id="ud-new-{{if .}}{{.}}{{else}}top{{end}}-title" name="title" required maxlength="200" placeholder="Name" autocomplete="off">
+      <button type="submit" class="btn" data-size="sm">Create</button>
+    </form>
+  </div>
+</div>
 {{end}}

@@ -25,6 +25,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- PostgreSQL, optional through `UNDERDOC_DATABASE_URL` (ADR-19): accounts from the gate, each with a private collection My
+  notes, and collections made with New in nav2 or inside another one from its heading in nav3, with IDs of ADR-18. A
+  collection opens its page with owner, what others may do and who sees it. Changes are taken only from this
+  application's own pages. The tests start a throwaway PostgreSQL and fail without one.
 - The user comes from the headers of the sign-in gate, and without them nothing but the health endpoint answers. A profile
   shows the account, signing out, the theme and, to administrators, the administration still to come.
 - `description` and `tags` in the front matter. A click on a tag lists everything that carries it.
