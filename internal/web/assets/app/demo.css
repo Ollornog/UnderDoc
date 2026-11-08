@@ -756,3 +756,7 @@ article.doc:hover .cblk { opacity: .45; }
 .colfacts { margin-bottom: 10px; }
 
 button.l { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Task lists of real pages: the checkbox is the marker. */
+article.doc li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.1em; }
+article.doc li > input[type="checkbox"] { margin-right: 6px; vertical-align: -1px; }

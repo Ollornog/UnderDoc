@@ -539,15 +539,15 @@ function render(){
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
   document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
-    doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
-      const k=el.matches('.tw')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
+    doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw,.table-container').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,.table-container,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
+      const k=el.matches('.tw, .table-container')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
       const lab=k==='t'?'Table: '+[...el.querySelectorAll('th')].map(x=>x.textContent).join(', '):el.textContent.trim().slice(0,60);
       if(t.cmt&&t.cb===id)el.classList.add('cfocus');
       const b=document.createElement('button');b.className='cblk'+(cnt?' has':'');b.dataset.act='cblk';b.dataset.w=i;b.dataset.id=id;b.dataset.l=lab;b.title=cnt?cnt+' comments on this':'Comment on this';b.setAttribute('aria-label',b.title);b.innerHTML=ic('chat')+(cnt?`<em>${cnt}</em>`:'');
       el.after(b);b.style.top=el.offsetTop+'px';});});
   /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
   document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src)return;
-    art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#t'+(k+1);b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#t'+(k+1)+'</span>';(tb.closest('.tw')||tb).before(b);});});
+    art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#t'+(k+1);b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#t'+(k+1)+'</span>';(tb.closest('.tw, .table-container')||tb).before(b);});});
 }
 /* AI drawer on the right: it knows the document in the active window. */
 const aiAnswer=()=>{const t=at(S.focus);return t&&t.d?`Made up for this mockup. A real answer about “${D[t.d].n}” would stand here, with links to its sources.`:'Made up for this mockup. Open a document, and the answer can refer to it.';};
