@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- nav2 tells kept open from open for now: only a collection kept open draws the line on the left, which replaces the pin.
+  The favorite star is gone; nav2 keeps the order it is dragged into, with its lines and spaces. While dragging in nav2, a
+  line shows where the entry lands. At the step Text, New in the head of nav2 is no longer cut off, and the first
+  collection in nav3 has no line above it.
+
 - The interface is now the approved mockup itself, with its sizes, spacing, clicks and made-up content where nothing real
   exists yet (sprint 2026-11-08). It draws itself in the browser and reads its data from a small JSON API; its look is the C22
   block `.c22-app-workspace`. Real so far: the account, the collections of the database and of the folder source with their
@@ -36,6 +41,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Lines and spaces set entries apart, in nav2 and in nav3: right click on an entry (Line below it, Space below it), on a
+  collection head in nav3 (at the top of it) or on the free part of nav2. In nav2 they are the user's own and the browser
+  keeps them with the order; in a collection of the database they are objects, shared with everyone who sees it
+  (`POST /api/dividers`, `DELETE /api/objects/<id>` for now only for them).
+- Dragging an object of the database in nav3 moves it for good (`POST /api/objects/<id>/move`): only where one may edit,
+  nothing into itself or below itself, only a collection at the top, and only its owner takes an object into a private
+  collection. If the server says no, the list goes back.
+- Backlog M-29: recipes as a document type.
 - Pages in the database, edited block by block (ADR-19, M-28): New in a collection, or New page below it, makes a page that
   opens with its first block ready to write. Edit in the window turns every block into a plain Markdown field, saved when it
   loses the focus or on Ctrl+Enter; Escape takes a change back. A block gets its ID when it is made (`b1`, `b2` …, never

@@ -35,6 +35,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-26](M-26-news.md)** News from subscribed feeds — noch keine Aufgaben
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☐ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — 0/1 erledigt
+* ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
 
 ## Aufgaben
 

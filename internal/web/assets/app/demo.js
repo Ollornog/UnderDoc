@@ -102,7 +102,16 @@ const ICON={ops:'pulse',pro:'flag',me:'pencil',arc:'box'};
 C.push({id:'arc',n:'Archive',top:['old']});
 C.forEach(c=>c.i=ICON[c.id]);
 /* A collection is an object like a document: it has an ID, opens in a window with its overview, and can sit inside another collection. */
-TYPE.coll=['grid','Collection'];
+TYPE.coll=['grid','Collection'];TYPE.line=['grid','Line'];TYPE.space=['grid','Space'];
+const isDeco=id=>!!D[id]&&(D[id].t==='line'||D[id].t==='space');
+/* The container of an entry of nav3: its parent, or the collection it lies in at the top. */
+const contOf=id=>PARENT[id]||(COLL[id]&&COLL[id].id);
+/* Made-up content changes only in this browser. Objects of the database change there, and only where one may edit;
+   the folder source is read only. */
+const canPlace=cont=>!!D[cont]&&(D[cont].db?accOf(cont)==='edit':!D[cont].real);
+const placeWhy=cont=>D[cont]&&D[cont].real&&!D[cont].db?'The folder source is read only':ACC[accOf(cont)]||'Not here';
+function divItems(mode,id){const cont=mode==='first'?id:contOf(id),ok=canPlace(cont)?'':'disabled title="'+placeWhy(cont)+'"';
+  return '<hr>'+`<button data-act="line${mode}" data-id="${id}" ${ok}>Line ${mode==='first'?'at the top of it':'below it'}</button><button data-act="space${mode}" data-id="${id}" ${ok}>Space ${mode==='first'?'at the top of it':'below it'}</button>`;}
 function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tags:[],path:'not a file, a collection',by:'A. Keller',ch:'Oct 31',vis:'Group ops',...none,
   get stat(){return `${this.kids.length} entries`;},
   get html(){const ac=accOf(id);return `<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd><dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd><dt>Visible to</dt><dd>${id==='me'?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl><button class="chip" data-act="cgear" data-id="${id}">${ic('gear')}Settings</button>${this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>'}`;}};}
@@ -142,6 +151,7 @@ const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" d
 
 function rowHtml(id){
   if(!shown(id))return '';
+  if(isDeco(id))return `<li><div class="row deco" data-deco="${D[id].t}" data-row="${id}" title="${D[id].n}: drag it, or right click to remove it"></div></li>`;
   const d=D[id],open=kidsOpen(id),t=at(S.focus),cur=t&&t.d===id;
   return `<li><div class="row${cur?' cur':''}${S.just===id?' just':''}" data-row="${id}">
     <button class="arrow ${d.kids.length?(open?'open':''):'none'}" data-act="tog" data-id="${id}" aria-label="Toggle ${d.n}">${ic('chev')}</button>
@@ -157,7 +167,7 @@ const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
   const open=C.filter(c=>S.open[c.id]);
   if(!open.length) return '<p class="lab pad">No collection is open. Pick one in nav2.</p>';
-  return open.map(c=>`<div class="cheadrow" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${S.pin[c.id]?ic('pin'):''}${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
+  return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
     <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
 }
 /* Menus float over the list, so nothing below them moves. */
@@ -169,8 +179,10 @@ function addPop(){
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
   const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${label}</button>`;let items='',title='';
-  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also Ctrl and click, or a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+B('star',S.fav[c.id]?'Remove from favorites':'Add to favorites')+B('cgear','Settings and name');}
-  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+B('copylink','Copy link')+B('opengear','Settings and metadata');}
+  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also Ctrl and click, or a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+'<hr>'+B('cgear','Settings and name');}
+  if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
+  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+B('opengear','Settings and metadata');}
+  if(c.kind==='row'&&isDeco(c.id)){title=D[c.id].n;items=B('decodel','Remove',c.id,canPlace(contOf(c.id))?'':'disabled title="'+placeWhy(contOf(c.id))+'"');}
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
   if(c.kind==='free'){title='New';items=c.acts.map(x=>{const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
   if(c.kind==='view'){title=c.label;items=B('view','Open')+(S.view===c.id&&S.rail?B('view','Hide nav2 and nav3'):'');}
@@ -181,16 +193,18 @@ function nav2Html(){
   const s=phone()?1:S.s2;
   if(S.view==='workspace'){
     /* Every collection is in nav2, so an open one is always in sight: favorites on top, the others below. A right click has the rest. */
-    const row=c=>`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}">${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}${S.pin[c.id]?`<span class="pinmark" title="Kept open">${ic('pin')}</span>`:''}<button class="star cstar" data-act="star" data-id="${c.id}" aria-pressed="${!!S.fav[c.id]}" aria-label="Favorite: ${esc(c.n)}" title="${S.fav[c.id]?'Remove from favorites':'Add to favorites'}">${ic('star')}</button></div>`;
-    const fav=C.filter(c=>S.fav[c.id]),rest=C.filter(c=>!S.fav[c.id]);
-    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="newcoll" aria-label="New collection" title="New collection"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${fav.map(row).join('')}${fav.length&&rest.length?'<span class="favsep"></span>':''}${rest.map(row).join('')}</div>`;
+    /* Open for now or kept open: kept open draws the line on the left. Lines and spaces set groups apart; all of it is
+       sorted by dragging, and the browser keeps the order until the account does. */
+    const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}" data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
+      :`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}">${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}</div>`;
+    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="newcoll" aria-label="New collection" title="New collection"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(row).join('')}</div>`;
   }
   if(S.view==='search') return [['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+`<span class="favsep"></span>`+navItem('ai','ai','Also ask AI','ai',S.ai);
   if(S.view==='profile') return PROFSET.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+`<span class="favsep"></span><span class="n2lab">${ic('shield')}<span class="lbl">Administration</span></span>`+PROFADM.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('');
   /* Lists that belong to the user can be sorted by dragging. Entries that act, such as import, sit apart below them. */
   const all=SECTIONS[S.view](),srt=!!SORT[S.view],items=all.filter(x=>!x[3]),acts=all.filter(x=>x[3]);
   const so=S.so[S.view],sp=S.spin[S.view]||{};
-  const one=x=>navItem('sec',x[0],x[1],x[2],so&&!x[3]?!!so[x[0]]:S.sec[S.view]===x[0],srt&&!x[3]&&!x[4]?`data-secid="${x[0]}"`:'');const one2=x=>{const h=one(x);return sp[x[0]]?h.replace(/<\/button>$/,`<span class="pinmark in" title="Kept open">${ic('pin')}</span></button>`):h;};
+  const one=x=>navItem('sec',x[0],x[1],x[2],so&&!x[3]?!!so[x[0]]:S.sec[S.view]===x[0],srt&&!x[3]&&!x[4]?`data-secid="${x[0]}"`:'');const one2=x=>{const h=one(x);return sp[x[0]]?h.replace('<button class="navitem"','<button class="navitem" data-pinned="1"'):h;};
   return items.map(one2).join('')+(acts.length?'<span class="favsep"></span>'+acts.map(one).join(''):'');
 }
 const SECTIONS={
@@ -350,7 +364,7 @@ function closeWhere(i,keep){
 /* New always lands somewhere: in the chosen collection, or in Quick notes. The last choice stays. */
 function newMenuHtml(where){
   const into=S.into,q=into==='qn';
-  return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
+  return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.filter(c=>!isDeco(c.id)).map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
     <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
     <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+C.find(c=>c.id===into).n+'. Drag it to its place.'}</p>
     ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
@@ -446,7 +460,6 @@ function collForm(){
   const c=C.find(x=>x.id===S.cgear)||{id:S.cgear,get n(){return D[S.cgear].n;}};
   return `<div class="spanel"><div class="shead">${c.n}<button class="ic" data-act="cgear" data-id="${c.id}" aria-label="Close settings">${ic('x')}</button></div>
     <label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${c.id}" value="${c.n}">
-    <div class="slab">Favorite</div><button class="opt" data-act="star" data-id="${c.id}" aria-pressed="${!!S.fav[c.id]}">Stands at the top of nav2</button>
     <div class="slab">Others can</div>${seg3('cacc',[['edit','Edit'],['comment','Comment'],['read','Read']],D[c.id].acc||'edit')}<p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>
     <div class="slab">On disk</div><p class="hint">${c.id==='me'?'none':c.id+'/'}</p><div class="slab">Visible to</div><p class="hint">${c.id==='me'?'Only you':'Everyone who is signed in'}</p></div>`;
 }
@@ -678,7 +691,10 @@ document.addEventListener('click',e=>{
       openDoc(a.id);break;}
     case 'coll':S.cgear=null;collClick(a.id,e);break;
     case 'collhead':S.open[a.id]=false;S.pin[a.id]=false;break;
-    case 'star':S.fav[a.id]=!S.fav[a.id];break;
+    case 'n2line':case 'n2space':{const id=decoId(),k=C.findIndex(c=>c.id===a.id);decoDoc(id,act==='n2line'?'line':'space');C.splice(k<0?C.length:k+1,0,asTop({id,i:'grid'}));break;}
+    case 'linefirst':case 'spacefirst':addDivider(act.startsWith('line')?'line':'space',a.id,'');break;
+    case 'lineafter':case 'spaceafter':addDivider(act.startsWith('line')?'line':'space',contOf(a.id),a.id);break;
+    case 'decodel':removeDivider(a.id);break;
     case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
     case 'addmenu':{S.addIn=hadAdd===a.id?null:a.id;const r=b.closest('.cheadrow'),tr=document.getElementById('tree');if(r&&tr){S.addTop=r.offsetTop-tr.scrollTop+r.offsetHeight;S.addH=r.offsetHeight;}break;}
     case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
@@ -746,14 +762,15 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   if(tb){e.preventDefault();const i=+tb.dataset.dw,sc=tb.closest('.tabscroll');S.ctx=null;S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.focus=i;S.tmenu={w:i,t:+tb.dataset.dt,x:Math.max(4,tb.offsetLeft-sc.scrollLeft)};render();return;}
   const el=e.target.closest?e.target:null;if(!el)return;
   const z=S.scale/100,at0=(kind,id,more={})=>{e.preventDefault();S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.tmenu=null;S.ctx={kind,id,x:Math.round(Math.min(e.clientX/z,innerWidth/z-250)),y:Math.round(Math.min(e.clientY/z,innerHeight/z-240)),...more};render();};
-  const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid);
+  const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid,{n3:!!cl.closest('.nav3')});
+  const dc=el.closest('[data-ctx="deco"]');if(dc)return at0('deco',dc.dataset.ctxid);
   const rw=el.closest('[data-row]');if(rw)return at0('row',rw.dataset.row);
   const op=el.closest('.nav3 .row [data-act="open"]');if(op&&D[op.dataset.id])return at0('row',op.dataset.id);
   const sh=el.closest('.nav3 [data-sechead]');if(sh)return at0('sec',sh.dataset.sechead,{label:sh.textContent.trim(),sort:false});
   const sc=el.closest('.nav2 [data-act="sec"]');if(sc)return at0('sec',sc.dataset.id,{label:sc.textContent.trim(),sort:!!sc.dataset.secid});
   const vw=el.closest('.strip [data-act="view"]');if(vw)return at0('view',vw.dataset.id,{label:vw.textContent.trim()});
   /* A right click on the free part of nav2 or nav3 offers what can be made there. */
-  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection']]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
+  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end']]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
   if(el.closest('.nav3')&&S.view==='workspace'&&!S.cgear){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
 });
 /* A middle click closes a tab, a double click on the empty part of the tab row opens New, as in code editors. */
@@ -832,12 +849,18 @@ function showSlot(t){
   return true;
 }
 const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return false;};
-function rowTarget(e,el){
+function rowTarget(e,el){const t=rowTarget0(e,el);return t&&fits(drag.id,t)?t:null;}
+/* Where a drop puts the entry: the container it goes into. An object of the database goes only into the database, where
+   one may edit, and made-up content stays made up. */
+function dropCont(t){return t.type==='coll'?t.c:t.type==='into'?t.id:t.type==='nav2'?'':contOf(t.id);}
+function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
+function rowTarget0(e,el){
   if(D[drag.id].t==='coll'&&el&&el.closest('.nav2')){const n=el.closest('#clist')||el.closest('.nav2');return {type:'nav2',node:n,cls:'drop-into'};}
   const h=el&&el.closest('[data-cdrop]');if(h)return accOf(h.dataset.cdrop)==='read'?null:{type:'coll',c:h.dataset.cdrop,node:h,cls:'drop-into'};
   const n=el&&el.closest('[data-row]');if(!n)return null;
   const id=n.dataset.row;if(within(drag.id,id))return null;
   const r=n.getBoundingClientRect(),y=(e.clientY-r.top)/r.height;
+  if(isDeco(id))return {type:y<.5?'before':'after',id,node:n,cls:y<.5?'drop-before':'drop-after'};
   return y<.3?{type:'before',id,node:n,cls:'drop-before'}:y>.7?{type:'after',id,node:n,cls:'drop-after'}:{type:'into',id,node:n,cls:'drop-into'};
 }
 function secTarget(e,el){
@@ -845,7 +868,8 @@ function secTarget(e,el){
   const r=n.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;return {id:n.dataset.secid,after,node:n,cls:after?'drop-after':'drop-before'};
 }
 function favTarget(e,el){
-  if(el&&el.closest('.nav3')){const t=rowTarget(e,el);if(!t)return null;const home=t.type==='coll'?t.c:COLL[t.id]&&COLL[t.id].id;return home===drag.id?null:{...t,down:true};}
+  if(el&&el.closest('.nav3')&&isDeco(drag.id))return null;
+  if(el&&el.closest('.nav3')){const t=rowTarget0(e,el);if(t&&!fits(drag.id,t))return null;if(!t)return null;const home=t.type==='coll'?t.c:COLL[t.id]&&COLL[t.id].id;return home===drag.id?null:{...t,down:true};}
   const n=el&&el.closest('[data-favid]');if(!n||n.dataset.favid===drag.id)return null;
   const r=n.getBoundingClientRect();return {id:n.dataset.favid,after:e.clientY>r.top+r.height/2,node:n,cls:e.clientY>r.top+r.height/2?'drop-after':'drop-before'};
 }
@@ -860,8 +884,17 @@ addEventListener('pointermove',e=>{
   if(drag.kind==='tab')g.style.display=showSlot(t)?'none':'';
   if(t&&t.node)t.node.classList.add(t.cls);
 });
-function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id].top;}
+function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id]?COLL[id].top:C.find(c=>c.id===id)?[]:[];}
 function applyDrop(d){
+  const t=d.to;if(!t)return;
+  const real=(d.kind==='row'||(d.kind==='fav'&&t.down))&&D[d.id]&&D[d.id].db;
+  const lists=real?[C,parentList(d.id)].concat(t.type==='coll'?[C.find(c=>c.id===t.c).top]:t.type==='into'?[D[t.id].kids]:t.id&&t.type!=='nav2'?[parentList(t.id)]:[]):[];
+  const before=lists.map(l=>[l,l.slice()]);
+  applyDrop0(d);
+  if(real){const l=t.type==='nav2'?null:parentList(d.id),k=l?l.indexOf(d.id):-1;
+    moveObject(d.id,t.type==='nav2'?'':contOf(d.id),k>0?l[k-1]:'',()=>{before.forEach(([l,c])=>{l.length=0;l.push(...c);});rebuildPlaces();});}
+}
+function applyDrop0(d){
   const t=d.to;if(!t)return;
   if(d.kind==='tab'){
     if(t.type==='row'){if(t.i!==d.w||t.idx!==d.t)placeTab(d.w,d.t,t.i,t.idx);else{S.wins[d.w].a=d.t;S.focus=d.w;}}
@@ -991,6 +1024,7 @@ const pathOf=sid=>sid.split('/').map(encodeURIComponent).join('/');
 function addressOf(key){const sid=D[key].sid||key;return sid.startsWith('f:')?'/f/'+pathOf(sid.slice(2)):'/o/'+pathOf(sid);}
 function addNode(node){
   const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
+  if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;
@@ -1010,7 +1044,7 @@ async function createCollection(parent){
   try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title:'New collection',parent})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='collection';node.owner=S.user.name;const id=addNode(node);
     if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
-    else{C.splice(C.filter(c=>D[c.id].real).length,0,asTop({id,i:'folder'}));S.fav[id]=true;rebuildPlaces();onlyThis(id);}
+    else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'folder'}));rebuildPlaces();onlyThis(id);}
     S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}
   }catch(e){S.toast='The collection could not be made.';render();setTimeout(()=>{S.toast='';render();},2400);}
 }
@@ -1084,9 +1118,43 @@ async function createPage(parent,title){
   catch(e){toast(e.message==='403'?'Others may not add pages here.':'The page could not be made.');}
 }
 
+/* Lines and spaces. In nav2 they are the user's own and stay in this browser; in a collection of the database they are
+   objects, shared like everything in it (2026-11-08). */
+const decoId=()=>'d'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function decoDoc(id,kind){D[id]=fill({t:kind,n:kind==='line'?'Line':'Space',kids:[],path:'',by:'',ch:'',vis:''});return id;}
+async function addDivider(kind,cont,after){
+  if(!canPlace(cont))return;
+  const list=D[cont].kids,k=after?list.indexOf(after)+1:0;
+  if(!D[cont].db){list.splice(k,0,decoDoc(decoId(),kind));rebuildPlaces();return;}
+  try{const r=await fetch('/api/dividers',{...same,method:'POST',body:JSON.stringify({kind,parent:D[cont].sid,after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));
+    const id=addNode(await r.json());list.splice(after?list.indexOf(after)+1:0,0,id);rebuildPlaces();render();}
+  catch(e){toast(e.message==='403'?'Others may not change this collection.':'The '+kind+' could not be added.');}
+}
+async function removeDivider(id){
+  const i=C.findIndex(c=>c.id===id);
+  if(i>=0){C.splice(i,1);delete D[id];return;}
+  const list=parentList(id),k=list.indexOf(id);
+  if(D[id].db){try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));}
+    catch(e){toast(e.message==='403'?'Others may not change this collection.':'The '+D[id].n.toLowerCase()+' could not be removed.');return;}}
+  if(k>=0)list.splice(k,1);rebuildPlaces();render();
+}
+async function moveObject(id,cont,after,undo){
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/move',{...same,method:'POST',body:JSON.stringify({parent:cont?D[cont].sid:'',after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){undo();toast(e.message==='403'?'Others may not change this.':'It could not be moved there.');}
+}
+/* The order of nav2 with its lines and spaces, as the browser keeps it. A collection it does not know yet keeps its place. */
+const n2Of=()=>C.map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.id);
+function applyN2(list){
+  if(!Array.isArray(list))return;const byId={};C.forEach(c=>{byId[c.id]=c;});const out=[];
+  list.forEach(x=>{if(x&&typeof x==='object'){if((x.k==='line'||x.k==='space')&&/^d[0-9a-z]{4,20}$/.test(x.id)&&!D[x.id])out.push(asTop({id:decoDoc(x.id,x.k),i:'grid'}));}
+    else if(typeof x==='string'&&byId[x]){out.push(byId[x]);delete byId[x];}});
+  C.forEach((c,i)=>{if(byId[c.id])out.splice(Math.min(i,out.length),0,c);});
+  C.length=0;out.forEach(c=>C.push(c));
+}
+
 /* The settings of the workspace stay in this browser until accounts store them (M-28): widths, favorites, pins, theme. */
 const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme'];
-function saveSettings(){try{const o={};KEEP.forEach(k=>{o[k]=S[k];});localStorage.setItem('ud.workspace',JSON.stringify(o));}catch(e){}}
+function saveSettings(){try{const o={n2:n2Of()};KEEP.forEach(k=>{o[k]=S[k];});localStorage.setItem('ud.workspace',JSON.stringify(o));}catch(e){}}
 function loadSettings(){try{const o=JSON.parse(localStorage.getItem('ud.workspace')||'null');if(o)KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;}catch(e){return null;}}
 async function boot(){
   let st=null;
@@ -1099,6 +1167,7 @@ async function boot(){
     if(!st.user.admin){PROFADM.length=0;}
   }
   const kept=loadSettings();
+  if(kept)applyN2(kept.n2);
   if(kept){Object.keys(kept.fav||{}).forEach(k=>{if(D[k])S.fav[k]=kept.fav[k];});Object.keys(kept.pin||{}).forEach(k=>{if(D[k]){S.pin[k]=kept.pin[k];if(kept.pin[k])S.open[k]=true;}});}
   if(window.udTheme)S.theme=window.udTheme();
   rebuildPlaces();
