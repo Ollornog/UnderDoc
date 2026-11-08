@@ -24,3 +24,7 @@ Pages can be written in the browser as quickly as in a notebook app.
 - Blocks in a page can be aligned left, center or right (ADR-16).
 - Contents, width and tags can be saved from the gear at the document.
 - Dragging arranges documents and collections in the workspace.
+- Writing happens inline, as in Typora: the page looks as it is shown, and the Markdown of a passage appears only where the
+  cursor is (the maintainer, 2026-11-08). Until then a block is a plain Markdown field (M-28).
+- A bar above the page offers bold, italic, headings, links, lists, code and the like, after Notion and similar editors.
+  Every button writes plain Markdown, so the round trip stays whole (ADR-19).

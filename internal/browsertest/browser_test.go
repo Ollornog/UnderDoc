@@ -466,6 +466,8 @@ func TestEveryPageIsClean(t *testing.T) {
 				t.Errorf("%s: %s", name, entry)
 			}
 		}
+		// An image may still be on its way under load: wait for all of them, then name any that failed.
+		b.waitFor(`[...document.images].every(i => i.complete)`)
 		if got := b.eval(`[...document.images].filter(i => !i.complete || !i.naturalWidth).map(i => i.src).join()`); got != "" {
 			t.Errorf("%s: images did not load: %s", name, got)
 		}
@@ -655,7 +657,8 @@ func TestDarkModeFollowsTheSystem(t *testing.T) {
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
 
-// New collection in nav2 makes it in the database, its settings open with the name selected, and a new name stays (M-28).
+// New in nav2 makes a collection in the database at once, numbered, and its name is written in place; a new name stays
+// (M-28).
 func TestNewCollectionByHand(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
@@ -663,20 +666,100 @@ func TestNewCollectionByHand(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('.nav2 .name, .nav2 button')].some(n => n.textContent.trim() === 'My notes')`); got != "true" {
 		t.Fatal("the private notes of the account are missing")
 	}
-	b.clickOn(`.nav2 [data-act="newcoll"]`, 1)
-	if !b.waitFor(`document.activeElement?.id === 'cname'`) {
-		t.Fatalf("the name field did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+	newIn := func() {
+		b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+		if !b.waitFor(`document.activeElement?.dataset?.nfilter !== undefined`) {
+			t.Fatalf("the filter of New did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+		}
+		b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
 	}
-	b.call("Input.insertText", map[string]any{"text": "Operations"}, nil)
-	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
-	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}, nil)
-	b.eval(`document.activeElement.blur()`)
+	newIn()
+	if !b.waitFor(`document.activeElement?.dataset?.ren !== undefined`) {
+		t.Fatalf("the name is not written in place: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+	}
+	if got := b.eval(`[document.activeElement.value, document.activeElement.selectionStart, document.activeElement.selectionEnd].join('|')`); got != "New collection (1)|0|18" {
+		t.Errorf("the first new collection is numbered, its name selected: %q", got)
+	}
+	b.typeText("Opera")
+	b.eval(`render()`) // something else draws: the name being written stays
+	b.typeText("tions")
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`!document.querySelector('[data-ren]') && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Operations')`) {
+		t.Fatalf("Enter keeps the name: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
+	}
+	// Two more without a name: the free numbers in turn, and Escape keeps the name it got.
+	for _, want := range []string{"New collection (1)", "New collection (2)"} {
+		newIn()
+		if !b.waitFor(`document.activeElement?.value === ` + strconv.Quote(want)) {
+			t.Fatalf("want %q: %q", want, b.eval(`document.activeElement?.value`))
+		}
+		b.typeText("Not kept")
+		b.press("Escape", "Escape", 27, 0)
+		if !b.waitFor(`!document.querySelector('[data-ren]')`) {
+			t.Fatal("Escape ends writing the name")
+		}
+	}
 	b.shot("new-collection")
 	time.Sleep(500 * time.Millisecond)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if !b.waitFor(`[...document.querySelectorAll('.nav2 *')].some(n => n.childElementCount === 0 && n.textContent.trim() === 'Operations')`) {
-		t.Errorf("the new collection is not kept: %s", b.eval(`document.querySelector('.nav2').textContent.replace(/\s+/g, ' ')`))
+	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].map(n => n.textContent).filter(n => n === 'Operations' || n.startsWith('New collection')).sort().join(', ')`); got != "New collection (1), New collection (2), Operations" {
+		t.Errorf("the database keeps them: %q", got)
+	}
+}
+
+// New is one menu in groups, and typing filters it: arrows move the choice, Enter takes it.
+func TestNewMenuFilters(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	visible := `[...document.querySelectorAll('.cmdpop [role="menuitem"]')].filter(n => n.offsetParent).map(n => n.textContent.trim()).join(', ')`
+	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Make, Set apart, Bring in" {
+		t.Errorf("the groups of New in nav2: %q", got)
+	}
+	b.shot("new-menu-nav2")
+	if got := b.eval(visible); got != "Collection, Line, Space, Import, Link" {
+		t.Errorf("what New in nav2 offers: %q", got)
+	}
+	b.typeText("spa")
+	if got := b.eval(visible); got != "Space" {
+		t.Errorf("typing filters: %q", got)
+	}
+	before := b.eval(`document.querySelectorAll('#clist .deco[data-deco="space"]').length`)
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`!document.querySelector('.cmdpop') && document.querySelectorAll('#clist .deco[data-deco="space"]').length === ` + before + ` + 1 && document.querySelector('#clist').lastElementChild.dataset.deco === 'space'`) {
+		t.Errorf("Enter adds a space at the end of nav2: %q", b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`))
+	}
+	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	b.typeText("zzz")
+	if got := b.eval(visible); got != "" {
+		t.Errorf("nothing matches: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	if !b.waitFor(`!document.querySelector('.cmdpop')`) {
+		t.Error("Escape closes New")
+	}
+
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.typeText("lin")
+	b.shot("new-menu-filtered")
+	if got := b.eval(visible); got != "Line, Link" {
+		t.Errorf("New in a collection, filtered: %q", got)
+	}
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	if got := b.eval(`document.querySelector('.cmdpop .active')?.textContent.trim()`); got != "Line" {
+		t.Errorf("the arrow skips what is not built: %q", got)
+	}
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) {
+		t.Fatal("Enter adds a line to the collection")
+	}
+	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.dataset.deco || n.textContent.trim()).join(' ')`); got != "A B C line" {
+		t.Errorf("the line is at the end: %q", got)
 	}
 }
 
@@ -699,7 +782,7 @@ func TestEditAPageBlockByBlock(t *testing.T) {
 	b.ready("Team")
 
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
-	b.clickOn(`.addpop [data-act="add"][data-id="page"]`, 1)
+	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
 	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b1'`) {
 		t.Fatalf("a new page opens with its first block ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
