@@ -27,7 +27,7 @@
   </div>
   <nav class="ud-nav1" aria-label="Views">
     <div class="ud-navlist">
-      <a class="ud-navitem" href="/" title="Workspace"{{if eq .View "workspace"}} aria-current="page" data-ud-view{{end}}>{{template "icon-panel"}}<span class="ud-label">Workspace</span></a>
+      <a class="ud-navitem" href="/" title="Workspace" data-ud-columns data-ud-workspace{{if eq .View "workspace"}} aria-current="page" data-ud-view{{end}}>{{template "icon-panel"}}<span class="ud-label">Workspace</span></a>
       {{template "later-view" "files"}}{{template "later-view" "resources"}}{{template "later-view" "news"}}{{template "later-view" "mail"}}
       <span class="ud-sep"></span>
       <a class="ud-navitem" href="/search" title="Search"{{if eq .View "search"}} aria-current="page"{{end}}>{{template "icon-search"}}<span class="ud-label">Search</span></a>
@@ -40,24 +40,27 @@
       {{- if .ProblemCount}}
       <a class="ud-navitem" href="/problems" title="Problems: {{.ProblemCount}}">{{template "icon-alert"}}<span class="ud-label">Problems</span><span class="badge" data-variant="destructive">{{.ProblemCount}}</span></a>
       {{- end}}
-      <a class="ud-navitem" href="/profile" title="Profile: {{.User.Name}}"{{if eq .View "profile"}} aria-current="page"{{end}}><span class="ud-avatar">{{.User.Initials}}</span><span class="ud-label">Profile</span></a>
+      <a class="ud-navitem" href="/profile" title="Profile: {{.User.Name}}" data-ud-columns{{if eq .View "profile"}} aria-current="page" data-ud-view{{end}}><span class="ud-avatar">{{.User.Initials}}</span><span class="ud-label">Profile</span></a>
     </div>
     <span class="ud-grip" data-ud-grip="1" role="separator" aria-orientation="vertical" aria-label="Width of the views" tabindex="0"></span>
   </nav>
-  <nav class="ud-nav2" aria-label="Collections">
+  <nav class="ud-nav2" aria-label="{{if .Profile}}Profile{{else}}Collections{{end}}">
+    {{- if .Profile}}{{template "profile-nav2" .Profile}}{{else}}
     <div class="ud-colhead"><span class="ud-label">Collections</span><span class="ud-new" aria-disabled="true" title="New collection: not built yet, it comes with the database (M-28)"><span class="ud-label">New</span>{{template "icon-plus"}}</span></div>
     <ul class="ud-collections">
       {{- range .Collections}}
-      <li><a class="ud-navitem" href="{{.Href}}" title="{{.Label}}"{{if .Current}} aria-current="true"{{end}}>{{template "icon-folder"}}<span class="ud-label">{{.Label}}</span></a></li>
+      <li><a class="ud-navitem" href="{{.Href}}" title="{{.Label}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{template "icon-folder"}}<span class="ud-label">{{.Label}}</span></a></li>
       {{- end}}
     </ul>
+    {{- end}}
     <span class="ud-grip" data-ud-grip="2" role="separator" aria-orientation="vertical" aria-label="Width of the collections" tabindex="0"></span>
   </nav>
-  <nav class="ud-nav3" aria-label="Open collection">
-    {{- with .Open}}
+  <nav class="ud-nav3" aria-label="{{if .Profile}}Profile section{{else}}Open collection{{end}}">
+    {{- if .Profile}}{{template "profile-nav3" .}}
+    {{- else if .Open}}{{with .Open}}
     <div class="ud-colhead"><a href="{{.Href}}" class="ud-chead" title="Open {{.Label}}">{{.Label}}</a><span class="ud-new" aria-disabled="true" title="New: not built yet, it comes with the database (M-28)"><span class="ud-label">New</span>{{template "icon-plus"}}</span></div>
     <ul class="ud-tree" data-ud-tree>{{template "tree-items" .Items}}</ul>
-    {{- else}}
+    {{- end}}{{else}}
     <p class="ud-hint">Pick a collection.</p>
     {{- end}}
     <span class="ud-grip" data-ud-grip="3" role="separator" aria-orientation="vertical" aria-label="Width of the list" tabindex="0"></span>

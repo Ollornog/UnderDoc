@@ -169,6 +169,8 @@ html.ud-resizing, html.ud-resizing * { cursor: col-resize; user-select: none; }
 .ud-center { display: grid; place-items: center; min-height: 100dvh; padding: 1.5rem; }
 
 /* Profile */
+.ud-panel { display: grid; gap: .75rem; padding: .25rem .5rem; font-size: var(--text-sm); }
+.ud-colhead svg { width: .85rem; height: .85rem; flex: none; }
 .ud-narrow { max-width: 36rem; }
 .ud-who { display: flex; align-items: center; gap: .75rem; }
 .ud-avatar {

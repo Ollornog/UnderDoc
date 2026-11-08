@@ -32,6 +32,26 @@ type shellView struct {
 	Collections []collectionLink
 	// Open is the collection nav3 shows, or nil.
 	Open *openCollection
+	// Profile fills nav2 and nav3 in the profile view, and is nil in every other view (ADR-16).
+	Profile *profileState
+}
+
+// profileState is the profile view: its sections in nav2, the chosen one in nav3.
+type profileState struct {
+	Section  string
+	Settings []profileSection
+	// Admin lists the administration, set apart, for administrators only. It is empty for everyone else.
+	Admin []profileSection
+}
+
+type profileSection struct {
+	ID      string
+	Label   string
+	Icon    string
+	Href    string
+	Current bool
+	// Later marks a section that is not built yet (ADR-17).
+	Later string
 }
 
 type tagLink struct {
@@ -124,7 +144,6 @@ type statusView struct {
 
 type profileView struct {
 	shellView
-	Admin bool
 }
 
 // makeShell builds what every page shares. current is the open document, or empty, and at is the open folder, or nil.

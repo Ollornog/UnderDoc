@@ -1,46 +1,4 @@
+{{/* The profile view: its sections in nav2, the chosen one in nav3 (ADR-16). The window keeps what it showed. */}}
 {{define "content"}}
-<div class="grid gap-6 ud-narrow">
-  <section class="grid gap-3" aria-labelledby="ud-account">
-    <h2 id="ud-account" class="text-sm font-semibold">Account</h2>
-    <div class="ud-who">
-      <span class="ud-avatar ud-big">{{.User.Initials}}</span>
-      <div class="grid">
-        <span class="font-semibold" data-ud-name>{{.User.Name}}</span>
-        <span class="text-muted-foreground text-sm">{{.User.Login}}{{if .User.Email}} · {{.User.Email}}{{end}}</span>
-      </div>
-    </div>
-    {{- if .User.Groups}}
-    <div class="ud-badges">{{range .User.Groups}}<span class="badge" data-variant="secondary">{{.}}</span>{{end}}</div>
-    {{- end}}
-    <div><a class="btn" data-variant="outline" href="/.tinysesam/logout">Sign out</a></div>
-  </section>
-
-  <section class="grid gap-3" aria-labelledby="ud-settings">
-    <h2 id="ud-settings" class="text-sm font-semibold">Settings</h2>
-    <div class="ud-setrow">
-      <span>Theme</span>
-      <span class="ud-seg" role="group" aria-label="Theme">
-        <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="system">System</button>
-        <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="light">Light</button>
-        <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="dark">Dark</button>
-      </span>
-    </div>
-    <div class="ud-setrow">
-      <span>Columns</span>
-      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-reset-columns>Back to the default widths</button>
-    </div>
-    <p class="text-muted-foreground text-xs">Drag the right edge of a column to change its width. The views and the collections snap to four steps.</p>
-  </section>
-
-  {{- if .Admin}}
-  <section class="grid gap-3" aria-labelledby="ud-admin">
-    <h2 id="ud-admin" class="text-sm font-semibold">Administration</h2>
-    <ul class="ud-later">
-      <li aria-disabled="true">Modules</li><li aria-disabled="true">Users and groups</li><li aria-disabled="true">Sources</li>
-      <li aria-disabled="true">Storage and backup</li><li aria-disabled="true">Sign-in</li><li aria-disabled="true">Audit log</li>
-    </ul>
-    <p class="text-muted-foreground text-xs">Not built yet. Only administrators see this part.</p>
-  </section>
-  {{- end}}
-</div>
+<p class="text-muted-foreground text-sm">Your account and the settings open in the list on the left. What a list opens lands here.</p>
 {{end}}

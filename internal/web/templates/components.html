@@ -23,6 +23,11 @@
 {{define "icon-x"}}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>{{end}}
 {{define "icon-chevron-plain"}}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>{{end}}
 
+{{define "icon-user"}}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{end}}
+{{define "icon-shield"}}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>{{end}}
+{{/* Icons by name, for lists whose entries carry the icon as data. */}}
+{{define "icon-named"}}{{if eq . "user"}}{{template "icon-user"}}{{else if eq . "sun"}}{{template "icon-sun"}}{{else if eq . "panel"}}{{template "icon-panel"}}{{else if eq . "globe"}}{{template "icon-globe"}}{{else if eq . "mail"}}{{template "icon-mail"}}{{else if eq . "list"}}{{template "icon-list"}}{{else if eq . "db"}}{{template "icon-db"}}{{else if eq . "drive"}}{{template "icon-drive"}}{{else if eq . "lock"}}{{template "icon-lock"}}{{else}}{{template "icon-page"}}{{end}}{{end}}
+
 {{/* A click on a name opens the object, the arrow or a double click shows or hides what is in it (ADR-16). */}}
 {{define "tree-items"}}{{range .}}
   <li>
@@ -93,4 +98,60 @@
     <p>Put a Markdown file into the folder. It shows up here within seconds.</p>
   </header>
 </div>
+{{end}}
+
+{{/* The profile view in nav2 and nav3 (ADR-16). */}}
+{{define "profile-nav2"}}
+<div class="ud-colhead"><span class="ud-label">Profile</span></div>
+<ul class="ud-collections">{{range .Settings}}<li>{{template "profile-item" .}}</li>{{end}}</ul>
+{{- if .Admin}}
+<span class="ud-sep"></span>
+<div class="ud-colhead" title="Only administrators see this">{{template "icon-shield"}}<span class="ud-label">Administration</span></div>
+<ul class="ud-collections">{{range .Admin}}<li>{{template "profile-item" .}}</li>{{end}}</ul>
+{{- end}}
+{{end}}
+
+{{define "profile-item"}}
+{{- if .Later}}<span class="ud-navitem" aria-disabled="true" title="{{.Label}}: not built yet, {{.Later}}">{{template "icon-named" .Icon}}<span class="ud-label">{{.Label}}</span></span>
+{{- else}}<a class="ud-navitem" href="{{.Href}}" title="{{.Label}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{template "icon-named" .Icon}}<span class="ud-label">{{.Label}}</span></a>{{end}}
+{{- end}}
+
+{{define "profile-nav3"}}
+{{- if eq .Profile.Section "account"}}
+<div class="ud-colhead"><span class="ud-label">Account</span></div>
+<div class="ud-panel">
+  <div class="ud-who">
+    <span class="ud-avatar ud-big">{{.User.Initials}}</span>
+    <div class="grid">
+      <span class="font-semibold" data-ud-name>{{.User.Name}}</span>
+      <span class="text-muted-foreground text-xs">{{.User.Login}}</span>
+      {{- if .User.Email}}<span class="text-muted-foreground text-xs">{{.User.Email}}</span>{{end}}
+    </div>
+  </div>
+  {{- if .User.Groups}}<div class="ud-badges">{{range .User.Groups}}<span class="badge" data-variant="secondary">{{.}}</span>{{end}}</div>{{end}}
+  <p class="text-muted-foreground text-xs">Name, mail and groups come from the sign-in. Favorites, settings and the private area will belong to this account.</p>
+  <div><a class="btn" data-variant="outline" data-size="sm" href="/.tinysesam/logout">Sign out</a></div>
+</div>
+{{- else if eq .Profile.Section "appearance"}}
+<div class="ud-colhead"><span class="ud-label">Appearance</span></div>
+<div class="ud-panel">
+  <div class="ud-setrow">
+    <span>Theme</span>
+    <span class="ud-seg" role="group" aria-label="Theme">
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="system">System</button>
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="light">Light</button>
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-theme="dark">Dark</button>
+    </span>
+  </div>
+  <div class="ud-setrow" aria-disabled="true" title="Page scale: not built yet"><span>Page scale</span><span>100%</span></div>
+  <p class="text-muted-foreground text-xs">These belong to you. Until accounts are stored, this browser keeps them.</p>
+</div>
+{{- else if eq .Profile.Section "navigation"}}
+<div class="ud-colhead"><span class="ud-label">Navigation</span></div>
+<div class="ud-panel">
+  <p class="text-sm">A click opens the object. A double click or the arrow shows or hides what is in it. Ctrl and click, or the middle button, open it in a tab of its own.</p>
+  <div class="ud-setrow"><span>Columns</span><button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-reset-columns>Default widths</button></div>
+  <p class="text-muted-foreground text-xs">Drag the right edge of a column to change its width. The views and the collections snap to four steps.</p>
+</div>
+{{- end}}
 {{end}}
