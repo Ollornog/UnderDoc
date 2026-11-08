@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The interface is now the approved mockup itself, with its sizes, spacing, clicks and made-up content where nothing real
+  exists yet (sprint 2026-11-08). It draws itself in the browser and reads its data from a small JSON API; its look is the C22
+  block `.c22-app-workspace`. Real so far: the account, the collections of the database and of the folder source with their
+  trees, pages loaded when opened, full-text search on the server, making and renaming collections, and links between pages.
+  The made-up collections of the mockup are marked “(demo)”. The browser keeps widths, favorites, pinned collections and the
+  theme until the account stores them.
+- `/dev/ui` shows the workspace with only the content of the mockup.
 - The interface is the workspace of ADR-16, first part (M-28): a top row with name, search and New, nav1 with the views, nav2
   with the collections, nav3 with the open collection, and the window with its head. What is not built yet stays in sight,
   greyed out. A click in nav3 opens the object in the window without reloading the list, and a double click or the arrow shows
@@ -29,6 +36,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- A JSON API for the workspace: `/api/state` (account and collections with their trees), `/api/doc/<id>`, `/api/search`,
+  `POST /api/collections` and `PATCH /api/objects/<id>` (rename, for the owner or where others may edit, ADR-20). Changes are
+  taken only from this application's own pages.
 - PostgreSQL, optional through `UNDERDOC_DATABASE_URL` (ADR-19): accounts from the gate, each with a private collection My
   notes, and collections made with New in nav2 or inside another one from its heading in nav3, with IDs of ADR-18. A
   collection opens its page with owner, what others may do and who sees it. Changes are taken only from this
@@ -62,6 +72,16 @@ All notable changes to this project are documented in this file. The format foll
 - A click in a list opens the object, also a collection with its page, and a double click or the arrow opens its children. New
   collection sits at the top of nav2, the plus moves to the right of the search field, bookmarks become a document type instead of
   a view, and comments belong to an element of a page (ADR-16, ADR-17, ADR-20, M-25).
+
+### Removed
+
+- The pages rendered on the server, among them `/search` and `/problems`, and their scripts: one interface instead of two
+  (ADR-17). The number of problems is in `/api/state`; the list of them comes back in the workspace.
+
+### Security
+
+- Names, descriptions, tags and paths from files and from people are shown as text everywhere in the workspace; a browser
+  test proves it with names full of markup.
 
 ### Added
 

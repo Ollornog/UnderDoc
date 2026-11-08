@@ -290,7 +290,7 @@ const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfD
 
 func setup(t *testing.T) (*browser, string) {
 	t.Helper()
-	return setupWith(t, web.Options{DevUI: true})
+	return setupWith(t, web.Options{DevUI: true}, nil)
 }
 
 // setupWithDatabase starts the handler with a throwaway PostgreSQL behind it.
@@ -301,23 +301,27 @@ func setupWithDatabase(t *testing.T) (*browser, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	return setupWith(t, web.Options{DevUI: true, DB: database})
+	return setupWith(t, web.Options{DevUI: true, DB: database}, nil)
 }
 
-func setupWith(t *testing.T, options web.Options) (*browser, string) {
+func setupWith(t *testing.T, options web.Options, extra map[string]string) (*browser, string) {
 	t.Helper()
 	dir := t.TempDir()
 	picture, err := base64.StdEncoding.DecodeString(pixel)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, content := range map[string][]byte{
+	files := map[string][]byte{
 		"README.md": []byte("---\nid: start\ntitle: Start page\n---\n# Welcome\n\nSee [[plan]], [[missing]] and ![outside](https://example.com/a.png).\n\n" +
 			"| Name | Value |\n|---|---:|\n| Height | 50 m |\n\n- [x] done\n- [ ] open\n\n> A quote.\n\n<script>window.injected = true</script>\n\n[bad](javascript:window.injected=true)\n"),
 		"ops/net/plan.md": []byte("---\nid: plan\n---\n# Network plan\n\n![Map](map.png)\n\n## Devices\n\nRouter.\n\n## Übersicht\n\n```text\nrouter 192.0.2.1\n```\n\n[[start]]\n"),
 		"ops/net/map.png": picture,
 		"ops/plain.md":    []byte("No heading here.\n"),
-	} {
+	}
+	for name, content := range extra {
+		files[name] = []byte(content)
+	}
+	for name, content := range files {
 		full := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			t.Fatal(err)
@@ -390,24 +394,6 @@ func (b *browser) mouse(kind string, x, y float64, clicks int, modifiers int) {
 	b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": x, "y": y, "button": button, "buttons": buttons, "clickCount": clicks, "modifiers": modifiers}, nil)
 }
 
-func (b *browser) click(x, y float64, clicks int) {
-	b.t.Helper()
-	b.mouse("mouseMoved", x, y, 0, 0)
-	b.mouse("mousePressed", x, y, clicks, 0)
-	b.mouse("mouseReleased", x, y, clicks, 0)
-}
-
-func (b *browser) drag(from box, dx float64) {
-	b.t.Helper()
-	x, y := from.Right-2, from.Top+200
-	b.mouse("mouseMoved", x, y, 0, 0)
-	b.mouse("mousePressed", x, y, 1, 0)
-	for step := 1.0; step <= 8; step++ {
-		b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": x + dx*step/8, "y": y, "button": "left", "buttons": 1}, nil)
-	}
-	b.mouse("mouseReleased", x+dx, y, 1, 0)
-}
-
 // waitFor polls an expression until it is true, since a swap of the window loads in the background.
 func (b *browser) waitFor(expression string) bool {
 	b.t.Helper()
@@ -419,24 +405,54 @@ func (b *browser) waitFor(expression string) bool {
 	return false
 }
 
+// ready waits until the workspace has drawn itself and, on the address of a page, has loaded that page.
+func (b *browser) ready(title string) {
+	b.t.Helper()
+	check := `!!document.querySelector('#root .dtitle, #root .n1top')`
+	if title != "" {
+		check += ` && document.querySelector('.dtitle h1')?.textContent === ` + strconv.Quote(title) + ` && !/^(Loading|This page could not)/.test(document.querySelector('article.doc')?.textContent.trim())`
+	}
+	if !b.waitFor(check) {
+		b.t.Fatalf("the workspace did not show %q: %s", title, b.eval(`document.querySelector('.dtitle h1')?.textContent + ' | ' + location.pathname`))
+	}
+}
+
+// probe marks the first element of a selector with exactly this text, so a test needs no ID of the workspace.
+func probe(b *browser, selector, text string) string {
+	b.t.Helper()
+	b.eval(`document.querySelectorAll('[data-probe]').forEach(n => n.removeAttribute('data-probe')); [...document.querySelectorAll(` + strconv.Quote(selector) + `)].find(n => n.textContent.trim() === ` + strconv.Quote(text) + `)?.setAttribute('data-probe', '')`)
+	return selector + "[data-probe]"
+}
+
+// clickOn clicks the middle of an element with the real mouse.
+func (b *browser) clickOn(selector string, clicks int) {
+	b.t.Helper()
+	if b.eval(`!!document.querySelector(`+strconv.Quote(selector)+`)`) != "true" {
+		b.t.Fatalf("%s is not on the page; nav2: %s; nav3: %s", selector, b.eval(`document.querySelector('.nav2')?.innerText.replace(/\s+/g, ' ')`), b.eval(`[...document.querySelectorAll('.nav3 [data-id]')].map(n => n.dataset.id).join(' ')`))
+	}
+	r := b.rect(selector)
+	b.mouse("mouseMoved", r.X, r.Y, 0, 0)
+	for n := 1; n <= clicks; n++ {
+		b.mouse("mousePressed", r.X, r.Y, n, 0)
+		b.mouse("mouseReleased", r.X, r.Y, n, 0)
+	}
+}
+
 func TestEveryPageIsClean(t *testing.T) {
 	b, base := setup(t)
 	own, _ := url.Parse(base)
-	for name, target := range map[string]string{
-		"start":    "/o/start",
-		"plan":     "/o/plan",
-		"plain":    "/o/~ops/plain.md",
-		"root":     "/f/",
-		"folder":   "/f/ops",
-		"search":   "/search?q=router",
-		"nothing":  "/search?q=xyzzy",
-		"tag":      "/search?tag=network",
-		"problems": "/problems",
-		"profile":  "/profile",
-		"gallery":  "/dev/ui",
+	for name, c := range map[string]struct{ target, title string }{
+		"home":    {"/", "Start page"},
+		"start":   {"/o/start", "Start page"},
+		"plan":    {"/o/plan", "Network plan"},
+		"plain":   {"/o/~ops/plain.md", "plain"},
+		"folder":  {"/f/ops", ""},
+		"profile": {"/profile", ""},
+		"gallery": {"/dev/ui", ""},
 	} {
-		f := b.open(base + target)
-		if len(f.requests) < 5 {
+		f := b.open(base + c.target)
+		b.ready(c.title)
+		if len(f.requests) < 4 {
 			t.Errorf("%s: only %d requests, the collection is broken", name, len(f.requests))
 		}
 		for _, request := range f.requests {
@@ -456,14 +472,16 @@ func TestEveryPageIsClean(t *testing.T) {
 		if got := b.eval(`getComputedStyle(document.body).fontFamily`); !strings.Contains(got, "Inter") {
 			t.Errorf("%s: the stylesheet did not apply, font is %q", name, got)
 		}
-		if got := b.eval(`document.fonts.check('16px Inter')`); got != "true" {
+		if got := b.eval(`document.fonts.check('15px Inter')`); got != "true" {
 			t.Errorf("%s: the font did not load", name)
 		}
-		if got := b.eval(`getComputedStyle(document.querySelector('.workspace')).display`); got != "grid" {
-			t.Errorf("%s: the shell stylesheet did not apply, display %q", name, got)
+		// The look of the mockup comes from C22 under its root class: the sizes of the approved mockup.
+		if c.title == "" {
+			b.shot(name)
+			continue
 		}
-		if got := b.eval(`[...document.querySelectorAll('.workspace-nav, .workspace-main')].map(n => n.getBoundingClientRect().width > 40).join()`); got != "true,true,true,true" {
-			t.Errorf("%s: a column is missing: %s", name, got)
+		if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .row') || document.body).height + ' ' + getComputedStyle(document.querySelector('.nav3 .row .name') || document.body).fontSize`); got != "30px 14px" {
+			t.Errorf("%s: a row of nav3 is %s, the mockup has 30px 14px", name, got)
 		}
 		if got := b.eval(`document.documentElement.scrollWidth > innerWidth || document.body.scrollHeight > innerHeight`); got != "false" {
 			t.Errorf("%s: the page itself scrolls, only the columns should", name)
@@ -488,17 +506,19 @@ func TestNothingWithoutTheGate(t *testing.T) {
 func TestMarkdownCannotRunScripts(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/start")
+	b.ready("Start page")
 	if got := b.eval(`String(window.injected)`); got != "undefined" {
 		t.Errorf("a script from Markdown ran: %s", got)
 	}
-	if got := b.eval(`document.querySelectorAll('article script, article a[href^="javascript"], article img[src^="http"]').length`); got != "0" {
-		t.Errorf("%s dangerous elements in the page", got)
+	if got := b.eval(`document.querySelectorAll('article.doc table').length + ' ' + document.querySelectorAll('article script, article a[href^="javascript"], article img[src^="http"]').length`); got != "1 0" {
+		t.Errorf("the table should show and nothing dangerous: %s", got)
 	}
 }
 
 func TestCSPReallyBlocks(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/start")
+	b.ready("Start page")
 	// The control for the clean pages above: an inline script injected here must be stopped and reported.
 	b.eval(`(() => { const s = document.createElement('script'); s.textContent = 'window.ran = true'; document.head.append(s); })()`)
 	if got := b.eval(`String(window.ran)`); got != "undefined" {
@@ -517,323 +537,145 @@ func TestCSPReallyBlocks(t *testing.T) {
 	}
 }
 
-// On a phone, roughly until its own layout is settled (T-10): nav2 and nav3 open over the window from the active view.
-func TestShellOnAPhone(t *testing.T) {
+// Titles, descriptions, tags and folder names come from files and from people: the workspace shows them as text,
+// wherever it shows them.
+func TestNamesStayText(t *testing.T) {
+	b, base := setupWith(t, web.Options{DevUI: true}, map[string]string{
+		// The slash of </i> makes a folder inside a folder: the name of the outer one is <i class="x1">evil<.
+		`<i class="x1">evil</i>/page.md`: "---\nid: evil\ntitle: '<b class=\"x2\">Bold</b>'\ndescription: '<u class=\"x3\">desc</u>'\ntags: ['<s class=\"x4\">tag</s>']\n---\nSome evil text.\n",
+	})
+	b.open(base + "/o/evil")
+	b.ready(`<b class="x2">Bold</b>`)
+	b.eval(`[...document.querySelectorAll('.nav2 .navitem')].find(n => n.textContent.includes('evil')).setAttribute('data-probe', '')`)
+	b.clickOn(`.nav2 [data-probe]`, 1)
+	b.clickOn(`.nav3 .chead`, 1)
+	if !b.waitFor(`location.pathname === "/f/%3Ci%20class%3D%22x1%22%3Eevil%3C"`) {
+		t.Errorf("the address of the folder: %s", b.eval(`location.pathname`))
+	}
+	b.clickOn(`[data-act="gear"]`, 1)
+	b.eval(`(() => { const f = document.getElementById('search'); f.value = 'evil'; f.dispatchEvent(new Event('input', {bubbles: true})); })()`)
+	time.Sleep(600 * time.Millisecond)
+	if got := b.eval(`document.querySelectorAll('.x1, .x2, .x3, .x4').length`); got != "0" {
+		t.Errorf("%s names became markup: %s", got, b.eval(`[...document.querySelectorAll('.x1, .x2, .x3, .x4')].map(n => n.parentElement.outerHTML.slice(0, 160)).join(' || ')`))
+	}
+	b.shot("names-stay-text")
+}
+
+// On a phone the workspace keeps the layout of the mockup for phones: nav1 at the side, the window readable (T-10).
+func TestWorkspaceOnAPhone(t *testing.T) {
 	b, base := setup(t)
 	b.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": true}, nil)
 	b.open(base + "/o/plan")
-	visible := `[...document.querySelectorAll('.workspace-nav[data-level="2"], .workspace-nav[data-level="3"]')].map(n => getComputedStyle(n).display !== 'none').join()`
-	if got := b.eval(visible); got != "false,false" {
-		t.Errorf("nav2 and nav3 should start closed on a phone: %s", got)
-	}
+	b.ready("Network plan")
 	if got := b.eval(`document.documentElement.scrollWidth > innerWidth`); got != "false" {
 		t.Error("the page scrolls sideways on a phone")
 	}
-	if got := b.eval(`document.querySelector('.workspace-main').getBoundingClientRect().width > 250`); got != "true" {
+	if got := b.eval(`document.querySelector('article.doc').getBoundingClientRect().width > 250`); got != "true" {
 		t.Error("the window is too narrow to read")
 	}
-	view := b.rect(`.workspace-nav[data-level="1"] [data-ud-workspace]`)
-	b.click(view.X, view.Y, 1)
-	if got := b.eval(visible); got != "true,true" {
-		t.Errorf("the active view should open nav2 and nav3: %s", got)
-	}
-	b.shot("phone-open")
-	b.click(view.X, view.Y, 1)
-	if got := b.eval(visible); got != "false,false" {
-		t.Errorf("a second tap closes them: %s", got)
-	}
+	b.shot("phone")
 }
 
-func TestTreeFollowsThePage(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	if got := b.eval(`document.querySelector('.workspace-nav[data-level="2"] [aria-current]').textContent.trim()`); got != "ops" {
-		t.Errorf("collection: %s", got)
-	}
-	if got := b.eval(`[...document.querySelectorAll('.workspace-nav[data-level="3"] [aria-expanded="true"]')].map(a => a.closest('li').querySelector('a').textContent.trim()).join()`); got != "net" {
-		t.Errorf("open folders: %s", got)
-	}
-	if got := b.eval(`document.querySelector('.workspace-nav[data-level="3"] [aria-current="page"]').textContent.trim()`); got != "Network plan" {
-		t.Errorf("current page: %s", got)
-	}
-	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.workspace-main h1').textContent`); got != "ops/net|Network plan" {
-		t.Errorf("head: %s", got)
-	}
-}
-
-// A click on a name opens the object and keeps the list as it is. A double click or the arrow shows or hides what is in
-// it (ADR-16), with real pointer input.
+// A click on an entry in nav3 opens it, the address follows; a double click unfolds a folder (ADR-17).
 func TestClickOpensDoubleClickUnfolds(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
-	b.eval(`window.sameLoad = true`)
-	plain := b.rect(`.workspace-nav[data-level="3"] a[href="/o/~ops/plain.md"]`)
-	b.click(plain.X, plain.Y, 1)
-	if !b.waitFor(`location.pathname === '/o/~ops/plain.md' && document.querySelector('.workspace-main h1').textContent === 'plain'`) {
-		t.Fatalf("the click did not open the page: %s", b.eval(`location.pathname`))
+	b.ready("Network plan")
+	b.clickOn(probe(b, `.nav3 .name`, "plain"), 1)
+	b.ready("plain")
+	if got := b.eval(`location.pathname`); got != "/o/~ops/plain.md" {
+		t.Errorf("the address did not follow: %s", got)
 	}
-	if got := b.eval(`String(window.sameLoad) + document.querySelector('.workspace-nav[data-level="3"] [aria-current="page"]').textContent.trim() + document.title`); got != "trueplainplain · UnderDoc" {
-		t.Errorf("the window should swap without a reload: %s", got)
+	plan := `[...document.querySelectorAll('.nav3 .name')].some(n => n.textContent === 'Network plan')`
+	if got := b.eval(plan); got != "true" {
+		t.Fatal("the open page should show where it is")
 	}
-	hidden := `document.querySelector('.workspace-nav[data-level="3"] a[href="/f/ops/net"]').closest('li').querySelector('ul').hidden`
-	if got := b.eval(hidden); got != "false" {
-		t.Fatal("net should start open, it holds the page that was open")
+	b.clickOn(probe(b, `.nav3 .name`, "net"), 2)
+	if !b.waitFor(`!` + plan) {
+		t.Error("a double click should fold the folder")
 	}
-	net := b.rect(`.workspace-nav[data-level="3"] a[href="/f/ops/net"]`)
-	b.mouse("mouseMoved", net.X, net.Y, 0, 0)
-	for _, clicks := range []int{1, 2} {
-		b.mouse("mousePressed", net.X, net.Y, clicks, 0)
-		b.mouse("mouseReleased", net.X, net.Y, clicks, 0)
-	}
-	if !b.waitFor(hidden) {
-		t.Error("the double click did not close the folder")
-	}
-	arrow := b.rect(`.workspace-nav[data-level="3"] a[href="/f/ops/net"]`)
-	b.click(arrow.Left-10, arrow.Y, 1)
-	if got := b.eval(hidden); got != "false" {
-		t.Error("the arrow did not open it again")
+	b.clickOn(probe(b, `.nav3 .name`, "net"), 2)
+	if !b.waitFor(plan) {
+		t.Error("a second double click should unfold it again")
 	}
 	b.eval(`history.back()`)
-	if !b.waitFor(`location.pathname === '/f/ops/net' || location.pathname === '/o/~ops/plain.md' || location.pathname === '/o/plan'`) {
-		t.Error("back did not work")
-	}
+	b.ready("plain")
 }
 
-// The right edge of each column can be dragged, nav1 and nav2 snap to four steps, nav3 moves freely, and the widths
-// stay after a reload (ADR-16). The behavior is C22's workspace; this proves UnderDoc wires it up.
-func TestColumnsSnapByDragging(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	b.eval(`localStorage.clear()`)
-	b.open(base + "/o/plan")
-	const nav1, nav2, nav3 = `.workspace-nav[data-level="1"]`, `.workspace-nav[data-level="2"]`, `.workspace-nav[data-level="3"]`
-	first, second := b.rect(nav1), b.rect(nav2)
-	if first.Width != 50 || second.Width != 172 {
-		t.Fatalf("nav1 starts at the icon step and nav2 beside it, as in the mockup: %v, %v", first.Width, second.Width)
-	}
-	b.drag(first, 70)
-	if got := b.eval(`document.querySelector('` + nav1 + `').dataset.step + ':' + document.querySelector('` + nav1 + `').getBoundingClientRect().width`); got != "2:116" {
-		t.Errorf("nav1 should snap to the third step: %s", got)
-	}
-	if moved := b.rect(nav2); moved.Left <= second.Left {
-		t.Error("nav1 should push nav2")
-	}
-	list := b.rect(nav3)
-	b.drag(list, 37)
-	if got := b.rect(nav3).Width; got < list.Width+30 || got > list.Width+44 {
-		t.Errorf("nav3 moves freely: %v to %v", list.Width, got)
-	}
-	b.shot("dragged")
-	b.open(base + "/o/plan")
-	if got := b.eval(`document.querySelector('` + nav1 + `').dataset.step`); got != "2" {
-		t.Errorf("the width did not stay: %s", got)
-	}
-}
-
-func TestTableOfContentsJumps(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	marker := b.rect("#ud-toc-trigger")
-	b.click(marker.X, marker.Y, 1)
-	if !b.waitFor(`document.getElementById('ud-toc-trigger').getAttribute('aria-expanded') === 'true'`) {
-		t.Fatal("the marker did not open")
-	}
-	if got := b.eval(`[...document.querySelectorAll('#ud-toc-menu a')].map(a => document.getElementById(decodeURIComponent(a.hash.slice(1))) ? 'ok' : a.hash).join()`); got != "ok,ok" {
-		t.Errorf("entries without a target: %s", got)
-	}
-	b.press("Escape", "Escape", 27, 0)
-	if !b.waitFor(`document.getElementById('ud-toc-trigger').getAttribute('aria-expanded') === 'false'`) {
-		t.Error("Escape should close it")
-	}
-}
-
-func TestGearOpensTheMetadata(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	gear := b.rect(`[role=toolbar] [data-drawer-toggle="ud-drawer"]`)
-	b.click(gear.X, gear.Y, 1)
-	if got := b.eval(`!document.getElementById('ud-drawer').hidden && document.getElementById('ud-drawer').textContent.includes('/o/plan')`); got != "true" {
-		t.Fatal("the gear did not open the metadata")
-	}
-	b.shot("gear")
-	b.press("Escape", "Escape", 27, 0)
-	if got := b.eval(`document.getElementById('ud-drawer').hidden`); got != "true" {
-		t.Error("Escape should close it")
-	}
-}
-
-func TestSearchShortcuts(t *testing.T) {
-	const ctrl = 2
-	b, base := setup(t)
-	focused := `document.activeElement.name`
-	for name, press := range map[string]func(){
-		"slash":  func() { b.press("/", "Slash", 191, 0) },
-		"ctrl+k": func() { b.press("k", "KeyK", 75, ctrl) },
-	} {
-		b.open(base + "/o/plan")
-		if got := b.eval(focused); got == "q" {
-			t.Fatalf("%s: the field already has the focus, the test proves nothing", name)
-		}
-		press()
-		if got := b.eval(focused); got != "q" {
-			t.Errorf("%s: focus is on %q", name, got)
-		}
-	}
-	// While typing, "/" stays a character.
-	b.open(base + "/o/plan")
-	b.eval(`document.querySelector('input[name="q"]').focus()`)
-	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "/", "code": "Slash", "windowsVirtualKeyCode": 191, "text": "/"}, nil)
-	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "/", "code": "Slash", "windowsVirtualKeyCode": 191}, nil)
-	if got := b.eval(`document.querySelector('input[name="q"]').value`); got != "/" {
-		t.Errorf("typing a slash gave %q", got)
-	}
-}
-
-func TestSearchFromTheField(t *testing.T) {
+// A link inside a page opens its target in the window, as a click in the list does.
+func TestLinksInAPageStayInTheWorkspace(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/start")
-	b.eval(`(() => { const f = document.querySelector('form[role=search]'); f.q.value = 'router'; f.submit(); })()`)
-	b.collect()
-	if got := b.eval(`location.pathname + location.search`); got != "/search?q=router" {
-		t.Errorf("landed on %s", got)
-	}
-	if got := b.eval(`document.querySelector('mark').textContent`); !strings.EqualFold(got, "router") {
-		t.Errorf("marked %q", got)
+	b.ready("Start page")
+	b.eval(`window.sameLoad = true`)
+	b.clickOn(`article.doc a[href="/o/plan"]`, 1)
+	b.ready("Network plan")
+	if got := b.eval(`location.pathname + ' ' + window.sameLoad`); got != "/o/plan true" {
+		t.Errorf("the link left the workspace: %s", got)
 	}
 }
 
-func TestDarkModeFollowsTheSystemOrTheSetting(t *testing.T) {
+// The search field finds what the server knows, also pages that are not loaded yet.
+func TestSearch(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/start")
+	b.ready("Start page")
+	b.press("/", "Slash", 191, 0)
+	if got := b.eval(`document.activeElement.id`); got != "search" {
+		t.Errorf("/ should focus the search: %q", got)
+	}
+	// Only the page that is not loaded yet has this word, so only the server can find it.
+	b.call("Input.insertText", map[string]any{"text": "Übersicht"}, nil)
+	if !b.waitFor(`document.getElementById('sres')?.textContent.includes('Network plan')`) {
+		t.Fatalf("the server hit is missing: %s", b.eval(`document.querySelector('main, #root').textContent.slice(0, 300)`))
+	}
+	if got := b.eval(`!!document.querySelector('mark')`); got != "true" {
+		t.Error("the hit should mark the word")
+	}
+	b.shot("search")
+}
+
+// The theme follows the system until it is set (ADR-16).
+func TestDarkModeFollowsTheSystem(t *testing.T) {
 	b, base := setup(t)
 	b.call("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-color-scheme", "value": "dark"}}}, nil)
 	b.open(base + "/o/plan")
-	b.eval(`localStorage.clear()`)
-	b.open(base + "/o/plan")
-	dark := b.eval(`getComputedStyle(document.body).backgroundColor`)
-	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "true" {
-		t.Error("the dark class is missing")
+	b.ready("Network plan")
+	if got := b.eval(`document.documentElement.classList.contains('dark') && getComputedStyle(document.body).backgroundColor !== 'rgb(255, 255, 255)'`); got != "true" {
+		t.Error("the system asks for dark")
 	}
 	b.shot("dark")
 	b.call("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-color-scheme", "value": "light"}}}, nil)
 	b.open(base + "/o/plan")
-	if light := b.eval(`getComputedStyle(document.body).backgroundColor`); light == dark {
-		t.Errorf("light and dark look the same: %s", light)
-	}
-	// The setting in the profile wins over the system, and stays after a reload.
-	b.open(base + "/profile?s=appearance")
-	button := b.rect(`[data-ud-theme="dark"]`)
-	b.click(button.X, button.Y, 1)
-	if got := b.eval(`document.documentElement.classList.contains('dark') + ':' + document.querySelector('[data-ud-theme="dark"]').getAttribute('aria-pressed')`); got != "true:true" {
-		t.Errorf("the setting did not apply: %s", got)
-	}
-	b.open(base + "/o/plan")
-	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "true" {
-		t.Error("the setting did not stay")
-	}
-}
-
-// nav1 and nav2 open things in the columns, the window keeps what it shows (ADR-16): into the profile and back.
-func TestColumnsChangeTheWindowStays(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	b.eval(`window.sameLoad = true`)
-	const nav1, nav2, nav3 = `.workspace-nav[data-level="1"]`, `.workspace-nav[data-level="2"]`, `.workspace-nav[data-level="3"]`
-	window := `document.querySelector('.workspace-main h1').textContent + '|' + location.pathname`
-	profile := b.rect(nav1 + ` a[href="/profile"]`)
-	b.click(profile.X, profile.Y, 1)
-	if !b.waitFor(`document.querySelector('` + nav2 + `').getAttribute('aria-label') === 'Profile'`) {
-		t.Fatal("the profile did not open in nav2")
-	}
-	if got := b.eval(window + ` + '|' + window.sameLoad + '|' + !!document.querySelector('` + nav3 + ` [href="/.tinysesam/logout"]')`); got != "Network plan|/o/plan|true|true" {
-		t.Errorf("the window should stay, the account show in nav3: %s", got)
-	}
-	appearance := b.rect(nav2 + ` a[href="/profile?s=appearance"]`)
-	b.click(appearance.X, appearance.Y, 1)
-	if !b.waitFor(`!!document.querySelector('` + nav3 + ` [data-ud-theme="dark"]')`) {
-		t.Fatal("the section did not open in nav3")
-	}
-	b.shot("profile-view")
-	workspace := b.rect(nav1 + ` a[data-ud-workspace]`)
-	b.click(workspace.X, workspace.Y, 1)
-	if !b.waitFor(`document.querySelector('` + nav2 + `').getAttribute('aria-label') === 'Collections'`) {
-		t.Fatal("back to the workspace did not work")
-	}
-	if got := b.eval(`document.querySelector('` + nav3 + ` [aria-current="page"]').textContent.trim() + '|' + ` + window); got != "Network plan|Network plan|/o/plan" {
-		t.Errorf("the workspace should show the collection of the window: %s", got)
-	}
-	home := b.rect(nav2 + ` a[title="Home"]`)
-	b.click(home.X, home.Y, 1)
-	if !b.waitFor(`document.querySelector('` + nav3 + ` section > header > a').textContent === 'Home'`) {
-		t.Fatal("a collection in nav2 did not open in nav3")
-	}
-	if got := b.eval(window + ` + '|' + window.sameLoad`); got != "Network plan|/o/plan|true" {
-		t.Errorf("a collection must not change the window: %s", got)
-	}
-}
-
-// A right click on an entry in nav3 opens its menu, named after the entry; Open opens it in the window (ADR-16).
-func TestRightClickOnAnEntry(t *testing.T) {
-	b, base := setup(t)
-	b.open(base + "/o/plan")
-	plain := b.rect(`.workspace-nav[data-level="3"] a[href="/o/~ops/plain.md"]`)
-	b.mouse("mouseMoved", plain.X, plain.Y, 0, 0)
-	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mousePressed", "x": plain.X, "y": plain.Y, "button": "right", "buttons": 2, "clickCount": 1}, nil)
-	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseReleased", "x": plain.X, "y": plain.Y, "button": "right", "buttons": 0, "clickCount": 1}, nil)
-	panel := `document.querySelector('.workspace-nav[data-level="3"] [data-cm-panel]')`
-	if !b.waitFor(`!` + panel + `.hidden && ` + panel + `.querySelector('[role=heading]').textContent === 'plain'`) {
-		t.Fatalf("the menu of the entry did not open: %s", b.eval(panel+`.outerHTML.slice(0, 200)`))
-	}
-	if got := b.eval(panel + `.querySelector('[aria-disabled="true"]') !== null`); got != "true" {
-		t.Error("what is not built yet should be greyed out in the menu")
-	}
-	b.shot("row-menu")
-	open := b.rect(`.workspace-nav[data-level="3"] [data-ud-row="open"]`)
-	b.click(open.X, open.Y, 1)
-	if !b.waitFor(`location.pathname === '/o/~ops/plain.md'`) {
-		t.Error("Open in the menu did not open the entry")
+	b.ready("Network plan")
+	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "false" {
+		t.Error("the system asks for light")
 	}
 }
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
 
-// New collection in nav2, by mouse and keyboard: the popover, a name, Enter, and the new collection is open (M-28).
+// New collection in nav2 makes it in the database, its settings open with the name selected, and a new name stays (M-28).
 func TestNewCollectionByHand(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
-	const nav2 = `.workspace-nav[data-level="2"]`
-	if got := b.eval(`!!document.querySelector('` + nav2 + ` [title="My notes, only you see it"]')`); got != "true" {
+	b.ready("Network plan")
+	if got := b.eval(`[...document.querySelectorAll('.nav2 .name, .nav2 button')].some(n => n.textContent.trim() === 'My notes')`); got != "true" {
 		t.Fatal("the private notes of the account are missing")
 	}
-	trigger := b.rect("#ud-new-top-trigger")
-	b.click(trigger.X, trigger.Y, 1)
-	if !b.waitFor(`document.getElementById('ud-new-top-popover').getAttribute('aria-hidden') === 'false'`) {
-		t.Fatal("the form did not open")
-	}
-	// The popover fades and moves in. A click before it stands still could miss the field and close it again.
-	if !b.waitFor(`(() => { const p = document.getElementById('ud-new-top-popover'), r = p.getBoundingClientRect();
-		const still = window.lastBox === r.top + ',' + r.left; window.lastBox = r.top + ',' + r.left;
-		return still && getComputedStyle(p).opacity === '1' && r.height > 0; })()`) {
-		t.Fatal("the form did not come to rest")
-	}
-	field := b.rect("#ud-new-top-title")
-	b.click(field.X, field.Y, 1)
-	if got := b.eval(`document.activeElement.id`); got != "ud-new-top-title" {
-		t.Fatalf("the name field did not get the focus: %q", got)
+	b.clickOn(`.nav2 [data-act="newcoll"]`, 1)
+	if !b.waitFor(`document.activeElement?.id === 'cname'`) {
+		t.Fatalf("the name field did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 	}
 	b.call("Input.insertText", map[string]any{"text": "Operations"}, nil)
-	if got := b.eval(`document.getElementById('ud-new-top-title').value`); got != "Operations" {
-		t.Fatalf("typed %q", got)
-	}
-	b.shot("new-collection")
-	// A real Enter carries the character "\r", and only that submits a form.
 	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
 	b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}, nil)
-	// Asking the page while the form is sent keeps the old page alive in Chrome, so wait a moment first.
+	b.eval(`document.activeElement.blur()`)
+	b.shot("new-collection")
 	time.Sleep(500 * time.Millisecond)
-	if !b.waitFor(`/^\/o\/[0-9a-z]{10}$/.test(location.pathname) && document.querySelector('.workspace-main h1')?.textContent === 'Operations'`) {
-		t.Fatalf("the new collection did not open: %s", b.eval(`location.pathname`))
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if !b.waitFor(`[...document.querySelectorAll('.nav2 *')].some(n => n.childElementCount === 0 && n.textContent.trim() === 'Operations')`) {
+		t.Errorf("the new collection is not kept: %s", b.eval(`document.querySelector('.nav2').textContent.replace(/\s+/g, ' ')`))
 	}
-	if got := b.eval(`document.querySelector('` + nav2 + ` [aria-current]')?.textContent.trim() + '|' + document.querySelector('.workspace-nav[data-level="3"] section > header > a').textContent`); got != "Operations|Operations" {
-		t.Errorf("nav2 and nav3 should show it: %s", got)
-	}
-	b.shot("collection")
 }

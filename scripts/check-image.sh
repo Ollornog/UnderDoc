@@ -26,17 +26,26 @@ done
 [[ "$(docker inspect -f '{{.State.Health.Status}}' "$name")" == healthy ]] || fail "the container does not get healthy"
 
 port="$(docker port "$name" 8080/tcp | head -1 | sed 's/.*://')"
-url="http://127.0.0.1:$port/o/first"
-# Without the headers of the sign-in gate nothing answers (M-28), with them the page shows.
+base="http://127.0.0.1:$port"
+url="$base/o/first"
+# Without the headers of the sign-in gate nothing answers (M-28), with them the workspace and its data show.
 code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
 [ "$code" = 401 ] || fail "without the gate the page answered $code, not 401"
 gate=(-H 'Remote-User: image-check')
-curl -fsS "${gate[@]}" "$url" | grep -q 'First version' || fail "the page does not show"
-curl -fsSI "${gate[@]}" "$url" | grep -qi '^content-security-policy:' || fail "the page has no CSP"
+# The answers go into variables first: with pipefail, grep -q could end curl early and fail the pipe at random.
+page="$(curl -fsS "${gate[@]}" "$url")" || fail "the workspace does not answer"
+[[ "$page" == *'class="c22-app-workspace"'* ]] || fail "the workspace does not show"
+head="$(curl -fsSI "${gate[@]}" "$url")" || fail "the workspace does not answer"
+grep -qi '^content-security-policy:' <<<"$head" || fail "the page has no CSP"
+doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" || fail "the page does not answer"
+[[ "$doc" == *'First version'* ]] || fail "the page does not show"
 
 printf -- '---\nid: first\n---\n# Second, longer version\n' >"$notes/page.md"
 for _ in $(seq 1 40); do
-    curl -fsS "${gate[@]}" "$url" | grep -q 'Second, longer version' && { echo "✓ image: healthy, read-only, closed without the gate, serves pages and notices changes"; exit 0; }
+    if doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" && [[ "$doc" == *'Second, longer version'* ]]; then
+        echo "✓ image: healthy, read-only, closed without the gate, serves the workspace and pages and notices changes"
+        exit 0
+    fi
     sleep 0.25
 done
 fail "the change on disk does not show"

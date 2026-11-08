@@ -47,3 +47,10 @@ is in sight, greyed out. The switch First build in the mockup shows what that lo
 - A backup of the database and the content store together restores the whole state, proven by a restore.
 - **Acceptance: the maintainer signs in, builds a few collections with pages, nests them, embeds a table of one page in another,
   sets a collection to read only, and opens a copied link in another browser.**
+
+**State on 2026-11-08 (frontend sprint):** the interface is the mockup itself, its look the C22 block
+`.c22-app-workspace`, its data from a small JSON API. Real: the gate, the account, collections of the database (made, renamed,
+nested) and of the folder source, pages opened from the folder source, full-text search, links between pages. Everything else
+runs on the made-up content of the mockup, marked “(demo)”. Still to build here: pages as blocks with editing and versions,
+access levels and comments, embedding by ID, settings on the account, deleting and moving, import and export, the list of
+problems in the workspace, and the restore test.
