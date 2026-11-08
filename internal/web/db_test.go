@@ -5,10 +5,7 @@ package web
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -28,102 +25,58 @@ func withDatabase(t *testing.T) *site {
 	return newSite(t, Options{DB: database}, sample)
 }
 
-func (s *site) post(target string, form url.Values, headers map[string]string) *httptest.ResponseRecorder {
-	s.t.Helper()
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	for name, value := range gateHeaders {
-		request.Header.Set(name, value)
-	}
-	for name, value := range headers {
-		request.Header.Set(name, value)
-	}
-	s.http.ServeHTTP(recorder, request)
-	return recorder
-}
-
 var sameSite = map[string]string{"Sec-Fetch-Site": "same-origin"}
+
+var bob = map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob"}
 
 func TestAccountAndPrivateNotes(t *testing.T) {
 	s := withDatabase(t)
-	body := s.body("/read/o/plan")
-	if !strings.Contains(body, `title="My notes, only you see it"`) {
-		t.Error("the first request makes the account with its private notes")
+	state := decode[apiState](t, s.get("/api/state"))
+	if len(state.Collections) == 0 || state.Collections[0].Title != "My notes" || !state.Collections[0].Private || !state.CanCreate {
+		t.Fatalf("the first request makes the account with its private notes: %+v", state.Collections)
 	}
-	if strings.Contains(body, `title="New collection: not built yet`) || !strings.Contains(body, `action="/collections"`) {
-		t.Error("with a database, New collection works")
+	notes := state.Collections[0].ID
+	if got := s.getWith("/o/"+notes, bob); got.Code != http.StatusNotFound {
+		t.Errorf("bob opens Anna's notes: %d", got.Code)
 	}
-	notes := regexp.MustCompile(`href="/o/([0-9a-z]{10})" title="My notes`).FindStringSubmatch(body)
-	if notes == nil {
-		t.Fatal("no link to the notes")
+	if got := s.getWith("/api/doc/"+notes, bob); got.Code != http.StatusNotFound {
+		t.Errorf("bob reads Anna's notes: %d", got.Code)
 	}
-	if got := s.getWith("/read/o/"+notes[1], map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}); got.Code != http.StatusNotFound {
-		t.Errorf("bob opened anna's notes: %d", got.Code)
+	if strings.Contains(s.getWith("/api/state", bob).Body.String(), notes) {
+		t.Error("bob sees Anna's notes in his list")
 	}
-	if mine := s.body("/read/o/" + notes[1]); !strings.Contains(mine, "Only you") || !strings.Contains(mine, "Anna Berg") {
-		t.Error("the page of the notes says who sees them")
+	if got := s.get("/o/" + notes); got.Code != http.StatusOK {
+		t.Errorf("Anna opens her notes: %d", got.Code)
+	}
+	if mine := page(t, s, notes); mine.Title != "My notes" || mine.Kind != "collection" {
+		t.Errorf("%+v", mine)
 	}
 }
 
-func TestCreateCollections(t *testing.T) {
+func TestSharedCollections(t *testing.T) {
 	s := withDatabase(t)
-	made := s.post("/collections", url.Values{"title": {" Operations "}}, sameSite)
-	place := made.Header().Get("Location")
-	if made.Code != http.StatusSeeOther || !regexp.MustCompile(`^/o/[0-9a-z]{10}$`).MatchString(place) {
-		t.Fatalf("%d %q", made.Code, place)
+	top := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":" Operations "}`, sameSite))
+	if top.Title != "Operations" {
+		t.Errorf("the title is trimmed: %q", top.Title)
 	}
-	page := s.body("/read" + place)
-	for _, want := range []string{"<h1>Operations</h1>", "<dd>Collection</dd>", "<dd>Anna Berg</dd>", "can edit (inherited)", "Everyone signed in", `name="parent" value="` + strings.TrimPrefix(place, "/o/") + `"`} {
-		if !strings.Contains(page, want) {
-			t.Errorf("%q missing", want)
+	if got := s.send(http.MethodPost, "/api/collections", `{"title":"x","parent":"aaaaaaaaaa"}`, sameSite).Code; got != http.StatusNotFound {
+		t.Errorf("inside something unknown: %d", got)
+	}
+	for name, headers := range map[string]map[string]string{"bob": bob, "anna": nil} {
+		state := decode[apiState](t, s.getWith("/api/state", merged(headers)))
+		if shared := findNode(state.Collections, top.ID); shared == nil || shared.Owner != "Anna Berg" {
+			t.Errorf("%s does not see the shared collection: %+v", name, state.Collections)
 		}
-	}
-	inner := s.post("/collections", url.Values{"title": {"Network"}, "parent": {strings.TrimPrefix(place, "/o/")}}, sameSite)
-	if inner.Code != http.StatusSeeOther {
-		t.Fatalf("inside: %d", inner.Code)
-	}
-	nested := s.body("/read" + inner.Header().Get("Location"))
-	if !strings.Contains(nested, `<a href="`+place+`">Operations</a>`) || !strings.Contains(nested, `aria-current="page"><svg`) {
-		t.Error("the inner collection shows its way and its place in nav3")
-	}
-	if !strings.Contains(s.body("/read"+place), "<span>Network</span><small>Collection</small>") {
-		t.Error("the outer collection lists it")
-	}
-	if !strings.Contains(s.getWith("/read/o/plan", map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}).Body.String(), `title="Operations"`) {
-		t.Error("bob sees the shared collection")
 	}
 }
 
-// A change only from a page of this application: the gate signs in with a cookie, so another site could post otherwise.
-func TestCreateOnlyFromHere(t *testing.T) {
-	s := withDatabase(t)
-	for name, headers := range map[string]map[string]string{
-		"cross-site":       {"Sec-Fetch-Site": "cross-site"},
-		"same-site":        {"Sec-Fetch-Site": "same-site"},
-		"no sign of where": {},
-		"foreign origin":   {"Origin": "https://evil.example"},
-	} {
-		if got := s.post("/collections", url.Values{"title": {"x"}}, headers).Code; got != http.StatusForbidden {
-			t.Errorf("%s: %d", name, got)
-		}
+func merged(headers map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range gateHeaders {
+		out[k] = v
 	}
-	if got := s.post("/collections", url.Values{"title": {"x"}}, map[string]string{"Origin": "http://example.com"}).Code; got != http.StatusSeeOther {
-		t.Errorf("an old browser with the own origin: %d", got)
+	for k, v := range headers {
+		out[k] = v
 	}
-	for _, title := range []string{"", "   "} {
-		if got := s.post("/collections", url.Values{"title": {title}}, sameSite).Code; got != http.StatusBadRequest {
-			t.Errorf("title %q: %d", title, got)
-		}
-	}
-	if got := s.post("/collections", url.Values{"title": {"x"}, "parent": {"0000000000"}}, sameSite).Code; got != http.StatusNotFound {
-		t.Errorf("into nothing: %d", got)
-	}
-}
-
-func TestCreateNeedsTheDatabase(t *testing.T) {
-	s := newSite(t, Options{}, sample)
-	if got := s.post("/collections", url.Values{"title": {"x"}}, sameSite).Code; got != http.StatusNotImplemented {
-		t.Errorf("%d", got)
-	}
+	return out
 }

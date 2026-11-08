@@ -23,7 +23,7 @@ const D = {
   net:{t:'folder',n:'Network',kids:['plan','tickets'],path:'operations/network/',why:'Default roles for everything below.',vis:'Group ops'},
   plan:{t:'page',n:'Network plan',w:'wide',kids:['vlans','ports'],path:'operations/network/plan.md',by:'A. Keller',ch:'today 09:41 by A. Keller',vis:'Group ops, inherited',
     uses:{ext:['vendor manual'],int:['VLAN list','On-call handbook'],data:['Site photos'],vals:['router.ip','tower.height'],db:['Inventory · Open tickets']},usedIn:['On-call handbook','Tower 50 m'],
-    doc:P('The site has one router, two core switches and a radio link on the tower.',['Overview','<p>The router sits at <span class="v">10.0.0.1</span> (value <span class="v">{{router.ip}}</span>). The tower is <span class="v">50 m</span> high (value <span class="v">{{tower.height}}</span>), which sets the range of the radio link.</p><div class="note">Mermaid diagrams come with M-3. They render here, inside the same window.</div>'],['Core switches','<p>Both core switches form one stack. See <button class="l" data-act="open" data-id="ports">Switch ports</button>.</p><div class="tw"><table><tr><th>Name</th><th>Room</th><th>Uplink</th></tr><tr><td>core-a</td><td>Server room</td><td>10 Gbit</td></tr><tr><td>core-b</td><td>Workshop</td><td>10 Gbit</td></tr></table></div>'],['Radio link','<p>The radio link runs from the tower to the gatehouse. Check it after every storm.</p><p>Keep a spare antenna in the workshop, and note each swap in the handbook.</p>'],['Open tickets','<p>This table comes from the view <button class="l" data-act="open" data-id="tickets">Open tickets</button> and shows how old its data is.</p><div class="tw"><table><tr><th>#</th><th>Title</th><th>Owner</th></tr><tr><td>412</td><td>Replace fan in core-b</td><td>A. Keller</td></tr><tr><td>415</td><td>Label patch panel</td><td>J. Roth</td></tr></table></div>'],['Change log','<p>2026-10-02: new uplink on core-b.</p><p>2026-09-14: radio link firmware.</p><p>2026-08-30: tower antenna replaced.</p>'])},
+    doc:P('The site has one router, two core switches and a radio link on the tower.',['Overview','<p>The router sits at <span class="v">192.0.2.1</span> (value <span class="v">{{router.ip}}</span>). The tower is <span class="v">50 m</span> high (value <span class="v">{{tower.height}}</span>), which sets the range of the radio link.</p><div class="note">Mermaid diagrams come with M-3. They render here, inside the same window.</div>'],['Core switches','<p>Both core switches form one stack. See <button class="l" data-act="open" data-id="ports">Switch ports</button>.</p><div class="tw"><table><tr><th>Name</th><th>Room</th><th>Uplink</th></tr><tr><td>core-a</td><td>Server room</td><td>10 Gbit</td></tr><tr><td>core-b</td><td>Workshop</td><td>10 Gbit</td></tr></table></div>'],['Radio link','<p>The radio link runs from the tower to the gatehouse. Check it after every storm.</p><p>Keep a spare antenna in the workshop, and note each swap in the handbook.</p>'],['Open tickets','<p>This table comes from the view <button class="l" data-act="open" data-id="tickets">Open tickets</button> and shows how old its data is.</p><div class="tw"><table><tr><th>#</th><th>Title</th><th>Owner</th></tr><tr><td>412</td><td>Replace fan in core-b</td><td>A. Keller</td></tr><tr><td>415</td><td>Label patch panel</td><td>J. Roth</td></tr></table></div>'],['Change log','<p>2026-10-02: new uplink on core-b.</p><p>2026-09-14: radio link firmware.</p><p>2026-08-30: tower antenna replaced.</p>'])},
   vlans:{t:'page',n:'VLAN list',w:'slim',kids:[],path:'operations/network/plan/vlans.md',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',uses:{ext:[],int:['Network plan'],data:[],vals:[],db:[]},usedIn:['Network plan'],
     doc:P('Every VLAN on the site.',['Office','<p>VLAN 10, for desks and printers.</p>'],['Devices','<p>VLAN 20, for cameras and sensors.</p>'])},
   ports:{t:'table',n:'Switch ports',w:'wide',kids:[],path:'not a file, lives in the database',by:'J. Roth',ch:'yesterday',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['Network plan'],
@@ -32,7 +32,7 @@ const D = {
     tab:{note:'From the database Inventory. Data is 4 minutes old (M-4).',head:['#','Title','Owner','Age'],rows:[['412','Replace fan in core-b','A. Keller','3 d'],['415','Label patch panel','J. Roth','1 d'],['416','Renew switch license','A. Keller','4 h']]}},
   logs:{t:'folder',n:'Site logs (11 children, stays closed)',kids:Array.from({length:11},(_,i)=>'log'+i),path:'operations/site-logs/',why:'More children than the limit below, so it does not open by itself.',vis:'Group ops'},
   hand:{t:'page',n:'On-call handbook',w:'slim',kids:['esc','cont'],path:'operations/on-call.md',by:'M. Sander',ch:'Oct 29',vis:'Everyone in the company',uses:{ext:['status page'],int:['Network plan'],data:[],vals:['router.ip'],db:[]},usedIn:[],
-    doc:P('What to do when something breaks at night.',['First five minutes','<p>Open the <button class="l" data-act="open" data-id="plan">Network plan</button> next to this page. Check the router at <span class="v">10.0.0.1</span>.</p>'],['Who to call','<p>See the <button class="l" data-act="open" data-id="cont">Contacts</button> table below this page.</p>'],['After the incident','<p>Write down what happened on the same day.</p>'])},
+    doc:P('What to do when something breaks at night.',['First five minutes','<p>Open the <button class="l" data-act="open" data-id="plan">Network plan</button> next to this page. Check the router at <span class="v">192.0.2.1</span>.</p>'],['Who to call','<p>See the <button class="l" data-act="open" data-id="cont">Contacts</button> table below this page.</p>'],['After the incident','<p>Write down what happened on the same day.</p>'])},
   esc:{t:'page',n:'Escalation',w:'slim',kids:[],path:'operations/on-call/escalation.md',by:'M. Sander',ch:'Oct 12',vis:'Everyone, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['On-call handbook'],doc:P('Who decides what, and when.',['Levels','<p>Level one fixes, level two decides.</p>'],['Times','<p>Fifteen minutes per level.</p>'])},
   cont:{t:'table',n:'Contacts',w:'slim',kids:[],path:'not a file, lives in the database',by:'M. Sander',ch:'Oct 20',vis:'Everyone, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['On-call handbook'],tab:{note:'Native table. A changed number shows on every page that embeds it.',head:['Name','Role','Phone'],rows:[['A. Keller','Network','+00 555 0101'],['J. Roth','Site','+00 555 0102'],['M. Sander','Lead','+00 555 0103']]}},
   tower:{t:'page',n:'Tower 50 m',w:'full',kids:['dims','photos'],path:'projects/tower.md',by:'J. Roth',ch:'Oct 31',vis:'Project team',uses:{ext:[],int:['Network plan'],data:['Tower dimensions','Site photos'],vals:['tower.height'],db:[]},usedIn:['Network plan'],
@@ -137,7 +137,7 @@ const contAcc=id=>PARENT[id]?accOf(PARENT[id]):COLL[id]?accOf(COLL[id].id):'edit
 const accOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
 const kidsOpen=id=>{const v=S.tog[id];return v!==undefined?v:id.startsWith('dir:')?false:D[id].kids.length<=S.limit;};
 const chg=d=>String(d.ch).includes(' by ')?d.ch:`${d.ch} by ${d.by||'–'}`;
-const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" data-tag="${esc(t)}" title="All objects tagged ${esc(t)}">#${esc(t)}</button>`).join('');
+const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" data-tag="${t}" title="All objects tagged ${t}">#${t}</button>`).join('');
 
 function rowHtml(id){
   if(!shown(id))return '';
@@ -173,7 +173,7 @@ function ctxHtml(){
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
   if(c.kind==='free'){title='New';items=c.acts.map(x=>{const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
   if(c.kind==='view'){title=c.label;items=B('view','Open')+(S.view===c.id&&S.rail?B('view','Hide nav2 and nav3'):'');}
-  return `<div class="pop ctxpop" role="menu" data-style="left:${c.x}px;top:${c.y}px"><b>${esc(title)}</b>${items}</div>`;
+  return `<div class="pop ctxpop" role="menu" data-style="left:${c.x}px;top:${c.y}px"><b>${title}</b>${items}</div>`;
 }
 function navItem(act,id,label,icon,pressed,extra='',no=false){const l=no||(act==='view'&&later('view',id))||(act==='sec'&&S.view==='profile'&&later('prof',id));return `<button class="navitem" data-act="${act}" data-id="${id}" aria-pressed="${pressed}" title="${label}${l?', not in the first build':''}" ${extra}${l?' disabled data-later="1"':''}>${ic(icon)}<span class="lbl">${label}</span></button>`;}
 function nav2Html(){
@@ -216,11 +216,11 @@ function hits(){
 }
 /* The full-text search of the server finds pages that are not loaded yet; its hits come first. */
 const hitsWithServer=()=>{const local=hits();const q=S.sq.trim();if(local===null||!q||S.apiQ!==q||!S.apiHits)return local;
-  const real=S.apiHits.map(h=>h.id).filter(id=>D[id]&&!local.includes(id)&&(!S.ftype||D[id].t===S.ftype));return [...real,...local];};
+  const real=S.apiHits.map(h=>SID[h.id]).filter(id=>D[id]&&!local.includes(id)&&(!S.ftype||D[id].t===S.ftype));return [...real,...local];};
 let searchTimer=null;
 function searchServer(){clearTimeout(searchTimer);const q=S.sq.trim();if(!q)return;searchTimer=setTimeout(async()=>{
   try{const r=await fetch('/api/search?q='+encodeURIComponent(q),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;
-    const hs=await r.json();if(S.sq.trim()!==q)return;S.apiQ=q;S.apiHits=hs;S.apiSnip={};hs.forEach(h=>{S.apiSnip[h.id]=h.snippet;});refreshHits();}catch(e){}},180);}
+    const hs=await r.json();if(S.sq.trim()!==q)return;S.apiQ=q;S.apiHits=hs;S.apiSnip={};hs.forEach(h=>{if(SID[h.id])S.apiSnip[SID[h.id]]=h.snippet;});refreshHits();}catch(e){}},180);}
 function snippet(d,q){const t=docText(d),i=t.toLowerCase().indexOf(q.toLowerCase());if(!q||i<0)return '';const a=Math.max(0,i-28);return (a?'… ':'')+esc(t.slice(a,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length,i+q.length+46))+' …';}
 function resultsHtml(){
   const h=hitsWithServer(),q=S.sq.trim();
@@ -257,7 +257,7 @@ function factsHtml(d){
   const u=d.uses||{},rows=(k,l)=>(u[k]||[]).map(x=>`<li><small>${l}</small><span>${x}</span></li>`).join('');
   const useRows=rows('ext','External')+rows('int','Internal')+rows('data','Data')+rows('vals','Value')+rows('db','Database');
   return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
-    ${d.desc?`<dt>Description</dt><dd>${esc(d.desc)}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
+    ${d.desc?`<dt>Description</dt><dd>${d.desc}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
     ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
@@ -302,8 +302,8 @@ function winHtml(w,i){
   const head=`<div class="tabrow"><div class="tabscroll">${w.tabs.map((x,k)=>tabHtml(x,k,i)).join('')}</div>
     <button class="ic tabend" data-act="tablist" data-w="${i}" aria-expanded="${S.tlist===i}" aria-label="All tabs of this window" title="All tabs of this window">${ic('list')}</button>${S.wins.length>1?`<button class="ic tabend" data-act="closewin" data-w="${i}" aria-label="Close window" title="Close window">${ic('x')}</button>`:''}${i===S.wins.length-1&&S.mods.ai?`<button class="ic tabend aibtn"${off('tool','aid')} data-act="aid" aria-pressed="${S.aid}" aria-label="AI assistant" title="AI assistant">${ic('ai')}</button>`:''}</div>`;
   const pop=(S.newAt===i?newMenuHtml('tab'):'')+(S.tmenu&&S.tmenu.w===i?`<div class="pop tabctx" role="menu" data-style="left:${S.tmenu.x}px">${tabMenuHtml(i,S.tmenu.t)}</div>`:'')
-    +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${esc(D[x].n)}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
-    +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+esc(D[x.d].n):'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
+    +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
+    +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+D[x.d].n:'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
   if(!has) return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}<div class="empty"><p>Empty.<br>What a list opens lands here, in the active window.</p></div></section>`;
   const d=D[t.d],{h,hs}=bodyHtml(t,i),mode=d.toc;
   const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="w${i}h${j}">${x}</button>`).join('');
@@ -313,7 +313,7 @@ function winHtml(w,i){
   const crumbs=placeOf(t.d),tg=d.tags.length?`<span class="tagline">${tagChips(d.tags,'tagsearch')}</span>`:'';
   const ac=accOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
   const place=`<span class="place" title="${crumbs}">${crumbs}</span>${tg}${badge}<span class="tspace"></span>`;
-  const dhead=`<div class="dtitle"><h1>${esc(d.n)}</h1>${d.desc?`<p>${esc(d.desc)}</p>`:''}</div>`;
+  const dhead=`<div class="dtitle"><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
   const tools=`<div class="tools">${place}${marker}${find}
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
@@ -347,9 +347,9 @@ function closeWhere(i,keep){
 /* New always lands somewhere: in the chosen collection, or in Quick notes. The last choice stays. */
 function newMenuHtml(where){
   const into=S.into,q=into==='qn';
-  return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${esc(x[1])}</button>`).join('')}</div>
+  return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
     <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
-    <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+esc(C.find(c=>c.id===into).n)+'. Drag it to its place.'}</p>
+    <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+C.find(c=>c.id===into).n+'. Drag it to its place.'}</p>
     ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
 }
 function createIn(cid,k,text){
@@ -397,7 +397,7 @@ function diskRow(dir,x){
     ${folder&&open?`<ul class="t">${kids.map(y=>diskRow(sub,y)).join('')}</ul>`:''}</li>`;
 }
 const RES=[
- {id:'values',n:'Values',m:'M-3',i:'list',head:['Name','Value','Source','Used in'],rows:[['tower.height','50 m','tower-dimensions.xlsx','4 documents'],['router.ip','10.0.0.1','_values.yaml','2 documents']]},
+ {id:'values',n:'Values',m:'M-3',i:'list',head:['Name','Value','Source','Used in'],rows:[['tower.height','50 m','tower-dimensions.xlsx','4 documents'],['router.ip','192.0.2.1','_values.yaml','2 documents']]},
  {id:'snippets',n:'Snippets',m:'M-3',i:'code',head:['Name','Kind','Used in'],rows:[['customers','SQL','3 documents'],['maintenance-note','Text','7 documents']]},
  {id:'dbs',n:'Databases and views',m:'M-4',i:'db',head:['Name','Type','Placed in workspace','Used in','Tags'],rows:[['Inventory','Database','Projects','1 view','#hardware'],['Open tickets','Database view','Operations › Network','1 document','#network'],['Weekly export','Database view','△ not placed','0 documents','']]},
  {id:'ext',n:'External sources',m:'M-4',i:'box',head:['Name','Kind','Data age','State'],rows:[['Ticket system','REST','4 min','✓ working'],['Supplier list','CSV','2 d','△ last good state']]}];
@@ -442,7 +442,7 @@ function adminHtml(sec){
 function collForm(){
   const c=C.find(x=>x.id===S.cgear)||{id:S.cgear,get n(){return D[S.cgear].n;}};
   return `<div class="spanel"><div class="shead">${c.n}<button class="ic" data-act="cgear" data-id="${c.id}" aria-label="Close settings">${ic('x')}</button></div>
-    <label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${c.id}" value="${esc(c.n)}">
+    <label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${c.id}" value="${c.n}">
     <div class="slab">Favorite</div><button class="opt" data-act="star" data-id="${c.id}" aria-pressed="${!!S.fav[c.id]}">Stands at the top of nav2</button>
     <div class="slab">Others can</div>${seg3('cacc',[['edit','Edit'],['comment','Comment'],['read','Read']],D[c.id].acc||'edit')}<p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>
     <div class="slab">On disk</div><p class="hint">${c.id==='me'?'none':c.id+'/'}</p><div class="slab">Visible to</div><p class="hint">${c.id==='me'?'Only you':'Everyone who is signed in'}</p></div>`;
@@ -581,7 +581,7 @@ function openDoc(id){
   const w=S.wins[S.focus]||S.wins[0];let k=w.tabs.findIndex(t=>t.d===id);
   if(k<0){k=0;w.tabs[0]=newTab(id,true);w.hist=[id,...(w.hist||[]).filter(x=>x!==id)].slice(0,15);}
   w.a=k;if(id.startsWith('mail:'))MAILS.find(m=>'mail:'+m.id===id).unread=false;if(phone())S.rail=false;
-  if(D[id]&&D[id].real){if(!D[id].loaded)loadDoc(id);const a='/o/'+encodeURI(id);if(location.pathname!==a)history.pushState({id},'',a);}
+  if(D[id]&&D[id].real){if(!D[id].loaded)loadDoc(id);const a=addressOf(id);if(location.pathname!==a)history.pushState({id},'',a);}
 }
 /* What was opened here before and is not open as a tab of its own. */
 const olderOf=w=>(w.hist||[]).filter(x=>D[x]&&x!==w.tabs[0].d&&!w.tabs.some((t,j)=>j>0&&t.d===x));
@@ -686,8 +686,8 @@ document.addEventListener('click',e=>{
     case 'ai':S.ai=!S.ai;break;
     case 'filters':S.filters=!S.filters;break;
     case 'recent':S.sq=a.id;break;
-    case 'ftag':S.ftags=S.ftags.includes(a.tag)?S.ftags.filter(x=>x!==a.tag):[...S.ftags,a.tag];break;
-    case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[a.tag];S.filters=true;break;
+    case 'ftag':{const g=esc(a.tag);S.ftags=S.ftags.includes(g)?S.ftags.filter(x=>x!==g):[...S.ftags,g];break;}
+    case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[esc(a.tag)];S.filters=true;break;
     case 'sel':w.a=tk;S.focus=i;break;
     case 'keep':{const c=take(w,0);w.tabs.push(c);w.a=w.tabs.length-1;break;}
     case 'close':if(w.tabs[tk].general)popGeneral(w);else{w.tabs.splice(tk,1);if(w.a>=tk&&w.a>0)w.a--;}compact();break;
@@ -729,7 +729,7 @@ document.addEventListener('change',e=>{
   const x=e.target;
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
-  if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=v;if(D[cid].real)renameObject(cid,v);}render();}
+  if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=esc(v);if(D[cid].real)renameObject(cid,v);}render();}
 });
 document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.closest('.dtab[data-dw]');
   if(tb){e.preventDefault();const i=+tb.dataset.dw,sc=tb.closest('.tabscroll');S.ctx=null;S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.focus=i;S.tmenu={w:i,t:+tb.dataset.dt,x:Math.max(4,tb.offsetLeft-sc.scrollLeft)};render();return;}
@@ -759,7 +759,7 @@ document.addEventListener('keydown',e=>{
   if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
-  if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(v))d.tags.push(v);render();}
+  if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
   if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
   if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.cur++;render();const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();}
@@ -911,9 +911,9 @@ const boardDoc=(n,notes)=>fill({t:'notes',n,w:'full',path:'not a file, private n
 D['nb:ideas']=boardDoc('Ideas',[{h:'Start page',b:'Show the tower height.'},{h:'',b:'A map of the site.'}]);
 Object.assign(TYPE,{ipnet:['net','IP range'],devices:['hd','Device list'],cal:['cal','Calendar'],time:['clock','Time'],vacation:['sun','Vacation']});
 const netDoc=(n,used,rows,txt)=>fill({t:'ipnet',n,w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['network'],stat:used+' used',html:`<p>${txt} The page <button class="l" data-act="open" data-id="plan">Network plan</button> can embed this range, and a value can come from an address.</p>`+tableHtml(['Address','Name','Kind','Note'],rows)});
-D.ip1=netDoc('10.0.0.0/24','4 of 254',[['10.0.0.1','router','Router','Value router.ip'],['10.0.0.2','core-a','Switch',''],['10.0.0.3','core-b','Switch',''],['10.0.0.20','printer office','Printer','']],'Office.');
-D.ip2=netDoc('10.0.20.0/24','2 of 254',[['10.0.20.5','camera gate','Camera',''],['10.0.20.6','sensor tower','Sensor','']],'Devices.');
-D.devs=fill({t:'devices',n:'Network devices',w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['hardware'],stat:'3 devices',html:tableHtml(['Name','Kind','Room','Ports','Address'],[['router','Router','Server room','8','10.0.0.1'],['core-a','Switch','Server room','48','10.0.0.2'],['core-b','Switch','Workshop','48','10.0.0.3']])});
+D.ip1=netDoc('192.0.2.0/24','4 of 254',[['192.0.2.1','router','Router','Value router.ip'],['192.0.2.2','core-a','Switch',''],['192.0.2.3','core-b','Switch',''],['192.0.2.20','printer office','Printer','']],'Office.');
+D.ip2=netDoc('198.51.100.0/24','2 of 254',[['198.51.100.5','camera gate','Camera',''],['198.51.100.6','sensor tower','Sensor','']],'Devices.');
+D.devs=fill({t:'devices',n:'Network devices',w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['hardware'],stat:'3 devices',html:tableHtml(['Name','Kind','Room','Ports','Address'],[['router','Router','Server room','8','192.0.2.1'],['core-a','Switch','Server room','48','192.0.2.2'],['core-b','Switch','Workshop','48','192.0.2.3']])});
 D.net.kids=[...D.net.kids,'ip1','ip2','devs'];
 TYPE.search=['search','Saved search'];
 const savedHits=o=>Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')||d.t==='search')return false;if(o.type&&d.t!==o.type)return false;if(!o.ftags.every(t=>(d.tags||[]).includes(t)))return false;return !o.q||docText(d).toLowerCase().includes(o.q.toLowerCase());});
@@ -954,30 +954,39 @@ C.forEach(c=>{D[c.id].n=D[c.id].n+' (demo)';S.fav[c.id]=false;});
 S.open={};S.pin={};
 
 async function loadDoc(id){
-  const d=D[id];if(!d||d.loading)return;d.loading=true;d.html='<p class="lab">Loading…</p>';
+  const d=D[id];if(!d||d.loading||d.t!=='page')return;d.loading=true;d.html='<p class="lab">Loading…</p>';
   try{
-    const r=await fetch('/api/doc/'+encodeURI(id),{credentials:'same-origin',headers:{Accept:'application/json'}});
+    const r=await fetch('/api/doc/'+pathOf(d.sid||id),{credentials:'same-origin',headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error(String(r.status));
     const a=await r.json();
     delete d.html;
-    d.doc={intro:a.intro,secs:a.secs};d.desc=a.desc;d.tags=a.tags;d.path=a.path;d.ch=a.ch;d.by=d.by||'—';d.vis='Everyone signed in';
-    d.usedIn=a.usedIn;d.uses={ext:[],int:a.links,data:[],vals:[],db:[]};d.loaded=true;
+    /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
+    d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=esc(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
+    d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
 
 /* One node of /api/state becomes an object of the mockup's data. */
+/* The IDs of the server name files and folders, so they may hold any character. The workspace writes its IDs into its
+   markup, so an ID that is not safe there, or that the made-up content uses already, gets a key of its own; SID leads
+   from the server's ID to that key. */
+const SID={};let keyN=0;
+const keyOf=sid=>SID[sid]||(SID[sid]=/[<>"'&`\\]/.test(sid)||sid.length>300||D[sid]?'k'+(++keyN):sid);
+const pathOf=sid=>sid.split('/').map(encodeURIComponent).join('/');
+function addressOf(key){const sid=D[key].sid||key;return sid.startsWith('f:')?'/f/'+pathOf(sid.slice(2)):'/o/'+pathOf(sid);}
 function addNode(node){
-  const id=node.id,kids=(node.kids||[]).map(addNode);
-  if(node.t==='collection'||node.t==='coll'){collDoc(id,node.n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=node.owner||'—';D[id].private=node.private;}
-  else D[id]=fill({t:node.t==='folder'?'folder':'page',n:node.n,w:'wide',kids,path:node.path||'',by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
-  D[id].tags=D[id].tags||[];
+  const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
+  if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
+  else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
+  D[id].sid=node.id;D[id].tags=D[id].tags||[];
   return id;
 }
 
 function idFromPath(){
-  const m=location.pathname.match(/^\/o\/(.+)$/);if(m)return decodeURI(m[1]);
-  const f=location.pathname.match(/^\/f\/(.*)$/);if(f)return 'f:'+decodeURI(f[1]).replace(/\/$/,'');
+  const dec=p=>p.split('/').map(decodeURIComponent).join('/');
+  const m=location.pathname.match(/^\/o\/(.+)$/);if(m)return SID[dec(m[1])];
+  const f=location.pathname.match(/^\/f\/(.*)$/);if(f)return SID['f:'+dec(f[1]).replace(/\/$/,'')];
   return null;
 }
 
@@ -1002,7 +1011,8 @@ function saveSettings(){try{const o={};KEEP.forEach(k=>{o[k]=S[k];});localStorag
 function loadSettings(){try{const o=JSON.parse(localStorage.getItem('ud.workspace')||'null');if(o)KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;}catch(e){return null;}}
 async function boot(){
   let st=null;
-  try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
+  /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
+  if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
     S.user=st.user;S.canCreate=st.canCreate;
     const tops=st.collections.map(addNode);
@@ -1022,6 +1032,6 @@ async function boot(){
 /* A link inside a page to another page opens it in the window, as a click in the list does; Ctrl or the middle button
    leave it to the browser. */
 document.addEventListener('click',e=>{const l=e.target.closest&&e.target.closest('article.doc a[href^="/o/"]');if(!l||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;
-  const id=decodeURI(l.getAttribute('href').slice(3).split('#')[0]);if(!D[id])return;e.preventDefault();e.stopPropagation();openDoc(id);render();},true);
+  const id=SID[l.getAttribute('href').slice(3).split('#')[0].split('/').map(decodeURIComponent).join('/')];if(!id)return;e.preventDefault();e.stopPropagation();openDoc(id);render();},true);
 window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
 boot();

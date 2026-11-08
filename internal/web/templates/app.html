@@ -6,13 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UnderDoc</title>
   <link rel="icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.}}">
-  <script src="/assets/app/theme.js?v={{.}}"></script>
-  <script defer src="/assets/app/demo.js?v={{.}}"></script>
+  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.Version}}">
+  <script src="/assets/app/theme.js?v={{.Version}}"></script>
+  <script defer src="/assets/app/demo.js?v={{.Version}}"></script>
 </head>
 <body>
-  <div id="root" class="c22-app-workspace"></div>
-  <noscript><p>The workspace needs JavaScript. Each page is also readable without it, through its address under /o/.</p></noscript>
+  <div id="root" class="c22-app-workspace"{{if .Demo}} data-demo{{end}}></div>
+  <noscript><p>The workspace of UnderDoc needs JavaScript.</p></noscript>
 </body>
 </html>
 {{- end}}
