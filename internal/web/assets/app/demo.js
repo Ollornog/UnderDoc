@@ -214,15 +214,22 @@ function hits(){
     if(!q) return true;
     return S.strat==='exact'?docText(d).includes(q):docText(d).toLowerCase().includes(q.toLowerCase());});
 }
+/* The full-text search of the server finds pages that are not loaded yet; its hits come first. */
+const hitsWithServer=()=>{const local=hits();const q=S.sq.trim();if(local===null||!q||S.apiQ!==q||!S.apiHits)return local;
+  const real=S.apiHits.map(h=>h.id).filter(id=>D[id]&&!local.includes(id)&&(!S.ftype||D[id].t===S.ftype));return [...real,...local];};
+let searchTimer=null;
+function searchServer(){clearTimeout(searchTimer);const q=S.sq.trim();if(!q)return;searchTimer=setTimeout(async()=>{
+  try{const r=await fetch('/api/search?q='+encodeURIComponent(q),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;
+    const hs=await r.json();if(S.sq.trim()!==q)return;S.apiQ=q;S.apiHits=hs;S.apiSnip={};hs.forEach(h=>{S.apiSnip[h.id]=h.snippet;});refreshHits();}catch(e){}},180);}
 function snippet(d,q){const t=docText(d),i=t.toLowerCase().indexOf(q.toLowerCase());if(!q||i<0)return '';const a=Math.max(0,i-28);return (a?'… ':'')+esc(t.slice(a,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length,i+q.length+46))+' …';}
 function resultsHtml(){
-  const h=hits(),q=S.sq.trim();
+  const h=hitsWithServer(),q=S.sq.trim();
   const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort();
   if(h===null) return `<div class="chead first">Recent</div>${['radio link','tower','on-call'].map(x=>`<button class="hit" data-act="recent" data-id="${x}">${ic('search')}<span>${x}</span></button>`).join('')}
     <div class="chead">Tags</div><div class="tagrow">${allTags.map(t=>`<button class="tagc" data-act="ftag" data-tag="${t}">#${t}</button>`).join('')}</div>`;
   const answer=S.ai&&q&&h.length?`<div class="answer"><b>AI answer, made up for this mockup</b>A real answer would stand here in one or two sentences. Sources: ${h.slice(0,2).map(x=>D[x].n).join(', ')}.</div>`:'';
   const note=S.strat==='meaning'?'<p class="hint">In this mockup, this finds the same hits as full text.</p>':'';
-  return `${answer}<div class="chead first">${h.length} ${h.length===1?'hit':'hits'}</div>${note}${h.map(x=>`<button class="hit" data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}<span>${D[x].n}<small>${placeOf(x)}</small>${q?`<small class="snip">${snippet(D[x],q)}</small>`:''}</span></button>`).join('')||'<p class="hint">Nothing found. Another strategy may help.</p>'}`;
+  return `${answer}<div class="chead first">${h.length} ${h.length===1?'hit':'hits'}</div>${note}${h.map(x=>`<button class="hit" data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}<span>${D[x].n}<small>${placeOf(x)}</small>${q?`<small class="snip">${((S.apiSnip&&S.apiQ===q&&S.apiSnip[x])||snippet(D[x],q))}</small>`:''}</span></button>`).join('')||'<p class="hint">Nothing found. Another strategy may help.</p>'}`;
 }
 function searchHtml(){
   const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort(),n=S.ftags.length+(S.ftype?1:0);
@@ -503,6 +510,7 @@ function nav3Html(){
   return '';
 }
 function render(){
+  if(S.booted)saveSettings();
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -643,7 +651,7 @@ document.addEventListener('click',e=>{
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
     case 'copen':onlyThis(a.id);S.cgear=null;break;
     case 'cpin':togglePin(a.id);break;
-    case 'newcoll':{const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,'New collection',[],'grid');
+    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'');return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,'New collection',[],'grid');
       if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
       rebuildPlaces();S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}return;}
     case 'cacc':if(a.id==='edit')delete D[S.cgear].acc;else D[S.cgear].acc=a.id;break;
@@ -713,7 +721,7 @@ document.addEventListener('click',e=>{
 function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=resultsHtml();}
 document.addEventListener('input',e=>{
   const x=e.target;
-  if(x.id==='search'){S.sq=x.value;if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
+  if(x.id==='search'){S.sq=x.value;searchServer();if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
   if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
 });
@@ -721,7 +729,7 @@ document.addEventListener('change',e=>{
   const x=e.target;
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
-  if(x.dataset.cname!==undefined){const v=x.value.trim();if(v)D[x.dataset.cname].n=v;render();}
+  if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=v;if(D[cid].real)renameObject(cid,v);}render();}
 });
 document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.closest('.dtab[data-dw]');
   if(tb){e.preventDefault();const i=+tb.dataset.dw,sc=tb.closest('.tabscroll');S.ctx=null;S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.focus=i;S.tmenu={w:i,t:+tb.dataset.dt,x:Math.max(4,tb.offsetLeft-sc.scrollLeft)};render();return;}
@@ -750,7 +758,7 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Enter')return;
   if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
-  if(x.id==='search'){const h=hits();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
+  if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(v))d.tags.push(v);render();}
   if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
   if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
@@ -961,7 +969,7 @@ async function loadDoc(id){
 /* One node of /api/state becomes an object of the mockup's data. */
 function addNode(node){
   const id=node.id,kids=(node.kids||[]).map(addNode);
-  if(node.t==='collection'||node.t==='coll'){collDoc(id,node.n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=S.user.name;D[id].private=node.private;}
+  if(node.t==='collection'||node.t==='coll'){collDoc(id,node.n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=node.owner||'—';D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n:node.n,w:'wide',kids,path:node.path||'',by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
   D[id].tags=D[id].tags||[];
   return id;
@@ -973,6 +981,25 @@ function idFromPath(){
   return null;
 }
 
+/* Collections of the database: made and renamed through the API (ADR-19). */
+const same={credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'}};
+async function createCollection(parent){
+  try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title:'New collection',parent})});if(!r.ok)throw new Error(String(r.status));
+    const node=await r.json();node.t='collection';node.owner=S.user.name;const id=addNode(node);
+    if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
+    else{C.splice(C.filter(c=>D[c.id].real).length,0,asTop({id,i:'folder'}));S.fav[id]=true;rebuildPlaces();onlyThis(id);}
+    S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}
+  }catch(e){S.toast='The collection could not be made.';render();setTimeout(()=>{S.toast='';render();},2400);}
+}
+async function renameObject(id,title){
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(id),{...same,method:'PATCH',body:JSON.stringify({title})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){S.toast='The new name could not be saved.';render();setTimeout(()=>{S.toast='';render();},2400);}
+}
+
+/* The settings of the workspace stay in this browser until accounts store them (M-28): widths, favorites, pins, theme. */
+const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme'];
+function saveSettings(){try{const o={};KEEP.forEach(k=>{o[k]=S[k];});localStorage.setItem('ud.workspace',JSON.stringify(o));}catch(e){}}
+function loadSettings(){try{const o=JSON.parse(localStorage.getItem('ud.workspace')||'null');if(o)KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;}catch(e){return null;}}
 async function boot(){
   let st=null;
   try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
@@ -982,13 +1009,15 @@ async function boot(){
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].private?'lock':'folder'}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
   }
+  const kept=loadSettings();
+  if(kept){Object.keys(kept.fav||{}).forEach(k=>{if(D[k])S.fav[k]=kept.fav[k];});Object.keys(kept.pin||{}).forEach(k=>{if(D[k]){S.pin[k]=kept.pin[k];if(kept.pin[k])S.open[k]=true;}});}
   if(window.udTheme)S.theme=window.udTheme();
   rebuildPlaces();
   const start=idFromPath();
   const first=C.find(c=>D[c.id].real);
   if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}
   else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
-  render();
+  S.booted=true;render();
 }
 window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
 boot();

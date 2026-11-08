@@ -114,6 +114,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/doc/{id...}", h.apiDocument)
 	mux.HandleFunc("GET /api/search", h.apiSearch)
 	mux.HandleFunc("POST /api/collections", h.apiCreateCollection)
+	mux.HandleFunc("PATCH /api/objects/{id}", h.apiRename)
 	mux.HandleFunc("GET /read/{$}", h.home)
 	mux.HandleFunc("GET /read/o/{id...}", h.document)
 	// Links from before the object addresses of ADR-18 keep working.

@@ -33,8 +33,9 @@ type DB struct {
 
 // Errors a caller can tell apart.
 var (
-	ErrNotFound = errors.New("not found")
-	ErrTitle    = errors.New("a title has 1 to 200 characters")
+	ErrNotFound   = errors.New("not found")
+	ErrTitle      = errors.New("a title has 1 to 200 characters")
+	ErrNotAllowed = errors.New("others may not change this")
 )
 
 // Open connects and brings the schema up to date.
@@ -279,4 +280,27 @@ func (db *DB) Top(ctx context.Context, objectID, viewer string) (Object, error) 
 		o, err = db.Object(ctx, o.Parent, viewer)
 	}
 	return o, err
+}
+
+// Rename gives an object a new title. The viewer must see it and may change it: the owner, or anyone while others may
+// edit it (ADR-20).
+func (db *DB) Rename(ctx context.Context, objectID, viewer, title string) (Object, error) {
+	title = strings.TrimSpace(title)
+	if n := len([]rune(title)); n < 1 || n > 200 {
+		return Object{}, ErrTitle
+	}
+	o, err := db.Object(ctx, objectID, viewer)
+	if err != nil {
+		return Object{}, err
+	}
+	if o.Owner != viewer {
+		access, err := db.Access(ctx, objectID)
+		if err != nil {
+			return Object{}, err
+		}
+		if access != "edit" {
+			return Object{}, ErrNotAllowed
+		}
+	}
+	return scan(db.pool.QueryRow(ctx, `UPDATE objects SET title = $2, changed = now() WHERE id = $1 RETURNING `+columns, objectID, title))
 }
