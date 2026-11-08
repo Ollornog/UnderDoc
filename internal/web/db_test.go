@@ -47,7 +47,7 @@ var sameSite = map[string]string{"Sec-Fetch-Site": "same-origin"}
 
 func TestAccountAndPrivateNotes(t *testing.T) {
 	s := withDatabase(t)
-	body := s.body("/o/plan")
+	body := s.body("/read/o/plan")
 	if !strings.Contains(body, `title="My notes, only you see it"`) {
 		t.Error("the first request makes the account with its private notes")
 	}
@@ -58,10 +58,10 @@ func TestAccountAndPrivateNotes(t *testing.T) {
 	if notes == nil {
 		t.Fatal("no link to the notes")
 	}
-	if got := s.getWith("/o/"+notes[1], map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}); got.Code != http.StatusNotFound {
+	if got := s.getWith("/read/o/"+notes[1], map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}); got.Code != http.StatusNotFound {
 		t.Errorf("bob opened anna's notes: %d", got.Code)
 	}
-	if mine := s.body("/o/" + notes[1]); !strings.Contains(mine, "Only you") || !strings.Contains(mine, "Anna Berg") {
+	if mine := s.body("/read/o/" + notes[1]); !strings.Contains(mine, "Only you") || !strings.Contains(mine, "Anna Berg") {
 		t.Error("the page of the notes says who sees them")
 	}
 }
@@ -73,7 +73,7 @@ func TestCreateCollections(t *testing.T) {
 	if made.Code != http.StatusSeeOther || !regexp.MustCompile(`^/o/[0-9a-z]{10}$`).MatchString(place) {
 		t.Fatalf("%d %q", made.Code, place)
 	}
-	page := s.body(place)
+	page := s.body("/read" + place)
 	for _, want := range []string{"<h1>Operations</h1>", "<dd>Collection</dd>", "<dd>Anna Berg</dd>", "can edit (inherited)", "Everyone signed in", `name="parent" value="` + strings.TrimPrefix(place, "/o/") + `"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("%q missing", want)
@@ -83,14 +83,14 @@ func TestCreateCollections(t *testing.T) {
 	if inner.Code != http.StatusSeeOther {
 		t.Fatalf("inside: %d", inner.Code)
 	}
-	nested := s.body(inner.Header().Get("Location"))
+	nested := s.body("/read" + inner.Header().Get("Location"))
 	if !strings.Contains(nested, `<a href="`+place+`">Operations</a>`) || !strings.Contains(nested, `aria-current="page"><svg`) {
 		t.Error("the inner collection shows its way and its place in nav3")
 	}
-	if !strings.Contains(s.body(place), "<span>Network</span><small>Collection</small>") {
+	if !strings.Contains(s.body("/read"+place), "<span>Network</span><small>Collection</small>") {
 		t.Error("the outer collection lists it")
 	}
-	if !strings.Contains(s.getWith("/o/plan", map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}).Body.String(), `title="Operations"`) {
+	if !strings.Contains(s.getWith("/read/o/plan", map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob"}).Body.String(), `title="Operations"`) {
 		t.Error("bob sees the shared collection")
 	}
 }

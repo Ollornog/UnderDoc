@@ -279,7 +279,11 @@ func (h *handler) render(w http.ResponseWriter, name string, status int, view an
 }
 
 // app answers every address of the workspace with the same page; the browser shows the object the address names.
-func (h *handler) app(w http.ResponseWriter, _ *http.Request) {
+func (h *handler) app(w http.ResponseWriter, r *http.Request) {
+	if !h.exists(r) {
+		h.notFound(w, r)
+		return
+	}
 	var out bytes.Buffer
 	if err := h.pages["app"].ExecuteTemplate(&out, "app", h.assetVersion); err != nil {
 		h.log.Error("template failed", slog.String("template", "app"), slog.String("error", err.Error()))
@@ -534,5 +538,27 @@ func (h *handler) object(w http.ResponseWriter, r *http.Request) bool {
 	}
 	h.openFromDatabase(r, &view.shellView, o.ID)
 	h.render(w, "object", http.StatusOK, view)
+	return true
+}
+
+// exists tells whether the address of the workspace names something the viewer may see, so an unknown address is a 404
+// and not an empty workspace.
+func (h *handler) exists(r *http.Request) bool {
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/o/"):
+		key := r.PathValue("id")
+		if _, ok := h.store.Library().Document(document.ID(key)); ok {
+			return true
+		}
+		if h.options.DB == nil || !id.Valid(key) {
+			return false
+		}
+		user, _ := account.From(r.Context())
+		_, err := h.options.DB.Object(r.Context(), key, user.ID)
+		return err == nil
+	case strings.HasPrefix(r.URL.Path, "/f/"):
+		_, ok := h.store.Library().Tree().Folder(r.PathValue("path"))
+		return ok
+	}
 	return true
 }

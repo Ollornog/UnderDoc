@@ -51,11 +51,6 @@ type apiState struct {
 	Problems    int       `json:"problems"`
 }
 
-type apiSection struct {
-	Title string `json:"0"`
-	HTML  string `json:"1"`
-}
-
 type apiDocument struct {
 	ID          string     `json:"id"`
 	Title       string     `json:"n"`

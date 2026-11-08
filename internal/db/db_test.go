@@ -184,3 +184,29 @@ func TestAccessIsInherited(t *testing.T) {
 		t.Error("account names")
 	}
 }
+
+func TestRename(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
+	if _, err := db.Rename(ctx, inner.ID, anna.ID, " "); !errors.Is(err, ErrTitle) {
+		t.Errorf("an empty title: %v", err)
+	}
+	if got, err := db.Rename(ctx, inner.ID, bob.ID, "2026"); err != nil || got.Title != "2026" {
+		t.Errorf("others may edit by default: %+v %v", got, err)
+	}
+	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'comment' WHERE id = $1", top.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Rename(ctx, inner.ID, bob.ID, "2027"); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("bob may only comment, inherited: %v", err)
+	}
+	if got, err := db.Rename(ctx, inner.ID, anna.ID, "2027"); err != nil || got.Title != "2027" {
+		t.Errorf("the owner may always: %+v %v", got, err)
+	}
+	notes, _ := db.Collections(ctx, anna.ID)
+	if _, err := db.Rename(ctx, notes[0].ID, bob.ID, "Mine"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("bob does not see Anna's private notes: %v", err)
+	}
+}

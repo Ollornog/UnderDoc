@@ -106,16 +106,16 @@ var sample = map[string]string{
 func TestPagesRender(t *testing.T) {
 	s := newSite(t, Options{}, sample)
 	cases := []struct{ target, want string }{
-		{"/o/start", "Welcome"},
-		{"/o/start", `href="/o/plan"`},
-		{"/o/plan", `src="/files/ops/net/map.png"`},
-		{"/o/plan", `aria-current="page"`},
-		{"/o/plan", "Linked from"},
-		{"/o/~ops/no-id.md", "its address changes when it moves"},
-		{"/o/~ops/no-id.md", "no-id</h1>"},
-		{"/f/", "ops"},
-		{"/f/ops", "no-id"},
-		{"/f/ops/net", "Network plan"},
+		{"/read/o/start", "Welcome"},
+		{"/read/o/start", `href="/o/plan"`},
+		{"/read/o/plan", `src="/files/ops/net/map.png"`},
+		{"/read/o/plan", `aria-current="page"`},
+		{"/read/o/plan", "Linked from"},
+		{"/read/o/~ops/no-id.md", "its address changes when it moves"},
+		{"/read/o/~ops/no-id.md", "no-id</h1>"},
+		{"/read/f/", "ops"},
+		{"/read/f/ops", "no-id"},
+		{"/read/f/ops/net", "Network plan"},
 		{"/search?q=router", "Network plan"},
 		{"/search?q=router", "<mark"},
 		{"/search?q=xyzzy", "Nothing found"},
@@ -134,10 +134,10 @@ func TestLinkToFolderOpensTheFolder(t *testing.T) {
 		"start.md":     "---\nid: start\n---\n[the folder](ops/)\n",
 		"ops/inner.md": "---\nid: inner\ntitle: Inner page\n---\n",
 	})
-	if got := s.body("/o/start"); !strings.Contains(got, `href="/f/ops"`) {
+	if got := s.body("/read/o/start"); !strings.Contains(got, `href="/f/ops"`) {
 		t.Errorf("no link to the folder in %s", got)
 	}
-	if got := s.body("/f/ops"); !strings.Contains(got, "Inner page") {
+	if got := s.body("/read/f/ops"); !strings.Contains(got, "Inner page") {
 		t.Errorf("the folder does not list its page: %s", got)
 	}
 	if got := s.body("/problems"); strings.Contains(got, "ops/") {
@@ -150,10 +150,10 @@ func TestContentsNeedTwoEntries(t *testing.T) {
 		"one.md": "---\nid: one\n---\n## Only\n",
 		"two.md": "---\nid: two\n---\n## First\n\n## Second <b>x</b>\n",
 	})
-	if got := s.body("/o/one"); strings.Contains(got, `class="toc`) {
+	if got := s.body("/read/o/one"); strings.Contains(got, `class="toc`) {
 		t.Error("a single heading needs no table of contents")
 	}
-	got := s.body("/o/two")
+	got := s.body("/read/o/two")
 	if !strings.Contains(got, `href="#h-first" data-level="2"`) || !strings.Contains(got, `id="h-first"`) {
 		t.Errorf("table of contents: %s", got)
 	}
@@ -161,38 +161,38 @@ func TestContentsNeedTwoEntries(t *testing.T) {
 
 func TestRecentOnlyAtTheTop(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	if got := s.body("/f/"); !strings.Contains(got, "Recently changed") {
+	if got := s.body("/read/f/"); !strings.Contains(got, "Recently changed") {
 		t.Error("the root folder should list recent changes")
 	}
-	if got := s.body("/f/ops"); strings.Contains(got, "Recently changed") {
+	if got := s.body("/read/f/ops"); strings.Contains(got, "Recently changed") {
 		t.Error("a subfolder should not")
 	}
 }
 
 func TestOwnHeadingIsNotRepeated(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	if got := strings.Count(s.body("/o/plan"), "Network plan</h1>"); got != 1 {
+	if got := strings.Count(s.body("/read/o/plan"), "Network plan</h1>"); got != 1 {
 		t.Errorf("heading appears %d times", got)
 	}
 }
 
 func TestHomeRedirect(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	if got := s.get("/"); got.Code != http.StatusFound || got.Header().Get("Location") != "/o/start" {
+	if got := s.get("/read/"); got.Code != http.StatusFound || got.Header().Get("Location") != "/o/start" {
 		t.Errorf("%d %s", got.Code, got.Header().Get("Location"))
 	}
 	empty := newSite(t, Options{}, nil)
-	if got := empty.get("/"); got.Header().Get("Location") != "/f/" {
+	if got := empty.get("/read/"); got.Header().Get("Location") != "/f/" {
 		t.Errorf("empty: %d %s", got.Code, got.Header().Get("Location"))
 	}
-	if got := empty.body("/f/"); !strings.Contains(got, "No pages yet") {
+	if got := empty.body("/read/f/"); !strings.Contains(got, "No pages yet") {
 		t.Errorf("empty library: %s", got)
 	}
 }
 
 func TestSecurityHeadersOnEveryAnswer(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	for _, target := range []string{"/o/start", "/f/", "/search?q=a", "/problems", "/gone", "/o/gone", "/files/gone.png", "/assets/app/shell.js"} {
+	for _, target := range []string{"/read/o/start", "/read/f/", "/search?q=a", "/problems", "/gone", "/read/o/gone", "/files/gone.png", "/assets/app/shell.js"} {
 		headers := s.get(target).Header()
 		if got := headers.Get("Content-Security-Policy"); got != CSP {
 			t.Errorf("%s: CSP %q", target, got)
@@ -209,7 +209,7 @@ func TestSecurityHeadersOnEveryAnswer(t *testing.T) {
 			t.Errorf("the CSP allows %s", unsafe)
 		}
 	}
-	if got := s.get("/o/start").Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+	if got := s.get("/read/o/start").Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Errorf("content type %q", got)
 	}
 }
@@ -217,7 +217,7 @@ func TestSecurityHeadersOnEveryAnswer(t *testing.T) {
 func TestReadOnlyMethods(t *testing.T) {
 	s := newSite(t, Options{}, sample)
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch} {
-		for _, target := range []string{"/", "/o/start", "/files/ops/net/map.png", "/search"} {
+		for _, target := range []string{"/", "/read/o/start", "/files/ops/net/map.png", "/search"} {
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(method, target, strings.NewReader("x"))
 			request.Header.Set("Remote-User", "anna")
@@ -267,7 +267,7 @@ func TestUserTextIsEscaped(t *testing.T) {
 		"<b>folder/<i>page.md": "text [[gone<script>]]\n",
 		"raw.md":               "<script>alert(2)</script>\n\n<img src=x onerror=alert(3)>\n",
 	})
-	targets := []string{"/o/~a.md", "/f/", "/search?q=" + `%3Cscript%3Ealert(1)%3C/script%3E`, "/search?q=text", "/problems", "/o/~raw.md", "/o/~%3Cb%3Efolder/%3Ci%3Epage.md"}
+	targets := []string{"/read/o/~a.md", "/read/f/", "/search?q=" + `%3Cscript%3Ealert(1)%3C/script%3E`, "/search?q=text", "/problems", "/read/o/~raw.md", "/read/o/~%3Cb%3Efolder/%3Ci%3Epage.md"}
 	for _, target := range targets {
 		got := s.body(target)
 		for _, forbidden := range []string{"<script>alert", "<b>folder", "<i>page", "<img src=x"} {
@@ -280,22 +280,22 @@ func TestUserTextIsEscaped(t *testing.T) {
 
 func TestChangesOnDiskAppear(t *testing.T) {
 	s := newSite(t, Options{}, map[string]string{"a.md": "---\nid: a\n---\nold text\n"})
-	if got := s.body("/o/a"); !strings.Contains(got, "old text") {
+	if got := s.body("/read/o/a"); !strings.Contains(got, "old text") {
 		t.Fatal(got)
 	}
 	s.write("a.md", "---\nid: a\n---\nnew and longer text\n")
 	s.write("b.md", "---\nid: b\n---\n[[a]]\n")
 	s.refresh()
-	if got := s.body("/o/a"); !strings.Contains(got, "new and longer text") || strings.Contains(got, "old text") {
+	if got := s.body("/read/o/a"); !strings.Contains(got, "new and longer text") || strings.Contains(got, "old text") {
 		t.Errorf("after the edit: %s", got)
 	}
-	if got := s.body("/o/a"); !strings.Contains(got, "Linked from") {
+	if got := s.body("/read/o/a"); !strings.Contains(got, "Linked from") {
 		t.Error("the new backlink is missing")
 	}
 	if got := s.body("/search?q=longer"); !strings.Contains(got, `/o/a"`) {
 		t.Error("search did not see the change")
 	}
-	if got := s.get("/o/a").Header().Get("Cache-Control"); got != "no-cache" {
+	if got := s.get("/read/o/a").Header().Get("Cache-Control"); got != "no-cache" {
 		t.Errorf("a cached page would hide the change: %q", got)
 	}
 }
@@ -312,21 +312,21 @@ func TestMovingAFileKeepsItsAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.refresh()
-	got := s.body("/o/a")
+	got := s.body("/read/o/a")
 	if !strings.Contains(got, "new/deep/a.md") || !strings.Contains(got, "Linked from") {
 		t.Errorf("after the move: %s", got)
 	}
-	if !strings.Contains(s.body("/o/b"), `href="/o/a"`) {
+	if !strings.Contains(s.body("/read/o/b"), `href="/o/a"`) {
 		t.Error("the link broke")
 	}
-	if s.get("/f/old").Code != http.StatusNotFound {
+	if s.get("/read/f/old").Code != http.StatusNotFound {
 		t.Error("the old folder should be gone")
 	}
 }
 
 func TestNotFoundIsAPage(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	for _, target := range []string{"/gone", "/o/gone", "/f/gone"} {
+	for _, target := range []string{"/gone", "/read/o/gone", "/read/f/gone"} {
 		recorder := s.get(target)
 		if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), "Page not found") {
 			t.Errorf("%s = %d", target, recorder.Code)
@@ -403,7 +403,7 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 func TestPagesHaveNoInlineCode(t *testing.T) {
 	s := newSite(t, Options{DevUI: true}, sample)
 	inline := regexp.MustCompile(`(?i)\sstyle=|\son[a-z]+=|<style|<script(?:\s+defer)?>`)
-	for _, target := range []string{"/o/start", "/o/plan", "/f/", "/search?q=router", "/problems", "/dev/ui"} {
+	for _, target := range []string{"/read/o/start", "/read/o/plan", "/read/f/", "/search?q=router", "/problems", "/dev/ui"} {
 		if found := inline.FindString(s.body(target)); found != "" {
 			t.Errorf("%s: %q would need a weaker CSP", target, found)
 		}
@@ -413,7 +413,7 @@ func TestPagesHaveNoInlineCode(t *testing.T) {
 func TestNothingFromThirdParties(t *testing.T) {
 	s := newSite(t, Options{DevUI: true}, sample)
 	foreign := regexp.MustCompile(`(?i)(?:src|<link[^>]+href)="(?:https?:)?//`)
-	for _, target := range []string{"/o/start", "/o/plan", "/f/", "/dev/ui"} {
+	for _, target := range []string{"/read/o/start", "/read/o/plan", "/read/f/", "/dev/ui"} {
 		if found := foreign.FindString(s.body(target)); found != "" {
 			t.Errorf("%s: %q", target, found)
 		}
@@ -510,7 +510,7 @@ func TestAccessLogLeavesOutTheQuery(t *testing.T) {
 
 func TestNothingAnswersWithoutTheGate(t *testing.T) {
 	s := newSite(t, Options{}, sample)
-	for _, target := range []string{"/", "/o/start", "/f/", "/search?q=router", "/profile", "/files/ops/net/map.png", "/gone"} {
+	for _, target := range []string{"/", "/read/o/start", "/read/f/", "/search?q=router", "/read/profile", "/files/ops/net/map.png", "/gone"} {
 		recorder := s.getWith(target, nil)
 		if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "Not signed in") || strings.Contains(recorder.Body.String(), "Welcome") {
 			t.Errorf("%s = %d", target, recorder.Code)
@@ -520,7 +520,7 @@ func TestNothingAnswersWithoutTheGate(t *testing.T) {
 		t.Errorf("the page that says so needs its styles: %d", got)
 	}
 	dev := newSite(t, Options{DevUser: &account.User{Login: "dev", Name: "Dev"}}, sample)
-	if got := dev.getWith("/o/start", nil); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Profile: Dev") {
+	if got := dev.getWith("/read/o/start", nil); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Profile: Dev") {
 		t.Errorf("the development user stands in for the gate: %d", got.Code)
 	}
 }
@@ -535,7 +535,7 @@ func TestOldAddressesMove(t *testing.T) {
 // The profile view: sections in nav2, the chosen one in nav3, the administration set apart for administrators (ADR-16).
 func TestProfile(t *testing.T) {
 	s := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample)
-	body := s.body("/profile")
+	body := s.body("/read/profile")
 	for _, want := range []string{
 		`<nav class="workspace-nav" data-level="2" data-step="3" aria-label="Profile">`, `href="/profile?s=appearance"`, "Administration",
 		`title="Modules: not built yet`, `title="Language: not built yet`,
@@ -549,16 +549,16 @@ func TestProfile(t *testing.T) {
 	if strings.Contains(body, `class="workspace-tree"`) {
 		t.Error("the profile replaces the collections in nav2 and nav3")
 	}
-	if got := s.body("/profile?s=appearance"); !strings.Contains(got, `data-ud-theme="dark"`) || strings.Contains(got, "/.tinysesam/logout") {
+	if got := s.body("/read/profile?s=appearance"); !strings.Contains(got, `data-ud-theme="dark"`) || strings.Contains(got, "/.tinysesam/logout") {
 		t.Error("appearance shows the theme, not the account")
 	}
-	if !strings.Contains(s.body("/profile?s=navigation"), "data-ud-reset-columns") {
+	if !strings.Contains(s.body("/read/profile?s=navigation"), "data-ud-reset-columns") {
 		t.Error("navigation shows the columns")
 	}
-	if !strings.Contains(s.body("/profile?s=modules"), "Sign out") {
+	if !strings.Contains(s.body("/read/profile?s=modules"), "Sign out") {
 		t.Error("a section that is not built falls back to the account")
 	}
-	other := s.getWith("/profile?s=modules", map[string]string{"Remote-User": "bob"}).Body.String()
+	other := s.getWith("/read/profile?s=modules", map[string]string{"Remote-User": "bob"}).Body.String()
 	if strings.Contains(other, "Administration") || !strings.Contains(other, "bob") {
 		t.Error("only administrators see the administration")
 	}
@@ -572,7 +572,7 @@ func TestHeadAndCollections(t *testing.T) {
 		"projects/x.md":   "# X\n",
 	}
 	s := newSite(t, Options{}, files)
-	body := s.body("/o/plan")
+	body := s.body("/read/o/plan")
 	for _, want := range []string{
 		`<h1>Network plan</h1>`, `<p>Router and switches.</p>`,
 		`href="/search?tag=network"`, ">#main-site<",
@@ -598,7 +598,7 @@ func TestHeadAndCollections(t *testing.T) {
 
 // Built later means greyed out (ADR-17): in sight, but nothing to click.
 func TestLaterIsGreyedOut(t *testing.T) {
-	body := newSite(t, Options{}, sample).body("/o/plan")
+	body := newSite(t, Options{}, sample).body("/read/o/plan")
 	for _, label := range []string{"Files", "Resources", "News", "Mail", "To-do", "Calendar", "Time", "Vacation", "Notes"} {
 		if !regexp.MustCompile(`<span class="workspace-item" aria-disabled="true" title="` + label + `: not built yet`).MatchString(body) {
 			t.Errorf("%s is not greyed out", label)

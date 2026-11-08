@@ -112,11 +112,11 @@ func TestServeEndToEnd(t *testing.T) {
 		t.Fatalf("%s never showed %q", url, want)
 	}
 	waitFor("http://"+healthAddr+"/healthz", "ok")
-	waitFor("http://"+addr+"/o/a", "first version")
+	waitFor("http://"+addr+"/read/o/a", "first version")
 	if err := os.WriteFile(page, []byte("---\nid: a\n---\nsecond, longer version\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	waitFor("http://"+addr+"/o/a", "second, longer version")
+	waitFor("http://"+addr+"/read/o/a", "second, longer version")
 
 	t.Setenv("UNDERDOC_HEALTH_ADDR", healthAddr)
 	var probeOut, probeErr bytes.Buffer
