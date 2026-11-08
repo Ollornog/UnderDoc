@@ -531,15 +531,33 @@ func TestOldAddressesMove(t *testing.T) {
 	}
 }
 
+// The profile view: sections in nav2, the chosen one in nav3, the administration set apart for administrators (ADR-16).
 func TestProfile(t *testing.T) {
 	s := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample)
 	body := s.body("/profile")
-	for _, want := range []string{"Anna Berg", "anna@example.com", ">ops<", `href="/.tinysesam/logout"`, `data-ud-theme="dark"`, "Administration", `>AB<`} {
+	for _, want := range []string{
+		`<nav class="ud-nav2" aria-label="Profile">`, `href="/profile?s=appearance"`, "Administration",
+		`title="Modules: not built yet`, `title="Language: not built yet`,
+		"Anna Berg", "anna@example.com", ">ops<", `href="/.tinysesam/logout"`, `>AB<`,
+		`<a class="ud-navitem" href="/profile?s=account" title="Account" data-ud-columns aria-current="true">`,
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("%q missing", want)
 		}
 	}
-	other := s.getWith("/profile", map[string]string{"Remote-User": "bob"}).Body.String()
+	if strings.Contains(body, `class="ud-tree"`) {
+		t.Error("the profile replaces the collections in nav2 and nav3")
+	}
+	if got := s.body("/profile?s=appearance"); !strings.Contains(got, `data-ud-theme="dark"`) || strings.Contains(got, "/.tinysesam/logout") {
+		t.Error("appearance shows the theme, not the account")
+	}
+	if !strings.Contains(s.body("/profile?s=navigation"), "data-ud-reset-columns") {
+		t.Error("navigation shows the columns")
+	}
+	if !strings.Contains(s.body("/profile?s=modules"), "Sign out") {
+		t.Error("a section that is not built falls back to the account")
+	}
+	other := s.getWith("/profile?s=modules", map[string]string{"Remote-User": "bob"}).Body.String()
 	if strings.Contains(other, "Administration") || !strings.Contains(other, "bob") {
 		t.Error("only administrators see the administration")
 	}
@@ -557,7 +575,7 @@ func TestHeadAndCollections(t *testing.T) {
 	for _, want := range []string{
 		`<h1 class="ud-title">Network plan</h1>`, `<p class="ud-desc">Router and switches.</p>`,
 		`href="/search?tag=network"`, ">#main-site<",
-		`<a class="ud-navitem" href="/f/ops" title="ops" aria-current="true">`, `href="/f/projects"`, `title="Home"`,
+		`<a class="ud-navitem" href="/f/ops" title="ops" data-ud-columns aria-current="true">`, `href="/f/projects"`, `title="Home"`,
 		`<a href="/f/ops" class="ud-chead" title="Open ops">ops</a>`, `aria-current="page"><svg`,
 		`<code>/o/plan</code>`,
 	} {

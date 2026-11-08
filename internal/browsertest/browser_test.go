@@ -699,7 +699,7 @@ func TestDarkModeFollowsTheSystemOrTheSetting(t *testing.T) {
 		t.Errorf("light and dark look the same: %s", light)
 	}
 	// The setting in the profile wins over the system, and stays after a reload.
-	b.open(base + "/profile")
+	b.open(base + "/profile?s=appearance")
 	button := b.rect(`[data-ud-theme="dark"]`)
 	b.click(button.X, button.Y, 1)
 	if got := b.eval(`document.documentElement.classList.contains('dark') + ':' + document.querySelector('[data-ud-theme="dark"]').getAttribute('aria-pressed')`); got != "true:true" {
@@ -708,5 +708,43 @@ func TestDarkModeFollowsTheSystemOrTheSetting(t *testing.T) {
 	b.open(base + "/o/plan")
 	if got := b.eval(`document.documentElement.classList.contains('dark')`); got != "true" {
 		t.Error("the setting did not stay")
+	}
+}
+
+// nav1 and nav2 open things in the columns, the window keeps what it shows (ADR-16): into the profile and back.
+func TestColumnsChangeTheWindowStays(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/plan")
+	b.eval(`window.sameLoad = true`)
+	window := `document.querySelector('.ud-title').textContent + '|' + location.pathname`
+	profile := b.rect(`.ud-nav1 a[href="/profile"]`)
+	b.click(profile.X, profile.Y, 1)
+	if !b.waitFor(`document.querySelector('.ud-nav2').getAttribute('aria-label') === 'Profile'`) {
+		t.Fatal("the profile did not open in nav2")
+	}
+	if got := b.eval(window + ` + '|' + window.sameLoad + '|' + !!document.querySelector('.ud-nav3 [href="/.tinysesam/logout"]')`); got != "Network plan|/o/plan|true|true" {
+		t.Errorf("the window should stay, the account show in nav3: %s", got)
+	}
+	appearance := b.rect(`.ud-nav2 a[href="/profile?s=appearance"]`)
+	b.click(appearance.X, appearance.Y, 1)
+	if !b.waitFor(`!!document.querySelector('.ud-nav3 [data-ud-theme="dark"]')`) {
+		t.Fatal("the section did not open in nav3")
+	}
+	b.shot("profile-view")
+	workspace := b.rect(`.ud-nav1 a[data-ud-workspace]`)
+	b.click(workspace.X, workspace.Y, 1)
+	if !b.waitFor(`document.querySelector('.ud-nav2').getAttribute('aria-label') === 'Collections'`) {
+		t.Fatal("back to the workspace did not work")
+	}
+	if got := b.eval(`document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim() + '|' + ` + window); got != "Network plan|Network plan|/o/plan" {
+		t.Errorf("the workspace should show the collection of the window: %s", got)
+	}
+	home := b.rect(`.ud-nav2 a[title="Home"]`)
+	b.click(home.X, home.Y, 1)
+	if !b.waitFor(`document.querySelector('.ud-nav3 .ud-chead').textContent === 'Home'`) {
+		t.Fatal("a collection in nav2 did not open in nav3")
+	}
+	if got := b.eval(window + ` + '|' + window.sameLoad`); got != "Network plan|/o/plan|true" {
+		t.Errorf("a collection must not change the window: %s", got)
 	}
 }

@@ -115,6 +115,40 @@
   };
   window.addEventListener("popstate", () => swap(location.href, false));
 
+  // A click in nav1 or nav2 opens something in the columns and leaves the window as it is (ADR-16).
+  const swapColumns = async (href) => {
+    let next;
+    try {
+      const response = await fetch(href, { headers: { Accept: "text/html" }, credentials: "same-origin" });
+      if (!response.ok || !response.headers.get("Content-Type")?.startsWith("text/html")) {
+        throw new Error(String(response.status));
+      }
+      next = new DOMParser().parseFromString(await response.text(), "text/html");
+    } catch {
+      location.href = href;
+      return;
+    }
+    const parts = [".ud-nav1", ".ud-nav2", ".ud-nav3"].map((s) => [document.querySelector(s), next.querySelector(s)]);
+    if (parts.some(([, n]) => !n)) {
+      location.href = href;
+      return;
+    }
+    for (const [mine, theirs] of parts) {
+      mine.replaceChildren(...theirs.childNodes);
+      mine.setAttribute("aria-label", theirs.getAttribute("aria-label") ?? "");
+    }
+    // What the window shows stays marked in the list.
+    document.querySelectorAll(".ud-nav3 .ud-name").forEach((name) => {
+      if (new URL(name.href).pathname === location.pathname) {
+        name.setAttribute("aria-current", "page");
+      } else {
+        name.removeAttribute("aria-current");
+      }
+    });
+    root.classList.remove("ud-navhide");
+    markTheme();
+  };
+
   document.addEventListener("click", (event) => {
     const arrow = event.target.closest("[data-ud-toggle]");
     if (arrow) {
@@ -143,6 +177,14 @@
     if (view) {
       event.preventDefault();
       root.classList.toggle(phone() ? "ud-navopen" : "ud-navhide");
+      return;
+    }
+    const columns = event.target.closest("a[data-ud-columns]");
+    if (columns && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      // Back to the workspace shows the collection of what the window holds.
+      const back = columns.hasAttribute("data-ud-workspace") && /^\/(o|f)\//.test(location.pathname);
+      swapColumns(back ? location.href : columns.href);
       return;
     }
     const gear = event.target.closest("[data-ud-gear]");

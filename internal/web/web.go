@@ -324,11 +324,49 @@ func (h *handler) problems(w http.ResponseWriter, r *http.Request) {
 }
 
 // profile shows the account from the gate and the settings, and the administration to administrators (ADR-16).
+// The sections of the profile: settings for everyone, the administration set apart for administrators (ADR-16).
+var (
+	profileSettings = []profileSection{
+		{ID: "account", Label: "Account", Icon: "user"}, {ID: "appearance", Label: "Appearance", Icon: "sun"},
+		{ID: "navigation", Label: "Navigation", Icon: "panel"}, {ID: "language", Label: "Language", Icon: "globe", Later: "comes with the translation"},
+		{ID: "notifications", Label: "Notifications", Icon: "mail", Later: "comes with M-16"},
+	}
+	profileAdmin = []profileSection{
+		{ID: "modules", Label: "Modules", Icon: "list", Later: "comes with the module switches"}, {ID: "users", Label: "Users and groups", Icon: "user", Later: "comes with M-5"},
+		{ID: "sources", Label: "Sources", Icon: "db", Later: "comes with M-4"}, {ID: "storage", Label: "Storage and backup", Icon: "drive", Later: "comes with M-2"},
+		{ID: "signin", Label: "Sign-in", Icon: "lock", Later: "the gate in front decides it"}, {ID: "audit", Label: "Audit log", Icon: "list", Later: "comes with M-2 and M-5"},
+	}
+)
+
+// profile opens the profile view: its sections in nav2, the chosen one in nav3. The window keeps what it showed, since
+// the shell swaps only the columns; opened directly, the window says where things are.
 func (h *handler) profile(w http.ResponseWriter, r *http.Request) {
 	view := profileView{shellView: h.makeShell(r, h.store.Library(), "Profile", "", nil)}
 	view.View = "profile"
-	view.Description = "Your account comes from the sign-in. Settings stay in this browser until accounts are stored (M-28)."
-	view.Admin = h.options.AdminGroup != "" && slices.Contains(view.User.Groups, h.options.AdminGroup)
+	view.Open = nil
+	section := r.URL.Query().Get("s")
+	state := &profileState{}
+	pick := func(list []profileSection) []profileSection {
+		out := make([]profileSection, len(list))
+		for i, s := range list {
+			s.Href = route.Profile() + "?s=" + s.ID
+			s.Current = s.ID == section
+			out[i] = s
+		}
+		return out
+	}
+	admin := h.options.AdminGroup != "" && slices.Contains(view.User.Groups, h.options.AdminGroup)
+	// Only a built section can be chosen. The administration is not built yet, so it never is.
+	known := slices.ContainsFunc(profileSettings, func(s profileSection) bool { return s.ID == section && s.Later == "" })
+	if !known {
+		section = "account"
+	}
+	state.Section = section
+	state.Settings = pick(profileSettings)
+	if admin {
+		state.Admin = pick(profileAdmin)
+	}
+	view.Profile = state
 	h.render(w, "profile", http.StatusOK, view)
 }
 

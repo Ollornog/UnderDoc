@@ -41,6 +41,8 @@ There are no releases yet. Build it from source with Go or Docker, as shown belo
 UnderDoc has no sign-in of its own, so it binds to loopback by default. A sign-in gate in front of it checks who someone
 is and passes that on in the headers `Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email` and `Remote-Groups`, which
 the gate must remove from every incoming request first. Without `Remote-User`, UnderDoc shows only a page that says so.
+How people sign in is up to the gate: [TinySesam](https://github.com/Ollornog/TinySesam) offers OIDC (for example
+PocketID or Microsoft Entra ID), SAML, LDAP, TOTP and passkeys, and any other gate that sets these headers works too.
 To try it on your own machine, let a made-up user stand in for the gate:
 
 ```bash
