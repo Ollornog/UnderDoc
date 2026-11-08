@@ -440,10 +440,10 @@ func TestEveryPageIsClean(t *testing.T) {
 		if got := b.eval(`document.fonts.check('16px Inter')`); got != "true" {
 			t.Errorf("%s: the font did not load", name)
 		}
-		if got := b.eval(`getComputedStyle(document.querySelector('.ud-shell')).display`); got != "grid" {
+		if got := b.eval(`getComputedStyle(document.querySelector('.workspace')).display`); got != "grid" {
 			t.Errorf("%s: the shell stylesheet did not apply, display %q", name, got)
 		}
-		if got := b.eval(`[...document.querySelectorAll('.ud-nav1, .ud-nav2, .ud-nav3, .ud-main')].map(n => n.getBoundingClientRect().width > 40).join()`); got != "true,true,true,true" {
+		if got := b.eval(`[...document.querySelectorAll('.workspace-nav, .workspace-main')].map(n => n.getBoundingClientRect().width > 40).join()`); got != "true,true,true,true" {
 			t.Errorf("%s: a column is missing: %s", name, got)
 		}
 		if got := b.eval(`document.documentElement.scrollWidth > innerWidth || document.body.scrollHeight > innerHeight`); got != "false" {
@@ -503,17 +503,17 @@ func TestShellOnAPhone(t *testing.T) {
 	b, base := setup(t)
 	b.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": true}, nil)
 	b.open(base + "/o/plan")
-	visible := `[...document.querySelectorAll('.ud-nav2, .ud-nav3')].map(n => getComputedStyle(n).display !== 'none').join()`
+	visible := `[...document.querySelectorAll('.workspace-nav[data-level="2"], .workspace-nav[data-level="3"]')].map(n => getComputedStyle(n).display !== 'none').join()`
 	if got := b.eval(visible); got != "false,false" {
 		t.Errorf("nav2 and nav3 should start closed on a phone: %s", got)
 	}
 	if got := b.eval(`document.documentElement.scrollWidth > innerWidth`); got != "false" {
 		t.Error("the page scrolls sideways on a phone")
 	}
-	if got := b.eval(`document.querySelector('.ud-main').getBoundingClientRect().width > 250`); got != "true" {
+	if got := b.eval(`document.querySelector('.workspace-main').getBoundingClientRect().width > 250`); got != "true" {
 		t.Error("the window is too narrow to read")
 	}
-	view := b.rect(".ud-nav1 [data-ud-view]")
+	view := b.rect(`.workspace-nav[data-level="1"] [data-ud-workspace]`)
 	b.click(view.X, view.Y, 1)
 	if got := b.eval(visible); got != "true,true" {
 		t.Errorf("the active view should open nav2 and nav3: %s", got)
@@ -528,16 +528,16 @@ func TestShellOnAPhone(t *testing.T) {
 func TestTreeFollowsThePage(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
-	if got := b.eval(`document.querySelector('.ud-nav2 [aria-current]').textContent.trim()`); got != "ops" {
+	if got := b.eval(`document.querySelector('.workspace-nav[data-level="2"] [aria-current]').textContent.trim()`); got != "ops" {
 		t.Errorf("collection: %s", got)
 	}
-	if got := b.eval(`[...document.querySelectorAll('.ud-nav3 [aria-expanded="true"]')].map(a => a.closest('li').querySelector('.ud-name').textContent.trim()).join()`); got != "net" {
+	if got := b.eval(`[...document.querySelectorAll('.workspace-nav[data-level="3"] [aria-expanded="true"]')].map(a => a.closest('li').querySelector('a').textContent.trim()).join()`); got != "net" {
 		t.Errorf("open folders: %s", got)
 	}
-	if got := b.eval(`document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim()`); got != "Network plan" {
+	if got := b.eval(`document.querySelector('.workspace-nav[data-level="3"] [aria-current="page"]').textContent.trim()`); got != "Network plan" {
 		t.Errorf("current page: %s", got)
 	}
-	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.ud-title').textContent`); got != "Home/ops/net|Network plan" {
+	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.workspace-main h1').textContent`); got != "Home/ops/net|Network plan" {
 		t.Errorf("head: %s", got)
 	}
 }
@@ -548,19 +548,19 @@ func TestClickOpensDoubleClickUnfolds(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
 	b.eval(`window.sameLoad = true`)
-	plain := b.rect(`.ud-nav3 .ud-name[href="/o/~ops/plain.md"]`)
+	plain := b.rect(`.workspace-nav[data-level="3"] a[href="/o/~ops/plain.md"]`)
 	b.click(plain.X, plain.Y, 1)
-	if !b.waitFor(`location.pathname === '/o/~ops/plain.md' && document.querySelector('.ud-title').textContent === 'plain'`) {
+	if !b.waitFor(`location.pathname === '/o/~ops/plain.md' && document.querySelector('.workspace-main h1').textContent === 'plain'`) {
 		t.Fatalf("the click did not open the page: %s", b.eval(`location.pathname`))
 	}
-	if got := b.eval(`String(window.sameLoad) + document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim() + document.title`); got != "trueplainplain · UnderDoc" {
+	if got := b.eval(`String(window.sameLoad) + document.querySelector('.workspace-nav[data-level="3"] [aria-current="page"]').textContent.trim() + document.title`); got != "trueplainplain · UnderDoc" {
 		t.Errorf("the window should swap without a reload: %s", got)
 	}
-	hidden := `document.querySelector('.ud-nav3 .ud-name[href="/f/ops/net"]').closest('li').querySelector('.ud-tree').hidden`
+	hidden := `document.querySelector('.workspace-nav[data-level="3"] a[href="/f/ops/net"]').closest('li').querySelector('ul').hidden`
 	if got := b.eval(hidden); got != "false" {
 		t.Fatal("net should start open, it holds the page that was open")
 	}
-	net := b.rect(`.ud-nav3 .ud-name[href="/f/ops/net"]`)
+	net := b.rect(`.workspace-nav[data-level="3"] a[href="/f/ops/net"]`)
 	b.mouse("mouseMoved", net.X, net.Y, 0, 0)
 	for _, clicks := range []int{1, 2} {
 		b.mouse("mousePressed", net.X, net.Y, clicks, 0)
@@ -569,7 +569,7 @@ func TestClickOpensDoubleClickUnfolds(t *testing.T) {
 	if !b.waitFor(hidden) {
 		t.Error("the double click did not close the folder")
 	}
-	arrow := b.rect(`.ud-nav3 .ud-name[href="/f/ops/net"]`)
+	arrow := b.rect(`.workspace-nav[data-level="3"] a[href="/f/ops/net"]`)
 	b.click(arrow.Left-10, arrow.Y, 1)
 	if got := b.eval(hidden); got != "false" {
 		t.Error("the arrow did not open it again")
@@ -581,31 +581,32 @@ func TestClickOpensDoubleClickUnfolds(t *testing.T) {
 }
 
 // The right edge of each column can be dragged, nav1 and nav2 snap to four steps, nav3 moves freely, and the widths
-// stay after a reload (ADR-16).
+// stay after a reload (ADR-16). The behavior is C22's workspace; this proves UnderDoc wires it up.
 func TestColumnsSnapByDragging(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
 	b.eval(`localStorage.clear()`)
 	b.open(base + "/o/plan")
-	nav1, nav2 := b.rect(".ud-nav1"), b.rect(".ud-nav2")
-	if nav1.Width != 50 {
-		t.Fatalf("nav1 starts at the icon step, width %v", nav1.Width)
+	const nav1, nav2, nav3 = `.workspace-nav[data-level="1"]`, `.workspace-nav[data-level="2"]`, `.workspace-nav[data-level="3"]`
+	first, second := b.rect(nav1), b.rect(nav2)
+	if first.Width != 50 || second.Width != 172 {
+		t.Fatalf("nav1 starts at the icon step and nav2 beside it, as in the mockup: %v, %v", first.Width, second.Width)
 	}
-	b.drag(nav1, 70)
-	if got := b.eval(`document.documentElement.dataset.udS1 + ':' + document.querySelector('.ud-nav1').getBoundingClientRect().width`); got != "2:116" {
+	b.drag(first, 70)
+	if got := b.eval(`document.querySelector('` + nav1 + `').dataset.step + ':' + document.querySelector('` + nav1 + `').getBoundingClientRect().width`); got != "2:116" {
 		t.Errorf("nav1 should snap to the third step: %s", got)
 	}
-	if moved := b.rect(".ud-nav2"); moved.Left <= nav2.Left {
+	if moved := b.rect(nav2); moved.Left <= second.Left {
 		t.Error("nav1 should push nav2")
 	}
-	nav3 := b.rect(".ud-nav3")
-	b.drag(nav3, 37)
-	if got := b.rect(".ud-nav3").Width; got < nav3.Width+30 || got > nav3.Width+44 {
-		t.Errorf("nav3 moves freely: %v to %v", nav3.Width, got)
+	list := b.rect(nav3)
+	b.drag(list, 37)
+	if got := b.rect(nav3).Width; got < list.Width+30 || got > list.Width+44 {
+		t.Errorf("nav3 moves freely: %v to %v", list.Width, got)
 	}
 	b.shot("dragged")
 	b.open(base + "/o/plan")
-	if got := b.eval(`document.documentElement.dataset.udS1`); got != "2" {
+	if got := b.eval(`document.querySelector('` + nav1 + `').dataset.step`); got != "2" {
 		t.Errorf("the width did not stay: %s", got)
 	}
 }
@@ -613,24 +614,24 @@ func TestColumnsSnapByDragging(t *testing.T) {
 func TestTableOfContentsJumps(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
-	marker := b.rect(".ud-marker > summary")
+	marker := b.rect("#ud-toc-trigger")
 	b.click(marker.X, marker.Y, 1)
-	if got := b.eval(`document.querySelector('.ud-marker').open`); got != "true" {
+	if !b.waitFor(`document.getElementById('ud-toc-trigger').getAttribute('aria-expanded') === 'true'`) {
 		t.Fatal("the marker did not open")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.ud-marker nav.toc a')].map(a => document.getElementById(decodeURIComponent(a.hash.slice(1))) ? 'ok' : a.hash).join()`); got != "ok,ok" {
+	if got := b.eval(`[...document.querySelectorAll('#ud-toc-menu a')].map(a => document.getElementById(decodeURIComponent(a.hash.slice(1))) ? 'ok' : a.hash).join()`); got != "ok,ok" {
 		t.Errorf("entries without a target: %s", got)
 	}
-	b.click(10, 400, 1)
-	if got := b.eval(`document.querySelector('.ud-marker').open`); got != "false" {
-		t.Error("a click outside should close it")
+	b.press("Escape", "Escape", 27, 0)
+	if !b.waitFor(`document.getElementById('ud-toc-trigger').getAttribute('aria-expanded') === 'false'`) {
+		t.Error("Escape should close it")
 	}
 }
 
 func TestGearOpensTheMetadata(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
-	gear := b.rect(".ud-tools [data-ud-gear]")
+	gear := b.rect(`[role=toolbar] [data-drawer-toggle="ud-drawer"]`)
 	b.click(gear.X, gear.Y, 1)
 	if got := b.eval(`!document.getElementById('ud-drawer').hidden && document.getElementById('ud-drawer').textContent.includes('/o/plan')`); got != "true" {
 		t.Fatal("the gear did not open the metadata")
@@ -716,35 +717,59 @@ func TestColumnsChangeTheWindowStays(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
 	b.eval(`window.sameLoad = true`)
-	window := `document.querySelector('.ud-title').textContent + '|' + location.pathname`
-	profile := b.rect(`.ud-nav1 a[href="/profile"]`)
+	const nav1, nav2, nav3 = `.workspace-nav[data-level="1"]`, `.workspace-nav[data-level="2"]`, `.workspace-nav[data-level="3"]`
+	window := `document.querySelector('.workspace-main h1').textContent + '|' + location.pathname`
+	profile := b.rect(nav1 + ` a[href="/profile"]`)
 	b.click(profile.X, profile.Y, 1)
-	if !b.waitFor(`document.querySelector('.ud-nav2').getAttribute('aria-label') === 'Profile'`) {
+	if !b.waitFor(`document.querySelector('` + nav2 + `').getAttribute('aria-label') === 'Profile'`) {
 		t.Fatal("the profile did not open in nav2")
 	}
-	if got := b.eval(window + ` + '|' + window.sameLoad + '|' + !!document.querySelector('.ud-nav3 [href="/.tinysesam/logout"]')`); got != "Network plan|/o/plan|true|true" {
+	if got := b.eval(window + ` + '|' + window.sameLoad + '|' + !!document.querySelector('` + nav3 + ` [href="/.tinysesam/logout"]')`); got != "Network plan|/o/plan|true|true" {
 		t.Errorf("the window should stay, the account show in nav3: %s", got)
 	}
-	appearance := b.rect(`.ud-nav2 a[href="/profile?s=appearance"]`)
+	appearance := b.rect(nav2 + ` a[href="/profile?s=appearance"]`)
 	b.click(appearance.X, appearance.Y, 1)
-	if !b.waitFor(`!!document.querySelector('.ud-nav3 [data-ud-theme="dark"]')`) {
+	if !b.waitFor(`!!document.querySelector('` + nav3 + ` [data-ud-theme="dark"]')`) {
 		t.Fatal("the section did not open in nav3")
 	}
 	b.shot("profile-view")
-	workspace := b.rect(`.ud-nav1 a[data-ud-workspace]`)
+	workspace := b.rect(nav1 + ` a[data-ud-workspace]`)
 	b.click(workspace.X, workspace.Y, 1)
-	if !b.waitFor(`document.querySelector('.ud-nav2').getAttribute('aria-label') === 'Collections'`) {
+	if !b.waitFor(`document.querySelector('` + nav2 + `').getAttribute('aria-label') === 'Collections'`) {
 		t.Fatal("back to the workspace did not work")
 	}
-	if got := b.eval(`document.querySelector('.ud-nav3 [aria-current="page"]').textContent.trim() + '|' + ` + window); got != "Network plan|Network plan|/o/plan" {
+	if got := b.eval(`document.querySelector('` + nav3 + ` [aria-current="page"]').textContent.trim() + '|' + ` + window); got != "Network plan|Network plan|/o/plan" {
 		t.Errorf("the workspace should show the collection of the window: %s", got)
 	}
-	home := b.rect(`.ud-nav2 a[title="Home"]`)
+	home := b.rect(nav2 + ` a[title="Home"]`)
 	b.click(home.X, home.Y, 1)
-	if !b.waitFor(`document.querySelector('.ud-nav3 .ud-chead').textContent === 'Home'`) {
+	if !b.waitFor(`document.querySelector('` + nav3 + ` section > header > a').textContent === 'Home'`) {
 		t.Fatal("a collection in nav2 did not open in nav3")
 	}
 	if got := b.eval(window + ` + '|' + window.sameLoad`); got != "Network plan|/o/plan|true" {
 		t.Errorf("a collection must not change the window: %s", got)
+	}
+}
+
+// A right click on an entry in nav3 opens its menu, named after the entry; Open opens it in the window (ADR-16).
+func TestRightClickOnAnEntry(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/o/plan")
+	plain := b.rect(`.workspace-nav[data-level="3"] a[href="/o/~ops/plain.md"]`)
+	b.mouse("mouseMoved", plain.X, plain.Y, 0, 0)
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mousePressed", "x": plain.X, "y": plain.Y, "button": "right", "buttons": 2, "clickCount": 1}, nil)
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseReleased", "x": plain.X, "y": plain.Y, "button": "right", "buttons": 0, "clickCount": 1}, nil)
+	panel := `document.querySelector('.workspace-nav[data-level="3"] [data-cm-panel]')`
+	if !b.waitFor(`!` + panel + `.hidden && ` + panel + `.querySelector('[role=heading]').textContent === 'plain'`) {
+		t.Fatalf("the menu of the entry did not open: %s", b.eval(panel+`.outerHTML.slice(0, 200)`))
+	}
+	if got := b.eval(panel + `.querySelector('[aria-disabled="true"]') !== null`); got != "true" {
+		t.Error("what is not built yet should be greyed out in the menu")
+	}
+	b.shot("row-menu")
+	open := b.rect(`.workspace-nav[data-level="3"] [data-ud-row="open"]`)
+	b.click(open.X, open.Y, 1)
+	if !b.waitFor(`location.pathname === '/o/~ops/plain.md'`) {
+		t.Error("Open in the menu did not open the entry")
 	}
 }

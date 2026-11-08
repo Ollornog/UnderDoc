@@ -432,8 +432,9 @@ func TestAssetsArrive(t *testing.T) {
 	for target, contentType := range map[string]string{
 		"/assets/c22/css/c22-vega.css":       "text/css",
 		"/assets/c22/fonts/inter.woff2":      "font/woff2",
-		"/assets/c22/js/basecoat.min.js":     "javascript",
-		"/assets/c22/js/sidebar.min.js":      "javascript",
+		"/assets/c22/js/basecoat.all.min.js": "javascript",
+		"/assets/c22/js/c22.js":              "javascript",
+		"/assets/c22/js/workspace-boot.js":   "javascript",
 		"/assets/app/shell.js":               "javascript",
 		"/assets/app/shell.css":              "css",
 		"/assets/app/theme.js":               "javascript",
@@ -536,16 +537,16 @@ func TestProfile(t *testing.T) {
 	s := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample)
 	body := s.body("/profile")
 	for _, want := range []string{
-		`<nav class="ud-nav2" aria-label="Profile">`, `href="/profile?s=appearance"`, "Administration",
+		`<nav class="workspace-nav" data-level="2" data-step="3" aria-label="Profile">`, `href="/profile?s=appearance"`, "Administration",
 		`title="Modules: not built yet`, `title="Language: not built yet`,
 		"Anna Berg", "anna@example.com", ">ops<", `href="/.tinysesam/logout"`, `>AB<`,
-		`<a class="ud-navitem" href="/profile?s=account" title="Account" data-ud-columns aria-current="true">`,
+		`<a class="workspace-item" href="/profile?s=account" title="Account" data-ud-columns aria-current="true">`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("%q missing", want)
 		}
 	}
-	if strings.Contains(body, `class="ud-tree"`) {
+	if strings.Contains(body, `class="workspace-tree"`) {
 		t.Error("the profile replaces the collections in nav2 and nav3")
 	}
 	if got := s.body("/profile?s=appearance"); !strings.Contains(got, `data-ud-theme="dark"`) || strings.Contains(got, "/.tinysesam/logout") {
@@ -573,10 +574,10 @@ func TestHeadAndCollections(t *testing.T) {
 	s := newSite(t, Options{}, files)
 	body := s.body("/o/plan")
 	for _, want := range []string{
-		`<h1 class="ud-title">Network plan</h1>`, `<p class="ud-desc">Router and switches.</p>`,
+		`<h1>Network plan</h1>`, `<p>Router and switches.</p>`,
 		`href="/search?tag=network"`, ">#main-site<",
-		`<a class="ud-navitem" href="/f/ops" title="ops" data-ud-columns aria-current="true">`, `href="/f/projects"`, `title="Home"`,
-		`<a href="/f/ops" class="ud-chead" title="Open ops">ops</a>`, `aria-current="page"><svg`,
+		`<a class="workspace-item" href="/f/ops" title="ops" data-ud-columns aria-current="true">`, `href="/f/projects"`, `title="Home"`,
+		`<header><a href="/f/ops" title="Open ops"><span>ops</span></a>`, `aria-current="page"><svg`,
 		`<code>/o/plan</code>`,
 	} {
 		if !strings.Contains(body, want) {
@@ -590,7 +591,7 @@ func TestHeadAndCollections(t *testing.T) {
 		t.Error("nav3 shows only the open collection")
 	}
 	tagged := s.body("/search?tag=%23Network")
-	if !strings.Contains(tagged, `<h1 class="ud-title">#network</h1>`) || !strings.Contains(tagged, "Handbook") || !strings.Contains(tagged, "Network plan") {
+	if !strings.Contains(tagged, `<h1>#network</h1>`) || !strings.Contains(tagged, "Handbook") || !strings.Contains(tagged, "Network plan") {
 		t.Error("a tag lists what carries it")
 	}
 }
@@ -599,7 +600,7 @@ func TestHeadAndCollections(t *testing.T) {
 func TestLaterIsGreyedOut(t *testing.T) {
 	body := newSite(t, Options{}, sample).body("/o/plan")
 	for _, label := range []string{"Files", "Resources", "News", "Mail", "To-do", "Calendar", "Time", "Vacation", "Notes"} {
-		if !regexp.MustCompile(`<span class="ud-navitem" aria-disabled="true" title="` + label + `: not built yet`).MatchString(body) {
+		if !regexp.MustCompile(`<span class="workspace-item" aria-disabled="true" title="` + label + `: not built yet`).MatchString(body) {
 			t.Errorf("%s is not greyed out", label)
 		}
 	}
@@ -619,7 +620,7 @@ func TestShellUsesOnlyTokens(t *testing.T) {
 			t.Errorf("shell.css: %q is a value of its own, use a C22 token", found)
 		}
 	}
-	if !strings.Contains(string(css), "var(--sidebar)") {
+	if !strings.Contains(string(css), "--workspace-step-0") || !strings.Contains(string(css), "var(--muted-foreground)") {
 		t.Fatal("the check itself is broken")
 	}
 }

@@ -31,12 +31,12 @@
 {{/* A click on a name opens the object, the arrow or a double click shows or hides what is in it (ADR-16). */}}
 {{define "tree-items"}}{{range .}}
   <li>
-    <div class="ud-row">
-      {{- if .Children}}<button type="button" class="ud-arrow" data-ud-toggle aria-expanded="{{.Open}}" aria-label="Show or hide what is in {{.Label}}">{{template "icon-chevron-plain"}}</button>
-      {{- else}}<span class="ud-arrow"></span>{{end}}
-      <a class="ud-name" href="{{.Href}}" title="{{.Label}}"{{if .Current}} aria-current="page"{{end}}>{{if .IsFolder}}{{template "icon-folder"}}{{else}}{{template "icon-page"}}{{end}}<span class="ud-label">{{.Label}}</span></a>
+    <div>
+      {{- if .Children}}<button type="button" data-toggle aria-expanded="{{.Open}}" aria-label="Show or hide what is in {{.Label}}">{{template "icon-chevron-plain"}}</button>
+      {{- else}}<span data-toggle aria-hidden="true"></span>{{end}}
+      <a href="{{.Href}}" title="{{.Label}}"{{if .Current}} aria-current="page"{{end}}>{{if .IsFolder}}{{template "icon-folder"}}{{else}}{{template "icon-page"}}{{end}}<span>{{.Label}}</span></a>
     </div>
-    {{- if .Children}}<ul class="ud-tree"{{if not .Open}} hidden{{end}}>{{template "tree-items" .Children}}</ul>{{end}}
+    {{- if .Children}}<ul{{if not .Open}} hidden{{end}}>{{template "tree-items" .Children}}</ul>{{end}}
   </li>{{end}}
 {{end}}
 
@@ -102,26 +102,28 @@
 
 {{/* The profile view in nav2 and nav3 (ADR-16). */}}
 {{define "profile-nav2"}}
-<div class="ud-colhead"><span class="ud-label">Profile</span></div>
-<ul class="ud-collections">{{range .Settings}}<li>{{template "profile-item" .}}</li>{{end}}</ul>
-{{- if .Admin}}
-<span class="ud-sep"></span>
-<div class="ud-colhead" title="Only administrators see this">{{template "icon-shield"}}<span class="ud-label">Administration</span></div>
-<ul class="ud-collections">{{range .Admin}}<li>{{template "profile-item" .}}</li>{{end}}</ul>
-{{- end}}
+<header><span>Profile</span></header>
+<div>
+  {{- range .Settings}}{{template "profile-item" .}}{{end}}
+  {{- if .Admin}}
+  <hr>
+  <span class="workspace-label" title="Only administrators see this">{{template "icon-shield"}}<span>Administration</span></span>
+  {{- range .Admin}}{{template "profile-item" .}}{{end}}
+  {{- end}}
+</div>
 {{end}}
 
 {{define "profile-item"}}
-{{- if .Later}}<span class="ud-navitem" aria-disabled="true" title="{{.Label}}: not built yet, {{.Later}}">{{template "icon-named" .Icon}}<span class="ud-label">{{.Label}}</span></span>
-{{- else}}<a class="ud-navitem" href="{{.Href}}" title="{{.Label}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{template "icon-named" .Icon}}<span class="ud-label">{{.Label}}</span></a>{{end}}
+{{- if .Later}}<span class="workspace-item" aria-disabled="true" title="{{.Label}}: not built yet, {{.Later}}">{{template "icon-named" .Icon}}<span>{{.Label}}</span></span>
+{{- else}}<a class="workspace-item" href="{{.Href}}" title="{{.Label}}" data-ud-columns{{if .Current}} aria-current="true"{{end}}>{{template "icon-named" .Icon}}<span>{{.Label}}</span></a>{{end}}
 {{- end}}
 
 {{define "profile-nav3"}}
 {{- if eq .Profile.Section "account"}}
-<div class="ud-colhead"><span class="ud-label">Account</span></div>
+<header><span>Account</span></header>
 <div class="ud-panel">
   <div class="ud-who">
-    <span class="ud-avatar ud-big">{{.User.Initials}}</span>
+    <span class="avatar" data-size="lg"><span>{{.User.Initials}}</span></span>
     <div class="grid">
       <span class="font-semibold" data-ud-name>{{.User.Name}}</span>
       <span class="text-muted-foreground text-xs">{{.User.Login}}</span>
@@ -133,7 +135,7 @@
   <div><a class="btn" data-variant="outline" data-size="sm" href="/.tinysesam/logout">Sign out</a></div>
 </div>
 {{- else if eq .Profile.Section "appearance"}}
-<div class="ud-colhead"><span class="ud-label">Appearance</span></div>
+<header><span>Appearance</span></header>
 <div class="ud-panel">
   <div class="ud-setrow">
     <span>Theme</span>
@@ -147,7 +149,7 @@
   <p class="text-muted-foreground text-xs">These belong to you. Until accounts are stored, this browser keeps them.</p>
 </div>
 {{- else if eq .Profile.Section "navigation"}}
-<div class="ud-colhead"><span class="ud-label">Navigation</span></div>
+<header><span>Navigation</span></header>
 <div class="ud-panel">
   <p class="text-sm">A click opens the object. A double click or the arrow shows or hides what is in it. Ctrl and click, or the middle button, open it in a tab of its own.</p>
   <div class="ud-setrow"><span>Columns</span><button type="button" class="btn" data-variant="outline" data-size="sm" data-ud-reset-columns>Default widths</button></div>

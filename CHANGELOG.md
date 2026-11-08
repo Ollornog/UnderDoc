@@ -13,6 +13,9 @@ All notable changes to this project are documented in this file. The format foll
   greyed out. A click in nav3 opens the object in the window without reloading the list, and a double click or the arrow shows
   or hides what is in it. The right edges of the columns can be dragged, nav1 and nav2 snap to four steps, and the browser keeps
   the widths and the theme.
+- The workspace is now the C22 building block (C22 T-13): the structure, the column steps, the lists, the drawer, the menus
+  and the right-click menu of an entry come from C22, and UnderDoc keeps only its own sizes from the mockup. The stored
+  column widths start over once.
 - The profile is a view like the others: its sections in nav2, the chosen one in nav3, and the administration set apart for
   administrators. A click in nav1 or nav2 changes only the columns, the window keeps what it shows (ADR-16).
 - Every object opens at `/o/<id>` (ADR-18). Links to `/d/<id>` move there.
