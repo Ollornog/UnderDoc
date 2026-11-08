@@ -104,6 +104,9 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)
 	mux.HandleFunc("DELETE /api/pages/{id}/blocks/{block}", h.apiDeleteBlock)
 	mux.HandleFunc("GET /api/pages/{id}/versions", h.apiVersions)
+	mux.HandleFunc("POST /api/dividers", h.apiCreateDivider)
+	mux.HandleFunc("DELETE /api/objects/{id}", h.apiDeleteObject)
+	mux.HandleFunc("POST /api/objects/{id}/move", h.apiMove)
 	// Links from before the object addresses of ADR-18 keep working.
 	mux.HandleFunc("GET /d/{id...}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)

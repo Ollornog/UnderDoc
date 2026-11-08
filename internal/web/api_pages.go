@@ -60,7 +60,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -201,4 +201,52 @@ func (h *handler) apiVersions(w http.ResponseWriter, r *http.Request) {
 		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: v.At.Format("Jan 02 15:04"), Deleted: v.Deleted, Excerpt: string(excerpt)})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// apiCreateDivider puts a line or a space into a collection, folder or page, after the entry it names or first.
+func (h *handler) apiCreateDivider(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Kind   string `json:"kind"`
+		Parent string `json:"parent"`
+		After  string `json:"after"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	made, err := h.options.DB.CreateDivider(r.Context(), user, in.Kind, in.Parent, in.After)
+	if h.failed(w, err, "divider") {
+		return
+	}
+	writeJSON(w, http.StatusCreated, apiNode{ID: made.ID, Title: made.Title, Kind: made.Kind, Kids: []apiNode{}})
+}
+
+// apiDeleteObject takes an object away. For now only a line or a space: deleting what may be in use comes with its
+// question (M-28).
+func (h *handler) apiDeleteObject(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.change(w, r, 0, nil)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.DeleteDivider(r.Context(), r.PathValue("id"), user.ID), "delete") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiMove puts an object into a parent, after the entry it names or first.
+func (h *handler) apiMove(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Parent string `json:"parent"`
+		After  string `json:"after"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	moved, err := h.options.DB.Move(r.Context(), r.PathValue("id"), user.ID, in.Parent, in.After)
+	if h.failed(w, err, "move") {
+		return
+	}
+	writeJSON(w, http.StatusOK, apiNode{ID: moved.ID, Title: moved.Title, Kind: moved.Kind, Kids: []apiNode{}})
 }
