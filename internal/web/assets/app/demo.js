@@ -50,7 +50,8 @@ const C = [{id:'ops',n:'Operations',top:['net','logs','hand']},{id:'pro',n:'Proj
 function bodyHtml(w,i){
   const d=D[w.d]; const hs=d.doc?d.doc.secs.map(s=>s[0]):[]; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
   let h='';
-  if(d.doc) h+=(d.real?d.doc.intro:`<p>${d.doc.intro}</p>`)+d.doc.secs.map((s,j)=>`<h2 id="w${i}h${j}">${s[0]}</h2>${s[1]}`).join('');
+  if(d.blocks) h+=blocksHtml(d,w,i);
+  else if(d.doc) h+=(d.real?d.doc.intro:`<p>${d.doc.intro}</p>`)+d.doc.secs.map((s,j)=>`<h2 id="w${i}h${j}">${s[0]}</h2>${s[1]}`).join('');
   if(d.tab) h+=`<div class="note">${d.tab.note}</div><div class="tw"><table><tr>${d.tab.head.map(x=>`<th>${x}</th>`).join('')}</tr>${d.tab.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div>`;
   if(d.t==='images'){const tones=[['oklch(45% .06 240)','Base, north'],['oklch(50% .05 150)','Foundation'],['oklch(42% .04 40)','Segment 2'],['oklch(38% .05 280)','Crane'],['oklch(48% .03 200)','Antenna'],['oklch(36% .02 100)','Gatehouse']];h+=`<div class="note">These images lie in a folder on the disk. This collection only shows them.</div><div class="imgs">${tones.map(t=>`<div data-style="background:${t[0]}">${t[1]}</div>`).join('')}</div>`;}
   if(d.t==='folder') h+=`<p>${d.why}</p>`;
@@ -238,6 +239,7 @@ function searchHtml(){
     <div id="sres">${resultsHtml()}</div></div>`;
 }
 function sourceOf(d){
+  if(d.blocks)return ['---',`title: ${d.n}`,'---',''].concat(...d.blocks.map(b=>[...b.raw.split('\n'),'']));
   const front=['---',`title: ${d.n}`,`width: ${d.w}`,`contents: ${d.toc}`,`tags: [${d.tags.join(', ')}]`,'---',''];
   const body=[d.doc.intro,''];
   d.doc.secs.forEach(s=>body.push('## '+s[0],'',plain(s[1]),''));
@@ -245,7 +247,7 @@ function sourceOf(d){
 }
 function statusHtml(d){
   let left;
-  if(d.doc){const x=sourceOf(d),txt=d.doc.intro+' '+d.doc.secs.map(s=>s[0]+' '+plain(s[1])).join(' '),w=(txt.match(/\S+/g)||[]).length;
+  if(d.doc){const x=sourceOf(d),txt=plain(d.doc.intro)+' '+d.doc.secs.map(s=>s[0]+' '+plain(s[1])).join(' '),w=(txt.match(/\S+/g)||[]).length;
     left=`<span>${w} words</span><span>${txt.length} characters</span><span>${x.length} lines</span><span>${Math.max(1,Math.ceil(w/200))} min read</span>`;}
   else if(d.tab) left=`<span>${d.tab.rows.length} rows</span><span>${d.tab.head.length} columns</span>`;
   else if(d.t==='images') left='<span>6 images</span>';
@@ -261,7 +263,7 @@ function factsHtml(d){
     ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
-    <h3>Versions</h3><ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`:''}
+    <h3>Versions</h3>${d.blocks?versionsHtml(d):`<ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`}`:''}
     <h3>Later</h3><div class="lab">Export, save as (M-17) and share (M-5).</div></div>`;
 }
 /* Comments belong to an element of the page: a paragraph, heading, list or table, through its ID (ADR-18). */
@@ -316,6 +318,7 @@ function winHtml(w,i){
   const dhead=`<div class="dtitle"><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
   const tools=`<div class="tools">${place}${marker}${find}
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
+    ${d.blocks&&d.canEdit?`<button class="ic" data-act="edit" data-w="${i}" aria-pressed="${!!t.edit}" aria-label="Edit" title="Edit block by block">${ic('pencil')}</button>`:''}
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
     ${accOf(t.d)!=='read'?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
@@ -511,6 +514,8 @@ function nav3Html(){
 }
 function render(){
   if(S.booted)saveSettings();
+  /* A block being written keeps the focus through a render; a new block asks for it with S.focusNext. */
+  const ae=document.activeElement,want=S.focusNext||(ae&&ae.dataset&&ae.dataset.blk!==undefined?{d:ae.dataset.d,id:ae.dataset.blk,pos:ae.selectionStart}:null);S.focusNext=null;
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -533,6 +538,7 @@ function render(){
   const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
   document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}`;
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
+  refocusBlock(want);
   const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
   /* A menu with no room below its heading opens above it. */
   const ap=document.querySelector('.addpop');if(ap){const n3=ap.closest('.nav3');if(n3&&ap.getBoundingClientRect().bottom>n3.getBoundingClientRect().bottom+1)ap.style.top=Math.max(0,(S.addTop||0)-(S.addH||0)-ap.offsetHeight)+'px';}
@@ -547,7 +553,7 @@ function render(){
       el.after(b);b.style.top=el.offsetTop+'px';});});
   /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
   document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src)return;
-    art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#t'+(k+1);b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#t'+(k+1)+'</span>';(tb.closest('.tw, .table-container')||tb).before(b);});});
+    art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const own=tb.closest('[data-b]'),part=own?own.dataset.b:'t'+(k+1),b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#'+part;b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#'+part+'</span>';(tb.closest('.tw, .table-container')||tb).before(b);});});
 }
 /* AI drawer on the right: it knows the document in the active window. */
 const aiAnswer=()=>{const t=at(S.focus);return t&&t.d?`Made up for this mockup. A real answer about “${D[t.d].n}” would stand here, with links to its sources.`:'Made up for this mockup. Open a document, and the answer can refer to it.';};
@@ -645,7 +651,7 @@ document.addEventListener('click',e=>{
     case 'addmenu2':{S.view='workspace';S.cgear=null;S.rail=true;S.open[a.id]=true;render();const r=document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`),tr=document.getElementById('tree');S.addIn=a.id;S.addTop=r&&tr?r.offsetTop-tr.scrollTop+r.offsetHeight:0;S.addH=r?r.offsetHeight:0;break;}
     case 'opentab':openTab(a.id);break;
     case 'opencol':S.wins.splice(S.focus+1,0,{tabs:[newTab(null,true),newTab(a.id)],a:1,hist:[]});S.focus++;break;
-    case 'addchild':{const id='new'+(++S.newN);D[id]={t:'page',n:'New page',w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its parent',...none,stat:'new',html:'<p class="lab">Empty.</p>'};D[a.id].kids.unshift(id);S.tog[a.id]=true;rebuildPlaces();openDoc(id);S.just=id;break;}
+    case 'addchild':if(D[a.id].db){createPage(a.id,'New page');break;}{const id='new'+(++S.newN);D[id]={t:'page',n:'New page',w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its parent',...none,stat:'new',html:'<p class="lab">Empty.</p>'};D[a.id].kids.unshift(id);S.tog[a.id]=true;rebuildPlaces();openDoc(id);S.just=id;break;}
     case 'copylink':S.toast='Link copied: '+D[a.id].n;setTimeout(()=>{S.toast='';render();},1600);break;
     case 'opengear':openDoc(a.id);at(S.focus).gear=true;break;
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
@@ -675,7 +681,7 @@ document.addEventListener('click',e=>{
     case 'star':S.fav[a.id]=!S.fav[a.id];break;
     case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
     case 'addmenu':{S.addIn=hadAdd===a.id?null:a.id;const r=b.closest('.cheadrow'),tr=document.getElementById('tree');if(r&&tr){S.addTop=r.offsetTop-tr.scrollTop+r.offsetHeight;S.addH=r.offsetHeight;}break;}
-    case 'add':{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
+    case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
     case 's1':S.s1=+a.id;break;
     case 's2':S.s2=+a.id;break;
     case 'w3reset':S.w3=W3;break;
@@ -704,8 +710,11 @@ document.addEventListener('click',e=>{
     case 'hist':S.hist=hadHist===i?null:i;break;
     case 'tablist':S.tlist=hadTl===i?null:i;break;
     case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
-    case 'gear':t.gear=!t.gear;if(t.gear)t.cmt=false;break;
-    case 'src':t.src=!t.src;t.top=0;break;
+    case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
+    case 'edit':t.edit=!t.edit;t.src=false;if(t.edit&&!D[t.d].blocks.length)addBlock(t.d,'');break;
+    case 'blkadd':addBlock(t.d,a.id);return;
+    case 'blkdel':deleteBlock(t.d,a.id);return;
+    case 'src':t.src=!t.src;t.top=0;if(t.src)t.edit=false;break;
     case 'find':t.find=!t.find;if(t.find){render();const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();return;}break;
     case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
     case 'fly':t.fly=!t.fly;break;
@@ -721,12 +730,14 @@ document.addEventListener('click',e=>{
 function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=resultsHtml();}
 document.addEventListener('input',e=>{
   const x=e.target;
+  if(x.dataset.blk!==undefined){const b=blockIn(x);if(b)b.draft=x.value;return;}
   if(x.id==='search'){S.sq=x.value;searchServer();if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
   if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
 });
 document.addEventListener('change',e=>{
   const x=e.target;
+  if(x.dataset.blk!==undefined){saveBlock(x.dataset.d,x.dataset.blk,x.value,x);return;}
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
   if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=esc(v);if(D[cid].real)renameObject(cid,v);}render();}
@@ -755,8 +766,10 @@ document.addEventListener('keydown',e=>{
   if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
   if(e.key==='/'&&!x.closest('input,select,textarea')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
+  if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
+  if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
   if(e.key!=='Enter')return;
-  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else openDoc(createIn(S.into,'page',v));render();return;}
+  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
@@ -963,6 +976,7 @@ async function loadDoc(id){
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
     d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=esc(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
+    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=esc(a.created||'');d.place=esc(a.place||'');syncBlocks(d);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
@@ -979,7 +993,7 @@ function addNode(node){
   const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
-  D[id].sid=node.id;D[id].tags=D[id].tags||[];
+  D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;
   return id;
 }
 
@@ -1003,6 +1017,71 @@ async function createCollection(parent){
 async function renameObject(id,title){
   try{const r=await fetch('/api/objects/'+encodeURIComponent(id),{...same,method:'PATCH',body:JSON.stringify({title})});if(!r.ok)throw new Error(String(r.status));}
   catch(e){S.toast='The new name could not be saved.';render();setTimeout(()=>{S.toast='';render();},2400);}
+}
+
+/* Pages of the database are blocks of Markdown (ADR-19). The view shows each block rendered by the server; Edit turns
+   every block into a plain Markdown field, saved when it loses the focus or on Ctrl+Enter, and Escape takes the change
+   back. A field keeps what was typed through a render: the draft stays with the block until it is saved. */
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md});
+function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
+const blockIn=x=>{const d=D[x.dataset.d];return d&&d.blocks&&d.blocks.find(b=>b.id===x.dataset.blk);};
+function blocksHtml(d,w,i){
+  const key=Object.keys(D).find(k=>D[k]===d);
+  if(!(w.edit&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Edit adds the first block.':''}</p>`;
+  return d.blocks.map(b=>{const text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,(b.draft!==undefined?b.draft:b.raw).split('\n').length+1));
+    return `<div class="bedit"><textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown">${text}</textarea>
+      <div class="bbar"><button class="chip" data-act="blkadd" data-w="${i}" data-id="${b.id}">${ic('plus')}Block below</button><button class="chip" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}">${b.ask?'Delete? Yes':'Delete'}</button><em>${b.saved?'Saved · ':''}#${b.id}</em></div></div>`;}).join('');
+}
+function refocusBlock(f){if(!f)return;const x=document.querySelector(`textarea[data-blk="${f.id}"][data-d="${f.d}"]`);if(!x)return;x.focus();const p=Math.min(f.pos,x.value.length);x.setSelectionRange(p,p);}
+function versionsHtml(d){
+  if(!d.versions)return '<div class="lab">Loading…</div>';
+  if(!d.versions.length)return '<div class="lab">No changes yet.</div>';
+  return `<ul>${d.versions.map(v=>`<li><small>${v.at}</small><span>${v.who} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}</span></li>`).join('')}</ul>`;
+}
+function toast(text){S.toast=text;render();setTimeout(()=>{S.toast='';render();},2600);}
+const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
+async function loadVersions(id){
+  try{const r=await fetch(pageURL(id)+'/versions',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    D[id].versions=(await r.json()).map(v=>({at:esc(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt)}));}
+  catch(e){D[id].versions=[];}
+  render();
+}
+const gearOpen=id=>S.wins.some(w=>w.tabs.some(t=>t.d===id&&t.gear));
+async function saveBlock(id,blk,value,field){
+  const d=D[id],b=d&&d.blocks&&d.blocks.find(x=>x.id===blk);if(!b)return;
+  if(value===b.raw){delete b.draft;return;}
+  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk),{...same,method:'PUT',body:JSON.stringify({md:value})});if(!r.ok)throw new Error(String(r.status));
+    const n=blockOf(await r.json());b.html=n.html;b.md=n.md;b.raw=n.raw;b.saved=true;if(b.draft===value)delete b.draft;syncBlocks(d);d.ch='now';
+    /* While the field is still there, only its bar says so, so the focus stays where the writer went; once the page
+       left editing, the view shows the new text. */
+    const bar=field&&field.isConnected&&field.parentElement.querySelector('.bbar em');if(bar)bar.textContent='Saved · #'+blk;else render();
+    if(gearOpen(id))loadVersions(id);}
+  catch(e){toast(e.message==='403'?'Others may not change this page.':'This block could not be saved. The text stays in the field.');}
+}
+async function addBlock(id,after){
+  const d=D[id];
+  try{const r=await fetch(pageURL(id)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:after||'',md:''})});if(!r.ok)throw new Error(String(r.status));
+    const b=blockOf(await r.json()),k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,b);syncBlocks(d);S.focusNext={d:id,id:b.id,pos:0};
+    if(gearOpen(id))loadVersions(id);render();}
+  catch(e){toast('The block could not be added.');}
+}
+async function deleteBlock(id,blk){
+  const d=D[id],b=d.blocks.find(x=>x.id===blk);if(!b)return;
+  /* A block with text asks first, in place: the first click turns the button into the question, the second deletes. */
+  if((b.draft!==undefined?b.draft:b.raw).trim()&&!b.ask){d.blocks.forEach(x=>{delete x.ask;});b.ask=true;render();return;}
+  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));
+    d.blocks=d.blocks.filter(x=>x!==b);syncBlocks(d);if(gearOpen(id))loadVersions(id);render();}
+  catch(e){toast('The block could not be deleted.');}
+}
+/* A new page lands in the collection, folder or page it was made in, and opens with its first block ready to write. */
+async function createPage(parent,title){
+  try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
+    const node=await r.json();node.t='page';node.owner=S.user.name;const id=addNode(node);D[id].canEdit=true;
+    D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
+    D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
+    const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)t.edit=true;
+    render();addBlock(id,'');}
+  catch(e){toast(e.message==='403'?'Others may not add pages here.':'The page could not be made.');}
 }
 
 /* The settings of the workspace stay in this browser until accounts store them (M-28): widths, favorites, pins, theme. */

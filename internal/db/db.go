@@ -205,10 +205,15 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	}
 }
 
-// CreateCollection makes a collection at the top, or inside parent if that is set and visible to the owner.
+// CreateCollection makes a collection at the top, or inside parent if that is set, visible to the owner and open for
+// changes by them (ADR-20).
 func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, parent string) (Object, error) {
 	if parent != "" {
-		if _, err := db.Object(ctx, parent, owner.ID); err != nil {
+		p, err := db.Object(ctx, parent, owner.ID)
+		if err != nil {
+			return Object{}, err
+		}
+		if err := db.mayEdit(ctx, p, owner.ID); err != nil {
 			return Object{}, err
 		}
 	}
@@ -293,14 +298,8 @@ func (db *DB) Rename(ctx context.Context, objectID, viewer, title string) (Objec
 	if err != nil {
 		return Object{}, err
 	}
-	if o.Owner != viewer {
-		access, err := db.Access(ctx, objectID)
-		if err != nil {
-			return Object{}, err
-		}
-		if access != "edit" {
-			return Object{}, ErrNotAllowed
-		}
+	if err := db.mayEdit(ctx, o, viewer); err != nil {
+		return Object{}, err
 	}
 	return scan(db.pool.QueryRow(ctx, `UPDATE objects SET title = $2, changed = now() WHERE id = $1 RETURNING `+columns, objectID, title))
 }

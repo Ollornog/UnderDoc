@@ -54,3 +54,9 @@ nested) and of the folder source, pages opened from the folder source, full-text
 runs on the made-up content of the mockup, marked “(demo)”. Still to build here: pages as blocks with editing and versions,
 access levels and comments, embedding by ID, settings on the account, deleting and moving, import and export, the list of
 problems in the workspace, and the restore test.
+
+**State on 2026-11-08 (pages as blocks):** pages of the database are made in a collection (New, or New page below it) and
+edited block by block, each block a plain Markdown field with its ID from the start; every change is kept as a version and
+listed in the gear. Still to build here: access levels set in the web and comments, embedding by ID, settings on the account,
+deleting and moving objects, folders in the database, import and export, the list of problems in the workspace, and the
+restore test.

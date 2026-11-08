@@ -679,3 +679,95 @@ func TestNewCollectionByHand(t *testing.T) {
 		t.Errorf("the new collection is not kept: %s", b.eval(`document.querySelector('.nav2').textContent.replace(/\s+/g, ' ')`))
 	}
 }
+
+// typeText types into the element that has the focus, as a keyboard would.
+func (b *browser) typeText(text string) {
+	b.t.Helper()
+	b.call("Input.insertText", map[string]any{"text": text}, nil)
+}
+
+func TestEditAPageBlockByBlock(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Team"}'}).then(r => r.json()).then(j => { window.made = j.id; })`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the collection for the test was not made")
+	}
+	team := b.eval(`window.made`)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+
+	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`.addpop [data-act="add"][data-id="page"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b1'`) {
+		t.Fatalf("a new page opens with its first block ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
+	}
+	page := b.eval(`location.pathname.slice(3)`)
+	b.typeText("## Switches\n\nTwo in the rack.")
+	b.press("Enter", "Enter", 13, 2) // Ctrl+Enter saves
+	if !b.waitFor(`document.querySelector('.bbar em')?.textContent === 'Saved · #b1'`) {
+		t.Fatalf("the block was not saved: %q", b.eval(`document.querySelector('.bbar')?.textContent`))
+	}
+	b.clickOn(probe(b, `.bbar .chip`, "Block below"), 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
+		t.Fatalf("the block below has the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
+	}
+	b.typeText("| Port | VLAN |\n|---|---|\n| 1 | 10 |")
+	b.shot("edit-blocks")
+	b.clickOn(`[data-act="edit"]`, 1) // leaving editing saves the block being written
+	if !b.waitFor(`!!document.querySelector('article.doc h2') && !!document.querySelector('article.doc table') && !document.querySelector('textarea[data-blk]')`) {
+		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	}
+	b.shot("view-blocks")
+	if got := b.eval(`document.querySelector('article.doc .blk span')?.textContent`); got != "#b2" {
+		t.Errorf("a table has the ID of its block, to embed it by: %q", got)
+	}
+
+	b.open(base + "/o/" + page)
+	b.ready("New page")
+	if got := b.eval(`document.querySelector('article.doc h2')?.textContent + ' | ' + document.querySelectorAll('article.doc td').length`); got != "Switches | 2" {
+		t.Errorf("both blocks are kept: %q", got)
+	}
+	b.clickOn(`[data-act="gear"]`, 1)
+	// Each block was made empty and then written: four versions, newest first.
+	if !b.waitFor(`[...document.querySelectorAll('.fdrawer li')].map(li => (li.textContent.match(/#b\d+ \S+/) || [''])[0]).join(', ') === '#b2 |, #b2 (empty), #b1 ##, #b1 (empty)'`) {
+		t.Errorf("the versions list both blocks: %s", b.eval(`document.querySelector('.fdrawer')?.innerText.replace(/\s+/g, ' ')`))
+	}
+	b.clickOn(`[data-act="gear"]`, 1)
+
+	b.clickOn(`[data-act="edit"]`, 1)
+	b.clickOn(`.bedit:first-child .bbar [data-act="blkdel"]`, 1)
+	if got := b.eval(`document.querySelectorAll('textarea[data-blk]').length + ' ' + document.querySelector('.bedit:first-child [data-act="blkdel"]').textContent`); got != "2 Delete? Yes" {
+		t.Fatalf("a block with text asks first: %q", got)
+	}
+	b.clickOn(`.bedit:first-child .bbar [data-act="blkdel"]`, 1)
+	if !b.waitFor(`document.querySelectorAll('textarea[data-blk]').length === 1 && document.querySelector('textarea[data-blk]').dataset.blk === 'b2'`) {
+		t.Errorf("the block is deleted: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
+	}
+}
+
+func TestBlockTextStaysText(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'};
+		const team = await (await fetch('/api/collections', {method: 'POST', headers: json, body: '{"title":"Team"}'})).json();
+		const page = await (await fetch('/api/pages', {method: 'POST', headers: json, body: JSON.stringify({title: 'Tricky', parent: team.id})})).json();
+		await fetch('/api/pages/' + page.id + '/blocks', {method: 'POST', headers: json, body: JSON.stringify({md: '</textarea><b id="escaped">x</b> & <i>'})});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	b.open(base + "/o/" + b.eval(`window.made`))
+	b.ready("Tricky")
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!!document.querySelector('textarea[data-blk]')`) {
+		t.Fatal("no field to edit")
+	}
+	if got := b.eval(`(document.getElementById('escaped') ? 'markup ' : '') + document.querySelector('textarea[data-blk]').value`); got != `</textarea><b id="escaped">x</b> & <i>` {
+		t.Errorf("the Markdown of a block is its text in the field, never markup: %q", got)
+	}
+}
