@@ -113,6 +113,8 @@ type linkItem struct {
 	Label  string
 	Href   string
 	Detail string
+	// Folder shows a folder icon in the list of entries instead of a page.
+	Folder bool
 }
 
 type documentView struct {
@@ -125,6 +127,8 @@ type documentView struct {
 	PathBased bool
 	Backlinks []linkItem
 	Contents  []contentsItem
+	// Status is the line at the bottom of the window: words, characters and reading time.
+	Status string
 }
 
 type contentsItem struct {

@@ -13,6 +13,10 @@ All notable changes to this project are documented in this file. The format foll
   greyed out. A click in nav3 opens the object in the window without reloading the list, and a double click or the arrow shows
   or hides what is in it. The right edges of the columns can be dragged, nav1 and nav2 snap to four steps, and the browser keeps
   the widths and the theme.
+- The look follows the approved mockup: compact headings and spacing in pages, tables framed with a shaded head, the way
+  above the title starting at the collection, small tags, a larger title, all tools of the window (those not built yet greyed
+  out), a status line with words, characters and reading time, the list of tabs at the end of the tab row, and the entries
+  of a collection or folder as framed rows with their kind.
 - The workspace is now the C22 building block (C22 T-13): the structure, the column steps, the lists, the drawer, the menus
   and the right-click menu of an entry come from C22, and UnderDoc keeps only its own sizes from the mockup. The stored
   column widths start over once.

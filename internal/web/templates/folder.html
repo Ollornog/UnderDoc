@@ -3,9 +3,8 @@
   {{- if .Empty}}
   {{template "empty"}}
   {{- else}}
-  {{- if .Recent}}<section><h2 class="text-sm font-semibold">Recently changed</h2>{{template "folder-list" .Recent}}</section>{{end}}
-  {{- if .Folders}}<section><h2 class="text-sm font-semibold">Folders</h2>{{template "folder-list" .Folders}}</section>{{end}}
-  {{- if .Documents}}<section><h2 class="text-sm font-semibold">Pages</h2>{{template "folder-list" .Documents}}</section>{{end}}
+  {{- if .Recent}}<section class="grid gap-2"><h2 class="text-sm font-semibold">Recently changed</h2>{{template "entries" .Recent}}</section>{{end}}
+  {{- if or .Folders .Documents}}{{template "entries" .Folders}}{{template "entries" .Documents}}{{end}}
   {{- end}}
 </div>
 {{end}}

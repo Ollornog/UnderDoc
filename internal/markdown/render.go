@@ -18,20 +18,21 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// Canonical classes of the design system. Tests check every one of them against the vendored stylesheet.
+// Canonical classes of the design system. Tests check every one of them against the vendored stylesheet. Sizes are
+// compact, as in the approved mockup (ADR-16); the space between blocks comes from .typeset and its --flow token.
 const (
-	classH1         = "scroll-m-20 mb-4 text-4xl font-extrabold tracking-tight"
-	classH2         = "scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0"
-	classH3         = "scroll-m-20 text-2xl font-semibold tracking-tight"
-	classH4         = "scroll-m-20 text-xl font-semibold tracking-tight"
-	classParagraph  = "leading-7"
-	classList       = "my-2 ml-6 list-disc text-sm [&>li]:mt-1"
-	classOrdered    = "my-2 ml-6 list-decimal text-sm [&>li]:mt-1"
+	classH1         = "scroll-m-20 text-xl font-semibold tracking-tight"
+	classH2         = "scroll-m-20 text-lg font-semibold tracking-tight"
+	classH3         = "scroll-m-20 text-base font-semibold"
+	classH4         = "scroll-m-20 text-sm font-semibold"
+	classParagraph  = "leading-relaxed"
+	classList       = "ml-6 list-disc [&>li]:mt-1"
+	classOrdered    = "ml-6 list-decimal [&>li]:mt-1"
 	classQuote      = "text-muted-foreground mt-2 border-l-2 pl-6 italic"
 	classCode       = "code-inline"
 	classLink       = "font-medium underline underline-offset-4"
 	classCodeBlock  = "code-block w-full"
-	classTableBox   = "table-container my-4 w-full"
+	classTableBox   = "table-container w-full rounded-md border"
 	classTable      = "table text-sm"
 	classSeparator  = "separator"
 	classBrokenItem = "badge"

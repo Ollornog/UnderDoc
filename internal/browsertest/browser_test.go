@@ -556,7 +556,7 @@ func TestTreeFollowsThePage(t *testing.T) {
 	if got := b.eval(`document.querySelector('.workspace-nav[data-level="3"] [aria-current="page"]').textContent.trim()`); got != "Network plan" {
 		t.Errorf("current page: %s", got)
 	}
-	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.workspace-main h1').textContent`); got != "Home/ops/net|Network plan" {
+	if got := b.eval(`[...document.querySelectorAll('.breadcrumb a')].map(a => a.textContent.trim()).join('/') + '|' + document.querySelector('.workspace-main h1').textContent`); got != "ops/net|Network plan" {
 		t.Errorf("head: %s", got)
 	}
 }

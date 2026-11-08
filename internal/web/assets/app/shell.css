@@ -18,6 +18,30 @@ body { margin: 0; overflow: hidden; }
   --workspace-nav3: 300px;
 }
 
+/* The content of a page: compact, as in the mockup. The space between blocks is C22's --flow; the window has room for wide
+   content, so the measure grows a little. */
+.workspace-main > section .typeset { --flow: calc(var(--spacing) * 3); --measure: 52rem; }
+.workspace-main > section .typeset .table :is(th, td) { padding-block: calc(var(--spacing) * 1.5); }
+.workspace-main > section .typeset .table th { background: var(--muted); font-weight: var(--font-weight-medium); }
+
+/* Column headings with the narrower letter spacing of the mockup, so "Collections" and New fit beside each other. */
+.workspace-nav header { letter-spacing: var(--tracking-wide); }
+
+/* The head of the window, as in the mockup: a small path with small tags, the title larger below. */
+.workspace-main > header .breadcrumb { font-size: var(--text-xs); }
+.workspace-main > header .badge { font-size: var(--text-xs); font-weight: var(--font-weight-normal); color: var(--muted-foreground); border-radius: var(--radius-sm); }
+.workspace-main > header h1 { font-size: var(--text-2xl); font-weight: var(--font-weight-bold); }
+
+/* The line at the bottom of the window: words, characters, reading time and the format. */
+.ud-status { display: flex; justify-content: space-between; gap: 1rem; flex: none; padding: .3rem 1rem; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: var(--text-xs); }
+
+/* What lies inside a collection or folder: framed rows, the kind on the right. */
+.ud-entries { display: grid; gap: .4rem; max-width: 52rem; }
+.ud-entries > a { display: flex; align-items: center; gap: .6rem; padding: .55rem .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--foreground); text-decoration: none; }
+.ud-entries > a:hover { background: var(--accent); }
+.ud-entries svg { width: 1rem; height: 1rem; flex: none; color: var(--muted-foreground); }
+.ud-entries small { margin-left: auto; color: var(--muted-foreground); font-size: var(--text-xs); }
+
 /* A page of its own, such as the one for a request without the gate. */
 .ud-center { display: grid; place-items: center; min-height: 100dvh; padding: 1.5rem; }
 
