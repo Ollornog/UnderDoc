@@ -1,0 +1,994 @@
+// SPDX-License-Identifier: MIT
+// The workspace exactly as in the approved mockup (ADR-16), with real data where UnderDoc has a backend. Sprint 2026-11-08.
+
+const I = {
+  page:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+  folder:'<path d="M3 7h6l2 2h10v10H3z"/>',
+  table:'<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 15h18M9 5v14M15 5v14"/>',
+  excel:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 11l6 6M15 11l-6 6"/>',
+  images:'<rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/>',
+  view:'<path d="M4 5h16l-6 7v6l-4 2v-8z"/>',
+  db:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  chev:'<path d="m9 6 6 6-6 6"/>', panel:'<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 5v14"/>',
+  list:'<path d="M9 7h11M9 12h11M9 17h11M4 7h1M4 12h1M4 17h1"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  box:'<path d="M3 7h18v13H3zM3 7l3-3h12l3 3"/><path d="M12 11v5"/>', hd:'<rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 14h.01M11 14h6"/>'
+};
+const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const TYPE = {folder:['folder','Folder'],page:['page','Page'],table:['table','Table'],excel:['excel','Excel file'],images:['images','Image collection'],view:['view','Database view'],db:['db','Database']};
+const LOGO = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNzU4IDE3NTgiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iVW5kZXJEb2MiPjx0aXRsZT5VbmRlckRvYzwvdGl0bGU+PHN0eWxlPnBhdGh7ZmlsbDojMDAwfUBtZWRpYSAocHJlZmVycy1jb2xvci1zY2hlbWU6ZGFyayl7cGF0aHtmaWxsOiNmZmZ9fTwvc3R5bGU+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNNjg2IDQ5TDcwMSA1MFE3MTYgNTAgNzE5IDUxTDcxOSA1MVE3MjIgNTIgNzIzIDU0TDcyMyA1NFE3MjUgNTYgNzI2IDU4TDcyNiA1OFE3MjcgNjAgNzI3IDE1MEw3MjggMjk0TDczMCAyOTdMNzY2IDI5N0w3NjcgMjk4UTc2OCAyOTggNzc2IDI5OUw3NzYgMjk5UTc4NCAzMDAgNzkyIDMwMkw3OTIgMzAyUTgwMCAzMDUgODEzIDMxMkw4MTMgMzEyUTgyNiAzMjAgODQyIDMzNEw4NDIgMzM0UTg1NiAzNDcgODU5IDM1MUw4NTkgMzUxUTg2MiAzNTQgODYyIDM1OEw4NjIgMzYwTDgyNyAzOTZRNzkyIDQzMCA3ODkgNDM1TDc4OSA0MzVRNzg2IDQ0MCA3ODMgNDQ4TDc4MyA0NDhRNzgwIDQ1OCA3ODAgNDY1TDc3OSA0NzJMNzc4IDQ3NEw3NzggNDg2TDc3NyA0ODZMNzc3IDUwMkw3NzYgNTAyTDc3NiA1NDRMNzc3IDU0Nkw3NzcgNTUwUTc3NyA1NTQgNzgwIDU3Mkw3ODAgNTcyUTc4NCA1OTAgNzg4IDYwMEw3ODggNjAwUTc5MSA2MTAgNzk3IDYyM0w3OTcgNjIzUTgwMyA2MzYgODEyIDY0OEw4MTIgNjQ4UTgyMiA2NjIgODMzIDY3Mkw4MzMgNjcyUTg0NCA2ODMgODU4IDY5Mkw4NTggNjkyUTg3MiA3MDEgODg2IDcwOEw4ODYgNzA4UTkwMCA3MTQgOTE0IDcxOEw5MTQgNzE4UTkzMCA3MjMgOTQyIDcyNUw5NDIgNzI1UTk1NiA3MjcgOTU2IDcyOEw5NTYgNzI4TDk3NiA3MjlMOTc2IDczMEwxMDE4IDczMEwxMDIwIDcyOUwxMDMwIDcyOUwxMDMwIDcyOFExMDMwIDcyOCAxMDQwIDcyN0wxMDQwIDcyN1ExMDUwIDcyNiAxMDU2IDcyNEwxMDU2IDcyNFExMDYyIDcyMyAxMDYzIDcyM0wxMDY1IDcyNEwxMDY0IDcyNlExMDYyIDcyOCAxMDU2IDc0NEwxMDU2IDc0NFExMDUwIDc2MCAxMDQzIDc3NkwxMDQzIDc3NlExMDM2IDc5MiAxMDMyIDgwMkwxMDMyIDgwMlExMDI4IDgxNCAxMDI2IDgxNkwxMDI2IDgxNlExMDI1IDgxOCAxMDIzIDgyNEwxMDIzIDgyNFExMDIxIDgzMCAxMDA5IDg1OEwxMDA5IDg1OFE5OTcgODg2IDk5NiA4OTBMOTk2IDg5MFE5OTUgODkyIDk5NSA4OTZMOTk1IDg5NlE5OTUgOTAwIDk5NiA5MDJMOTk2IDkwMlE5OTcgOTA0IDk5OSA5MDdMOTk5IDkwN1ExMDAyIDkxMCAxMDQwIDkyNkwxMDQwIDkyNlExMDc4IDk0MSAxMDgwIDk0MkwxMDgwIDk0MlExMDgyIDk0NCAxMTA3IDk1NEwxMTA3IDk1NFExMTMyIDk2MyAxMTQwIDk2N0wxMTQwIDk2N1ExMTQ4IDk3MSAxMTY2IDk3OEwxMTY2IDk3OFExMTg0IDk4NCAxMTg2IDk4NEwxMTg2IDk4NFExMTkwIDk4NCAxMjc3IDk2MkwxMzMwIDk0OFExNDE4IDkyNiAxNDIxIDkyNEwxNDIxIDkyNFExNDI0IDkyMiAxNDMwIDkxNkwxNDMwIDkxNlExNDM1IDkxMCAxNDM4IDkwMEwxNDM4IDkwMFExNDQyIDg4OCAxNDQyIDg4MkwxNDQyIDg4MlExNDQzIDg3NiAxNDQ0IDg3MkwxNDQ0IDg3MlExNDQ1IDg2OCAxNDQ1IDg2MUwxNDQ1IDg2MVExNDQ1IDg1NCAxNDQwIDg0MEwxNDQwIDg0MFExNDM1IDgyNiAxNDI4IDgxMkwxNDI4IDgxMlExNDIwIDc5OCAxNDEzIDc5MEwxNDEzIDc5MFExNDA2IDc4MiAxMzgzIDc2MEwxMzgzIDc2MFExMzYwIDczOCAxMzU4IDczNEwxMzU4IDczNFExMzU2IDcyOCAxMzU2IDcwOUwxMzU2IDcwOVExMzU3IDY5MCAxMzU4IDY4OEwxMzU4IDY4OFExMzU4IDY4OCAxMzgxIDY3MUwxMzgxIDY3MVExNDA0IDY1NCAxNDA4IDY1MkwxNDA4IDY1MlExNDEwIDY1MSAxNDIyIDY1MEwxNDMyIDY1MEwxNDM0IDY0OUwxNDY2IDY0OFExNTAwIDY0OCAxNTE5IDY1NkwxNTE5IDY1NlExNTM4IDY2NCAxNTQyIDY2N0wxNTQyIDY2N1ExNTQ1IDY3MCAxNTQ2IDY3M0wxNTQ2IDY3M1ExNTQ4IDY3NiAxNTQ4IDcwMkwxNTQ4IDcwMlExNTQ4IDcyNiAxNTQ4IDcyOUwxNTQ4IDcyOVExNTQ3IDczMiAxNTM2IDc1NkwxNTM2IDc1NlExNTI0IDc4MCAxNTE5IDc5NUwxNTE5IDc5NVExNTE0IDgxMCAxNTE0IDgxMkwxNTE0IDgxMlExNTE0IDgxNCAxNTEyIDgyNEwxNTEyIDgyNFExNTA5IDgzNCAxNTA4IDgzOUwxNTA4IDgzOVExNTA4IDg0NCAxNTA3IDg0OEwxNTA3IDg0OFExNTA2IDg1MCAxNTA2IDg1M0wxNTA2IDg1M1ExNTA2IDg1NiAxNTA1IDg1OEwxNTA1IDg1OFExNTA0IDg2MiAxNTA0IDg2NEwxNTA0IDg2NFExNTA0IDg2NiAxNTAwIDg4NEwxNTAwIDg4NFExNDk3IDkwMiAxNDk0IDkyMUwxNDk0IDkyMVExNDkxIDk0MCAxNDg5IDk0NkwxNDg5IDk0NlExNDg3IDk1MiAxNDg1IDk1NkwxNDg1IDk1NlExNDgzIDk2MCAxNDc3IDk2NUwxNDc3IDk2NVExNDcwIDk3MSAxNDY0IDk3NEwxNDY0IDk3NFExNDU4IDk3NiAxNDQ1IDk3OEwxNDQ1IDk3OFExNDMyIDk4MSAxNDI2IDk4M0wxNDI2IDk4M1ExNDIwIDk4NSAxNDE4IDk4NUwxNDE4IDk4NVExNDE2IDk4NSAxMzkzIDk5MUwxMzkzIDk5MVExMzcwIDk5NyAxMzY4IDk5N0wxMzY4IDk5N1ExMzY2IDk5NyAxMzUyIDEwMDFMMTM1MiAxMDAxUTEzMzggMTAwNSAxMzM2IDEwMDVMMTMzNiAxMDA1UTEzMzQgMTAwNSAxMzE5IDEwMDlMMTMxOSAxMDA5UTEzMDQgMTAxMyAxMzAyIDEwMTNMMTMwMiAxMDEzUTEzMDAgMTAxMyAxMjgyIDEwMThMMTI4MiAxMDE4UTEyNjQgMTAyMyAxMjYyIDEwMjNMMTI2MiAxMDIzUTEyNjAgMTAyMyAxMjM4IDEwMjhMMTIzOCAxMDI4UTEyMTYgMTAzNCAxMjA5IDEwMzhMMTIwOSAxMDM4UTEyMDIgMTA0MSAxMTk3IDEwNDZMMTE5NyAxMDQ2UTExOTIgMTA1MiAxMTg1IDEwNjRMMTE4NSAxMDY0UTExNzggMTA3NiAxMTc2IDEwODJMMTE3NiAxMDgyUTExNzMgMTA4OCAxMTcyIDEwOTZMMTE3MiAxMDk2UTExNzAgMTEwMiAxMTcwIDExMTZMMTE2OSAxMTMwTDExNjggMTEzMkwxMTY5IDE0NjBMMTE1MyAxNDcyUTExMzYgMTQ4MyAxMTI0IDE0OTFMMTEyNCAxNDkxUTExMTAgMTQ5OSAxMDk5IDE1MDdMMTA5OSAxNTA3UTEwODggMTUxNSAxMDg0IDE1MTdMMTA4NCAxNTE3UTEwODAgMTUxOSAxMDUwIDE1MzlMMTA1MCAxNTM5UTEwMjIgMTU1OSAxMDAyIDE1NzFMMTAwMiAxNTcxUTk4MiAxNTgzIDk4MSAxNTg0TDk4MSAxNTg0UTk4MCAxNTg2IDkwNCAxNjM2TDc5NCAxNzA5TDc5MiAxNzA4UTc5MCAxNzA4IDc4MiAxNzAyTDc4MiAxNzAyUTc3NCAxNjk2IDczMCAxNjY1TDczMCAxNjY1UTY4NiAxNjM0IDY0NCAxNjAzTDY0NCAxNjAzUTYwMiAxNTcyIDU5NiAxNTY4TDU5NiAxNTY4UTU5MCAxNTY0IDU2OCAxNTQ4TDU2OCAxNTQ4UTU0NiAxNTMxIDUyOSAxNTIwTDUyOSAxNTIwUTUxMiAxNTA4IDUxMCAxNTA2TDUxMCAxNTA2UTUwOCAxNTA0IDQ3NCAxNDgwTDQ3NCAxNDgwUTQ0MCAxNDU2IDQyNiAxNDQ0TDQyNiAxNDQ0UTQxMCAxNDMzIDMzNyAxMzgxTDMwNSAxMzU3UTIzMiAxMzA1IDIyMSAxMjk2TDIxMCAxMjg4TDIxMSAxMjg1UTIxMiAxMjgyIDIyNiAxMjYyTDIyNiAxMjYyUTI0MCAxMjQyIDI1MSAxMjI4TDI1MSAxMjI4UTI2MiAxMjE0IDMxNCAxMTQwTDM2NiAxMDY5UTQxOCA5OTYgNDIwIDk5M0w0MjAgOTkzUTQyMSA5OTAgNDIyIDk4NEw0MjIgOTg0UTQyNCA5NzggNDI4IDk0OEw0MjggOTQ4UTQzMSA5MTggNDMyIDkxN0w0MzIgOTE2TDQzMiA5MTRRNDMyIDkxMCA0MzQgOTAzTDQzNCA5MDNRNDM1IDg5NiA0MzUgODkyTDQzNSA4ODhMNDM2IDg4OFE0MzYgODg4IDQzOCA4NzBMNDM4IDg3MFE0NDAgODUyIDQ0MiA4NDRMNDQyIDg0NFE0NDMgODM2IDQ0NSA4MThMNDQ1IDgxOFE0NDcgNzk4IDQ0OCA3OThMNDQ4IDc5OFE0NDggNzk4IDQ1MCA3ODRMNDUwIDc4NFE0NTEgNzcwIDQ1MiA3NjlMNDUyIDc2OEw0NTIgNzY2UTQ1MiA3NjIgNDU0IDc1NUw0NTQgNzU1UTQ1NSA3NDggNDU2IDc0MEw0NTYgNzMyTDQ1NiA3MzJRNDU3IDczMiA0NTkgNzE0TDQ1OSA3MTRRNDYxIDY5NiA0NjIgNjk1TDQ2MiA2OTRMNDYyIDY4OEw0NjMgNjg4TDQ2MyA2ODRRNDYzIDY4MiA0NjQgNjc0TDQ2NCA2NzRRNDY2IDY2NiA0NjggNjQ0TDQ2OCA2NDRRNDcxIDYyMiA0NzIgNjIyTDQ3MiA2MjJRNDcyIDYyMiA0NzQgNjAyTDQ3NCA2MDJRNDc3IDU4MiA0NzggNTgxTDQ3OCA1ODBMNDc4IDU3Mkw0NzkgNTcyTDQ3OSA1NjRMNDgwIDU2Mkw0ODAgNTU4UTQ4MCA1NTQgNDgxIDU1MEw0ODIgNTQ0TDQ4MCA1NDJRNDc5IDU0MCA0MjAgNDgwTDQyMCA0ODBRMzYwIDQyMiAzNTcgNDE2TDM1NyA0MTZRMzU0IDQxMiAzNTIgNDA2TDM1MiA0MDZRMzUxIDQwMiAzNTEgMzk0TDM1MSAzOTRRMzUxIDM4NiAzNTMgMzc5TDM1MyAzNzlRMzU1IDM3MiAzNTcgMzY4TDM1NyAzNjhRMzU5IDM2NCA0MjMgMzAxTDU5MyAxMzFRNjU2IDY3IDY2NiA1OUw2NjYgNTlRNjc0IDUxIDY4MCA1MEw2ODAgNTBRNjg0IDUwIDY4NSA1MEw2ODYgNDlaTTExOTAgMTEwTDEyMDAgMTEwUTEyMDggMTEwIDEyMTQgMTEyTDEyMTQgMTEyUTEyMjAgMTEzIDEyMzAgMTE4TDEyMzAgMTE4UTEyNDAgMTIzIDEyNDIgMTI0TDEyNDMgMTI2TDEyNDMgMTI4TDEyNDAgMTMxUTEyMzYgMTM0IDEyMzMgMTM2TDEyMzMgMTM2UTEyMzAgMTM3IDEyMjUgMTQwTDEyMjUgMTQwUTEyMjAgMTQzIDEyMDMgMTUyTDEyMDMgMTUyUTExODYgMTYwIDExNzEgMTY4TDExNzEgMTY4UTExNTYgMTc2IDExNTQgMTc4TDExNTQgMTc4UTExNTIgMTgwIDExNTAgMTgyTDExNTAgMTgyUTExNDkgMTg0IDExNDggMTg4TDExNDggMTkyTDExNDkgMTkyTDExNDkgMjA4TDExNTAgMjA4TDExNTAgMjI0TDExNTEgMjI2TDExNTMgMjY4TDExNTQgMjY4TDExNTcgMzI0TDExNTggMzI2TDExNTggMzMwUTExNTggMzM0IDExNTYgMzM3TDExNTQgMzQwTDEwODQgMzQyUTEwMTQgMzQzIDk3NSAzMzFMOTc1IDMzMVE5MzYgMzE5IDkzNSAzMTlMOTM1IDMxOVE5MzQgMzE5IDkzMiAzMThMOTMyIDMxOFE5MzAgMzE3IDkxMCAzMTJMOTEwIDMxMlE4OTIgMzA3IDg4OCAzMDZMODg4IDMwNlE4ODQgMzA0IDg4MyAzMDRMODgzIDMwNFE4ODIgMzA0IDg3OCAzMDJMODc4IDMwMlE4NzQgMzAxIDg3MyAzMDFMODczIDMwMVE4NzIgMzAxIDg2NiAyOTlMODY2IDI5OVE4NjIgMjk3IDg1OSAyOTRMODU2IDI5Mkw4NTYgMjkwUTg1NiAyOTAgODY2IDI2OUw4NjYgMjY5UTg3NyAyNDggODg4IDIyOUw4ODggMjI5UTg5OSAyMTAgOTA3IDE5NEw5MDcgMTk0UTkxNSAxNzggOTIxIDE2OUw5MjEgMTY5UTkyNyAxNjAgOTMzIDE1Nkw5MzMgMTU2UTkzOCAxNTEgOTQ0IDE0OEw5NDQgMTQ4UTk1MCAxNDYgOTY0IDE0NEw5NjQgMTQ0UTk3NiAxNDIgOTc3IDE0Mkw5NzcgMTQyUTk3OCAxNDEgOTkxIDE0MEw5OTEgMTQwUTEwMDQgMTM4IDEwMDggMTM3TDEwMDggMTM3UTEwMTIgMTM2IDEwNDkgMTMxTDEwNDkgMTMxUTEwODYgMTI2IDEwOTcgMTI0TDEwOTcgMTI0UTExMDggMTIyIDExMTEgMTIyTDExMTEgMTIyUTExMTQgMTIyIDExMTggMTIxTDExMTggMTIxUTExMjIgMTIwIDExMzggMTE4TDExMzggMTE4UTExNTYgMTE2IDExNTYgMTE2TDExNTYgMTE2UTExNTYgMTE1IDExNjYgMTE0TDExNjYgMTE0UTExNzYgMTEzIDExNzkgMTEyTDExNzkgMTEyUTExODIgMTExIDExODYgMTExTDExOTAgMTExTDExOTAgMTEwWk0xMTUwIDM4NkwxMjA4IDM4NkwxMjA4IDM4N0wxMjc2IDM4OEwxMjc2IDM4OUwxMjkyIDM4OUwxMjk0IDM5MEwxMzA2IDM5MEwxMzA4IDM5MUwxMzIwIDM5MUwxMzIwIDM5MkwxMzM0IDM5MkwxMzM0IDM5M0wxMzQ2IDM5M0wxMzQ4IDM5NEwxNDA2IDM5OEwxNDA4IDM5OUwxNDEyIDM5OVExNDE2IDM5OSAxNDE5IDQwMEwxNDE5IDQwMFExNDIyIDQwMiAxNDQ2IDQyNUwxNDQ2IDQyNVExNDcwIDQ0OCAxNDcyIDQ1MkwxNDcyIDQ1MlExNDc0IDQ1NiAxNDc0IDQ5OUwxNDczIDU0MkwxNDcyIDU0MkwxNDcyIDU1NVExNDcxIDU2OCAxNDcwIDU3NEwxNDcwIDU3NFExNDY4IDU4MCAxNDY2IDU4NkwxNDY2IDU4NlExNDY0IDU5MCAxNDYyIDU5NEwxNDYyIDU5NFExNDYwIDU5OCAxNDU3IDYwMUwxNDU3IDYwMVExNDU0IDYwNCAxNDUwIDYwNkwxNDUwIDYwNlExNDQ2IDYwNyAxNDQwIDYwN0wxNDQwIDYwN1ExNDM0IDYwNyAxNDI1IDYwNEwxNDI1IDYwNFExNDE2IDYwMSAxNDA4IDYwMEwxNDA4IDYwMFExNDAwIDU5OCAxMzk4IDU5N0wxMzk4IDU5N1ExMzk2IDU5NiAxMzU4IDU4NkwxMzU4IDU4NlExMzIwIDU3NyAxMzE4IDU3NkwxMzE4IDU3NlExMzE2IDU3NSAxMzA2IDU3M0wxMzA2IDU3M1ExMjk2IDU3MSAxMjg4IDU2OEwxMjg4IDU2OFExMjgwIDU2NiAxMjc4IDU2NkwxMjc4IDU2NlExMjc2IDU2NiAxMjY4IDU2NEwxMjY4IDU2NFExMjYwIDU2MSAxMjU3IDU1OEwxMjU3IDU1OFExMjU0IDU1NiAxMjUwIDU1MkwxMjUwIDU1MlExMjQ3IDU0OCAxMjQ0IDU0MUwxMjQ0IDU0MVExMjQxIDUzNCAxMjQwIDQ5OEwxMjM5IDQ2MkwxMTkwIDQ2M0wxMTkwIDQ2NEwxMTc5IDQ2NEwxMTc4IDQ5MEwxMTc3IDQ5MEwxMTc3IDUyMkwxMTc2IDUyNEwxMTc1IDU0NkwxMTc0IDU0OEwxMTc0IDU1MFExMTc0IDU1NCAxMTcyIDU2NEwxMTcyIDU2NFExMTcwIDU3NCAxMTY2IDU4NkwxMTY2IDU4NlExMTYxIDYwMCAxMTU0IDYxMUwxMTU0IDYxMVExMTQ4IDYyMiAxMTQ0IDYyN0wxMTQ0IDYyN1ExMTQxIDYzMiAxMTM0IDYzOEwxMTM0IDYzOFExMTI4IDY0NSAxMTE2IDY1M0wxMTE2IDY1M1ExMTA2IDY2MSAxMDk4IDY2NUwxMDk4IDY2NVExMDkwIDY2OSAxMDc4IDY3NEwxMDc4IDY3NFExMDY2IDY3OCAxMDU2IDY4MEwxMDU2IDY4MFExMDQ0IDY4MyAxMDM4IDY4NEwxMDMwIDY4NEwxMDMwIDY4NUw5ODIgNjg2TDk4MCA2ODVMOTY2IDY4NUw5NjQgNjg0TDk1NyA2ODRROTUwIDY4MyA5MzMgNjc4TDkzMyA2NzhROTE2IDY3NCA5MDQgNjY4TDkwNCA2NjhRODkwIDY2MiA4ODEgNjU2TDg4MSA2NTZRODcyIDY0OSA4NjIgNjQwTDg2MiA2NDBRODUzIDYzMCA4NDggNjI0TDg0OCA2MjRRODQ0IDYxOCA4MzggNjA4TDgzOCA2MDhRODMzIDU5OCA4MzAgNTg4TDgzMCA1ODhRODI2IDU3OCA4MjQgNTY3TDgyNCA1NjdRODIxIDU1NiA4MjAgNTQ4TDgyMCA1NDBMODE5IDU0MEw4MTkgNTE2TDgyMCA1MTZMODIxIDQ5M1E4MjIgNDcwIDgyMiA0NjhMODIyIDQ2OFE4MjMgNDY2IDgyNiA0NjFMODI2IDQ2MVE4MjggNDU2IDg1OSA0MjZMODU5IDQyNlE4OTAgMzk2IDg5MyAzOTRMODkzIDM5NFE4OTYgMzkzIDkwNiAzOTNMOTE0IDM5M0w5MTYgMzkyTDEwMTQgMzkwTDEwMTQgMzg5TDEwNTIgMzg5TDEwNTIgMzg4TDExNDggMzg3TDExNTAgMzg2Wk0xMDQ0IDQzOEwxMDQ0IDQzOUwxMDEyIDQzOUwxMDEwIDQ0MEw5NzggNDQwTDk3OCA0NDFMOTM0IDQ0Mkw5MzQgNDQzTDkzMCA0NDNROTI2IDQ0MyA5MjIgNDQ1TDkyMiA0NDVROTE2IDQ0NyA5MDMgNDYwTDkwMyA0NjBRODkwIDQ3MiA4OTAgNDc0TDg5MCA0NzRRODg5IDQ3NiA4ODggNDg0TDg4OCA0OTJMODg5IDQ5NEw4ODkgNTA4TDg5MCA1MTBMODkwIDUyNEw4OTEgNTI0TDg5MSA1NDBMODk0IDU0MUw4OTQgNTQwUTg5NiA1MzkgOTA2IDUzNEw5MDYgNTM0UTkxOCA1MjggOTUyIDUwOEw5NTIgNTA4UTk4NiA0ODcgMTAyOCA0NjRMMTAyOCA0NjRRMTA3MCA0NDAgMTA3MCA0MzlMMTA3MCA0MzhMMTA0NCA0MzhaTTU1MCA4MTZMNTUwIDgxN1E1NTAgODE4IDU1MSA4MjBMNTUxIDgyMFE1NTIgODIyIDU1OCA4NDRMNTU4IDg0NFE1NjMgODY2IDU2NCA4NjhMNTY0IDg2OFE1NjUgODcwIDU3NiA5MTZMNTc2IDkxNlE1ODggOTYyIDU4OSA5NjRMNTg5IDk2NFE1OTAgOTY2IDU5NCA5ODJMNTk0IDk4MlE1OTcgOTk2IDU5OCA5OThMNTk4IDk5OFE1OTkgMTAwMCA2MDAgMTAwNEw2MDAgMTAwNFE2MDAgMTAwOCA2MDEgMTAxMEw2MDEgMTAxMFE2MDIgMTAxMiA2MDggMTAzM0w2MTQgMTA1NEw2MjEgMTA1NlE2MjggMTA1NyA2MzQgMTA1N0w2NDAgMTA1N0w2NDAgMTA1OEw2NjQgMTA1OUw2NjQgMTA2MEw2NzggMTA2MEw2ODAgMTA2MUw2OTQgMTA2MUw2OTQgMTA2Mkw3MDYgMTA2Mkw3MDggMTA2M0w3MTggMTA2M0w3MjAgMTA2NEw3MzIgMTA2NEw3MzIgMTA2NUw3NDQgMTA2NUw3NDQgMTA2Nkw3NTkgMTA2N1E3NzQgMTA2OCA3ODAgMTA3MEw3ODAgMTA3MFE3ODYgMTA3MiA4MzUgMTA5Mkw4ODMgMTExMkw4ODMgMTExMVE4ODIgMTExMCA4NTIgMTA4N0w4NTIgMTA4N1E4MjAgMTA2NCA4MDcgMTA1M0w4MDcgMTA1M1E3OTQgMTA0MiA3OTAgMTA0MEw3OTAgMTA0MFE3ODYgMTAzNyA3NjYgMTAzMkw3NjYgMTAzMlE3NDggMTAyOCA3MzggMTAyNkw3MzggMTAyNlE3MjggMTAyNSA3MjYgMTAyNEw3MjYgMTAyNFE3MjQgMTAyMyA3MTYgMTAyMkw3MTYgMTAyMlE3MTAgMTAyMSA3MDcgMTAyMEw3MDcgMTAyMFE3MDQgMTAxOSA2ODAgMTAxNEw2NTQgMTAwOUw2MzkgOTgyUTYyNCA5NTQgNjE0IDkzNEw2MTQgOTM0UTYwMyA5MTIgNTk2IDkwMkw1OTYgOTAyUTU5MCA4OTAgNTgxIDg3Mkw1ODEgODcyUTU3MiA4NTQgNTYxIDgzNUw1NTAgODE2WiIvPjwvc3ZnPgo=';
+
+/* Made-up example content */
+const P = (intro, ...secs) => ({intro, secs});
+const D = {
+  net:{t:'folder',n:'Network',kids:['plan','tickets'],path:'operations/network/',why:'Default roles for everything below.',vis:'Group ops'},
+  plan:{t:'page',n:'Network plan',w:'wide',kids:['vlans','ports'],path:'operations/network/plan.md',by:'A. Keller',ch:'today 09:41 by A. Keller',vis:'Group ops, inherited',
+    uses:{ext:['vendor manual'],int:['VLAN list','On-call handbook'],data:['Site photos'],vals:['router.ip','tower.height'],db:['Inventory · Open tickets']},usedIn:['On-call handbook','Tower 50 m'],
+    doc:P('The site has one router, two core switches and a radio link on the tower.',['Overview','<p>The router sits at <span class="v">10.0.0.1</span> (value <span class="v">{{router.ip}}</span>). The tower is <span class="v">50 m</span> high (value <span class="v">{{tower.height}}</span>), which sets the range of the radio link.</p><div class="note">Mermaid diagrams come with M-3. They render here, inside the same window.</div>'],['Core switches','<p>Both core switches form one stack. See <button class="l" data-act="open" data-id="ports">Switch ports</button>.</p><div class="tw"><table><tr><th>Name</th><th>Room</th><th>Uplink</th></tr><tr><td>core-a</td><td>Server room</td><td>10 Gbit</td></tr><tr><td>core-b</td><td>Workshop</td><td>10 Gbit</td></tr></table></div>'],['Radio link','<p>The radio link runs from the tower to the gatehouse. Check it after every storm.</p><p>Keep a spare antenna in the workshop, and note each swap in the handbook.</p>'],['Open tickets','<p>This table comes from the view <button class="l" data-act="open" data-id="tickets">Open tickets</button> and shows how old its data is.</p><div class="tw"><table><tr><th>#</th><th>Title</th><th>Owner</th></tr><tr><td>412</td><td>Replace fan in core-b</td><td>A. Keller</td></tr><tr><td>415</td><td>Label patch panel</td><td>J. Roth</td></tr></table></div>'],['Change log','<p>2026-10-02: new uplink on core-b.</p><p>2026-09-14: radio link firmware.</p><p>2026-08-30: tower antenna replaced.</p>'])},
+  vlans:{t:'page',n:'VLAN list',w:'slim',kids:[],path:'operations/network/plan/vlans.md',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',uses:{ext:[],int:['Network plan'],data:[],vals:[],db:[]},usedIn:['Network plan'],
+    doc:P('Every VLAN on the site.',['Office','<p>VLAN 10, for desks and printers.</p>'],['Devices','<p>VLAN 20, for cameras and sensors.</p>'])},
+  ports:{t:'table',n:'Switch ports',w:'wide',kids:[],path:'not a file, lives in the database',by:'J. Roth',ch:'yesterday',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['Network plan'],
+    tab:{note:'Native table: edit rows here, with history per row (M-6).',head:['Port','Device','VLAN','Status'],rows:[['1/1','core-b','trunk','up'],['1/2','camera gate','20','up'],['1/3','printer office','10','up'],['1/4','(free)','–','down'],['1/5','radio link','trunk','up']]}},
+  tickets:{t:'view',n:'Open tickets',w:'wide',kids:[],path:'not a file, a saved query',by:'J. Roth',ch:'Oct 30',vis:'Group ops',uses:{ext:[],int:[],data:[],vals:[],db:['Inventory']},usedIn:['Network plan'],
+    tab:{note:'From the database Inventory. Data is 4 minutes old (M-4).',head:['#','Title','Owner','Age'],rows:[['412','Replace fan in core-b','A. Keller','3 d'],['415','Label patch panel','J. Roth','1 d'],['416','Renew switch license','A. Keller','4 h']]}},
+  logs:{t:'folder',n:'Site logs (11 children, stays closed)',kids:Array.from({length:11},(_,i)=>'log'+i),path:'operations/site-logs/',why:'More children than the limit below, so it does not open by itself.',vis:'Group ops'},
+  hand:{t:'page',n:'On-call handbook',w:'slim',kids:['esc','cont'],path:'operations/on-call.md',by:'M. Sander',ch:'Oct 29',vis:'Everyone in the company',uses:{ext:['status page'],int:['Network plan'],data:[],vals:['router.ip'],db:[]},usedIn:[],
+    doc:P('What to do when something breaks at night.',['First five minutes','<p>Open the <button class="l" data-act="open" data-id="plan">Network plan</button> next to this page. Check the router at <span class="v">10.0.0.1</span>.</p>'],['Who to call','<p>See the <button class="l" data-act="open" data-id="cont">Contacts</button> table below this page.</p>'],['After the incident','<p>Write down what happened on the same day.</p>'])},
+  esc:{t:'page',n:'Escalation',w:'slim',kids:[],path:'operations/on-call/escalation.md',by:'M. Sander',ch:'Oct 12',vis:'Everyone, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['On-call handbook'],doc:P('Who decides what, and when.',['Levels','<p>Level one fixes, level two decides.</p>'],['Times','<p>Fifteen minutes per level.</p>'])},
+  cont:{t:'table',n:'Contacts',w:'slim',kids:[],path:'not a file, lives in the database',by:'M. Sander',ch:'Oct 20',vis:'Everyone, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['On-call handbook'],tab:{note:'Native table. A changed number shows on every page that embeds it.',head:['Name','Role','Phone'],rows:[['A. Keller','Network','+00 555 0101'],['J. Roth','Site','+00 555 0102'],['M. Sander','Lead','+00 555 0103']]}},
+  tower:{t:'page',n:'Tower 50 m',w:'full',kids:['dims','photos'],path:'projects/tower.md',by:'J. Roth',ch:'Oct 31',vis:'Project team',uses:{ext:[],int:['Network plan'],data:['Tower dimensions','Site photos'],vals:['tower.height'],db:[]},usedIn:['Network plan'],
+    doc:P('This page asks for the full width, so the left navigation hides while its window is active.',['Status','<p>The tower stands at <span class="v">50 m</span>. Foundation and first segment are done.</p>'],['Dimensions','<p>From the named table in <button class="l" data-act="open" data-id="dims">Tower dimensions</button>.</p>'],['Photos','<p>See <button class="l" data-act="open" data-id="photos">Site photos</button>.</p>'])},
+  dims:{t:'excel',n:'Tower dimensions',w:'wide',kids:[],path:'projects/tower/tower-dimensions.xlsx',by:'J. Roth (from the share log)',ch:'today 08:12 by J. Roth, over the share',vis:'Project team, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['Tower 50 m'],
+    tab:{note:'Excel file on the share: open it in Excel or LibreOffice, and the web shows the same file. Share path: \\\\server\\projects\\tower\\tower-dimensions.xlsx (M-2).',head:['Segment','Height (m)','Diameter (m)'],rows:[['Base','12','4.2'],['Middle','20','3.4'],['Top','18','2.6']]}},
+  photos:{t:'images',n:'Site photos',w:'wide',kids:[],path:'projects/tower/photos/',by:'J. Roth',ch:'Oct 18',vis:'Project team, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['Tower 50 m','Network plan']},
+  inv:{t:'db',n:'Inventory',w:'wide',kids:['tickets2'],path:'not a file, a connection (Resources tab)',by:'A. Keller',ch:'Sep 02',vis:'Group ops',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:['Open tickets'],
+    tab:{note:'A connection, placed here as well. It exists once: the Resources tab lists the same object.',head:['Table','Rows','Read only'],rows:[['devices','1,204','yes'],['tickets','318','yes'],['sites','14','yes']]}},
+  tickets2:{t:'view',n:'Devices by site',w:'wide',kids:[],path:'not a file, a saved query',by:'A. Keller',ch:'Sep 03',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:['Inventory']},usedIn:[],tab:{note:'A saved query below its database.',head:['Site','Devices'],rows:[['Main','842'],['Gatehouse','362']]}},
+  n1:{t:'page',n:'Ideas for the workshop',w:'slim',kids:[],path:'not a file yet, private note',by:'you',ch:'today',vis:'Only you',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('A private note, in your own collection.',['Shelves','<p>Move spare parts next to the door.</p>'],['Labels','<p>Print new ones.</p>'])},
+};
+for (let i=0;i<11;i++) D['log'+i]={t:'page',n:'Log week '+(30+i),w:'slim',kids:[],path:`operations/site-logs/week-${30+i}.md`,by:'J. Roth',ch:'Oct',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('Weekly site log.',['Work','<p>Routine checks.</p>'],['Notes','<p>Nothing unusual.</p>'])};
+const C = [{id:'ops',n:'Operations',top:['net','logs','hand']},{id:'pro',n:'Projects',top:['tower','inv']},{id:'me',n:'My notes',top:['n1']}];
+function bodyHtml(w,i){
+  const d=D[w.d]; const hs=d.doc?d.doc.secs.map(s=>s[0]):[]; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
+  let h='';
+  if(d.doc) h+=(d.real?d.doc.intro:`<p>${d.doc.intro}</p>`)+d.doc.secs.map((s,j)=>`<h2 id="w${i}h${j}">${s[0]}</h2>${s[1]}`).join('');
+  if(d.tab) h+=`<div class="note">${d.tab.note}</div><div class="tw"><table><tr>${d.tab.head.map(x=>`<th>${x}</th>`).join('')}</tr>${d.tab.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div>`;
+  if(d.t==='images'){const tones=[['oklch(45% .06 240)','Base, north'],['oklch(50% .05 150)','Foundation'],['oklch(42% .04 40)','Segment 2'],['oklch(38% .05 280)','Crane'],['oklch(48% .03 200)','Antenna'],['oklch(36% .02 100)','Gatehouse']];h+=`<div class="note">These images lie in a folder on the disk. This collection only shows them.</div><div class="imgs">${tones.map(t=>`<div data-style="background:${t[0]}">${t[1]}</div>`).join('')}</div>`;}
+  if(d.t==='folder') h+=`<p>${d.why}</p>`;
+  if(d.kids.length) h+=`${d.t==='folder'||d.t==='coll'?'':'<h2>Below this document</h2>'}<div class="kids">${d.kids.filter(shown).map(k=>`<button data-act="open" data-id="${k}">${ic(D[k].i||TYPE[D[k].t][0])}<span>${D[k].n}</span><em>${TYPE[D[k].t][1]}</em></button>`).join('')}</div>`;
+  if(d.html) h=d.t==='coll'?d.html+h:h+d.html;
+  return {h,hs};
+}
+Object.assign(I,{chat:'<path d="M4 5h16v11H9l-5 4z"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  pin:'<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v6"/>', more:'<path d="M5 12h.01M12 12h.01M19 12h.01"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/>', star:'<path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.7l6.2-.9z"/>',
+  code:'<path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/>', pulse:'<path d="M3 12h4l3-8 4 16 3-8h4"/>', flag:'<path d="M5 21V4h13l-3 4 3 4H5"/>',
+  pencil:'<path d="m4 20 4-1L19 8l-3-3L5 16z"/>', back:'<path d="m15 6-6 6 6 6"/>', layout:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M8 4v16M3 10h5M3 15h5"/>', split:'<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M12 5v14"/>',up:'<path d="m6 15 6-6 6 6"/>', down:'<path d="m6 9 6 6 6-6"/>'});
+const TAGS_={net:['network'],plan:['network','main-site'],vlans:['network'],ports:['network','hardware'],tickets:['network'],hand:['on-call'],esc:['on-call'],cont:['on-call','people'],tower:['tower','main-site'],dims:['tower'],photos:['tower','main-site'],inv:['hardware'],tickets2:['hardware'],n1:['idea']};
+const TAGS=TAGS_;
+Object.assign(I,{check:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 3 3 5-6"/>',board:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M9 4v16M15 4v16"/>',
+  video:'<rect x="3" y="5" width="18" height="14" rx="1"/><path d="m10 9 5 3-5 3z"/>',slides:'<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M12 16v4M8 20h8"/>',
+  note:'<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="1"/><path d="m3 7 9 6 9-6"/>',
+  net:'<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/>',send:'<path d="M21 3 3 10l7 3 3 7z"/>',cal:'<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',grid:'<rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/>',lock:'<rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',opennew:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/>',quote:'<path d="M9 7H5v6h4zM19 7h-4v6h4zM9 13c0 2-1 4-3 4M19 13c0 2-1 4-3 4"/>',spark:'<path d="M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/>',ai:'<path d="M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/><path d="M19 3v4M17 5h4"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/>',plus:'<path d="M12 5v14M5 12h14"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'});
+Object.assign(TYPE,{todo:['check','To-do list'],kanban:['board','Kanban board'],video:['video','Video'],slides:['slides','PowerPoint'],notes:['note','Quick notes']});
+const none={uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[]};
+D.ttodo={t:'todo',n:'Tower tasks',kids:[],path:'not a file, lives in the database',by:'J. Roth',ch:'today',vis:'Project team, inherited',...none,
+  items:[{t:'Order the second segment',done:true},{t:'Book the crane',done:true},{t:'Inspect the foundation',done:false},{t:'Mount the antenna',done:false},{t:'Update the network plan',done:false}],
+  get stat(){return `${this.items.filter(x=>x.done).length} of ${this.items.length} done`;},
+  get html(){return `<div class="todos">${this.items.map((x,k)=>`<button class="todo${x.done?' done':''}" data-act="todo" data-id="${k}" aria-pressed="${x.done}">${x.done?ic('check'):'<span class="box"></span>'}<span>${x.t}</span></button>`).join('')}</div>`;}};
+D.tboard={t:'kanban',n:'Tower board',w:'full',kids:[],path:'not a file, lives in the database',by:'J. Roth',ch:'today',vis:'Project team, inherited',...none,stat:'6 cards in 3 columns',
+  html:`<div class="note">A board is another view of a list, so the to-do list above could show like this too. Dragging cards comes with M-6.</div><div class="board">${[['To do',['Mount the antenna','Update the network plan']],['Doing',['Inspect the foundation','Paint the top segment']],['Done',['Order the second segment','Book the crane']]].map(c=>`<section><h3>${c[0]} <em>${c[1].length}</em></h3>${c[1].map(x=>`<div class="kard">${x}</div>`).join('')}</section>`).join('')}</div>`};
+D.walk={t:'video',n:'Site walkthrough',w:'wide',kids:[],path:'operations/network/walkthrough.mp4',by:'A. Keller',ch:'Oct 12',vis:'Group ops, inherited',...none,stat:'12:34 · 48 MB',
+  html:`<div class="vid" role="img" aria-label="Video player">${ic('video')}<span>0:00 / 12:34</span></div><p class="lab" data-style="margin-top:8px">The file lies on the share. The browser plays it, nothing is copied.</p>`};
+D.deck={t:'slides',n:'Kickoff slides',w:'wide',cur:0,kids:[],path:'projects/tower/kickoff.pptx',by:'J. Roth',ch:'Sep 30',vis:'Project team, inherited',...none,
+  titles:['Tower 50 m','Why we build','Schedule','Open questions'],
+  get stat(){return `Slide ${this.cur+1} of ${this.titles.length}`;},
+  get html(){return `<div class="slide">${this.titles[this.cur]}</div><div class="thumbs">${this.titles.map((x,k)=>`<button class="thumb" data-act="slide" data-id="${k}" aria-pressed="${k===this.cur}"><b>${k+1}</b>${x}</button>`).join('')}</div><p class="lab" data-style="margin-top:8px">Read-only preview. To edit, open the file in PowerPoint or LibreOffice over the share.</p>`;}};
+D.qn={t:'notes',n:'Quick notes',w:'full',kids:[],path:'not a file, private notes',by:'you',ch:'today',vis:'Only you',...none,
+  notes:[{h:'Call the crane company',b:'Ask for the Tuesday slot.'},{h:'',b:'Spare antenna: check the shelf in the workshop.'},{h:'Shopping',b:'Cable ties\nLabels\nGloves'},{h:'Idea',b:'Put the tower height on the start page.'},{h:'',b:'Rack photo is out of date.'}],
+  get stat(){return `${this.notes.length} notes`;},
+  get html(){return `<input class="noteadd" data-addnote placeholder="Take a note, then Enter" aria-label="Take a note"><div class="keep">${this.notes.map(n=>`<div class="kard">${n.h?`<b>${esc(n.h)}</b>`:''}<span>${esc(n.b).replace(/\n/g,'<br>')}</span></div>`).join('')}</div>`;}};
+D.tower.kids=[...D.tower.kids,'ttodo','tboard','deck'];
+D.net.kids=[...D.net.kids,'walk'];
+C.find(c=>c.id==='me').top=['qn','n1'];
+Object.assign(TAGS,{ttodo:['tower'],tboard:['tower'],deck:['tower'],walk:['network'],qn:['idea']});
+D.plan.desc='Router, core switches and the radio link of the main site.';D.plan.cby='J. Roth';D.plan.created='Sep 12';D.tower.desc='Build of the 50 m tower: status, dimensions and photos.';D.hand.desc='What to do when something breaks at night.';
+D.tower.doc.intro='This page stores the width full, so it uses all the room its window has. The navigation stays where it is.';
+D.hand.toc='side';
+D.old={t:'page',n:'Old offer notes',w:'slim',kids:[],path:'archive/old-offer.md',by:'A. Keller',ch:'Mar 04',vis:'Group ops',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('Kept for reference.',['Result','<p>Not ordered.</p>'],['Reason','<p>Too expensive.</p>'])};
+Object.entries(D).forEach(([k,d])=>{d.w=d.w||'slim';d.toc=d.toc||'marker';d.tags=TAGS[k]||[];});
+const ICON={ops:'pulse',pro:'flag',me:'pencil',arc:'box'};
+C.push({id:'arc',n:'Archive',top:['old']});
+C.forEach(c=>c.i=ICON[c.id]);
+/* A collection is an object like a document: it has an ID, opens in a window with its overview, and can sit inside another collection. */
+TYPE.coll=['grid','Collection'];
+function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tags:[],path:'not a file, a collection',by:'A. Keller',ch:'Oct 31',vis:'Group ops',...none,
+  get stat(){return `${this.kids.length} entries`;},
+  get html(){const ac=accOf(id);return `<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd><dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd><dt>Visible to</dt><dd>${id==='me'?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl><button class="chip" data-act="cgear" data-id="${id}">${ic('gear')}Settings</button>${this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>'}`;}};}
+/* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
+function asTop(c){Object.defineProperty(c,'n',{get(){return D[c.id].n;},set(v){D[c.id].n=v;},configurable:true,enumerable:true});Object.defineProperty(c,'top',{get(){return D[c.id].kids;},configurable:true,enumerable:true});return c;}
+C.forEach(c=>{const n=c.n,top=c.top;delete c.n;delete c.top;collDoc(c.id,n,top,c.i);asTop(c);});
+D.bud={t:'page',n:'Budget 2027',w:'slim',toc:'marker',tags:[],kids:[],path:'projects/planning-2027/budget.md',by:'J. Roth',ch:'Nov 02',vis:'Project team, inherited',...none,doc:P('First numbers for next year.',['Hardware','<p>Two switches and a spare antenna.</p>'],['Services','<p>The crane for one day.</p>'])};
+collDoc('plan27','Planning 2027',['bud'],'grid');D.plan27.desc='Ideas and numbers for next year. A collection inside Projects.';
+C.find(c=>c.id==='pro').top.push('plan27');
+D.ops.desc='Network, site logs and the on-call handbook.';D.arc.acc='read';D.hand.acc='comment';
+TYPE.coll[0]='grid';
+D.pro.desc='Builds and purchases.';
+const PARENT={},COLL={};
+function rebuildPlaces(){for(const k in PARENT)delete PARENT[k];for(const k in COLL)delete COLL[k];
+  C.forEach(c=>{const walk=(id,p)=>{PARENT[id]=p;COLL[id]=c;D[id].kids.forEach(k=>walk(k,id));};c.top.forEach(id=>walk(id,null));});}
+rebuildPlaces();
+const placeOf=id=>{if(D[id].place)return D[id].place;if(C.some(c=>c.id===id))return 'Workspace';const a=[];for(let x=PARENT[id];x;x=PARENT[x])a.unshift(D[x].n);return [COLL[id].n,...a].join(' › ');};
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const plain=h=>{const e=document.createElement('div');e.innerHTML=h;return e.textContent;};
+const phone=()=>matchMedia('(max-width: 760px)').matches;
+const W3=300;
+const newTab=(d,general=false)=>({d,general,top:0,fly:false,gear:false,cmt:false,find:false,q:'',cur:0,src:false});
+const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',cgear:null,addIn:null,just:null,prof:false,filters:false,newN:0,
+  focus:0,rail:!phone(),limit:8,tog:{},treeTop:0,s1:0,s2:3,w3:W3,theme:'system',scale:100,first:false,clock:false,
+  ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',
+  fav:{ops:true,pro:true,me:true,arc:false},open:{ops:true,pro:true},pin:{ops:true},so:{todo:{mine:true},cal:{all:true},time:{week:true},vac:{y26:true},notes:{quick:true}},spin:{},mods:{mail:true,private:true,bookmarks:true,news:true,ai:true,network:true,lists:true,video:true,slides:true,notes:true},menu:null,
+  sq:'',strat:'full',ai:false,ftype:'',ftags:[],
+  wins:[{tabs:[newTab('plan',true)],a:0,hist:['plan']}]};
+const at=i=>S.wins[i].tabs[S.wins[i].a]||null;
+/* What others may do: edit, comment or only read. Set on a collection, folder or document, and inherited by what is below it. */
+const ACC={edit:'Can edit',comment:'Can comment',read:'Read only'};
+const contAcc=id=>PARENT[id]?accOf(PARENT[id]):COLL[id]?accOf(COLL[id].id):'edit';
+const accOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
+const kidsOpen=id=>{const v=S.tog[id];return v!==undefined?v:id.startsWith('dir:')?false:D[id].kids.length<=S.limit;};
+const chg=d=>String(d.ch).includes(' by ')?d.ch:`${d.ch} by ${d.by||'–'}`;
+const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" data-tag="${esc(t)}" title="All objects tagged ${esc(t)}">#${esc(t)}</button>`).join('');
+
+function rowHtml(id){
+  if(!shown(id))return '';
+  const d=D[id],open=kidsOpen(id),t=at(S.focus),cur=t&&t.d===id;
+  return `<li><div class="row${cur?' cur':''}${S.just===id?' just':''}" data-row="${id}">
+    <button class="arrow ${d.kids.length?(open?'open':''):'none'}" data-act="tog" data-id="${id}" aria-label="Toggle ${d.n}">${ic('chev')}</button>
+    <button class="name" data-act="open" data-id="${id}" title="${d.n}">${ic(d.i||TYPE[d.t][0])}<span>${d.n}</span></button></div>
+    ${d.kids.length&&open?`<ul class="t">${d.kids.map(rowHtml).join('')}</ul>`:''}</li>`;
+}
+const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','notes','excel','slides','video','images','view','db','ipnet','devices'];
+/* The first build: switched-off modules disappear, but what is not built yet stays in sight, greyed out. */
+const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','mods','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
+const later=(kind,id)=>S.first&&LATER[kind].includes(id);
+const off=(kind,id)=>later(kind,id)?' disabled data-later="1"':'';
+const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
+function treeHtml(){
+  const open=C.filter(c=>S.open[c.id]);
+  if(!open.length) return '<p class="lab pad">No collection is open. Pick one in nav2.</p>';
+  return open.map(c=>`<div class="cheadrow" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${S.pin[c.id]?ic('pin'):''}${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
+    <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
+}
+/* Menus float over the list, so nothing below them moves. */
+function addPop(){
+  if(!S.addIn)return '';const c=C.find(x=>x.id===S.addIn);
+  return `<div class="pop addpop" data-style="top:${S.addTop||0}px" role="menu"><b>Add to ${c.n}</b>${addTypes().map(k=>`<button data-act="add" data-id="${k}" data-c="${c.id}"${off('add',k)}>${ic(TYPE[k][0])}${TYPE[k][1]}</button>`).join('')}${S.mods.bookmarks?`<hr><button data-act="open" data-id="bm:import"${off('add','bookmark')}>${ic('down')}Import bookmarks</button>`:''}</div>`;
+}
+/* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
+function ctxHtml(){
+  const c=S.ctx;if(!c)return '';
+  const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${label}</button>`;let items='',title='';
+  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also Ctrl and click, or a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+B('star',S.fav[c.id]?'Remove from favorites':'Add to favorites')+B('cgear','Settings and name');}
+  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+B('copylink','Copy link')+B('opengear','Settings and metadata');}
+  if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
+  if(c.kind==='free'){title='New';items=c.acts.map(x=>{const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
+  if(c.kind==='view'){title=c.label;items=B('view','Open')+(S.view===c.id&&S.rail?B('view','Hide nav2 and nav3'):'');}
+  return `<div class="pop ctxpop" role="menu" data-style="left:${c.x}px;top:${c.y}px"><b>${esc(title)}</b>${items}</div>`;
+}
+function navItem(act,id,label,icon,pressed,extra='',no=false){const l=no||(act==='view'&&later('view',id))||(act==='sec'&&S.view==='profile'&&later('prof',id));return `<button class="navitem" data-act="${act}" data-id="${id}" aria-pressed="${pressed}" title="${label}${l?', not in the first build':''}" ${extra}${l?' disabled data-later="1"':''}>${ic(icon)}<span class="lbl">${label}</span></button>`;}
+function nav2Html(){
+  const s=phone()?1:S.s2;
+  if(S.view==='workspace'){
+    /* Every collection is in nav2, so an open one is always in sight: favorites on top, the others below. A right click has the rest. */
+    const row=c=>`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}">${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}${S.pin[c.id]?`<span class="pinmark" title="Kept open">${ic('pin')}</span>`:''}<button class="star cstar" data-act="star" data-id="${c.id}" aria-pressed="${!!S.fav[c.id]}" aria-label="Favorite: ${esc(c.n)}" title="${S.fav[c.id]?'Remove from favorites':'Add to favorites'}">${ic('star')}</button></div>`;
+    const fav=C.filter(c=>S.fav[c.id]),rest=C.filter(c=>!S.fav[c.id]);
+    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="newcoll" aria-label="New collection" title="New collection"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${fav.map(row).join('')}${fav.length&&rest.length?'<span class="favsep"></span>':''}${rest.map(row).join('')}</div>`;
+  }
+  if(S.view==='search') return [['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+`<span class="favsep"></span>`+navItem('ai','ai','Also ask AI','ai',S.ai);
+  if(S.view==='profile') return PROFSET.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+`<span class="favsep"></span><span class="n2lab">${ic('shield')}<span class="lbl">Administration</span></span>`+PROFADM.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('');
+  /* Lists that belong to the user can be sorted by dragging. Entries that act, such as import, sit apart below them. */
+  const all=SECTIONS[S.view](),srt=!!SORT[S.view],items=all.filter(x=>!x[3]),acts=all.filter(x=>x[3]);
+  const so=S.so[S.view],sp=S.spin[S.view]||{};
+  const one=x=>navItem('sec',x[0],x[1],x[2],so&&!x[3]?!!so[x[0]]:S.sec[S.view]===x[0],srt&&!x[3]&&!x[4]?`data-secid="${x[0]}"`:'');const one2=x=>{const h=one(x);return sp[x[0]]?h.replace(/<\/button>$/,`<span class="pinmark in" title="Kept open">${ic('pin')}</span></button>`):h;};
+  return items.map(one2).join('')+(acts.length?'<span class="favsep"></span>'+acts.map(one).join(''):'');
+}
+const SECTIONS={
+  files:()=>[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
+  todo:()=>[...TL.map(l=>[l.id,l.n,l.i]),['newlist','New list','plus',1]],
+  cal:()=>[['all','All calendars','grid',0,1],...CALS.map(c=>[c.id,c.n,c.i]),['import','Import a calendar','down',1]],
+  time:()=>[['week','This week','clock'],['last','Last week','clock'],['oct','October','cal'],['export','Export','down',1]],
+  vac:()=>[['y26','2026','sun'],['y27','2027','sun'],['plan','Plan a vacation','plus',1]],
+  notes:()=>[...BOARDS.map(b=>[b.id,b.n,b.i]),['newboard','New board','plus',1]],
+  resources:()=>RES.map(g=>[g.id,g.n,g.i]),
+  mail:()=>[['inbox','Inbox','mail'],['sent','Sent','send'],['archive','Archive','box']],
+  bookmarks:()=>[...BM.map(f=>[f.id,f.n,f.i]),['import','Import','down',1]],
+  news:()=>[...FEEDS.map(f=>[f.id,f.n,f.i]),['sub','Subscribe','plus',1]],
+};
+const docText=d=>[d.n,d.tags.join(' '),d.doc?d.doc.intro:'',d.doc?d.doc.secs.map(s=>s[0]+' '+plain(s[1])).join(' '):'',d.tab?d.tab.rows.flat().join(' '):'',d.html?plain(d.html):''].join(' ');
+function hits(){
+  const q=S.sq.trim();
+  if(!q&&!S.ftags.length&&!S.ftype) return null;
+  return Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':'))return false;
+    if(S.ftype&&d.t!==S.ftype) return false;
+    if(!S.ftags.every(t=>d.tags.includes(t))) return false;
+    if(!q) return true;
+    return S.strat==='exact'?docText(d).includes(q):docText(d).toLowerCase().includes(q.toLowerCase());});
+}
+function snippet(d,q){const t=docText(d),i=t.toLowerCase().indexOf(q.toLowerCase());if(!q||i<0)return '';const a=Math.max(0,i-28);return (a?'… ':'')+esc(t.slice(a,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length,i+q.length+46))+' …';}
+function resultsHtml(){
+  const h=hits(),q=S.sq.trim();
+  const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort();
+  if(h===null) return `<div class="chead first">Recent</div>${['radio link','tower','on-call'].map(x=>`<button class="hit" data-act="recent" data-id="${x}">${ic('search')}<span>${x}</span></button>`).join('')}
+    <div class="chead">Tags</div><div class="tagrow">${allTags.map(t=>`<button class="tagc" data-act="ftag" data-tag="${t}">#${t}</button>`).join('')}</div>`;
+  const answer=S.ai&&q&&h.length?`<div class="answer"><b>AI answer, made up for this mockup</b>A real answer would stand here in one or two sentences. Sources: ${h.slice(0,2).map(x=>D[x].n).join(', ')}.</div>`:'';
+  const note=S.strat==='meaning'?'<p class="hint">In this mockup, this finds the same hits as full text.</p>':'';
+  return `${answer}<div class="chead first">${h.length} ${h.length===1?'hit':'hits'}</div>${note}${h.map(x=>`<button class="hit" data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}<span>${D[x].n}<small>${placeOf(x)}</small>${q?`<small class="snip">${snippet(D[x],q)}</small>`:''}</span></button>`).join('')||'<p class="hint">Nothing found. Another strategy may help.</p>'}`;
+}
+function searchHtml(){
+  const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort(),n=S.ftags.length+(S.ftype?1:0);
+  return `<div class="spanel"><button class="chip filterbtn" data-act="filters" aria-expanded="${S.filters}">${ic('view')}Filter${n?' ('+n+')':''}</button>
+    ${S.filters?`<div class="filters"><select id="stype" aria-label="Type"><option value="">All types</option>${Object.keys(TYPE).filter(k=>!['dir','res','mail'].includes(k)).map(k=>`<option value="${k}"${S.ftype===k?' selected':''}>${TYPE[k][1]}</option>`).join('')}</select><div class="tagrow">${allTags.map(t=>`<button class="tagc" data-act="ftag" data-tag="${t}" aria-pressed="${S.ftags.includes(t)}">#${t}</button>`).join('')}</div></div>`:''}
+    <div id="sres">${resultsHtml()}</div></div>`;
+}
+function sourceOf(d){
+  const front=['---',`title: ${d.n}`,`width: ${d.w}`,`contents: ${d.toc}`,`tags: [${d.tags.join(', ')}]`,'---',''];
+  const body=[d.doc.intro,''];
+  d.doc.secs.forEach(s=>body.push('## '+s[0],'',plain(s[1]),''));
+  return front.concat(body);
+}
+function statusHtml(d){
+  let left;
+  if(d.doc){const x=sourceOf(d),txt=d.doc.intro+' '+d.doc.secs.map(s=>s[0]+' '+plain(s[1])).join(' '),w=(txt.match(/\S+/g)||[]).length;
+    left=`<span>${w} words</span><span>${txt.length} characters</span><span>${x.length} lines</span><span>${Math.max(1,Math.ceil(w/200))} min read</span>`;}
+  else if(d.tab) left=`<span>${d.tab.rows.length} rows</span><span>${d.tab.head.length} columns</span>`;
+  else if(d.t==='images') left='<span>6 images</span>';
+  else if(d.html) left=`<span>${d.stat}</span>`;
+  else left=`<span>${d.kids.length} children</span>`;
+  return `<div class="status">${left}<span class="spacer"></span><span>${d.doc?'Markdown · UTF-8':TYPE[d.t][1]}</span></div>`;
+}
+function factsHtml(d){
+  const u=d.uses||{},rows=(k,l)=>(u[k]||[]).map(x=>`<li><small>${l}</small><span>${x}</span></li>`).join('');
+  const useRows=rows('ext','External')+rows('int','Internal')+rows('data','Data')+rows('vals','Value')+rows('db','Database');
+  return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
+    ${d.desc?`<dt>Description</dt><dd>${esc(d.desc)}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
+    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>
+    ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
+    <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
+    <h3>Versions</h3><ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`:''}
+    <h3>Later</h3><div class="lab">Export, save as (M-17) and share (M-5).</div></div>`;
+}
+/* Comments belong to an element of the page: a paragraph, heading, list or table, through its ID (ADR-18). */
+function cmtHtml(t,i){
+  const d=D[t.d],cs=d.comments||[],sel=t.cb,g={};cs.forEach(c=>(g[c.b]=g[c.b]||[]).push(c));
+  const row=c=>`<div class="cmtrow"><b>${esc(c.who)}</b><em>${esc(c.when)}</em><p>${esc(c.t)}</p></div>`;
+  const here=sel?`<div class="cfor">${ic('quote')}<span>${esc(t.cbl||sel)}</span><em>#${esc(sel)}</em></div>${(g[sel]||[]).map(row).join('')||'<p class="hint">No comments on this yet.</p>'}
+    <input class="addtag" data-addcmt="${i}" placeholder="Write a comment, then Enter" aria-label="Write a comment">`
+    :'<p class="hint">A comment belongs to an element of the page. Point at a paragraph, heading, list or table and click its speech bubble.</p>';
+  const rest=Object.keys(g).filter(k=>k!==sel).map(k=>`<button class="cgo" data-act="cblk" data-w="${i}" data-id="${esc(k)}" data-l="${esc(g[k][0].l)}">${ic('quote')}<span>${esc(g[k][0].l)}</span><em>${g[k].length}</em></button>`).join('');
+  return `<aside class="fdrawer" aria-label="Comments"><div class="fhead">${ic('chat')}Comments<button class="ic" data-act="cmt" data-w="${i}" aria-label="Close comments">${ic('x')}</button></div>
+    ${here}${rest?`<h3>${sel?'Elsewhere on this page':'On this page'}</h3>${rest}`:''}</aside>`;
+}
+function gearHtml(t,i,hasSecs){
+  const d=D[t.d],seg=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-w="${i}" data-id="${x}" aria-pressed="${cur===x}">${x}</button>`).join('')}</span>`;
+  return `<aside class="fdrawer" aria-label="Document settings"><div class="fhead">Document settings<button class="ic" data-act="gear" data-w="${i}" aria-label="Close settings">${ic('x')}</button></div>
+    <h3>View</h3>
+    ${hasSecs?`<div class="setrow"><span>Contents</span>${seg('settoc',['marker','side','hidden'],d.toc)}</div>`:''}
+    <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
+    <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
+    <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit')}</div>
+    <p class="hint">Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload. In the product, saving from the web comes with editing (M-8).</p>
+    <h3>Tags</h3><div class="tagrow">${d.tags.length?tagChips(d.tags,'tagsearch'):'<span class="lab">No tags yet.</span>'}</div>
+    <input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag">
+    ${factsHtml(d)}</aside>`;
+}
+function tabHtml(x,k,i){
+  const on=k===S.wins[i].a;
+  /* The general tab only shows while it holds a document. Older ones lie below it as a stack, and its arrow lists them. */
+  if(x.general){if(!x.d)return '';const d=D[x.d],w=S.wins[i],older=olderOf(w).length;
+    return `<div class="dtab general${on?' on':''}${older?' stack':''}" data-dw="${i}" data-dt="${k}" title="General tab: the next document replaces it. Drag it to keep it as a tab."><button class="sel" data-act="sel" data-w="${i}" data-t="${k}">${ic(TYPE[d.t][0])}<span>${d.n}</span></button>${older?`<button class="mini histbtn" data-act="hist" data-w="${i}" aria-expanded="${S.hist===i}" aria-label="Opened here before" title="Opened here before, up to 15">${ic('down')}</button>`:''}</div>`;}
+  const d=D[x.d];
+  return `<div class="dtab${on?' on':''}" data-dw="${i}" data-dt="${k}"><button class="sel" data-act="sel" data-w="${i}" data-t="${k}" title="${d.n}">${ic(TYPE[d.t][0])}<span>${d.n}</span></button>
+    <button class="mini" data-act="close" data-w="${i}" data-t="${k}" title="Close" aria-label="Close ${d.n}">${ic('x')}</button></div>`;
+}
+function winHtml(w,i){
+  const t=at(i),has=t&&t.d,cls=`win${i===S.focus?' focus':''}`;
+  const head=`<div class="tabrow"><div class="tabscroll">${w.tabs.map((x,k)=>tabHtml(x,k,i)).join('')}</div>
+    <button class="ic tabend" data-act="tablist" data-w="${i}" aria-expanded="${S.tlist===i}" aria-label="All tabs of this window" title="All tabs of this window">${ic('list')}</button>${S.wins.length>1?`<button class="ic tabend" data-act="closewin" data-w="${i}" aria-label="Close window" title="Close window">${ic('x')}</button>`:''}${i===S.wins.length-1&&S.mods.ai?`<button class="ic tabend aibtn"${off('tool','aid')} data-act="aid" aria-pressed="${S.aid}" aria-label="AI assistant" title="AI assistant">${ic('ai')}</button>`:''}</div>`;
+  const pop=(S.newAt===i?newMenuHtml('tab'):'')+(S.tmenu&&S.tmenu.w===i?`<div class="pop tabctx" role="menu" data-style="left:${S.tmenu.x}px">${tabMenuHtml(i,S.tmenu.t)}</div>`:'')
+    +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${esc(D[x].n)}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
+    +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+esc(D[x.d].n):'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
+  if(!has) return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}<div class="empty"><p>Empty.<br>What a list opens lands here, in the active window.</p></div></section>`;
+  const d=D[t.d],{h,hs}=bodyHtml(t,i),mode=d.toc;
+  const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="w${i}h${j}">${x}</button>`).join('');
+  const marker=hs.length&&mode==='marker'&&!t.src?`<span class="marker"><button class="chip" data-act="fly" data-w="${i}" aria-expanded="${t.fly}" aria-pressed="${t.fly}">${ic('list')}${hs.length} sections ▾</button>${t.fly?`<div class="fly"><b>In this document</b>${links}</div>`:''}</span>`:'';
+  const find=t.find?`<span class="findin"><input data-findq="${i}" type="search" value="${esc(t.q)}" placeholder="Find on this page" aria-label="Find on this page"><span class="lab" data-findc="${i}"></span><button class="ic" data-act="findnav" data-w="${i}" data-id="-1" aria-label="Previous hit" title="Previous hit">${ic('up')}</button><button class="ic" data-act="findnav" data-w="${i}" data-id="1" aria-label="Next hit" title="Next hit">${ic('down')}</button></span>`:'';
+  /* The heading is not content. The title sits below the breadcrumbs in the same bar, the tags to the right of the breadcrumbs. Created, changed and the rest are metadata. */
+  const crumbs=placeOf(t.d),tg=d.tags.length?`<span class="tagline">${tagChips(d.tags,'tagsearch')}</span>`:'';
+  const ac=accOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
+  const place=`<span class="place" title="${crumbs}">${crumbs}</span>${tg}${badge}<span class="tspace"></span>`;
+  const dhead=`<div class="dtitle"><h1>${esc(d.n)}</h1>${d.desc?`<p>${esc(d.desc)}</p>`:''}</div>`;
+  const tools=`<div class="tools">${place}${marker}${find}
+    <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
+    ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
+    ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
+    ${accOf(t.d)!=='read'?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
+    <button class="ic" data-act="gear" data-w="${i}" aria-pressed="${t.gear}" aria-label="Document settings" title="Document settings">${ic('gear')}</button>
+    <button class="ic" data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More">${ic('more')}</button>${S.menu===i?menuHtml(i):''}${dhead}</div>`;
+  const inner=t.src?`<div class="src">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="doc ${d.w}">${h}</article>`;
+  const toc=hs.length&&mode==='side'&&!t.src?`<nav class="toc"><b>Contents</b>${links}</nav>`:'';
+  return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}${tools}
+    <div class="wbody">${toc}<div class="scroll" data-sc="${i}"><div data-art="${i}">${inner}</div></div>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&accOf(t.d)!=='read'?cmtHtml(t,i):''}</div>${statusHtml(d)}</section>`;
+}
+function menuHtml(i){return `<div class="tabmenu" role="menu">${tabMenuHtml(i,S.wins[i].a)}</div>`;}
+/* One menu for a tab, from a right click on it or from the dots: the same choices in both places. */
+function tabMenuHtml(i,k){
+  const w=S.wins[i],t=w.tabs[k],n=w.tabs.length,has=!!t.d,room=S.wins.length<4;
+  const B=(act,label,extra='')=>`<button data-act="${act}" data-w="${i}" data-t="${k}" ${extra}>${label}</button>`;
+  return [has?B('close',t.general?'Clear':'Close','title="Also a middle click"'):'',n>1?B('closeothers','Close others'):'',k<n-1?B('closeright','Close to the right'):'',
+    k>0?B('closeleft','Close to the left'):'',B('closeall','Close all'),
+    has?'<hr>'+(t.general?B('keep','Keep as a tab of its own'):B('dup','Duplicate'))+B('copypath','Copy path'):'',
+    has&&(room||S.wins.length>1)?'<hr>':'',has&&room?B('newwin','Move to new column, left',`data-id="${i}"${off('tool','newwin')}`)+B('newwin','Move to new column, right',`data-id="${i+1}"${off('tool','newwin')}`):'',
+    has&&i>0?B('move','Move to the window on the left',`data-id="${i-1}"`):'',has&&i<S.wins.length-1?B('move','Move to the window on the right',`data-id="${i+1}"`):'',
+    S.wins.length>1?'<hr>'+B('closewin','Close window'):''].join('');
+}
+function closeWhere(i,keep){
+  const w=S.wins[i],cur=w.tabs[w.a];
+  if(w.tabs[0]&&w.tabs[0].general&&!keep(0))Object.assign(w.tabs[0],newTab(null,true));
+  w.tabs=w.tabs.filter((t,j)=>t.general||keep(j));
+  const c=w.tabs.indexOf(cur);w.a=c>=0?c:Math.max(0,w.tabs.length-1);compact();
+}
+/* New always lands somewhere: in the chosen collection, or in Quick notes. The last choice stays. */
+function newMenuHtml(where){
+  const into=S.into,q=into==='qn';
+  return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${esc(x[1])}</button>`).join('')}</div>
+    <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
+    <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+esc(C.find(c=>c.id===into).n)+'. Drag it to its place.'}</p>
+    ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
+}
+function createIn(cid,k,text){
+  const id='new'+(++S.newN),first=(text||'').split('\n')[0].trim();
+  D[id]={t:k,n:first?first.slice(0,48):'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'new',
+    html:text?`<p>${esc(text)}</p>`:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};
+  C.find(c=>c.id===cid).top.unshift(id);S.open[cid]=true;rebuildPlaces();S.just=id;return id;
+}
+/* Files and Resources are contexts of the left list. What they open lands in the same windows as everything else. */
+TYPE.dir=['folder','Folder on disk'];TYPE.res=['db','Resource'];
+const FILEROWS={'~':[['scans/','folder','–','Oct 12',''],['notes-2026.md','page','2 KB','today',''],['travel-expenses.xlsx','excel','40 KB','Oct 30','']],
+  '~/scans':[['receipt-oct.pdf','page','220 KB','Oct 12','']],
+  '':[['operations/','folder','–','Oct 31','Operations'],['projects/','folder','–','today','Projects']],
+  operations:[['network/','folder','–','Oct 28','Network'],['on-call.md','page','4 KB','Oct 29','On-call handbook'],['site-logs/','folder','–','Oct 31','Site logs']],
+  'operations/network':[['plan.md','page','6 KB','today','Network plan'],['plan/','folder','–','Oct 28','Network plan (children)'],['rack-photo.jpg','images','2.1 MB','Sep 11',''],['walkthrough.mp4','video','48 MB','Oct 12','Site walkthrough']],
+  'operations/network/plan':[['vlans.md','page','1 KB','Oct 28','VLAN list']],
+  projects:[['tower.md','page','3 KB','Oct 31','Tower 50 m'],['tower/','folder','–','today','Tower 50 m (children)'],['old-offer.pdf','page','410 KB','Mar 04','']],
+  'projects/tower':[['tower-dimensions.xlsx','excel','88 KB','today','Tower dimensions'],['photos/','images','34 MB','Oct 18','Site photos'],['kickoff.pptx','slides','6 MB','Sep 30','Kickoff slides'],['~$tower-dimensions.xlsx','excel','hidden','today','hidden: lock file']]};
+const FILEDOC={'on-call.md':'hand','plan.md':'plan','tower.md':'tower','tower-dimensions.xlsx':'dims','photos/':'photos','site-logs/':'logs','vlans.md':'vlans','walkthrough.mp4':'walk','kickoff.pptx':'deck'};
+const FILETAGS={'network/':'network','on-call.md':'on-call','plan.md':'network','rack-photo.jpg':'hardware','tower.md':'tower','tower-dimensions.xlsx':'tower','photos/':'tower'};
+const subOf=(dir,x)=>(dir?dir+'/':'')+x[0].replace(/\/$/,'');
+const isDir=(dir,x)=>x[0].endsWith('/')&&!!FILEROWS[subOf(dir,x)];
+const fileTarget=(dir,x)=>isDir(dir,x)?'dir:'+subOf(dir,x):FILEDOC[x[0]]||'file:'+subOf(dir,x);
+const pseudo=(id,o)=>{D[id]={w:'wide',toc:'marker',tags:[],kids:[],uses:{},usedIn:[],...o};};
+const tableHtml=(h,rows)=>`<div class="tw"><table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${rows.map(r=>`<tr${r.dim?' data-style="opacity:.55"':''}>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div>`;
+const openBtn=(id,label,icon)=>`<button class="l" data-act="open" data-id="${id}">${icon?ic(icon)+' ':''}${label}</button>`;
+Object.keys(FILEROWS).forEach(dir=>{
+  const rows=FILEROWS[dir].map(x=>{const hid=x[2]==='hidden',r=[hid?x[0]:openBtn(fileTarget(dir,x),x[0]),x[2],x[3],x[4]?x[4]:'<span class="unplaced">△ not placed</span>',FILETAGS[x[0]]?'#'+FILETAGS[x[0]]:''];r.dim=hid;return r;});
+  pseudo('dir:'+dir,{t:'dir',n:dir==='~'?'My files':dir===''?'Share':dir.split('/').pop()+'/',path:dir==='~'?'your own folder':dir===''?'the share':dir+'/',place:'Files › '+(dir.startsWith('~')?dir.replace('~','My files'):'Share'+(dir?' › '+dir:'')),vis:dir.startsWith('~')?'Only you':'Follows the disk or share',stat:`${FILEROWS[dir].length} entries`,
+    html:`<div class="note">Moving something here does not move it in your workspace, and the reverse holds too. Lock files stay hidden in normal use. Upload and share access come with M-2.</div>`+tableHtml(['Name','Size','Changed','In your workspace','Tags'],rows)});
+  FILEROWS[dir].forEach(x=>{if(x[4]||x[2]==='hidden'||isDir(dir,x))return;pseudo('file:'+subOf(dir,x),{t:'dir',n:x[0],path:subOf(dir,x),place:'Files › '+dir,vis:'Follows the disk or share',stat:x[2],tags:FILETAGS[x[0]]?[FILETAGS[x[0]]]:[],html:'<div class="note">This file lies on the disk but has no place in your workspace yet.</div>'});});
+});
+TYPE.mail=['mail','Mail'];
+const MAILS=[{id:5,box:'sent',from:'To J. Roth',date:'Oct 27',unread:false,subj:'Antenna swap',body:'Done, noted in the handbook.'},{id:6,box:'archive',from:'Supplier desk',date:'Sep 02',unread:false,subj:'Old offer',body:'Thanks for your interest.'},{id:1,box:'inbox',from:'J. Roth',date:'09:12',unread:true,subj:'Crane on Tuesday',body:'The crane company confirmed Tuesday at seven. Can you check the tower dimensions before then?'},
+ {id:2,box:'inbox',from:'Supplier desk',date:'Mon',unread:true,subj:'Your switch license',body:'The license for your core switches runs out at the end of the month.'},
+ {id:3,box:'inbox',from:'M. Sander',date:'Oct 30',unread:false,subj:'On-call handbook',body:'Please look at the new escalation levels in the handbook.'},
+ {id:4,box:'inbox',from:'A. Keller',date:'Oct 28',unread:false,subj:'Rack photo',body:'New photo is on the share, but not placed yet.'}];
+MAILS.forEach(m=>pseudo('mail:'+m.id,{t:'mail',n:m.subj,w:'slim',path:'not a file, from the mail account',place:'Mail › '+m.box,vis:'Only you',stat:'1 message',
+  html:`<dl class="mailhead"><dt>From</dt><dd>${m.from}</dd><dt>To</dt><dd>you</dd><dt>Date</dt><dd>${m.date}</dd></dl><p>${m.body}</p><div class="note">Reply, and linking a mail to a document, are to be settled in M-22.</div>`}));
+function diskRow(dir,x){
+  const id=fileTarget(dir,x),folder=isDir(dir,x),sub=subOf(dir,x),t=at(S.focus),cur=t&&t.d===id,open=kidsOpen(id);
+  const kids=folder?FILEROWS[sub].filter(y=>y[2]!=='hidden'):[];
+  return `<li><div class="row${cur?' cur':''}"><button class="arrow ${folder?(open?'open':''):'none'}" data-act="tog" data-id="${id}" aria-label="Toggle ${x[0]}">${ic('chev')}</button>
+    <button class="name" data-act="open" data-id="${id}" title="${x[0]}">${ic(TYPE[x[1]][0])}<span>${x[0]}</span></button>${!x[4]&&dir?'<span class="count" title="Not placed in the workspace">△</span>':''}</div>
+    ${folder&&open?`<ul class="t">${kids.map(y=>diskRow(sub,y)).join('')}</ul>`:''}</li>`;
+}
+const RES=[
+ {id:'values',n:'Values',m:'M-3',i:'list',head:['Name','Value','Source','Used in'],rows:[['tower.height','50 m','tower-dimensions.xlsx','4 documents'],['router.ip','10.0.0.1','_values.yaml','2 documents']]},
+ {id:'snippets',n:'Snippets',m:'M-3',i:'code',head:['Name','Kind','Used in'],rows:[['customers','SQL','3 documents'],['maintenance-note','Text','7 documents']]},
+ {id:'dbs',n:'Databases and views',m:'M-4',i:'db',head:['Name','Type','Placed in workspace','Used in','Tags'],rows:[['Inventory','Database','Projects','1 view','#hardware'],['Open tickets','Database view','Operations › Network','1 document','#network'],['Weekly export','Database view','△ not placed','0 documents','']]},
+ {id:'ext',n:'External sources',m:'M-4',i:'box',head:['Name','Kind','Data age','State'],rows:[['Ticket system','REST','4 min','✓ working'],['Supplier list','CSV','2 d','△ last good state']]}];
+const RESDOC={Inventory:'inv','Open tickets':'tickets'};
+const resTarget=(g,r)=>RESDOC[r[0]]||`res:${g.id}/${r[0]}`;
+RES.forEach(g=>{
+  pseudo('res:'+g.id,{t:'res',n:g.n,path:'not a file',place:'Resources',vis:'Everyone with access to this workspace',stat:`${g.rows.length} entries`,
+    html:`<div class="note">What has no place in a folder. Comes with ${g.m}.</div>`+tableHtml(g.head,g.rows.map(r=>[openBtn(resTarget(g,r),r[0]),...r.slice(1)]))});
+  g.rows.forEach(r=>{if(!RESDOC[r[0]])pseudo(`res:${g.id}/${r[0]}`,{t:'res',n:r[0],path:'not a file',place:'Resources › '+g.n,vis:'Everyone with access to this workspace',stat:g.n,html:tableHtml(['Field','Content'],g.head.map((h,k)=>[h,r[k]]))});});
+});
+/* A window goes when only its empty general tab is left, unless it is the last window. */
+function compact(){
+  const f=S.wins[S.focus],gone=w=>w.tabs.length<=1&&!(w.tabs[0]&&w.tabs[0].d);
+  S.wins=S.wins.filter(w=>!gone(w));if(!S.wins.length)S.wins=[{tabs:[newTab(null,true)],a:0,hist:[]}];
+  S.wins.forEach(w=>{if(w.a>=w.tabs.length)w.a=w.tabs.length-1;if(w.a===0&&!w.tabs[0].d&&w.tabs.length>1)w.a=1;});
+  S.focus=Math.max(0,S.wins.indexOf(f));
+}
+const MODS=[['mail','Mail','An entry in nav1'],['private','Private area','Entries at the bottom of nav1'],['bookmarks','Bookmarks','A document type, with an import'],['news','News','An entry in nav1'],['ai','AI assistant','A drawer on the right'],['network','Network','IP ranges and device lists, as document types'],['lists','To-do and Kanban','Two document types'],['video','Video','A document type'],['slides','PowerPoint','A document type'],['notes','Quick notes','A document type']];
+const MODTYPE={bookmark:'bookmarks',todo:'lists',kanban:'lists',video:'video',slides:'slides',notes:'notes',ipnet:'network',devices:'network'};
+const shown=id=>{const m=MODTYPE[D[id].t];return !m||S.mods[m];};
+const STAGES=[50,84,116,172],STAGENAMES=[['0','Icon'],['1','Stacked'],['2','Text'],['3','Beside']];
+const seg3=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-id="${x[0]}" aria-pressed="${String(cur)===x[0]}">${x[1]}</button>`).join('')}</span>`;
+function settingsHtml(sec){
+  let b='';
+  if(sec==='look') b=`<div class="shead">Appearance</div><div class="setrow"><span>Theme</span>${seg3('theme',[['system','System'],['light','Light'],['dark','Dark']],S.theme)}</div>
+    <div class="setrow"><span class="withic">${ic('search')}Page scale</span><span class="stepper"><button class="ic" data-act="scale" data-id="-10" aria-label="Smaller">−</button><button class="chip" data-act="scale" data-id="0" title="Back to 100%">${S.scale}%</button><button class="ic" data-act="scale" data-id="10" aria-label="Larger">+</button></span></div>`;
+  if(sec==='navi') b=`<div class="shead">Navigation</div>
+    <div class="slab">Clicks</div><p class="hint">A click opens only this. Ctrl and click adds it, or takes it away again, and leaves the rest: a document opens as a tab of its own, and a collection is kept open, or no longer, also with a double click. A click on a collection closes the others unless they are kept open. Anything with children also opens them in nav3, and a second click closes them.</p>
+    <div class="slab">Lists</div><label class="setrow" for="limit"><span>Open by themselves up to</span><span><input id="limit" type="number" min="0" max="50" value="${S.limit}"> children</span></label>
+    <div class="slab">Width, or drag the right edge of each column</div>
+    <div class="setrow"><span>Nav1</span>${seg3('s1',STAGENAMES,S.s1)}</div><div class="setrow"><span>Nav2</span>${seg3('s2',STAGENAMES,S.s2)}</div>
+    <div class="setrow"><span>Nav3</span><button class="chip" data-act="w3reset" title="Back to the default">${S.w3} px, reset</button></div>`;
+  if(sec==='lang') b='<div class="shead">Language</div><p class="hint">English for now. German comes as a translation of the interface.</p>';
+  if(sec==='notif') b='<div class="shead">Notifications</div><p class="hint">Mail for mentions and replies comes with M-16.</p>';
+  return `<div class="spanel">${b}<p class="hint">These belong to you. Until accounts exist, the browser keeps them.</p></div>`;
+}
+const ADMINTXT={users:['Users and groups','Who exists, who is in which group, who may administer. Comes with M-5.'],src:['Sources','Connections to databases and other systems. Comes with M-4.'],store:['Storage and backup','Where documents lie, the share, the export. Comes with M-2.'],signin:['Sign-in','How people sign in. The gate in front decides today.'],audit:['Audit log','Who did what. Comes with M-2 and M-5.']};
+function adminHtml(sec){
+  if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;
+  return `<div class="spanel"><div class="shead">Modules</div>${MODS.map(m=>`<button class="modrow" data-act="mod" data-id="${m[0]}" aria-pressed="${S.mods[m[0]]}"><span>${m[1]}<small>${m[2]}</small></span><em>${S.mods[m[0]]?'✓ On':'Off'}</em></button>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched. Only administrators see this part of the profile.</p></div>`;
+}
+function collForm(){
+  const c=C.find(x=>x.id===S.cgear)||{id:S.cgear,get n(){return D[S.cgear].n;}};
+  return `<div class="spanel"><div class="shead">${c.n}<button class="ic" data-act="cgear" data-id="${c.id}" aria-label="Close settings">${ic('x')}</button></div>
+    <label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${c.id}" value="${esc(c.n)}">
+    <div class="slab">Favorite</div><button class="opt" data-act="star" data-id="${c.id}" aria-pressed="${!!S.fav[c.id]}">Stands at the top of nav2</button>
+    <div class="slab">Others can</div>${seg3('cacc',[['edit','Edit'],['comment','Comment'],['read','Read']],D[c.id].acc||'edit')}<p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>
+    <div class="slab">On disk</div><p class="hint">${c.id==='me'?'none':c.id+'/'}</p><div class="slab">Visible to</div><p class="hint">${c.id==='me'?'Only you':'Everyone who is signed in'}</p></div>`;
+}
+const listRow=(id,icon,label,side='')=>{const t=at(S.focus);return `<li><div class="row${t&&t.d===id?' cur':''}"><span class="arrow none"></span><button class="name" data-act="open" data-id="${id}" title="${label}">${ic(icon)}<span>${label}</span></button>${side?`<span class="count">${side}</span>`:''}</div></li>`;};
+const BM=[{id:'bar',n:'Toolbar',i:'star',items:[{n:'Ticket system',u:'https://tickets.example.com',d:'Open tickets of the team.'},{n:'Supplier portal',u:'https://supplier.example.net',d:'Orders and licenses.'},{n:'Weather radar',u:'https://weather.example.org',d:'Before crane work.'}]},
+  {id:'work',n:'Work',i:'folder',items:[{n:'Switch manual',u:'https://docs.example.com/switch',d:'Firmware 9, chapter on VLANs.'},{n:'Crane company',u:'https://crane.example.net',d:'Booking and phone numbers.'}]},
+  {id:'read',n:'Reading list',i:'list',items:[{n:'Antenna mounting guide',u:'https://example.org/antenna',d:'Read before the mounting.'}]}];
+const FEEDS=[{id:'all',n:'All',i:'list'},{id:'blog',n:'Project blog',i:'globe'},{id:'sec',n:'Security notes',i:'shield'},{id:'rel',n:'Release notes',i:'flag'}];
+const NEWS=[{id:1,f:'sec',date:'09:40',unread:true,h:'Switch firmware 9.4 fixes a login flaw',b:'The vendor advises the update for all core switches. A made-up entry.'},
+  {id:2,f:'rel',date:'Mon',unread:true,h:'Office suite 26.2 is out',b:'Better import of slides. A made-up entry.'},
+  {id:3,f:'blog',date:'Oct 30',unread:false,h:'How we document a tower build',b:'A short story about pages, values and photos. A made-up entry.'}];
+/* Private: only its user sees it. Each entry is a view like any other: nav1 opens its lists in nav2, nav2 opens one in nav3, nav3 opens into the active window. */
+const PRIVV=[['todo','To-do','check'],['cal','Calendar','cal'],['time','Time','clock'],['vac','Vacation','sun'],['notes','Notes','note']];
+const TL=[{id:'mine',n:'My to-dos',i:'check',items:[{t:'Renew the first aid course',done:false,due:'Nov 20'},{t:'Hand in travel expenses',done:true},{t:'Plan the winter holidays',done:false}]},
+  {id:'shop',n:'Shopping',i:'list',items:[{t:'Cable ties',done:false},{t:'Labels',done:false},{t:'Gloves',done:true}]},
+  {id:'car',n:'Car',i:'list',items:[{t:'Winter tyres',done:false,due:'Nov 14'},{t:'Inspection',done:false,due:'Dec 02'}]}];
+const CALS=[{id:'me',n:'Personal',i:'cal',ev:{3:'Dentist',12:'Review',24:'Vacation',25:'Vacation'}},{id:'team',n:'Team',i:'user',ev:{7:'Crane call',18:'Team lunch'},src:'Shared by the project team'},{id:'hol',n:'Holidays',i:'globe',ev:{1:'Public holiday'},src:'Imported from a calendar file'}];
+const BOARDS=[{id:'quick',n:'Quick notes',i:'note',doc:'qn'},{id:'ideas',n:'Ideas',i:'spark',doc:'nb:ideas'}];
+const SORT={todo:TL,cal:CALS,notes:BOARDS,bookmarks:BM};
+const PROFSET=[['acct','Account','user'],['look','Appearance','sun'],['navi','Navigation','panel'],['lang','Language','globe'],['notif','Notifications','mail']];
+const PROFADM=[['mods','Modules','grid'],['users','Users and groups','user'],['src','Sources','db'],['store','Storage and backup','hd'],['signin','Sign-in','lock'],['audit','Audit log','list']];
+const tickRow=(l,k,x)=>{const t=at(S.focus),id=`ti:${l.id}/${k}`;return `<li><div class="row${t&&t.d===id?' cur':''}"><button class="tick" data-act="tick" data-l="${l.id}" data-id="${k}" aria-pressed="${x.done}" aria-label="Done: ${esc(x.t)}">${x.done?ic('check'):'<span class="box"></span>'}</button><button class="name${x.done?' done':''}" data-act="open" data-id="${id}" title="${esc(x.t)}"><span>${esc(x.t)}</span></button>${x.due?`<span class="count">${x.due}</span>`:''}</div></li>`;};
+/* Private lists follow the rule of collections: a click opens one and closes what is not kept open, Ctrl and click or a double click keeps one open. */
+function privPart(v,sec){
+  const pinned=(S.spin[v]||{})[sec],hd=(n,doc,add='')=>`<div class="cheadrow" data-sechead="${sec}"><button class="chead" data-act="open" data-id="${doc}" title="Open ${esc(n)}">${pinned?ic('pin'):''}${esc(n)}</button>${add}</div>`;
+  if(v==='todo'){const l=TL.find(x=>x.id===sec);if(!l)return '';return hd(l.n,'tl:'+l.id,`<button class="addbtn" data-act="tadd" data-id="${l.id}" aria-label="Add a to-do" title="Add a to-do">${ic('plus')}</button>`)+`<ul class="t top">${l.items.map((x,k)=>tickRow(l,k,x)).join('')}</ul>`;}
+  if(v==='cal'){const cs=sec==='all'?CALS:CALS.filter(c=>c.id===sec);if(!cs.length)return '';const ev=cs.flatMap(c=>Object.entries(c.ev).map(([d,n])=>[+d,n,c])).sort((a,b)=>a[0]-b[0]);
+    return hd(sec==='all'?'All calendars':cs[0].n,'cal:'+sec)+`<ul class="t top">${ev.map(e=>listRow(`ev:${e[2].id}/${e[0]}`,'clock',e[1],'Nov '+e[0])).join('')}</ul>${sec!=='all'&&cs[0].src?`<p class="hint pad">${cs[0].src}.</p>`:''}`;}
+  if(v==='time'){const P={week:['priv:time','This week',[['Mon','8:12'],['Tue','8:27'],['Wed','7:45'],['Thu','7:16']]],last:['time:last','Last week',[['Mon','8:00'],['Tue','8:05'],['Wed','8:30'],['Thu','7:50'],['Fri','6:10']]],oct:['time:oct','October',[['Week 40','39:10'],['Week 41','40:05'],['Week 42','38:20'],['Week 43','40:00']]]}[sec];if(!P)return '';
+    return hd(P[1],P[0])+`<ul class="t top">${P[2].map(r=>listRow(P[0],'cal',r[0],r[1])).join('')}</ul>`;}
+  if(v==='vac'){const P={y26:['priv:vac','2026',[['Mar 02 – 13','10 days ✓'],['Jul 20 – 27','8 days ✓'],['Nov 24 – 28','5 days △']]],y27:['vac:27','2027',[]]}[sec];if(!P)return '';
+    return hd(P[1],P[0])+`<ul class="t top">${P[2].map(r=>listRow(P[0],'sun',r[0],r[1])).join('')}</ul>`;}
+  if(v==='notes'){const b=BOARDS.find(x=>x.id===sec);if(!b)return '';const ns=D[b.doc].notes;return hd(b.n,b.doc)+`<ul class="t top">${ns.map(n=>listRow(b.doc,'note',esc(n.h||n.b.split('\n')[0]))).join('')}</ul>`;}
+  return '';
+}
+function privNav3(v){
+  const lock=`<div class="lockline">${ic('lock')}Only you can see this.</div>`,so=S.so[v]||{};
+  const parts=SECTIONS[v]().filter(x=>so[x[0]]).map(x=>privPart(v,x[0])).join('');
+  return `<div class="tree" id="tree">${lock}${parts||'<p class="lab pad">Nothing open. Pick a list in nav2.</p>'}</div>`;
+}
+function accountHtml(){
+  const u=S.user;
+  return `<div class="spanel"><div class="who"><span class="avatar">${esc(u.initials)}</span><span>${esc(u.name)}<small>${esc(u.email||u.login)}</small></span></div><div class="tagrow">${u.groups.map(g=>`<span class="tagc">${esc(g)}</span>`).join('')}</div>
+    <p class="hint">Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.</p><a class="chip signout" href="/.tinysesam/logout">Sign out</a></div>`;
+}
+function nav3Html(){
+  const v=S.view,sec=S.sec[v];
+  if(v==='workspace') return S.cgear?collForm():`<div class="tree" id="tree">${treeHtml()}</div>${addPop()}`;
+  if(v==='search') return searchHtml();
+  if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
+  if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
+  if(v==='files'){
+    if(sec==='ext') return `<div class="spanel"><div class="shead">Add a source</div>${[['SMB share','A Windows or NAS share'],['WebDAV','A cloud folder over WebDAV'],['SFTP','A folder on a server'],['S3','An object store bucket']].map(x=>`<button class="opt" disabled>${x[0]}<small>${x[1]}</small></button>`).join('')}<p class="hint">Later. A source you add shows here next to your files and the share, and every user sees only the sources they may use.</p></div>`;
+    const root=sec==='home'?'~':'',head=sec==='home'?'My files · only you':'Share';
+    return `<div class="tree" id="tree"><div class="chead first">${head}</div><ul class="t top">${listRow('dir:'+root,'folder',sec==='home'?'All my files':'All of the share')}${FILEROWS[root].map(x=>diskRow(root,x)).join('')}</ul></div>`;}
+  if(v==='bookmarks'){
+    if(sec==='import') return `<div class="tree" id="tree"><div class="chead first">Import</div><ul class="t top">${listRow('bm:import','down','From a browser')}</ul><p class="hint pad">Every browser exports its bookmarks as one HTML file.</p></div>`;
+    const f=BM.find(x=>x.id===sec);return `<div class="tree" id="tree"><div class="chead first">${f.n}</div><ul class="t top">${f.items.map((b,k)=>listRow(`bm:${f.id}/${k}`,'globe',b.n)).join('')}</ul></div>`;}
+  if(v==='news'){
+    if(sec==='sub') return `<div class="tree" id="tree"><div class="chead first">Subscribe</div><ul class="t top">${listRow('news:sub','plus','Add a feed')}</ul></div>`;
+    const t=at(S.focus),its=NEWS.filter(n=>sec==='all'||n.f===sec);return `<div class="tree" id="tree"><div class="chead first">${FEEDS.find(x=>x.id===sec).n}</div>${its.map(n=>{const id='news:'+n.id;return `<button class="mailrow${t&&t.d===id?' cur':''}${n.unread?' unread':''}" data-act="open" data-id="${id}"><span class="mfrom">${FEEDS.find(x=>x.id===n.f).n}<em>${n.date}</em></span><span class="msubj">${n.unread?'● ':''}${n.h}</span></button>`;}).join('')}<p class="hint">Later. Made-up entries.</p></div>`;}
+  if(v==='resources'){const g=RES.find(x=>x.id===sec);return `<div class="tree" id="tree"><div class="chead first">${g.n}</div><ul class="t top">${listRow('res:'+g.id,'list','All '+g.n.toLowerCase())}${g.rows.map(r=>listRow(resTarget(g,r),g.i,r[0])).join('')}</ul></div>`;}
+  if(v==='mail'){const t=at(S.focus),ms=MAILS.filter(m=>m.box===sec);return `<div class="tree" id="tree"><div class="chead first">${sec}</div>${ms.map(m=>{const id='mail:'+m.id;return `<button class="mailrow${t&&t.d===id?' cur':''}${m.unread?' unread':''}" data-act="open" data-id="${id}"><span class="mfrom">${m.from}<em>${m.date}</em></span><span class="msubj">${m.unread?'● ':''}${m.subj}</span></button>`;}).join('')||'<p class="hint">Nothing here.</p>'}<p class="hint">Comes with M-22. Made-up mail.</p></div>`;}
+  return '';
+}
+function render(){
+  const root=document.documentElement,ph=phone();
+  if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
+  root.style.zoom=S.scale/100;
+  root.style.setProperty('--w1',(ph?70:STAGES[S.s1])+'px');root.style.setProperty('--w2',(ph?78:STAGES[S.s2])+'px');root.style.setProperty('--w3',S.w3+'px');
+  const help='';
+  /* No bar of its own: name, New and search sit above the columns, the tabs of each window in the same row beside them. */
+  const wide=S.rail&&!ph;
+  const bar=`<div class="brandrow${wide?'':' tight'}"><span class="brand" title="UnderDoc"><img src="${LOGO}" alt=""><span>UnderDoc</span></span>
+    ${wide?`<input class="search" type="search" id="search" value="${esc(S.sq)}" placeholder="Search /" aria-label="Search">`:''}
+    <button class="ic newbtn" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${ic('plus')}</button>${S.newAt==='bar'?newMenuHtml('bar'):''}</div>`;
+  const n1=(v,n,i)=>navItem('view',v,n,i,S.view===v);
+  const privs=S.mods.private?`<span class="sep"></span><span class="n1lab" title="Only you see this">${ic('lock')}<span class="lbl">Private</span></span>${PRIVV.map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
+  const strip=`<nav class="strip col s${ph?1:S.s1}" aria-label="Nav1"><div class="n1top">${n1('workspace','Workspace','panel')}${n1('files','Files','hd')}${n1('resources','Resources','db')}${S.mods.news?n1('news','News','globe'):''}${S.mods.mail?n1('mail','Mail','mail'):''}<span class="sep"></span>${n1('search','Search','search')}<span class="spacer"></span>${privs}</div><div class="n1bot"><span class="sep"></span>
+    <button class="navitem" data-act="view" data-id="profile" aria-pressed="${S.view==='profile'}" title="Profile, settings and administration"><span class="avatar tiny">${esc(S.user.initials)}</span><span class="lbl">Profile</span></button></div><div class="grip" data-grip="1" role="separator" aria-orientation="vertical" aria-label="Width of nav1" tabindex="0" title="Drag: snaps to the next view"></div></nav>`;
+  const prof='';
+  const s2=ph?1:S.s2;
+  const rail=S.rail?`<aside class="rail" aria-label="Navigation"><nav class="nav2 col s${s2}" aria-label="Nav2">${nav2Html()}<div class="grip" data-grip="2" role="separator" aria-orientation="vertical" aria-label="Width of nav2" tabindex="0" title="Drag: snaps to the next view"></div></nav><div class="nav3" aria-label="Nav3">${nav3Html()}<div class="grip" data-grip="3" role="separator" aria-orientation="vertical" aria-label="Width of nav3" tabindex="0" title="Drag to change the width"></div></div></aside>`:'';
+  const name=w=>{const t=w.tabs[w.a];return t&&t.d?D[t.d].n:'Empty';};
+  const winbar=S.wins.length>1?`<div class="winbar">${S.wins.map((w,i)=>`<button class="chip" data-act="focus" data-id="${i}" aria-pressed="${i===S.focus}">${name(w)}</button>`).join('')}</div>`:'';
+  const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
+  document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}`;
+  S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
+  const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
+  /* A menu with no room below its heading opens above it. */
+  const ap=document.querySelector('.addpop');if(ap){const n3=ap.closest('.nav3');if(n3&&ap.getBoundingClientRect().bottom>n3.getBoundingClientRect().bottom+1)ap.style.top=Math.max(0,(S.addTop||0)-(S.addH||0)-ap.offsetHeight)+'px';}
+  /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
+  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
+    const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
+    doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
+      const k=el.matches('.tw')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
+      const lab=k==='t'?'Table: '+[...el.querySelectorAll('th')].map(x=>x.textContent).join(', '):el.textContent.trim().slice(0,60);
+      if(t.cmt&&t.cb===id)el.classList.add('cfocus');
+      const b=document.createElement('button');b.className='cblk'+(cnt?' has':'');b.dataset.act='cblk';b.dataset.w=i;b.dataset.id=id;b.dataset.l=lab;b.title=cnt?cnt+' comments on this':'Comment on this';b.setAttribute('aria-label',b.title);b.innerHTML=ic('chat')+(cnt?`<em>${cnt}</em>`:'');
+      el.after(b);b.style.top=el.offsetTop+'px';});});
+  /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
+  document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src)return;
+    art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#t'+(k+1);b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#t'+(k+1)+'</span>';(tb.closest('.tw')||tb).before(b);});});
+}
+/* AI drawer on the right: it knows the document in the active window. */
+const aiAnswer=()=>{const t=at(S.focus);return t&&t.d?`Made up for this mockup. A real answer about “${D[t.d].n}” would stand here, with links to its sources.`:'Made up for this mockup. Open a document, and the answer can refer to it.';};
+function aiHtml(){
+  const t=at(S.focus),about=t&&t.d?D[t.d].n:'nothing open';
+  return `<aside class="aidrawer" aria-label="AI assistant"><div class="fhead">${ic('ai')}AI assistant<button class="ic" data-act="aid" aria-label="Close AI assistant">${ic('x')}</button></div>
+    <div class="aictx">About: <b>${esc(about)}</b></div>
+    <div class="aichat">${S.chat.map(m=>`<div class="aiq">${esc(m.q)}</div><div class="aia">${m.a}</div>`).join('')||'<p class="hint">Ask about the open document, or let it draft something.</p>'}</div>
+    <div class="tagrow">${['Summarize this','Find related documents','Draft a note from this'].map(x=>`<button class="tagc" data-act="aiask" data-id="${x}">${x}</button>`).join('')}</div>
+    <input class="aiin" data-aiq placeholder="Ask, then Enter" aria-label="Ask the AI">
+    <p class="hint">Which model, and where it runs, is settled in M-13. It is off until an administrator sets it up.</p></aside>`;
+}
+function applyFind(i,scroll){
+  const t=at(i);if(!t||!t.find)return;
+  const root=document.querySelector(`[data-art="${i}"]`),out=document.querySelector(`[data-findc="${i}"]`);
+  if(!root||!out)return;
+  if(!t.q){out.textContent='';return;}
+  const re=new RegExp(t.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),nodes=[],tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  while(tw.nextNode())nodes.push(tw.currentNode);
+  nodes.forEach(n=>{const s=n.nodeValue;re.lastIndex=0;if(!re.test(s))return;re.lastIndex=0;const f=document.createDocumentFragment();let last=0,m;
+    while((m=re.exec(s))){f.append(s.slice(last,m.index));const k=document.createElement('mark');k.textContent=m[0];f.append(k);last=m.index+m[0].length;}
+    f.append(s.slice(last));n.replaceWith(f);});
+  const ms=[...root.querySelectorAll('mark')];
+  if(!ms.length){out.textContent='no hit';return;}
+  t.cur=((t.cur%ms.length)+ms.length)%ms.length;
+  ms[t.cur].classList.add('cur');out.textContent=`${t.cur+1} of ${ms.length}`;
+  if(scroll)ms[t.cur].scrollIntoView({block:'center'});
+}
+/* Every window has its own general tab, and a list opens into the active window. */
+function openDoc(id){
+  const w=S.wins[S.focus]||S.wins[0];let k=w.tabs.findIndex(t=>t.d===id);
+  if(k<0){k=0;w.tabs[0]=newTab(id,true);w.hist=[id,...(w.hist||[]).filter(x=>x!==id)].slice(0,15);}
+  w.a=k;if(id.startsWith('mail:'))MAILS.find(m=>'mail:'+m.id===id).unread=false;if(phone())S.rail=false;
+  if(D[id]&&D[id].real){if(!D[id].loaded)loadDoc(id);const a='/o/'+encodeURI(id);if(location.pathname!==a)history.pushState({id},'',a);}
+}
+/* What was opened here before and is not open as a tab of its own. */
+const olderOf=w=>(w.hist||[]).filter(x=>D[x]&&x!==w.tabs[0].d&&!w.tabs.some((t,j)=>j>0&&t.d===x));
+/* When the general tab gives up its document, the one opened before takes its place. */
+function fallback(w){const g=w.tabs[0],n=olderOf(w)[0]||null;Object.assign(g,newTab(n,true));if(!n&&w.a===0&&w.tabs.length>1)w.a=1;}
+function popGeneral(w){const g=w.tabs[0];w.hist=(w.hist||[]).filter(x=>x!==g.d);fallback(w);}
+function take(w,k){const t=w.tabs[k];
+  if(t.general){const c={...t,general:false,gear:false,fly:false};fallback(w);return c;}
+  w.tabs.splice(k,1);if(w.a>k)w.a--;return t;}
+function placeTab(i,k,to,p){
+  const src=S.wins[i],dst=S.wins[to],t=take(src,k);
+  p=Math.max(1,Math.min(p,dst.tabs.length));
+  dst.tabs.splice(p,0,t);dst.a=p;S.focus=to;compact();
+}
+/* Dragging the general tab keeps its document as a tab where it lands, and the general tab stays, empty. */
+function newColumn(i,k,pos){
+  if(S.wins.length>=4)return;
+  const t=take(S.wins[i],k),f={tabs:[newTab(null,true),t],a:1,hist:[]};
+  S.wins.splice(pos,0,f);S.focus=pos;compact();S.focus=Math.max(0,S.wins.indexOf(f));
+}
+/* One rule everywhere: a click opens only this, Ctrl and click adds it or takes it away again, without touching the rest. */
+function onlyThis(id){const o={};C.forEach(c=>{if(S.pin[c.id])o[c.id]=true;});o[id]=true;S.open=o;}
+function togglePin(id){if(S.pin[id]){S.pin[id]=false;S.open[id]=false;}else{S.pin[id]=true;S.open[id]=true;}}
+/* The second click of a double click comes with a click count of 2. The list is drawn anew after the first click, so the browser's dblclick event may never arrive. */
+function collClick(id,e){if(e.ctrlKey||e.metaKey||e.detail===2)togglePin(id);else if(e.detail<2)onlyThis(id);}
+function openTab(id){const w0=S.wins[S.focus];let k=w0.tabs.findIndex((x,j)=>j>0&&x.d===id);if(k<0){w0.tabs.push(newTab(id));k=w0.tabs.length-1;}w0.a=k;}
+document.addEventListener('scroll',e=>{const x=e.target;if(!x.dataset)return;if(x.dataset.sc!==undefined){const t=at(+x.dataset.sc);if(t)t.top=x.scrollTop;}else if(x.id==='tree')S.treeTop=x.scrollTop;},true);
+document.addEventListener('click',e=>{
+  if(noClick){noClick=false;e.stopPropagation();e.preventDefault();return;}
+  if(e.target.closest('input,select,label'))return;
+  const b=e.target.closest('button[data-act]'),win=e.target.closest('[data-win]'),act=b&&b.dataset.act;
+  if(e.target.closest('.pop')&&!b)return;
+  let dirty=S.menu!==null||S.tmenu||S.hist!==null||S.tlist!==null||S.addIn!==null||S.ctx!==null||S.newAt!==null;
+  const hadMenu=S.menu,hadT=S.tmenu,hadHist=S.hist,hadTl=S.tlist,hadAdd=S.addIn,hadNew=S.newAt;
+  if(win&&+win.dataset.win!==S.focus){S.focus=+win.dataset.win;dirty=true;}
+  S.menu=null;S.tmenu=null;S.hist=null;S.tlist=null;S.addIn=null;S.ctx=null;S.newAt=null;
+  if(!b){if(dirty)render();return;}
+  const a=b.dataset,i=a.w!==undefined?+a.w:S.focus,w=S.wins[i],t=at(i),tk=a.t!==undefined?+a.t:w&&w.a;
+  if(act!=='add')S.just=null;
+  switch(act){
+    case 'help':S.help=!S.help;break;
+    case 'first':S.first=!S.first;if(S.first){if(S.into==='qn')S.into=C[0].id;if(LATER.view.includes(S.view))S.view='workspace';S.aid=false;}break;
+    case 'rail':S.rail=!S.rail;break;
+    case 'view':if(S.view===a.id&&S.rail&&a.id!=='search'){S.rail=false;break;}if(a.id==='search'&&S.view!=='search')S.prev=S.view;if(S.view!==a.id)S.treeTop=0;S.view=a.id;S.rail=true;if(a.id==='search'){render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);return;}break;
+    case 'sec':{const v=S.view;S.treeTop=0;
+      /* Where a third column adds nothing, nav2 opens straight into the window. */
+      const ad={cal:{import:'cal:import'},time:{export:'time:export'},vac:{plan:'vac:new'},bookmarks:{import:'bm:import'},news:{sub:'news:sub'}}[v];if(ad&&ad[a.id]){openDoc(ad[a.id]);break;}
+      if(v==='todo'&&a.id==='newlist'){const id='l'+(++S.newN);TL.push({id,n:'New list',i:'list',items:[]});todoDocs();S.sec.todo=id;S.so.todo[id]=true;break;}
+      if(v==='notes'&&a.id==='newboard'){const id='b'+(++S.newN);D['nb:'+id]=boardDoc('New board',[]);BOARDS.push({id,n:'New board',i:'note',doc:'nb:'+id});S.sec.notes=id;S.so.notes[id]=true;break;}
+      /* Private lists open like collections: a click opens one and closes what is not kept open, Ctrl and click or a double click keeps it open or stops. */
+      if(S.so[v]){const k=a.id,sp=S.spin[v]=S.spin[v]||{};
+        if(e.ctrlKey||e.metaKey||e.detail===2){if(sp[k]){sp[k]=false;S.so[v][k]=false;}else{sp[k]=true;S.so[v][k]=true;}}
+        else if(e.detail<2){const o={};for(const x in sp)if(sp[x])o[x]=true;o[k]=true;S.so[v]=o;}}
+      S.sec[v]=a.id;break;}
+    case 'tick':{const it=TL.find(l=>l.id===a.l).items[+a.id];it.done=!it.done;break;}
+    case 'tadd':{const l=TL.find(x=>x.id===a.id);l.items.push({t:'New to-do',done:false});todoDocs();openDoc(`ti:${l.id}/${l.items.length-1}`);break;}
+    case 'priv':openDoc(a.id);break;
+    case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
+    case 'newdoc':openDoc(createIn(S.into,a.id,''));break;
+    case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
+    case 'addmenu2':{S.view='workspace';S.cgear=null;S.rail=true;S.open[a.id]=true;render();const r=document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`),tr=document.getElementById('tree');S.addIn=a.id;S.addTop=r&&tr?r.offsetTop-tr.scrollTop+r.offsetHeight:0;S.addH=r?r.offsetHeight:0;break;}
+    case 'opentab':openTab(a.id);break;
+    case 'opencol':S.wins.splice(S.focus+1,0,{tabs:[newTab(null,true),newTab(a.id)],a:1,hist:[]});S.focus++;break;
+    case 'addchild':{const id='new'+(++S.newN);D[id]={t:'page',n:'New page',w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its parent',...none,stat:'new',html:'<p class="lab">Empty.</p>'};D[a.id].kids.unshift(id);S.tog[a.id]=true;rebuildPlaces();openDoc(id);S.just=id;break;}
+    case 'copylink':S.toast='Link copied: '+D[a.id].n;setTimeout(()=>{S.toast='';render();},1600);break;
+    case 'opengear':openDoc(a.id);at(S.focus).gear=true;break;
+    case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
+    case 'copen':onlyThis(a.id);S.cgear=null;break;
+    case 'cpin':togglePin(a.id);break;
+    case 'newcoll':{const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,'New collection',[],'grid');
+      if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
+      rebuildPlaces();S.view='workspace';S.rail=true;S.cgear=id;S.just=id;render();const f=document.getElementById('cname');if(f){f.focus();f.select();}return;}
+    case 'cacc':if(a.id==='edit')delete D[S.cgear].acc;else D[S.cgear].acc=a.id;break;
+    case 'setacc':if(a.id==='inherit')delete D[t.d].acc;else D[t.d].acc=a.id;break;
+    case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt)t.gear=false;break;
+    case 'cblk':t.cmt=true;t.gear=false;t.cb=a.id;t.cbl=a.l||a.id;render();{const f=document.querySelector(`[data-addcmt="${i}"]`);if(f)f.focus();}return;
+    case 'blocklink':S.toast='Link copied: /o/'+a.id+'. Pasted into another page, the table shows there and stays in one place.';setTimeout(()=>{S.toast='';render();},2600);break;
+    case 'secclose':S.so[S.view][a.id]=false;if(S.spin[S.view])S.spin[S.view][a.id]=false;break;
+    case 'aid':S.aid=!S.aid;break;
+    case 'aiask':S.chat.push({q:a.id,a:aiAnswer()});break;
+    case 'focus':S.focus=+a.id;break;
+    case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
+    case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
+      /* Ctrl and click adds without replacing: here a tab of its own, as in a browser. */
+      if(e.ctrlKey||e.metaKey){openTab(a.id);break;}
+      /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
+      if(e.detail===2){if(fold&&b.closest('.nav3 .row'))S.tog[a.id]=!kidsOpen(a.id);break;}
+      openDoc(a.id);break;}
+    case 'coll':S.cgear=null;collClick(a.id,e);break;
+    case 'collhead':S.open[a.id]=false;S.pin[a.id]=false;break;
+    case 'star':S.fav[a.id]=!S.fav[a.id];break;
+    case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
+    case 'addmenu':{S.addIn=hadAdd===a.id?null:a.id;const r=b.closest('.cheadrow'),tr=document.getElementById('tree');if(r&&tr){S.addTop=r.offsetTop-tr.scrollTop+r.offsetHeight;S.addH=r.offsetHeight;}break;}
+    case 'add':{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
+    case 's1':S.s1=+a.id;break;
+    case 's2':S.s2=+a.id;break;
+    case 'w3reset':S.w3=W3;break;
+    case 'theme':S.theme=a.id;break;
+    case 'scale':S.scale=+a.id===0?100:Math.min(150,Math.max(70,S.scale+ +a.id));break;
+    case 'mod':S.mods[a.id]=!S.mods[a.id];break;
+    case 'strat':S.strat=a.id;break;
+    case 'ai':S.ai=!S.ai;break;
+    case 'filters':S.filters=!S.filters;break;
+    case 'recent':S.sq=a.id;break;
+    case 'ftag':S.ftags=S.ftags.includes(a.tag)?S.ftags.filter(x=>x!==a.tag):[...S.ftags,a.tag];break;
+    case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[a.tag];S.filters=true;break;
+    case 'sel':w.a=tk;S.focus=i;break;
+    case 'keep':{const c=take(w,0);w.tabs.push(c);w.a=w.tabs.length-1;break;}
+    case 'close':if(w.tabs[tk].general)popGeneral(w);else{w.tabs.splice(tk,1);if(w.a>=tk&&w.a>0)w.a--;}compact();break;
+    case 'menu':S.menu=hadMenu===i?null:i;break;
+    case 'dup':{const s0=w.tabs[tk];w.tabs.splice(tk+1,0,{...s0,general:false,gear:false,fly:false});w.a=tk+1;break;}
+    case 'move':placeTab(i,tk,+a.id,Infinity);break;
+    case 'newwin':newColumn(i,tk,+a.id);break;
+    case 'closeothers':closeWhere(i,j=>j===tk);break;
+    case 'closeright':closeWhere(i,j=>j<=tk);break;
+    case 'closeleft':closeWhere(i,j=>j>=tk);break;
+    case 'closeall':closeWhere(i,()=>false);break;
+    case 'closewin':S.wins.splice(i,1);if(!S.wins.length)S.wins=[{tabs:[newTab(null,true)],a:0,hist:[]}];S.focus=Math.min(Math.max(0,i-1),S.wins.length-1);break;
+    case 'copypath':S.toast='Path copied: '+D[w.tabs[tk].d].path;setTimeout(()=>{S.toast='';render();},1600);break;
+    case 'hist':S.hist=hadHist===i?null:i;break;
+    case 'tablist':S.tlist=hadTl===i?null:i;break;
+    case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
+    case 'gear':t.gear=!t.gear;if(t.gear)t.cmt=false;break;
+    case 'src':t.src=!t.src;t.top=0;break;
+    case 'find':t.find=!t.find;if(t.find){render();const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();return;}break;
+    case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
+    case 'fly':t.fly=!t.fly;break;
+    case 'jump':t.fly=false;render();{const x=document.getElementById(a.id);if(x)x.scrollIntoView({block:'start'});}return;
+    case 'settoc':D[t.d].toc=a.id;break;
+    case 'setw':D[t.d].w=a.id;break;
+    case 'todo':{const it=D[t.d].items[+a.id];it.done=!it.done;break;}
+    case 'slide':D[t.d].cur=+a.id;break;
+    case 'clock':S.clock=!S.clock;break;
+  }
+  render();
+},true);
+function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=resultsHtml();}
+document.addEventListener('input',e=>{
+  const x=e.target;
+  if(x.id==='search'){S.sq=x.value;if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
+  if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
+  if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
+});
+document.addEventListener('change',e=>{
+  const x=e.target;
+  if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
+  if(x.id==='stype'){S.ftype=x.value;render();}
+  if(x.dataset.cname!==undefined){const v=x.value.trim();if(v)D[x.dataset.cname].n=v;render();}
+});
+document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.closest('.dtab[data-dw]');
+  if(tb){e.preventDefault();const i=+tb.dataset.dw,sc=tb.closest('.tabscroll');S.ctx=null;S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.focus=i;S.tmenu={w:i,t:+tb.dataset.dt,x:Math.max(4,tb.offsetLeft-sc.scrollLeft)};render();return;}
+  const el=e.target.closest?e.target:null;if(!el)return;
+  const z=S.scale/100,at0=(kind,id,more={})=>{e.preventDefault();S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.tmenu=null;S.ctx={kind,id,x:Math.round(Math.min(e.clientX/z,innerWidth/z-250)),y:Math.round(Math.min(e.clientY/z,innerHeight/z-240)),...more};render();};
+  const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid);
+  const rw=el.closest('[data-row]');if(rw)return at0('row',rw.dataset.row);
+  const op=el.closest('.nav3 .row [data-act="open"]');if(op&&D[op.dataset.id])return at0('row',op.dataset.id);
+  const sh=el.closest('.nav3 [data-sechead]');if(sh)return at0('sec',sh.dataset.sechead,{label:sh.textContent.trim(),sort:false});
+  const sc=el.closest('.nav2 [data-act="sec"]');if(sc)return at0('sec',sc.dataset.id,{label:sc.textContent.trim(),sort:!!sc.dataset.secid});
+  const vw=el.closest('.strip [data-act="view"]');if(vw)return at0('view',vw.dataset.id,{label:vw.textContent.trim()});
+  /* A right click on the free part of nav2 or nav3 offers what can be made there. */
+  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection']]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
+  if(el.closest('.nav3')&&S.view==='workspace'&&!S.cgear){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
+});
+/* A middle click closes a tab, a double click on the empty part of the tab row opens New, as in code editors. */
+document.addEventListener('auxclick',e=>{const op=e.button===1&&e.target.closest&&e.target.closest('.nav3 [data-act="open"]');if(op&&D[op.dataset.id]){e.preventDefault();openTab(op.dataset.id);render();return;}
+  const tb=e.button===1&&e.target.closest&&e.target.closest('.dtab[data-dw]');if(!tb)return;e.preventDefault();const i=+tb.dataset.dw,k=+tb.dataset.dt,w=S.wins[i];
+  if(w.tabs[k].general)popGeneral(w);else{w.tabs.splice(k,1);if(w.a>=k&&w.a>0)w.a--;}compact();render();});
+document.addEventListener('dblclick',e=>{const r=e.target.closest&&e.target.closest('.tabrow');if(!r||e.target.closest('.dtab,button'))return;const i=+r.closest('[data-win]').dataset.win;S.focus=i;S.newAt=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();});
+document.addEventListener('keydown',e=>{
+  const x=e.target;
+  if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
+  if(e.key==='/'&&!x.closest('input,select,textarea')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
+  if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
+  if(e.key!=='Enter')return;
+  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else openDoc(createIn(S.into,'page',v));render();return;}
+  if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
+  if(x.id==='search'){const h=hits();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
+  if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(v))d.tags.push(v);render();}
+  if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
+  if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
+  if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.cur++;render();const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();}
+});
+/* Dragging runs on pointer events: it starts anywhere on the item, also on its text, and the whole row counts as the target. */
+let drag=null,noClick=false;
+const clampW3=v=>Math.min(640,Math.max(180,Math.round(v)));
+const clearMarks=()=>document.querySelectorAll('.drop-before,.drop-after,.drop-into,.zone-left,.zone-right,.zone-mid').forEach(n=>n.classList.remove('drop-before','drop-after','drop-into','zone-left','zone-right','zone-mid'));
+function startGrip(g,e){
+  const n=g.dataset.grip,z=S.scale/100,x0=e.clientX,w0=n==='3'?S.w3:STAGES[S['s'+n]];
+  const move=m=>{const want=w0+(m.clientX-x0)/z;
+    if(n==='3'){S.w3=clampW3(want);document.documentElement.style.setProperty('--w3',S.w3+'px');return;}
+    let best=0;STAGES.forEach((w,k)=>{if(Math.abs(w-want)<Math.abs(STAGES[best]-want))best=k;});
+    if(best!==S['s'+n]){S['s'+n]=best;render();}};
+  const up=()=>{removeEventListener('pointermove',move);removeEventListener('pointerup',up);document.body.classList.remove('resizing');render();};
+  document.body.classList.add('resizing');addEventListener('pointermove',move);addEventListener('pointerup',up);e.preventDefault();
+}
+document.addEventListener('pointerdown',e=>{
+  noClick=false;
+  if(e.button!==0||!e.target.closest)return;
+  const g=e.target.closest('[data-grip]');
+  if(g){startGrip(g,e);return;}
+  if(e.pointerType==='touch'||e.target.closest('.mini,.arrow,.star,.addbtn,.cmore,.pop,input,textarea,select'))return;
+  const tab=e.target.closest('.dtab:not(.blank)'),row=e.target.closest('[data-row]'),fav=e.target.closest('[data-favid]'),sec=e.target.closest('[data-secid]');
+  if(row&&contAcc(row.dataset.row)==='read')return;
+  if(tab)drag={kind:'tab',src:tab,w:+tab.dataset.dw,t:+tab.dataset.dt,label:tab.querySelector('.sel span').textContent};
+  else if(row)drag={kind:'row',id:row.dataset.row,label:D[row.dataset.row].n};
+  else if(fav)drag={kind:'fav',id:fav.dataset.favid,label:C.find(c=>c.id===fav.dataset.favid).n};
+  else if(sec)drag={kind:'sec',view:S.view,id:sec.dataset.secid,label:sec.textContent.trim()};
+  if(drag){drag.x0=e.clientX;drag.y0=e.clientY;drag.on=false;drag.to=null;}
+});
+/* Tabs snap: the window comes from the pointer's x, the row has a tolerance around it, and the tab takes its place while dragging. */
+function winAt(e){
+  return [...document.querySelectorAll('[data-win]')].find(w=>{const r=w.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<r.right&&e.clientY>=r.top-24&&e.clientY<=r.bottom;});
+}
+function tabTarget(e){
+  const w=winAt(e);if(!w)return null;
+  const i=+w.dataset.win,row=w.querySelector('.tabrow'),rr=row.getBoundingClientRect();
+  if(e.clientY<=rr.bottom+10){
+    const tabs=[...row.querySelectorAll('.dtab:not(.general):not(.slot)')].filter(n=>!(+n.dataset.dw===drag.w&&+n.dataset.dt===drag.t));
+    /* The general tab stays while it is dragged, so its slot adds width. Measure as if the slot were not there, or it pushes its own target away. */
+    const slot=drag.src.classList.contains('general')&&row.querySelector('#slot'),sw=slot?slot.getBoundingClientRect().width+2:0;
+    let seq=tabs.findIndex(n=>{const r=n.getBoundingClientRect(),sh=slot&&(slot.compareDocumentPosition(n)&Node.DOCUMENT_POSITION_FOLLOWING)?sw:0;return e.clientX<r.left-sh+r.width/2;});
+    if(seq<0)seq=tabs.length;
+    return {type:'row',i,seq,idx:seq+1,row,before:tabs[seq]||null};
+  }
+  const r=w.getBoundingClientRect(),band=r.width*.3;
+  if(S.wins.length<4){if(e.clientX<r.left+band)return {type:'new',pos:i,node:w,cls:'zone-left'};if(e.clientX>r.right-band)return {type:'new',pos:i+1,node:w,cls:'zone-right'};}
+  return i===drag.w?null:{type:'win',i,node:w,cls:'zone-mid'};
+}
+function showSlot(t){
+  let s=document.getElementById('slot');
+  if(!t||t.type!=='row'){if(s)s.remove();return false;}
+  if(!s){s=drag.src.cloneNode(true);s.id='slot';s.style.display='';s.classList.remove('general');s.classList.add('slot','on');s.removeAttribute('data-dw');s.removeAttribute('data-dt');}
+  const box=t.row.querySelector('.tabscroll');
+  if(t.before)box.insertBefore(s,t.before);else box.append(s);
+  return true;
+}
+const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return false;};
+function rowTarget(e,el){
+  if(D[drag.id].t==='coll'&&el&&el.closest('.nav2')){const n=el.closest('#clist')||el.closest('.nav2');return {type:'nav2',node:n,cls:'drop-into'};}
+  const h=el&&el.closest('[data-cdrop]');if(h)return accOf(h.dataset.cdrop)==='read'?null:{type:'coll',c:h.dataset.cdrop,node:h,cls:'drop-into'};
+  const n=el&&el.closest('[data-row]');if(!n)return null;
+  const id=n.dataset.row;if(within(drag.id,id))return null;
+  const r=n.getBoundingClientRect(),y=(e.clientY-r.top)/r.height;
+  return y<.3?{type:'before',id,node:n,cls:'drop-before'}:y>.7?{type:'after',id,node:n,cls:'drop-after'}:{type:'into',id,node:n,cls:'drop-into'};
+}
+function secTarget(e,el){
+  const n=el&&el.closest('[data-secid]');if(!n||n.dataset.secid===drag.id)return null;
+  const r=n.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;return {id:n.dataset.secid,after,node:n,cls:after?'drop-after':'drop-before'};
+}
+function favTarget(e,el){
+  if(el&&el.closest('.nav3')){const t=rowTarget(e,el);if(!t)return null;const home=t.type==='coll'?t.c:COLL[t.id]&&COLL[t.id].id;return home===drag.id?null:{...t,down:true};}
+  const n=el&&el.closest('[data-favid]');if(!n||n.dataset.favid===drag.id)return null;
+  const r=n.getBoundingClientRect();return {id:n.dataset.favid,after:e.clientY>r.top+r.height/2,node:n,cls:e.clientY>r.top+r.height/2?'drop-after':'drop-before'};
+}
+addEventListener('pointermove',e=>{
+  if(!drag)return;
+  if(!drag.on){if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.on=true;document.body.classList.add('dragging');
+    const g=document.createElement('div');g.className='ghost';g.textContent=drag.label;g.id='ghost';document.body.append(g);if(drag.src&&!drag.src.classList.contains('general'))drag.src.style.display='none';}
+  const z=S.scale/100,g=document.getElementById('ghost');g.style.left=(e.clientX/z+12)+'px';g.style.top=(e.clientY/z+12)+'px';
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  drag.to=drag.kind==='tab'?tabTarget(e):drag.kind==='row'?rowTarget(e,el):drag.kind==='sec'?secTarget(e,el):favTarget(e,el);
+  clearMarks();const t=drag.to;
+  if(drag.kind==='tab')g.style.display=showSlot(t)?'none':'';
+  if(t&&t.node)t.node.classList.add(t.cls);
+});
+function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id].top;}
+function applyDrop(d){
+  const t=d.to;if(!t)return;
+  if(d.kind==='tab'){
+    if(t.type==='row'){if(t.i!==d.w||t.idx!==d.t)placeTab(d.w,d.t,t.i,t.idx);else{S.wins[d.w].a=d.t;S.focus=d.w;}}
+    else if(t.type==='new')newColumn(d.w,d.t,t.pos);
+    else placeTab(d.w,d.t,t.i,Infinity);
+  }else if(d.kind==='row'){
+    const list=parentList(d.id);list.splice(list.indexOf(d.id),1);
+    if(t.type==='nav2'){C.push(asTop({id:d.id,i:D[d.id].i||'grid'}));S.open[d.id]=true;rebuildPlaces();return;}
+    if(t.type==='coll')C.find(c=>c.id===t.c).top.push(d.id);
+    else if(t.type==='into'){D[t.id].kids.push(d.id);S.tog[t.id]=true;}
+    else{const l=parentList(t.id);l.splice(l.indexOf(t.id)+(t.type==='after'?1:0),0,d.id);}
+    rebuildPlaces();S.just=d.id;
+  }else if(d.kind==='sec'){
+    const L=SORT[d.view],a=L.findIndex(x=>x.id===d.id),[m]=L.splice(a,1);let b=L.findIndex(x=>x.id===t.id);if(t.after)b++;L.splice(b,0,m);
+  }else if(t.down){
+    C.splice(C.findIndex(c=>c.id===d.id),1);delete S.open[d.id];delete S.fav[d.id];delete S.pin[d.id];
+    if(t.type==='coll')C.find(c=>c.id===t.c).top.push(d.id);
+    else if(t.type==='into'){D[t.id].kids.push(d.id);S.tog[t.id]=true;}
+    else{const l=parentList(t.id);l.splice(l.indexOf(t.id)+(t.type==='after'?1:0),0,d.id);}
+    rebuildPlaces();S.just=d.id;
+  }else{
+    const a=C.findIndex(c=>c.id===d.id),[m]=C.splice(a,1);let b=C.findIndex(c=>c.id===t.id);if(t.after)b++;C.splice(b,0,m);
+  }
+}
+addEventListener('pointerup',e=>{
+  if(!drag)return;const d=drag;drag=null;
+  if(!d.on)return;
+  noClick=true;setTimeout(()=>{noClick=false;},60);
+  document.body.classList.remove('dragging');const g=document.getElementById('ghost');if(g)g.remove();clearMarks();
+  applyDrop(d);render();
+});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&drag){const g=document.getElementById('ghost');if(g)g.remove();drag=null;document.body.classList.remove('dragging');clearMarks();}});
+/* Documents that need the helpers above */
+const fill=o=>{const def={w:'slim',toc:'marker',tags:[],kids:[],vis:'Only you',...none};for(const k in def)if(!(k in o))o[k]=def[k];return o;};
+D['priv:time']=fill({t:'time',n:'This week',w:'wide',path:'not a file, private',place:'Private › Time',by:'you',ch:'today',stat:'31:40 this week',
+  get html(){return `<button class="clockbtn" data-act="clock" aria-pressed="${S.clock}">${ic('clock')}${S.clock?'Clock out, running since 08:02':'Clock in'}</button>${tableHtml(['Day','In','Out','Break','Hours'],[['Mon','07:58','16:40','0:30','8:12'],['Tue','08:05','17:02','0:30','8:27'],['Wed','08:00','16:15','0:30','7:45'],['Thu','08:10','15:56','0:30','7:16']])}`;}});
+D['priv:vac']=fill({t:'vacation',n:'Vacation 2026',w:'wide',path:'not a file, private',place:'Private › Vacation',by:'you',ch:'Oct 30',stat:'7 days left',
+  html:`<p>30 days this year: 18 taken, 5 planned, 7 left.</p>${tableHtml(['From','To','Days','State'],[['Mar 02','Mar 13','10','✓ taken'],['Jul 20','Jul 27','8','✓ taken'],['Nov 24','Nov 28','5','△ planned']])}`});
+const box=x=>x.done?ic('check'):'<span class="box"></span>';
+function todoDocs(){TL.forEach(l=>{
+  D['tl:'+l.id]=fill({t:'todo',n:l.n,path:'not a file, private',place:'To-do',by:'you',ch:'today',
+    get stat(){return `${l.items.filter(x=>x.done).length} of ${l.items.length} done`;},
+    get html(){return `<div class="todos">${l.items.map((x,k)=>`<button class="todo${x.done?' done':''}" data-act="tick" data-l="${l.id}" data-id="${k}" aria-pressed="${x.done}">${box(x)}<span>${esc(x.t)}</span>${x.due?`<em class="due">${x.due}</em>`:''}</button>`).join('')||'<p class="lab">Empty. Use + in nav3.</p>'}</div>`;}});
+  l.items.forEach((x,k)=>{D[`ti:${l.id}/${k}`]=fill({t:'todo',n:x.t,path:'not a file, private',place:'To-do › '+l.n,by:'you',ch:'today',get stat(){return x.done?'done':'open';},
+    get html(){return `<button class="todo${x.done?' done':''}" data-act="tick" data-l="${l.id}" data-id="${k}" aria-pressed="${x.done}">${box(x)}<span>${esc(x.t)}</span></button><dl class="mailhead" data-style="margin-top:12px"><dt>Due</dt><dd>${x.due||'–'}</dd><dt>List</dt><dd>${esc(l.n)}</dd></dl>`;}});});
+});}
+todoDocs();
+const calGrid=cs=>{const ev={};cs.forEach(c=>Object.entries(c.ev).forEach(([d,n])=>(ev[d]=ev[d]||[]).push(n)));
+  return `<div class="calgrid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<b>${x}</b>`).join('')}${'<span></span>'.repeat(6)}${Array.from({length:30},(_,k)=>k+1).map(n=>`<div class="day${n===7?' today':''}"><em>${n}</em>${(ev[n]||[]).map(x=>`<small>${x}</small>`).join('')}</div>`).join('')}</div>`;};
+[['all','All calendars',CALS],...CALS.map(c=>[c.id,c.n,[c]])].forEach(([id,n,cs])=>{D['cal:'+id]=fill({t:'cal',n:n+', November 2026',w:'wide',path:'not a file, private',place:'Calendar',by:'you',ch:'today',stat:cs.reduce((a,c)=>a+Object.keys(c.ev).length,0)+' entries',html:calGrid(cs)+'<p class="hint">Shared calendars from documents come with M-18.</p>'});});
+CALS.forEach(c=>Object.entries(c.ev).forEach(([d,n])=>{D[`ev:${c.id}/${d}`]=fill({t:'cal',n,path:'not a file, private',place:'Calendar › '+c.n,by:'you',ch:'today',stat:'1 entry',html:`<dl class="mailhead"><dt>When</dt><dd>Nov ${d}, 2026</dd><dt>Calendar</dt><dd>${c.n}</dd></dl>`});}));
+D['cal:import']=fill({t:'cal',n:'Import a calendar',w:'wide',path:'not a file',place:'Calendar › Import',by:'you',ch:'now',stat:'nothing imported',html:`<div class="dropzone">${ic('down')}<span>Drop a calendar file here</span><button class="chip" disabled>Choose a file</button></div><input class="addtag" disabled placeholder="Or the address of a calendar to keep reading from" aria-label="Calendar address"><p class="hint">An imported calendar appears in nav2 next to your own, and can be sorted there.</p>`});
+D['time:last']=fill({t:'time',n:'Last week',w:'wide',path:'not a file, private',place:'Time',by:'you',ch:'Nov 01',stat:'38:35',html:tableHtml(['Day','In','Out','Break','Hours'],[['Mon','08:00','16:30','0:30','8:00'],['Tue','07:55','16:30','0:30','8:05'],['Wed','08:00','17:00','0:30','8:30'],['Thu','08:10','16:30','0:30','7:50'],['Fri','08:00','14:40','0:30','6:10']])});
+D['time:oct']=fill({t:'time',n:'October',w:'wide',path:'not a file, private',place:'Time',by:'you',ch:'Nov 01',stat:'157:35',html:tableHtml(['Week','Hours'],[['40','39:10'],['41','40:05'],['42','38:20'],['43','40:00']])});
+D['time:export']=fill({t:'time',n:'Export the records',path:'not a file',place:'Time',by:'you',ch:'now',stat:'later',html:'<p class="hint">As a table, for a chosen period. Whether records feed anything official needs its own look first (M-24).</p>'});
+D['vac:27']=fill({t:'vacation',n:'Vacation 2027',w:'wide',path:'not a file, private',place:'Vacation',by:'you',ch:'now',stat:'30 days left',html:'<p>30 days, none planned yet.</p>'});
+D['vac:new']=fill({t:'vacation',n:'Plan a vacation',path:'not a file, private',place:'Vacation',by:'you',ch:'now',stat:'draft',html:'<p class="hint">From, to and a note. A request to someone else is a question for M-24.</p>'});
+const boardDoc=(n,notes)=>fill({t:'notes',n,w:'full',path:'not a file, private notes',place:'Notes › '+n,by:'you',ch:'today',notes,get stat(){return `${this.notes.length} notes`;},
+  get html(){return `<input class="noteadd" data-addnote placeholder="Take a note, then Enter" aria-label="Take a note"><div class="keep">${this.notes.map(x=>`<div class="kard">${x.h?`<b>${esc(x.h)}</b>`:''}<span>${esc(x.b).replace(/\n/g,'<br>')}</span></div>`).join('')}</div>`;}});
+D['nb:ideas']=boardDoc('Ideas',[{h:'Start page',b:'Show the tower height.'},{h:'',b:'A map of the site.'}]);
+Object.assign(TYPE,{ipnet:['net','IP range'],devices:['hd','Device list'],cal:['cal','Calendar'],time:['clock','Time'],vacation:['sun','Vacation']});
+const netDoc=(n,used,rows,txt)=>fill({t:'ipnet',n,w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['network'],stat:used+' used',html:`<p>${txt} The page <button class="l" data-act="open" data-id="plan">Network plan</button> can embed this range, and a value can come from an address.</p>`+tableHtml(['Address','Name','Kind','Note'],rows)});
+D.ip1=netDoc('10.0.0.0/24','4 of 254',[['10.0.0.1','router','Router','Value router.ip'],['10.0.0.2','core-a','Switch',''],['10.0.0.3','core-b','Switch',''],['10.0.0.20','printer office','Printer','']],'Office.');
+D.ip2=netDoc('10.0.20.0/24','2 of 254',[['10.0.20.5','camera gate','Camera',''],['10.0.20.6','sensor tower','Sensor','']],'Devices.');
+D.devs=fill({t:'devices',n:'Network devices',w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['hardware'],stat:'3 devices',html:tableHtml(['Name','Kind','Room','Ports','Address'],[['router','Router','Server room','8','10.0.0.1'],['core-a','Switch','Server room','48','10.0.0.2'],['core-b','Switch','Workshop','48','10.0.0.3']])});
+D.net.kids=[...D.net.kids,'ip1','ip2','devs'];
+TYPE.search=['search','Saved search'];
+const savedHits=o=>Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')||d.t==='search')return false;if(o.type&&d.t!==o.type)return false;if(!o.ftags.every(t=>(d.tags||[]).includes(t)))return false;return !o.q||docText(d).toLowerCase().includes(o.q.toLowerCase());});
+/* A saved search is a document: a query with filters and sources that runs again each time it opens. */
+D.ss1=fill({t:'search',n:'Everything on the network',w:'wide',path:'not a file, a saved search',by:'A. Keller',ch:'Oct 30',vis:'Group ops, inherited',desc:'All documents tagged network, wherever they are.',q:'',ftags:['network'],type:'',strat:'Full text',src:['Workspace','Share','Ticket system'],
+  get stat(){return savedHits(this).length+' hits';},
+  get html(){const h=savedHits(this);return `<div class="ssbar"><span class="lab">Query</span><span class="chip">${this.q?esc(this.q):'any text'}</span><span class="lab">Strategy</span><span class="chip">${this.strat}</span><span class="lab">Filter</span>${this.ftags.map(t=>`<span class="tagc">#${t}</span>`).join('')}${this.type?`<span class="chip">${TYPE[this.type][1]}</span>`:''}<span class="lab">Sources</span>${this.src.map(x=>`<span class="chip">${x}</span>`).join('')}</div>
+    <p class="hint">Runs again each time it opens. Changing the query comes with editing (M-8), and the strategies with M-12.</p>
+    <div class="sshits">${h.map(x=>`<button class="hit" data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}<span>${D[x].n}<small>${placeOf(x)}</small></span></button>`).join('')}</div>`;}});
+C.find(c=>c.id==='ops').top.push('ss1');
+TYPE.bookmark=['globe','Bookmark'];TYPE.news=['globe','News entry'];
+BM.forEach(f=>f.items.forEach((b,k)=>{D[`bm:${f.id}/${k}`]=fill({t:'bookmark',n:b.n,path:'not a file, a bookmark',place:'Bookmarks › '+f.n,by:'you',ch:'Oct 20',stat:'1 link',tags:f.id==='work'?['hardware']:[],
+  html:`<p><a href="${b.u}" target="_blank" rel="noopener noreferrer">${b.u}</a></p><p>${b.d}</p><div class="note">Nothing is loaded from the site, so no preview and no icon reach a third party. The link opens in a new browser tab.</div>`});}));
+D['bm:import']=fill({t:'bookmark',n:'Import bookmarks',w:'wide',path:'not a file',place:'Bookmarks › Import',by:'you',ch:'now',stat:'nothing imported',
+  html:`<div class="dropzone">${ic('down')}<span>Drop the HTML file of your browser here</span><button class="chip" disabled>Choose a file</button></div><p class="hint">Folders stay folders and links already there are skipped. Firefox, Chrome, Edge and Safari all export this format.</p>`});
+NEWS.forEach(n=>{D['news:'+n.id]=fill({t:'news',n:n.h,path:'not a file, from a feed',place:'News › '+FEEDS.find(x=>x.id===n.f).n,by:FEEDS.find(x=>x.id===n.f).n,ch:n.date,stat:'1 entry',html:`<p>${n.b}</p><div class="note">Save it as a document, or send it to a collection, comes with the news module.</div>`});});
+D['news:sub']=fill({t:'news',n:'Subscribe to a feed',path:'not a file',place:'News › Subscribe',by:'you',ch:'now',stat:'later',html:`<input class="addtag" disabled placeholder="Address of an RSS or Atom feed" aria-label="Feed address"><p class="hint">Later: feeds, and maybe pages that change. Every user has their own.</p>`});
+D.plan.comments=[{b:'h3',l:'Radio link',who:'J. Roth',when:'Oct 29',t:'Is the radio link backed up by a second path?'},{b:'h3',l:'Radio link',who:'M. Sander',when:'Oct 30',t:'Not yet, it is on the list for spring.'},{b:'t1',l:'Table: Name, Room, Uplink',who:'A. Keller',when:'Nov 02',t:'The uplink of core-b is 1 Gbit for now.'}];
+/* Bookmarks are objects: a folder of links in Operations. The import of a browser file comes from New at a collection. */
+D.links=fill({t:'folder',n:'Links',kids:['bk1','bk2','bk3'],path:'not a file, a folder in the workspace',by:'A. Keller',ch:'Oct 20',vis:'Everyone signed in'});
+[['bk1','Ticket system','https://tickets.example.com','Open tickets of the team.'],['bk2','Supplier portal','https://supplier.example.net','Orders and licenses.'],['bk3','Switch manual','https://docs.example.com/switch','Firmware 9, chapter on VLANs.']].forEach(([id,n,u,dsc])=>{D[id]=fill({t:'bookmark',n,path:'not a file, a bookmark',by:'A. Keller',ch:'Oct 20',vis:'Everyone signed in',desc:dsc,stat:'1 link',
+  html:`<p><a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a></p><div class="note">Nothing is loaded from the site, so no preview and no icon reach a third party. The link opens in a new browser tab.</div>`});});
+D.ops.kids.splice(D.ops.kids.indexOf('ss1'),0,'links');D['bm:import'].place='Workspace';
+D.rack=fill({t:'page',n:'Rack overview',w:'wide',path:'operations/network/rack.md',by:'A. Keller',ch:'Nov 03',vis:'Everyone signed in',tags:['hardware'],stat:'1 embedded table',desc:'What sits in the rack, with the switch table of the network plan.',
+  get html(){const sec=D.plan.doc.secs.find(x=>x[0]==='Core switches'),tb=(sec[1].match(/<div class="tw">[\s\S]*?<\/table><\/div>/)||[''])[0];
+    return `<p>The table below is not a copy. It lives in the network plan and shows here, so a change there shows here too.</p><div class="embed"><div class="embhead">${ic('opennew')}<span>Core switches, from <button class="l" data-act="open" data-id="plan">Network plan</button></span><em>/o/plan#t1</em></div>${tb}</div><p class="hint">Paste as a copy instead comes later. A copy gets IDs of its own and no longer follows the source.</p>`;}});
+D.net.kids.push('rack');D.plan.usedIn=[...(D.plan.usedIn||[]),'Rack overview (table #t1)'];
+/* ---- UnderDoc: the real data in the workspace of the mockup (sprint 2026-11-08) ----
+   Who is signed in, the collections and their trees come from /api/state; a page loads from /api/doc/<id> when it opens.
+   What has no backend yet keeps the made-up content of the mockup, marked as a demo. */
+
+/* Strict CSP: markup carries data-style, and this puts it into the CSSOM, which the CSP allows. */
+const applyStyles=root=>{if(!root||!root.querySelectorAll)return;if(root.dataset&&root.dataset.style!==undefined)root.style.cssText=root.dataset.style;root.querySelectorAll('[data-style]').forEach(n=>{n.style.cssText=n.dataset.style;});};
+new MutationObserver(records=>records.forEach(r=>{r.addedNodes.forEach(applyStyles);if(r.type==='attributes')applyStyles(r.target);})).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['data-style']});
+
+/* Demo content: the made-up collections stay below the real ones, marked. */
+C.forEach(c=>{D[c.id].n=D[c.id].n+' (demo)';S.fav[c.id]=false;});
+S.open={};S.pin={};
+
+async function loadDoc(id){
+  const d=D[id];if(!d||d.loading)return;d.loading=true;d.html='<p class="lab">Loading…</p>';
+  try{
+    const r=await fetch('/api/doc/'+encodeURI(id),{credentials:'same-origin',headers:{Accept:'application/json'}});
+    if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();
+    delete d.html;
+    d.doc={intro:a.intro,secs:a.secs};d.desc=a.desc;d.tags=a.tags;d.path=a.path;d.ch=a.ch;d.by=d.by||'—';d.vis='Everyone signed in';
+    d.usedIn=a.usedIn;d.uses={ext:[],int:a.links,data:[],vals:[],db:[]};d.loaded=true;
+  }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
+  d.loading=false;render();
+}
+
+/* One node of /api/state becomes an object of the mockup's data. */
+function addNode(node){
+  const id=node.id,kids=(node.kids||[]).map(addNode);
+  if(node.t==='collection'||node.t==='coll'){collDoc(id,node.n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=S.user.name;D[id].private=node.private;}
+  else D[id]=fill({t:node.t==='folder'?'folder':'page',n:node.n,w:'wide',kids,path:node.path||'',by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
+  D[id].tags=D[id].tags||[];
+  return id;
+}
+
+function idFromPath(){
+  const m=location.pathname.match(/^\/o\/(.+)$/);if(m)return decodeURI(m[1]);
+  const f=location.pathname.match(/^\/f\/(.*)$/);if(f)return 'f:'+decodeURI(f[1]).replace(/\/$/,'');
+  return null;
+}
+
+async function boot(){
+  let st=null;
+  try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
+  if(st){
+    S.user=st.user;S.canCreate=st.canCreate;
+    const tops=st.collections.map(addNode);
+    tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].private?'lock':'folder'}));S.fav[id]=true;});
+    if(!st.user.admin){PROFADM.length=0;}
+  }
+  if(window.udTheme)S.theme=window.udTheme();
+  rebuildPlaces();
+  const start=idFromPath();
+  const first=C.find(c=>D[c.id].real);
+  if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}
+  else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
+  render();
+}
+window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
+boot();

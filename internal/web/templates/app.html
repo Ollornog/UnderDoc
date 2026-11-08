@@ -1,0 +1,19 @@
+{{define "app" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UnderDoc</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.}}">
+  <link rel="stylesheet" href="/assets/app/demo.css?v={{.}}">
+  <script src="/assets/app/theme.js?v={{.}}"></script>
+  <script defer src="/assets/app/demo.js?v={{.}}"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <noscript><p>The workspace needs JavaScript. Each page is also readable without it, through its address under /o/.</p></noscript>
+</body>
+</html>
+{{- end}}

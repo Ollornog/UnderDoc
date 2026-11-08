@@ -93,6 +93,9 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	if h.pages["signedout"], err = template.ParseFS(templateFiles, "templates/signedout.html"); err != nil {
 		return nil, err
 	}
+	if h.pages["app"], err = template.ParseFS(templateFiles, "templates/app.html"); err != nil {
+		return nil, err
+	}
 	if h.assetVersion, err = hashAssets(); err != nil {
 		return nil, err
 	}
@@ -101,15 +104,25 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		return nil, err
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", h.home)
-	mux.HandleFunc("GET /o/{id...}", h.document)
+	// The workspace of the mockup renders itself in the browser and reads its data from the API (sprint 2026-11-08).
+	// The pages rendered on the server stay under /read/ for reading without JavaScript.
+	mux.HandleFunc("GET /{$}", h.app)
+	mux.HandleFunc("GET /o/{id...}", h.app)
+	mux.HandleFunc("GET /f/{path...}", h.app)
+	mux.HandleFunc("GET /profile", h.app)
+	mux.HandleFunc("GET /api/state", h.apiState)
+	mux.HandleFunc("GET /api/doc/{id...}", h.apiDocument)
+	mux.HandleFunc("GET /api/search", h.apiSearch)
+	mux.HandleFunc("POST /api/collections", h.apiCreateCollection)
+	mux.HandleFunc("GET /read/{$}", h.home)
+	mux.HandleFunc("GET /read/o/{id...}", h.document)
 	// Links from before the object addresses of ADR-18 keep working.
 	mux.HandleFunc("GET /d/{id...}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
-	mux.HandleFunc("GET /profile", h.profile)
+	mux.HandleFunc("GET /read/profile", h.profile)
 	mux.HandleFunc("POST /collections", h.createCollection)
-	mux.HandleFunc("GET /f/{path...}", h.folder)
+	mux.HandleFunc("GET /read/f/{path...}", h.folder)
 	mux.HandleFunc("GET /files/{path...}", h.file)
 	mux.HandleFunc("GET /search", h.search)
 	mux.HandleFunc("GET /problems", h.problems)
@@ -261,6 +274,19 @@ func (h *handler) render(w http.ResponseWriter, name string, status int, view an
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache") // a change on disk has to show on the next view
 	w.WriteHeader(status)
+	_, _ = w.Write(out.Bytes())
+}
+
+// app answers every address of the workspace with the same page; the browser shows the object the address names.
+func (h *handler) app(w http.ResponseWriter, _ *http.Request) {
+	var out bytes.Buffer
+	if err := h.pages["app"].ExecuteTemplate(&out, "app", h.assetVersion); err != nil {
+		h.log.Error("template failed", slog.String("template", "app"), slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(out.Bytes())
 }
 
