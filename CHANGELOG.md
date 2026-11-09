@@ -13,6 +13,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Dragging entries of nav2 and nav3 now comes from C22 (`app-workspace-drag.js`), as the maintainer approved it; UnderDoc
+  only decides what may go where and what a drop does. A test now carries an entry somewhere else before Escape, to prove
+  that Escape puts it back.
 - The settings of a collection are part of its overview in the window, for the owner and whoever may edit; "Settings and
   name" opens it ready to rename, and nav3 keeps its tree instead of giving way to a settings panel.
 - A right click menu stays inside the window: at the edge it moves in, and a long one scrolls. The menu of a tab and New do

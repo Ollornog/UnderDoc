@@ -227,8 +227,15 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	if got := b.eval(`document.getAnimations().length + ' ' + Math.round(document.querySelector(` + strconv.Quote(c) + `).getBoundingClientRect().top - ` + strconv.FormatFloat(top(c), 'f', 2, 64) + `)`); got != "0 0" {
 		t.Errorf("lifting B makes nothing jump: animations and the move of C are %q", got)
 	}
+	// Carried up before A, then Escape: B goes back where it was.
+	ra := b.rect(a)
+	b.mouse("mouseMoved", rb.X, ra.Top+(ra.Bottom-ra.Top)*0.1, 0, 0)
+	time.Sleep(150 * time.Millisecond)
+	if got := b.eval(gapAt); !strings.HasPrefix(got, "TeamNew ") {
+		t.Errorf("B is held before A: %q", got)
+	}
 	b.press("Escape", "Escape", 27, 0)
-	b.mouse("mouseReleased", rb.X, rb.Y+8, 1, 0)
+	b.mouse("mouseReleased", rb.X, ra.Top+(ra.Bottom-ra.Top)*0.1, 1, 0)
 	if got := b.eval(`[document.querySelectorAll('.dropgap, #ghost').length, [...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')].join(' ')`); got != "0 A B C" {
 		t.Errorf("Escape puts B back: %q", got)
 	}
