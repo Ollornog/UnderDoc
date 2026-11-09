@@ -44,6 +44,8 @@ All notable changes to this project are documented in this file. The format foll
   plan of saving with Node and build them. Dependabot watches `web/editor`, and its updates merge by themselves when the
   checks are green, as Go modules now do too (the auto-merge named the ecosystem `gomod` instead of `go_modules`).
 - The editor is loaded when it is needed, not with every page, and the browser keeps assets of a release for a year.
+- The look of the editor's bar, the handle on a block's marker line, the question before a used block goes, the box of an
+  embedding and the slash menu comes from C22; the editor bundle keeps only what is its own.
 - The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
   `/dev/editor-trial`, with the dev switch or for administrators.
 

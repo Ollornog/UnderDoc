@@ -38,45 +38,6 @@
   background: color-mix(in oklab, var(--primary) 22%, transparent);
 }
 
-/* The marker of a block is hidden; its line is the place of the block's handle. */
-.cm-editor.cm-ud .cm-ud-marker {
-  position: relative;
-  height: 0;
-}
-
-.cm-editor.cm-ud .cm-ud-marker[data-active] > .bhandle {
-  opacity: 1;
-}
-
-/* A block used elsewhere whose marker is gone asks here before it is deleted. */
-.cm-editor.cm-ud .cm-ud-ask {
-  margin: 6px 0;
-}
-
-.cm-editor.cm-ud .cm-ud-ask .chip {
-  margin-left: 4px;
-}
-
-/* An embedding away from the cursor: a compact box that names what it embeds. */
-.cm-editor.cm-ud .cm-ud-embed {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--muted);
-  font-size: 0.92em;
-}
-
-.cm-editor.cm-ud .cm-ud-embed-what {
-  color: var(--muted-foreground);
-}
-
-.cm-editor.cm-ud .cm-ud-embed a {
-  color: inherit;
-  text-decoration: underline;
-}
 
 /* The slash menu is a tooltip of CodeMirror; the menu itself is C22's .bslash. */
 .cm-editor.cm-ud .cm-tooltip.cm-tooltip {
@@ -84,11 +45,6 @@
   border: 0;
 }
 
-/* In the tooltip the menu takes its own room, so CodeMirror measures it and opens it above the line where there is no
-   room below. */
-.cm-editor.cm-ud .cm-ud-slashbox > .bslash {
-  position: static;
-}
 
 /* Markers that stay visible on the cursor line are muted. */
 .cm-editor.cm-ud .tok-processingInstruction,
@@ -262,13 +218,5 @@
   border: 1px dashed var(--border);
 }
 
-/* The bar sits once above the page and stays in sight while the page scrolls (ADR-21, M-8: "a bar above the page").
-   C22's .btool floats above a block; until C22 has a variant for a page, this places it. */
-.cm-ud-page > .btool.cm-ud-bar {
-  position: sticky;
-  top: 0;
-  bottom: auto;
-  margin-bottom: 8px;
-  visibility: visible;
-  opacity: 1;
-}
+/* The look of the bar, the handle on the marker line, the question in place, the box of an embedding and the slash menu
+   comes from the design system C22 (.c22-app-workspace, 2026-11-09); here stays what is the editor's own. */

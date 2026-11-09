@@ -1426,11 +1426,15 @@ function editorLikely(){
   if(S.openEdit||d&&d.blocks&&d.canEdit)(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>{needEditor().catch(()=>{});});
 }
 document.addEventListener('pointerover',e=>{if(e.target.closest&&e.target.closest('.dstatus'))needEditor().catch(()=>{});});
+let edPending=null;
 function mountEditors(focusKey,want){
   const seen=new Set();
   editorLikely();
+  /* Where the cursor was to go while the editor was still loading, it goes once it is there. */
+  if(edPending&&window.UnderDocEditor){focusKey=focusKey||edPending.f;want=want||edPending.w;edPending=null;}
   document.querySelectorAll('[data-cmhost]').forEach(h=>{const key=h.dataset.cmhost;
     if(!window.UnderDocEditor){h.innerHTML=`<p class="lab">${editorLoad===false?'The editor did not load. Reload the page to try again.':'Loading the editor…'}</p>`;
+      if(focusKey||want)edPending={f:focusKey,w:want};
       if(editorLoad!==false)needEditor().then(()=>render(),()=>{editorLoad=false;render();});return;}
     if(seen.has(key)){h.innerHTML='<p class="lab">This page is being written in another window.</p>';return;}
     seen.add(key);const e=EDS[key]||(EDS[key]=makeEditor(key));e.w=+h.dataset.w;h.append(e.ed.dom);e.ed.refresh();
