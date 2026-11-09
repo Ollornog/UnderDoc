@@ -458,6 +458,7 @@ func TestAssetsArrive(t *testing.T) {
 		"/assets/c22/css/c22-vega.css":            "text/css",
 		"/assets/c22/fonts/inter.woff2":           "font/woff2",
 		"/assets/app/demo.js":                     "javascript",
+		"/assets/c22/js/app-workspace-drag.js":    "javascript",
 		"/assets/app/theme.js":                    "javascript",
 		"/assets/logo.svg":                        "image/svg+xml",
 		"/favicon.ico":                            "image/",

@@ -939,16 +939,8 @@ document.addEventListener('pointerdown',e=>{
   const g=e.target.closest('[data-grip]');
   if(g){startGrip(g,e);return;}
   if(e.pointerType==='touch'||e.target.closest('.mini,.arrow,.star,.addbtn,.cmore,.pop,input,textarea,select'))return;
-  const tab=e.target.closest('.dtab:not(.blank)'),row=e.target.closest('[data-row]'),fav=e.target.closest('[data-favid]'),sec=e.target.closest('[data-secid]');
-  if(row&&contAcc(row.dataset.row)==='read')return;
+  const tab=e.target.closest('.dtab:not(.blank)');
   if(tab)drag={kind:'tab',src:tab,w:+tab.dataset.dw,t:+tab.dataset.dt,label:tab.querySelector('.sel span').textContent};
-  else if(row||fav||sec){const kind=row?'row':fav?'fav':'sec',el=row||fav||sec,id=el.dataset.row||el.dataset.favid||el.dataset.secid;
-    /* An entry of a selection takes the others along, in the order of the list; in nav3 one below another selected one
-       goes with that one anyway, and what may only be read stays. */
-    const many=S.sel&&S.sel.z===selOf(kind)&&S.sel.ids.includes(id)?S.sel.ids.filter(x=>elOf(kind,x)&&(kind!=='row'||contAcc(x)!=='read')):[id];
-    const ids=kind==='row'?many.filter(x=>!many.some(y=>y!==x&&within(y,PARENT[x]))):many;
-    ids.sort((a,b)=>elOf(kind,a).compareDocumentPosition(elOf(kind,b))&Node.DOCUMENT_POSITION_FOLLOWING?-1:1);
-    drag={kind,id,ids,view:S.view,label:kind==='sec'?esc(el.textContent.trim()):kind==='fav'?C.find(c=>c.id===id).n:D[id].n,el};}
   if(drag){drag.x0=e.clientX;drag.y0=e.clientY;drag.on=false;drag.to=null;}
 });
 /* Tabs snap: the window comes from the pointer's x, the row has a tolerance around it, and the tab takes its place while dragging. */
@@ -983,123 +975,70 @@ const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return fal
    one may edit, and made-up content stays made up. */
 function dropCont(t){return t.type==='coll'?t.c:t.type==='into'?t.id:t.type==='nav2'?'':contOf(t.id);}
 function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
-/* Dragging an entry of nav2 or nav3 takes it, with the others selected along with it, and carries it through the list as
-   it looks when held: no picture floats over the rest (the maintainer, 2026-11-09). Up and down it always goes between
-   entries; waiting a moment on the middle of an entry puts it below that entry, and moving to the right does at once. The
-   lists are measured once without it, so it moving does not move the place under the pointer. On a collection in nav2 it
-   goes into that collection, on a window it opens there as tabs, and with Ctrl held at the drop it is copied. */
+/* Dragging an entry of nav2 or nav3 is C22's (app-workspace-drag.js, approved here on 2026-11-09): it carries the entry
+   through the list as it looks when held, up and down between entries, onto one after waiting, deeper to the right. What
+   may go where, and what a drop does, is decided here. The entries selected along with it go too; on a collection in
+   nav2 an entry goes into it, on a window it opens there as tabs, and with Ctrl held at the drop it is copied. */
 const selOf=kind=>kind==='row'?'n3':kind==='fav'?'n2':'sec';
 const elOf=(kind,id)=>document.querySelector(kind==='row'?`.nav3 [data-row="${id}"]`:kind==='fav'?`#clist [data-favid="${id}"]`:`.nav2 [data-secid="${id}"]`);
-const hideOf=(kind,el)=>kind==='row'?el.closest('li'):el;
-const WATCH=['#clist>.collrow','#tree .row','#tree .cheadrow','.nav2 [data-secid]'].map(x=>x+':not(.dropgap *)').join(',');
-const DWELL=300;
+const kindOfEl=n=>n.matches('[data-row]')?'row':n.matches('[data-favid]')?'fav':'sec';
 function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.parentElement)if(x.matches('ul.t'))k++;return k;}
-function measure(d){
-  const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null;
-  const rowsOf=(nodes,f)=>nodes.filter(shown).map(n=>{const r=n.getBoundingClientRect();return {el:n,top:r.top,bot:r.bottom,...f(n)};});
-  const n2=document.querySelector('.nav2'),list=document.getElementById('clist');
-  if(list&&d.kind!=='sec')zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.querySelectorAll(':scope>.collrow[data-favid]')],n=>({id:n.dataset.favid,hold:!isDeco(n.dataset.favid)}))});
-  if(d.kind==='sec'&&n2)zones.push({box:n2,sc:n2,s0:n2.scrollTop,flat:true,where:'sec',rows:rowsOf([...n2.querySelectorAll('[data-secid]')],n=>({id:n.dataset.secid}))});
-  const tr=document.getElementById('tree'),top=tr&&tr.querySelector('ul.t.top');
-  if(top&&(d.kind==='row'||(d.kind==='fav'&&!d.ids.some(x=>isDeco(x)||aliasOf(x))))){
-    const p=document.createElement('ul');p.className='t';top.append(p);const ind=parseFloat(getComputedStyle(p).paddingLeft)*z;p.remove();
-    zones.push({box:tr.closest('.nav3'),sc:tr,s0:tr.scrollTop,flat:false,where:'n3',base:top.getBoundingClientRect().left,ind,step:16*z,
-      rows:rowsOf([...tr.querySelectorAll('.cheadrow,.row')],n=>n.classList.contains('cheadrow')?{id:n.dataset.cdrop,head:true,depth:-1,hold:true}:{id:n.dataset.row,depth:depthOf(n),hold:!isDeco(n.dataset.row)})});
-  }
-  return zones;
+/* May every dragged entry go into container c? */
+function mayInto(d,c,head){
+  if(accOf(c)==='read')return false;const probe=head?{type:'coll',c}:{type:'into',id:c};
+  return d.ids.every(x=>fits(x,probe)&&!(d.kind==='fav'&&(c===x||aliasOf(x)||(COLL[c]&&COLL[c].id===x)))&&!(d.kind==='row'&&within(x,c)));
 }
-/* The place of slot k at a depth, if every dragged entry may go there: the parent they go into and the entry they follow. */
-function slotAt(z,k,dep){
-  const d=drag;
-  if(z.flat){if(z.where==='n2'&&!d.ids.every(x=>d.kind==='fav'||fits(x,{type:'nav2'})))return null;return {z,k,dep:0,root:z.where==='n2',after:k>0?z.rows[k-1].id:'',top:k>0?z.rows[k-1].bot:z.rows[0].top};}
-  k=Math.max(1,k);const prev=z.rows[k-1],next=z.rows[k];
-  const hi=prev.head?0:prev.depth+(prev.hold?1:0),lo=next&&!next.head?Math.min(next.depth,hi):0;dep=Math.max(lo,Math.min(hi,dep));
-  let par=null,after='';for(let j=k-1;j>=0;j--){const r=z.rows[j];if(r.depth<dep){par=r;break;}if(r.depth===dep&&!after)after=r.id;}
-  if(!par)return null;const c=par.id,probe=par.head?{type:'coll',c}:{type:'into',id:c};
-  if(accOf(c)==='read')return null;
-  for(const x of d.ids){if(!fits(x,probe))return null;if(d.kind==='fav'&&(c===x||(COLL[c]&&COLL[c].id===x)))return null;if(d.kind==='row'&&within(x,c))return null;}
-  return {z,k,dep,p:c,after,top:prev.bot,prev};
-}
-/* Onto an entry: they go below it, at the end. Nothing moves for it; the entry is framed. */
-function ontoAt(z,r){
-  const d=drag,c=r.id,probe=r.head?{type:'coll',c}:{type:'into',id:c};
-  if(accOf(c)==='read')return null;
-  for(const x of d.ids){if(!fits(x,probe))return null;if(d.kind==='fav'&&(c===x||aliasOf(x)||(COLL[c]&&COLL[c].id===x)))return null;if(d.kind==='row'&&within(x,c))return null;}
-  const kids=D[c].kids.filter(x=>!d.ids.includes(x));
-  return {z,keep:true,p:c,after:kids[kids.length-1]||'',onto:r.el};
-}
-/* Waiting on the middle of an entry: true once the pointer has stayed there long enough. Until then it asks to be asked
-   again, as the pointer may not move. */
-function dwelt(r){
-  const d=drag,now=Date.now();
-  if(!d.dwell||d.dwell.el!==r.el){d.dwell={el:r.el,t:now};clearTimeout(d.timer);d.timer=setTimeout(()=>{if(drag===d&&d.last)follow(d.last);},DWELL+20);return false;}
-  return now-d.dwell.t>=DWELL;
-}
-function liveTarget(e){
-  const d=drag,cy=e.clientY-d.gy+d.gh/2;
-  const z=d.zones.find(z=>{const r=z.box.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<r.right&&e.clientY>=r.top&&e.clientY<r.bottom;});
-  if(!z){d.dwell=null;if(d.kind==='sec'||d.ids.some(isDeco))return null;const win=winAt(e);return win?{win:+win.dataset.win,node:win,keep:true}:null;}
-  if(!z.rows.length)return null;
-  const y=cy+(z.sc.scrollTop-z.s0),g=d.gap&&d.gap.z===z?d.gap:null,inGap=g&&y>=g.top&&y<g.top+d.h,ny=g&&y>=g.top+d.h?y-d.h:y;
-  const j=inGap?-1:z.rows.findIndex(r=>ny>=r.top&&ny<r.bot),r=j>=0?z.rows[j]:null,f=r?(ny-r.top)/(r.bot-r.top):0;
-  const between=()=>{if(inGap)return g.k;if(r)return f<.5&&!(r.head&&j===0)?j:j+1;const k=z.rows.findIndex(x=>ny<(x.top+x.bot)/2);return k<0?z.rows.length:k;};
+const DRAG={
+  scale:()=>S.scale/100,
+  strip:['data-row','data-favid','data-secid'],
+  pick(e){
+    if(!e.target.closest||e.target.closest('.mini,.arrow,.star,.addbtn,.cmore,.pop,input,textarea,select,[data-grip]'))return null;
+    const el=e.target.closest('[data-row],[data-favid],[data-secid]');if(!el||el.closest('.dropgap'))return null;
+    const kind=kindOfEl(el),id=el.dataset.row||el.dataset.favid||el.dataset.secid;
+    if(kind==='row'&&contAcc(id)==='read')return null;
+    /* An entry of a selection takes the others along, in the order of the list; in nav3 one below another selected one
+       goes with that one anyway, and what may only be read stays. */
+    const many=S.sel&&S.sel.z===selOf(kind)&&S.sel.ids.includes(id)?S.sel.ids.filter(x=>elOf(kind,x)&&(kind!=='row'||contAcc(x)!=='read')):[id];
+    const ids=kind==='row'?many.filter(x=>!many.some(y=>y!==x&&within(y,PARENT[x]))):many;
+    ids.sort((a,b)=>elOf(kind,a).compareDocumentPosition(elOf(kind,b))&Node.DOCUMENT_POSITION_FOLLOWING?-1:1);
+    return {kind,id,ids,view:S.view,els:ids.map(x=>elOf(kind,x)),el};
+  },
+  again(d){const el=elOf(d.kind,d.id);return el?{el,els:d.ids.map(x=>elOf(d.kind,x)).filter(Boolean)}:null;},
+  hideOf:el=>el.matches('[data-row]')?el.closest('li'):el,
+  home:d=>selOf(d.kind),
+  depthOf,
+  zones(d){
+    const z=S.scale/100,out=[],n2=document.querySelector('.nav2'),list=document.getElementById('clist');
+    if(list&&d.kind!=='sec')out.push({key:'n2',box:n2,scroll:list,flat:true,rows:[...list.querySelectorAll(':scope>.collrow[data-favid]')].map(n=>({el:n,id:n.dataset.favid,hold:!isDeco(n.dataset.favid)}))});
+    if(d.kind==='sec'&&n2)out.push({key:'sec',box:n2,scroll:n2,flat:true,rows:[...n2.querySelectorAll('[data-secid]')].map(n=>({el:n,id:n.dataset.secid}))});
+    const tr=document.getElementById('tree'),top=tr&&tr.querySelector('ul.t.top');
+    if(top&&(d.kind==='row'||(d.kind==='fav'&&!d.ids.some(x=>isDeco(x)||aliasOf(x))))){
+      const p=document.createElement('ul');p.className='t';top.append(p);const indent=parseFloat(getComputedStyle(p).paddingLeft)*z;p.remove();
+      out.push({key:'n3',box:tr.closest('.nav3'),scroll:tr,flat:false,base:top.getBoundingClientRect().left,indent,
+        rows:[...tr.querySelectorAll('.cheadrow,.row')].filter(n=>!n.closest('.dropgap')).map(n=>n.classList.contains('cheadrow')?{el:n,id:n.dataset.cdrop,head:true,depth:-1,hold:true}:{el:n,id:n.dataset.row,depth:depthOf(n),hold:!isDeco(n.dataset.row)})});
+    }
+    return out;
+  },
   /* In nav2 an entry that is not a collection can only go into one: at once, wherever on it. */
-  if(z.where==='n2'&&d.kind==='row'&&!d.ids.every(x=>D[x].t==='coll')){d.dwell=null;return r&&r.hold?ontoAt(z,r):null;}
-  /* On the middle of an entry the held one stays where it is while the pointer waits, so the entry does not slide away
-     from under it; left and right still pick the depth at once. */
-  let still=false;
-  if(r&&r.hold&&z.where!=='sec'&&f>=.25&&f<=.75){if(dwelt(r))return ontoAt(z,r);still=!!(d.to&&d.to.z===z&&!d.to.keep);}else d.dwell=null;
-  const k=still?d.to.k:between();
-  if(z.flat)return slotAt(z,k,0);
-  const prev=z.rows[Math.max(1,k)-1],level=prev.head?0:prev.depth,off=e.clientX-d.gx-(z.base+level*z.ind);
-  return slotAt(z,k,level+Math.trunc(off/z.step));
-}
-/* The held entries move to where they would land, and what moves for them slides there; was holds where they stood
-   before. Onto an entry, on a window or outside, they wait faint where they were. */
-function showGap(t,was0){
-  const d=drag;d.to=t;
-  document.querySelectorAll('.drop-into').forEach(n=>n.classList.remove('drop-into'));
-  if(t&&t.onto)t.onto.classList.add('drop-into');
-  const slot=t&&t.z&&!t.keep?t:null,gap=d.gapEl;
-  gap.classList.toggle('idle',!slot);
-  if(!slot)return;
-  const o=d.gap;if(o&&o.z===slot.z&&o.k===slot.k&&o.dep===slot.dep&&gap.isConnected)return;
-  const z=S.scale/100,all=[...document.querySelectorAll(WATCH)].filter(n=>n.offsetParent),was=all.map(n=>was0&&was0.has(n)?was0.get(n):n.getBoundingClientRect().top);
-  gap.style.marginLeft='';
-  if(slot.z.flat){const nx=slot.z.rows[slot.k];if(nx)nx.el.before(gap);else slot.z.rows[slot.k-1].el.after(gap);}
-  else if(slot.prev.head)slot.prev.el.nextElementSibling.prepend(gap);
-  else{slot.prev.el.after(gap);gap.style.marginLeft=(slot.dep-slot.prev.depth)*slot.z.ind/z+'px';}
-  all.forEach((n,i)=>{const dy=was[i]-n.getBoundingClientRect().top;if(Math.abs(dy)>.5)n.animate([{transform:`translateY(${dy/z}px)`},{transform:'none'}],{duration:140,easing:'ease-out'});});
-  d.gap=slot;
-}
-/* Taking hold hides the entries and puts them, as they look, where the grabbed one was. Where everything stood is taken
-   before, so what does not move does not slide either. After a render it takes hold again. */
-function lift(d,first){
-  const els=d.ids.map(x=>elOf(d.kind,x)).filter(Boolean);d.el=elOf(d.kind,d.id);d.to=null;d.gap=null;if(!d.el)return;
-  const r=d.el.getBoundingClientRect();d.h=els.reduce((a,n)=>a+n.getBoundingClientRect().height,0);
-  if(first){d.gx=d.x0-r.left;d.gy=d.y0-r.top;d.gh=r.height;}
-  const gap=document.createElement('div');gap.className='dropgap held';
-  els.forEach(n=>{const c=n.cloneNode(true);c.removeAttribute('data-row');c.removeAttribute('data-favid');c.removeAttribute('data-secid');c.removeAttribute('aria-selected');c.querySelectorAll('[data-act]').forEach(x=>x.removeAttribute('data-act'));gap.append(c);});
-  d.gapEl=gap;
-  const was=new Map([...document.querySelectorAll(WATCH)].map(n=>[n,n.getBoundingClientRect().top]));
-  els.forEach(n=>{hideOf(d.kind,n).style.display='none';});d.zones=measure(d);
-  const home=d.zones.find(x=>x.where===(d.kind==='fav'?'n2':d.kind==='sec'?'sec':'n3'));
-  let k=home?home.rows.findIndex(x=>d.el.compareDocumentPosition(x.el)&Node.DOCUMENT_POSITION_FOLLOWING):-1;if(home&&k<0)k=home.rows.length;
-  showGap(home&&slotAt(home,k,d.kind==='row'?depthOf(d.el):0),first?was:null);
-}
-function follow(e){
-  const d=drag;d.last={clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey};
-  if(!d.el.isConnected)lift(d,false);
-  const t=liveTarget(e);clearMarks();if(t&&t.win!==undefined)t.node.classList.add('zone-open');showGap(t);
-  d.gapEl.classList.toggle('copy',!!(e.ctrlKey||e.metaKey));
-}
+  ontoOnly:(d,z)=>z.key==='n2'&&d.kind==='row'&&!d.ids.every(x=>D[x].t==='coll'),
+  waits:z=>z.key!=='sec',
+  accept(d,z,at){
+    if(at.onto){const c=at.onto.id;if(!mayInto(d,c,at.onto.head))return null;const kids=D[c].kids.filter(x=>!d.ids.includes(x));return {p:c,after:kids[kids.length-1]||''};}
+    const after=at.after?at.after.id:'';
+    if(z.key==='sec')return {after};
+    if(z.key==='n2')return d.ids.every(x=>d.kind==='fav'||fits(x,{type:'nav2'}))?{root:true,after}:null;
+    return mayInto(d,at.parent.id,at.parent.head)?{p:at.parent.id,after}:null;
+  },
+  outside(d,e){if(d.kind==='sec'||d.ids.some(isDeco))return null;const win=winAt(e);return win?{win:+win.dataset.win,node:win}:null;},
+  drop(d,t,e){d.copy=!!(e&&(e.ctrlKey||e.metaKey));applyDrop(d,t);},
+  end(){render();}
+};
+/* Tabs stay this app's own: a label at the pointer, and the tab takes its place in a row or a new window. */
 addEventListener('pointermove',e=>{
   if(!drag)return;
   const z=S.scale/100;
   if(!drag.on){if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.on=true;document.body.classList.add('dragging');
-    if(drag.el)lift(drag,true);
-    else{const g=document.createElement('div');g.id='ghost';g.className='ghost';g.textContent=drag.label;document.body.append(g);if(!drag.src.classList.contains('general'))drag.src.style.display='none';}}
-  if(drag.el){follow(e);return;}
+    const g=document.createElement('div');g.id='ghost';g.className='ghost';g.textContent=drag.label;document.body.append(g);if(!drag.src.classList.contains('general'))drag.src.style.display='none';}
   const g=document.getElementById('ghost');
   g.style.left=(e.clientX/z+12)+'px';g.style.top=(e.clientY/z+12)+'px';
   drag.to=tabTarget(e);clearMarks();const t=drag.to;
@@ -1109,15 +1048,15 @@ addEventListener('pointermove',e=>{
 function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id]?COLL[id].top:C.find(c=>c.id===id)?[]:[];}
 /* A drop takes the entries where they are held, in their order, or copies them there with Ctrl. In the database the
    server moves them too, one after the other, and if it refuses, the lists go back. */
-function applyDrop(d){
-  const t=d.to;if(!t)return;
+function applyDrop(d,t=d.to){
+  if(!t)return;
   if(d.kind==='tab'){
     if(t.type==='row'){if(t.i!==d.w||t.idx!==d.t)placeTab(d.w,d.t,t.i,t.idx);else{S.wins[d.w].a=d.t;S.focus=d.w;}}
     else if(t.type==='new')newColumn(d.w,d.t,t.pos);
     else placeTab(d.w,d.t,t.i,Infinity);return;}
   const ids=d.ids;
   if(t.win!==undefined){S.focus=t.win;ids.forEach(openAsTab);return;}
-  const w=t.z.where;
+  const w=t.zone.key;
   if(w==='sec'){const L=SORT[d.view],ms=ids.map(id=>L.splice(L.findIndex(x=>x.id===id),1)[0]);L.splice(t.after?L.findIndex(x=>x.id===t.after)+1:0,0,...ms);return;}
   if(d.copy){copyTo(ids.filter(x=>!isDeco(x)||D[x].db),t.root?'':t.p,t.after);return;}
   const dest=t.root?C:D[t.p].kids,froms=ids.map(id=>d.kind==='fav'?C:parentList(id)),snap=[...new Set([C,dest,...froms])].map(l=>[l,l.slice()]);
@@ -1134,11 +1073,11 @@ function openAsTab(id){if(!D[id]||isDeco(id))return;openTab(id);if(D[id].real&&!
 addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;
   if(!d.on)return;
-  noClick=true;setTimeout(()=>{noClick=false;},60);clearTimeout(d.timer);d.copy=e.ctrlKey||e.metaKey;
+  noClick=true;setTimeout(()=>{noClick=false;},60);
   document.body.classList.remove('dragging');const g=document.getElementById('ghost');if(g)g.remove();clearMarks();
   applyDrop(d);render();
 });
-addEventListener('keydown',e=>{if(e.key==='Escape'&&drag){const g=document.getElementById('ghost');if(g)g.remove();const on=drag.on;clearTimeout(drag.timer);drag=null;document.body.classList.remove('dragging');clearMarks();if(on)render();}});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&drag){const g=document.getElementById('ghost');if(g)g.remove();const on=drag.on;drag=null;document.body.classList.remove('dragging');clearMarks();if(on)render();}});
 /* Documents that need the helpers above */
 const fill=o=>{const def={w:'slim',toc:'marker',tags:[],kids:[],vis:'Only you',...none};for(const k in def)if(!(k in o))o[k]=def[k];return o;};
 D['priv:time']=fill({t:'time',n:'This week',w:'wide',path:'not a file, private',place:'Private › Time',by:'you',ch:'today',stat:'31:40 this week',
@@ -1414,6 +1353,7 @@ const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme'];
 function saveSettings(){try{const o={n2:n2Of()};KEEP.forEach(k=>{o[k]=S[k];});localStorage.setItem('ud.workspace',JSON.stringify(o));}catch(e){}}
 function loadSettings(){try{const o=JSON.parse(localStorage.getItem('ud.workspace')||'null');if(o)KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;}catch(e){return null;}}
 async function boot(){
+  if(window.C22AppWorkspaceDrag)C22AppWorkspaceDrag.attach(DRAG);
   let st=null;
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
