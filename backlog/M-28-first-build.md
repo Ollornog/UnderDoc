@@ -2,7 +2,7 @@
 id: M-28
 type: Milestone
 title: "First build: sign-in, account, collections and documents as objects"
-status: offen
+status: erledigt
 blocked_by: [M-1]
 tags: [shell, people, architecture]
 created: 2026-11-07
@@ -131,3 +131,7 @@ instance: a dump of the database and an archive of the content directory, restor
 same `underdoc export` (116 files), the same dump and the same files with their checksums; a row and a file changed on
 purpose are found each time. The backup is configured by the operations side, not by the app. There is no content store
 for files yet; when it comes, its directory joins the backup.
+
+**Accepted on 2026-11-09:** the maintainer took the acceptance round and accepted M-28. Left for later, by plan: the
+content store for files (its directory joins the backup), the phone layout of its own (T-10), touch dragging, and
+embedding by dragging or from search while typing.
