@@ -87,7 +87,7 @@ const trashColumns = columns + `, o.deleted_at, coalesce((SELECT a.name FROM acc
 func scanTrashed(row pgx.Row) (Trashed, error) {
 	var t Trashed
 	o := &t.Object
-	err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed,
+	err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags,
 		&t.DeletedAt, &t.DeletedBy, &t.Place, &t.PlaceDeleted)
 	return t, err
 }

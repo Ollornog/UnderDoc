@@ -8,6 +8,7 @@ package transfer
 import (
 	"bytes"
 	"fmt"
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 	"path"
 	"slices"
 	"strings"
@@ -37,14 +38,15 @@ type Tree struct {
 }
 
 type dirMeta struct {
-	Format      int     `yaml:"format,omitempty"`
-	ID          string  `yaml:"id,omitempty"`
-	Kind        string  `yaml:"kind,omitempty"`
-	Title       string  `yaml:"title,omitempty"`
-	Description string  `yaml:"description,omitempty"`
-	Access      string  `yaml:"access,omitempty"`
-	Private     bool    `yaml:"private,omitempty"`
-	Order       []entry `yaml:"order,omitempty"`
+	Format      int           `yaml:"format,omitempty"`
+	ID          string        `yaml:"id,omitempty"`
+	Kind        string        `yaml:"kind,omitempty"`
+	Title       string        `yaml:"title,omitempty"`
+	Description string        `yaml:"description,omitempty"`
+	Access      string        `yaml:"access,omitempty"`
+	Private     bool          `yaml:"private,omitempty"`
+	Tags        markdown.Tags `yaml:"tags,omitempty,flow"`
+	Order       []entry       `yaml:"order,omitempty"`
 }
 
 // entry is one place in the order of a directory: a file or directory by its name, or a line or a space by its ID.
@@ -55,10 +57,11 @@ type entry struct {
 }
 
 type pageMeta struct {
-	ID          string `yaml:"id,omitempty"`
-	Title       string `yaml:"title,omitempty"`
-	Description string `yaml:"description,omitempty"`
-	Access      string `yaml:"access,omitempty"`
+	ID          string        `yaml:"id,omitempty"`
+	Title       string        `yaml:"title,omitempty"`
+	Description string        `yaml:"description,omitempty"`
+	Access      string        `yaml:"access,omitempty"`
+	Tags        markdown.Tags `yaml:"tags,omitempty,flow"`
 	// NextBlock is written only when it is higher than the block after the highest, so that an ID deleted at the end is
 	// not given out again after an import.
 	NextBlock int `yaml:"next_block,omitempty"`
@@ -173,7 +176,7 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 		if err != nil {
 			return entry{}, err
 		}
-		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Private: n.Private, Order: order}
+		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Private: n.Private, Tags: n.Tags, Order: order}
 		return entry{Name: stem}, w.meta(sub, m)
 	}
 }
@@ -184,7 +187,7 @@ func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access}
+	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

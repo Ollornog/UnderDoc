@@ -99,6 +99,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/search", h.apiSearch)
 	mux.HandleFunc("POST /api/collections", h.apiCreateCollection)
 	mux.HandleFunc("PATCH /api/objects/{id}", h.apiRename)
+	mux.HandleFunc("PUT /api/objects/{id}/tags", h.apiTags)
+	mux.HandleFunc("GET /api/objects/{id}/uses", h.apiUses)
 	mux.HandleFunc("POST /api/pages", h.apiCreatePage)
 	mux.HandleFunc("POST /api/folders", h.apiCreateFolder)
 	mux.HandleFunc("PUT /api/settings", h.apiSettings)

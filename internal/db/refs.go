@@ -61,3 +61,35 @@ func (db *DB) UsedIn(ctx context.Context, objectID, viewer string) ([]Ref, error
 		return r, err
 	})
 }
+
+// Uses says where an object, or anything below it, is embedded from outside of it, before it is deleted: the titles of
+// the pages the viewer sees, and how many more there are that the viewer may not see, without naming them. Pages in the
+// trash embed nothing.
+func (db *DB) Uses(ctx context.Context, objectID, viewer string) (titles []string, hidden int, err error) {
+	rows, err := db.pool.Query(ctx, `
+		WITH RECURSIVE tree AS (
+			SELECT id FROM objects WHERE id = $2
+			UNION ALL SELECT o.id FROM objects o JOIN tree ON o.parent = tree.id
+		)
+		SELECT DISTINCT o.id, o.title, `+visible+` AS seen FROM refs r JOIN objects o ON o.id = r.page
+		WHERE r.target IN (SELECT id FROM tree) AND r.page NOT IN (SELECT id FROM tree) AND o.deleted_at IS NULL
+		ORDER BY o.title, o.id`, viewer, objectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	titles = []string{}
+	for rows.Next() {
+		var id, title string
+		var seen bool
+		if err := rows.Scan(&id, &title, &seen); err != nil {
+			return nil, 0, err
+		}
+		if seen {
+			titles = append(titles, title)
+		} else {
+			hidden++
+		}
+	}
+	return titles, hidden, rows.Err()
+}

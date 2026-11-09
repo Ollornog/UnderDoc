@@ -46,6 +46,7 @@ type apiNode struct {
 	Access string `json:"access,omitempty"`
 	// Mine tells the workspace that the viewer owns it, so it offers what only the owner may do. Each change checks again.
 	Mine bool      `json:"mine,omitempty"`
+	Tags []string  `json:"tags,omitempty"`
 	Kids []apiNode `json:"kids"`
 }
 
@@ -149,7 +150,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
 	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
-		Access: o.Access, Mine: o.Owner == user.ID, Kids: []apiNode{}}
+		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Kids: []apiNode{}}
 	if depth > 8 {
 		return node
 	}
@@ -221,7 +222,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == nil {
-			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: []string{},
+			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 				Path: "not a file, lives in the database", Changed: stamp(o.Changed), Intro: "", Sections: [][]string{},
 				UsedIn: []string{}, Links: []string{}, Stable: true})
 			return
@@ -325,6 +326,47 @@ func (h *handler) apiRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Kids: []apiNode{}})
+}
+
+// tagList is never null in JSON.
+func tagList(tags []string) []string {
+	if tags == nil {
+		return []string{}
+	}
+	return tags
+}
+
+// apiTags gives an object of the database its tags, as a whole list.
+func (h *handler) apiTags(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Tags []string `json:"tags"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	o, err := h.options.DB.SetTags(r.Context(), r.PathValue("id"), user.ID, in.Tags)
+	if h.failed(w, err, "tags") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]string{"tags": tagList(o.Tags)})
+}
+
+// apiUses says, before deleting, where an object or anything below it is embedded from outside of it.
+func (h *handler) apiUses(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	if _, err := h.options.DB.Object(r.Context(), r.PathValue("id"), user.ID); h.failed(w, err, "uses") {
+		return
+	}
+	titles, hidden, err := h.options.DB.Uses(r.Context(), r.PathValue("id"), user.ID)
+	if h.failed(w, err, "uses") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"usedIn": titles, "hidden": hidden})
 }
 
 // stamp writes a moment for the browser: in UTC, as RFC 3339. The browser shows it in the time zone of its device, so the

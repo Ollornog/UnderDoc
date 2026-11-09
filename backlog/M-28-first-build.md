@@ -116,3 +116,6 @@ replies one level deep; the drawer of the head, the speech bubble beside a block
 the head and each block count the open ones. Rights as ADR-20 says: read sees them, comment adds, edit resolves those of
 others, each author changes and deletes their own. A deleted block keeps its comments as "a block that is gone". Pages of the
 folder source have no comments: they are read only and have no block IDs.
+
+**State on 2026-11-09 (tags, deleting what is used):** objects of the database carry tags, set in the gear, kept with
+copies, import and export, found by the tag filter. Deleting something embedded elsewhere names those pages first.

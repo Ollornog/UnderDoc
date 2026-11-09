@@ -169,18 +169,28 @@ type Object struct {
 	Private bool
 	Created time.Time
 	Changed time.Time
+	// Tags are kept lower case, each once, in the order given (CleanTags).
+	Tags []string
 }
 
-const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed`
+const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags`
 
 func scan(row pgx.Row) (Object, error) {
 	var o Object
-	err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed)
+	err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags)
 	return o, err
 }
 
 type execer interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// tagsOf gives the tags to store for an object: never NULL.
+func tagsOf(o Object) []string {
+	if o.Tags == nil {
+		return []string{}
+	}
+	return o.Tags
 }
 
 // insertObject gives the object a new ID and puts it last at its place. A clash of IDs is drawn again.
@@ -192,11 +202,11 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''),
 				(SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NOT DISTINCT FROM nullif($6, '')),
-				nullif($7, ''), $8)
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private))
+				nullif($7, ''), $8, $9)
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o)))
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "objects_pkey" && attempt < 5 {
 			continue

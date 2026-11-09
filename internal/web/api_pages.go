@@ -65,7 +65,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrHasReplies):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -183,7 +183,7 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	if h.failed(w, err, "blocks") {
 		return
 	}
-	answer := apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: []string{},
+	answer := apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
 		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created)}

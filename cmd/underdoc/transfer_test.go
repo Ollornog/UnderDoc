@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -197,5 +198,57 @@ func TestImportedLinksFollowThePages(t *testing.T) {
 	}
 	if refs, _ := store.UsedIn(ctx, two, "u-anna"); len(refs) != 1 || refs[0].Page != one {
 		t.Errorf("the embedding is kept as a reference: %+v", refs)
+	}
+}
+
+// Tags come in with the import, from a list or a line with commas, are kept as the database keeps them, and go out again
+// with the export; tags it cannot keep are named in the warnings.
+func TestTagsComeAndGo(t *testing.T) {
+	ctx := context.Background()
+	store, url := database(t)
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"one.md":             "---\ntags: [Network, rack]\n---\n# One\n\ntext\n",
+		"two.md":             "---\ntags: vlan, Main-Site\n---\n# Two\n\ntext\n",
+		"three.md":           "---\ntags: [two words]\n---\n# Three\n\ntext\n",
+		"sub/.underdoc.yaml": "tags: [folder]\n",
+		"sub/four.md":        "# Four\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("UNDERDOC_DATABASE_URL", url)
+	code, _, errOut := runCommand(t, "import", "--owner", "anna", dir, "Tagged")
+	if code != 0 || !strings.Contains(errOut, "three.md: tags left out") {
+		t.Fatalf("import: exit %d, %q", code, errOut)
+	}
+	tops, _ := store.Collections(ctx, "u-anna")
+	got := map[string][]string{}
+	for _, c := range tops {
+		if c.Title != "Tagged" {
+			continue
+		}
+		kids, _ := store.Children(ctx, c.ID, "u-anna")
+		for _, k := range kids {
+			got[k.Title] = k.Tags
+		}
+	}
+	if !slices.Equal(got["One"], []string{"network", "rack"}) || !slices.Equal(got["Two"], []string{"vlan", "main-site"}) || len(got["Three"]) != 0 || !slices.Equal(got["sub"], []string{"folder"}) {
+		t.Errorf("tags in the database: %q", got)
+	}
+	out := filepath.Join(t.TempDir(), "export")
+	if code, _, errOut := runCommand(t, "export", out); code != 0 {
+		t.Fatalf("export: %q", errOut)
+	}
+	exported := files(t, out)
+	if !strings.Contains(exported["Tagged/One.md"], "tags: [network, rack]\n") || !strings.Contains(exported["Tagged/sub/.underdoc.yaml"], "tags: [folder]\n") {
+		t.Errorf("the export writes them:\n%s\n%s", exported["Tagged/One.md"], exported["Tagged/sub/.underdoc.yaml"])
+	}
+	if strings.Contains(exported["Tagged/Three.md"], "tags") {
+		t.Errorf("no tags, no line:\n%s", exported["Tagged/Three.md"])
 	}
 }

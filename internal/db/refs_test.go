@@ -66,3 +66,35 @@ func TestReferencesFollowTheBlocks(t *testing.T) {
 		t.Errorf("Anna does: %+v", refs)
 	}
 }
+
+func TestUsesBeforeDeleting(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	folder, _ := db.CreateFolder(ctx, anna, "Folder", team.ID)
+	plan, _ := db.CreatePage(ctx, anna, "Plan", folder.ID)
+	inside, _ := db.CreatePage(ctx, anna, "Inside", folder.ID)
+	rack, _ := db.CreatePage(ctx, anna, "Rack", team.ID)
+	gone, _ := db.CreatePage(ctx, anna, "Gone", team.ID)
+	notes, _ := db.Collections(ctx, anna.ID)
+	secret, _ := db.CreatePage(ctx, anna, "Secret", notes[0].ID)
+	for _, p := range []Object{inside, rack, gone, secret} {
+		if _, err := db.AddBlock(ctx, p.ID, anna.ID, "", "::embed{ref=\""+plan.ID+"\"}"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Delete(ctx, gone.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	titles, hidden, err := db.Uses(ctx, folder.ID, anna.ID)
+	if err != nil || !slices.Equal(titles, []string{"Rack", "Secret"}) || hidden != 0 {
+		t.Errorf("for Anna, the folder is used in Rack and Secret, not in Inside or the trash: %q %d %v", titles, hidden, err)
+	}
+	titles, hidden, _ = db.Uses(ctx, folder.ID, bob.ID)
+	if !slices.Equal(titles, []string{"Rack"}) || hidden != 1 {
+		t.Errorf("for bob, Secret is one page he cannot see: %q %d", titles, hidden)
+	}
+	if titles, _, _ := db.Uses(ctx, rack.ID, anna.ID); len(titles) != 0 {
+		t.Errorf("Rack is used nowhere: %q", titles)
+	}
+}

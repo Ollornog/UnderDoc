@@ -100,7 +100,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		}
 		var write func(n *node, parent, title string) (Object, error)
 		write = func(n *node, parent, title string) (Object, error) {
-			made, err := insertObject(ctx, tx, Object{Kind: n.o.Kind, Title: title, Description: n.o.Description, Owner: viewer,
+			made, err := insertObject(ctx, tx, Object{Kind: n.o.Kind, Title: title, Description: n.o.Description, Tags: n.o.Tags, Owner: viewer,
 				Parent: parent, Access: n.o.Access, Private: n.o.Private && parent == ""})
 			if err != nil {
 				return Object{}, err

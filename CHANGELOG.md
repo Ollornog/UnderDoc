@@ -106,6 +106,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Tags on pages, folders and collections of the database (migration 008): added in the gear and taken off with the x of a
+  tag by whoever may change the object, shown in the head and found by the tag filter of the search, also for objects
+  never opened. Lower case, each once, letters, digits, - _ and ., at most 40 characters and 50 per object
+  (`PUT /api/objects/{id}/tags`). Copies keep them; import reads them from the front matter or `.underdoc.yaml`, as a list
+  or a line with commas, and export writes them.
+- Deleting something that is embedded elsewhere names those pages in the question, also for what lies below it, and
+  counts the pages the viewer may not see without naming them (`GET /api/objects/{id}/uses`).
 - The list of problems (M-3), from the right click on the free part of nav2: embeddings and links in the pages one sees
   that point at a page or block that is gone, never there or not to be seen, links of the Markdown that find nothing, and
   what the folder source ran into, each with a way to its page (`GET /api/problems`).

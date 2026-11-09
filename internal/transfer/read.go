@@ -307,6 +307,16 @@ type readPage struct {
 	node *db.Node
 }
 
+// tags keeps the tags of a file as the database keeps them; tags it cannot keep are named in the warnings and left out.
+func (r *reader) tags(name string, tags []string) []string {
+	clean, err := db.CleanTags(tags)
+	if err != nil {
+		r.warn(name, "tags left out: "+err.Error())
+		return nil
+	}
+	return clean
+}
+
 func (r *reader) warn(name, message string) {
 	r.warnings = append(r.warnings, name+": "+message)
 }
@@ -426,7 +436,7 @@ func (r *reader) meta(dir string) dirMeta {
 
 func (r *reader) dir(dir, name string) (*db.Node, error) {
 	m := r.meta(dir)
-	n := &db.Node{Object: db.Object{ID: m.ID, Kind: db.KindFolder, Title: cleanTitle(m.Title), Description: strings.TrimSpace(m.Description), Private: m.Private}}
+	n := &db.Node{Object: db.Object{ID: m.ID, Kind: db.KindFolder, Title: cleanTitle(m.Title), Description: strings.TrimSpace(m.Description), Private: m.Private, Tags: r.tags(path.Join(dir, MetaFile), m.Tags)}}
 	if m.Kind == db.KindCollection {
 		n.Kind = db.KindCollection
 	}
@@ -545,7 +555,7 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 	for _, w := range p.Warnings {
 		r.warn(file, w)
 	}
-	n := &db.Node{Object: db.Object{ID: p.Meta.ID, Kind: db.KindPage, Title: p.Title, Description: strings.TrimSpace(p.Meta.Description)}, Blocks: p.Blocks, NextBlock: p.Next}
+	n := &db.Node{Object: db.Object{ID: p.Meta.ID, Kind: db.KindPage, Title: p.Title, Description: strings.TrimSpace(p.Meta.Description), Tags: r.tags(file, p.Meta.Tags)}, Blocks: p.Blocks, NextBlock: p.Next}
 	r.pages = append(r.pages, readPage{file: file, node: n})
 	if access, ok := cleanAccess(p.Meta.Access); ok {
 		n.Access = access

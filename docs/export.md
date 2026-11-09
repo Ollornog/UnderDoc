@@ -49,7 +49,7 @@ backup/
       - space: 9x4c1m2k7q
   ```
 
-- **A page** is a Markdown file with front matter: `id`, `title`, and `description` and `access` where set. Its blocks
+- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access` and `tags` where set. Its blocks
   follow in order, each after a marker that keeps its ID:
 
   ```markdown
@@ -105,8 +105,9 @@ backup/
   still, never before `next_block`. A marker inside fenced code is text. A page without markers is split before each
   heading of level 1 to 3 outside fenced code, and a first heading of level 1 that only repeats the title is left out,
   since the page shows its title. A block longer than 100000 characters is cut, at blank lines where it can.
-- The title of a page is its `title`, else its first heading of level 1, else its file name. Tags of the folder source are
-  not kept, as objects have none yet.
+- The title of a page is its `title`, else its first heading of level 1, else its file name. Tags come from `tags` in the
+  front matter or the `.underdoc.yaml`, as a list or a line with commas, and are kept as the database keeps them; tags it
+  cannot keep are named in the warnings and left out. The export writes them the same way (2026-11-09).
 - The whole import is one transaction: it comes in whole or not at all.
 - The export warns about a block that would not come back exactly, for example one that holds a line like a marker or a
   code fence it never closes.
