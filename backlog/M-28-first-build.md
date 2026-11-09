@@ -57,7 +57,7 @@ problems in the workspace, and the restore test.
 
 **State on 2026-11-08 (pages as blocks):** pages of the database are made in a collection (New, or New page below it) and
 edited block by block, each block a plain Markdown field with its ID from the start; every change is kept as a version and
-listed in the gear. Still to build here: access levels set in the web and comments, embedding by ID,
+listed in the gear. Still to build here: comments, embedding by ID,
 deleting objects, folders in the database, import and export, the list of problems in the workspace, and the restore test.
 
 **State on 2026-11-08 (New and dragging):** New in nav2 and in the head of a collection is one menu in groups (make, set
@@ -82,3 +82,6 @@ shows in nav2 when the right click asks for it, as an entry that points at it (t
 
 **State on 2026-11-09 (account settings):** the settings of the workspace belong to the account and follow it from browser to
 browser; the browser keeps a copy.
+
+**State on 2026-11-09 (access):** the owner sets what others may do, in the overview of a collection and the settings of a
+document; the database keeps it, and the lock shows in nav3.

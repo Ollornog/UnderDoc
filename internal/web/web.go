@@ -102,6 +102,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("POST /api/pages", h.apiCreatePage)
 	mux.HandleFunc("POST /api/folders", h.apiCreateFolder)
 	mux.HandleFunc("PUT /api/settings", h.apiSettings)
+	mux.HandleFunc("POST /api/objects/{id}/access", h.apiAccess)
 	mux.HandleFunc("POST /api/objects/{id}/kind", h.apiConvert)
 	mux.HandleFunc("POST /api/pages/{id}/blocks", h.apiAddBlock)
 	mux.HandleFunc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)
