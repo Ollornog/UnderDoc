@@ -67,7 +67,15 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - **Selecting (2026-11-09):** Ctrl with a click adds an entry of nav2 or nav3 to a selection or takes it out, Shift with a click
   takes the range from the last one; a selection stays in one list, and a plain click or Escape ends it. Dragging one of them
   moves them all, in their order. Dropped on a window, entries open there as tabs; the right click on a selection opens them
-  as tabs (nav3), opens or keeps them open (nav2).
+  as tabs (nav3), opens or keeps them open (nav2). A plain click is where a range starts, so Shift with a click right after
+  it takes the range (2026-11-09, round 2).
+- **Dragging (2026-11-09, round 2):** a dragged entry moves through the list as it looks when held, nothing floats over the
+  rest. Up and down it goes between entries; waiting a moment on the middle of an entry puts it below that entry, and moving
+  to the right does at once, moving to the left takes it out towards the top. On a collection of nav2 it goes into that
+  collection. With Ctrl held at the drop it is copied.
+- **Duplicate and sort (2026-11-09):** the right click duplicates an entry (with everything below it, as a copy of the one
+  who copies) and sorts the children of anything holding two or more, A to Z or Z to A; lines and spaces stay where they
+  are, and each group between them is sorted on its own. Every entry of a menu carries its icon.
 
 **New**
 
@@ -81,6 +89,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - Every window has its own general tab, always its first tab. A list opens into the general tab of the active window, and the next
   document replaces it.
 - The general tab looks different from the others, and it only exists while it holds a document. There is no empty tab.
+- **One window, one general tab (2026-11-09):** everything opens in the general tab. While a single window holds nothing else,
+  neither the window nor its tabs are drawn: the page stands alone, and a window button beside New holds what the tab and its
+  arrow offer. A second tab or a second window brings the tabs back.
 - One click on it selects it, like any tab. What was opened in it before lies below it, drawn as a stack of tabs, and its arrow lists
   those, up to 15, to open one again. The arrow means history, the right click means actions.
 - When the general tab gives up its document, by closing it or keeping it as a tab of its own, the one opened before takes its

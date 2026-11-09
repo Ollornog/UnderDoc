@@ -68,3 +68,7 @@ nav3 moving it to the right puts it below the entry above it. Import and Link in
 **State on 2026-11-09 (selecting):** Ctrl and click selects in nav2 and nav3, Shift and click a range; dragging moves the
 selection, and on a window it opens as tabs. The middle third of an entry is the drop onto it; the left edge of the ghost
 picks the depth. New in a collection is in blocks.
+
+**State on 2026-11-09 (round 2):** dragging carries the entry through the list as it looks, waiting puts it below an entry,
+a collection of nav2 takes it; the right click duplicates (also Ctrl at a drop) and sorts children; a single window with only
+the general tab draws no tabs and has a window button beside New.

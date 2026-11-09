@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- A dragged entry moves through the list as it looks when held, instead of a picture floating over the rest. Up and down it
+  always goes between entries; waiting a moment on the middle of an entry puts it below that entry, moving to the right does
+  at once. An entry dropped on a collection of nav2 goes into that collection.
+- A plain click is where a range starts: Shift and click right after it takes the range, Ctrl and click adds to it.
+- Everything opens in the general tab, and while a single window holds nothing else, neither window nor tabs are drawn; a
+  window button beside New holds what the tab offers. A second tab or window brings the tabs back.
+- New in a collection puts what is needed most first: a page, then tables, databases, records, boards and lists.
+- The name of an open collection in nav3 is larger; the line of a collection kept open in nav2 is slimmer, still thicker
+  than one open for now; the filter of New has no box of its own.
 - Ctrl and click selects entries of nav2 and nav3, Shift and click a range; dragging one moves all of them in their order, and
   dropped on a window they open there as tabs. Keeping a collection open is now a double click or the right click, and a
   middle click opens an entry as a tab of its own (both were also Ctrl and click before).
@@ -57,6 +66,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Duplicating: the right click copies an entry with everything below it, right after it, and Ctrl held at a drop copies
+  instead of moving (`POST /api/objects/{id}/copy`, at most 500 objects at once). The copies belong to whoever copies, pages
+  keep their blocks and block IDs, and each copy starts its own history.
+- Sorting: the right click on anything holding two or more entries sorts its children A to Z or Z to A; lines and spaces
+  stay where they are.
+- Every entry of a right click menu carries an icon.
 - Lines and spaces set entries apart, in nav2 and in nav3: right click on an entry (Line below it, Space below it), on a
   collection head in nav3 (at the top of it) or on the free part of nav2. In nav2 they are the user's own and the browser
   keeps them with the order; in a collection of the database they are objects, shared with everyone who sees it

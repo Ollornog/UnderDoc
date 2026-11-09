@@ -48,3 +48,24 @@ func TestDividersAndMovingThroughTheAPI(t *testing.T) {
 		t.Errorf("the line is gone: %q", got)
 	}
 }
+
+func TestCopyThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages", `{"title":"Kid","parent":"`+a.ID+`"}`, sameSite)
+	if got := s.send(http.MethodPost, "/api/objects/"+a.ID+"/copy", `{"parent":"`+team.ID+`","after":"`+a.ID+`"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+		t.Errorf("a copy from another site = %d", got)
+	}
+	rec := s.send(http.MethodPost, "/api/objects/"+a.ID+"/copy", `{"parent":"`+team.ID+`","after":"`+a.ID+`"}`, sameSite)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("copy = %d %s", rec.Code, rec.Body)
+	}
+	made := decode[apiNode](t, rec)
+	if made.Title != "A (copy)" || len(made.Kids) != 1 || made.Kids[0].Title != "Kid" || made.ID == a.ID {
+		t.Errorf("the answer holds the copy and its child: %+v", made)
+	}
+	if got := s.send(http.MethodPost, "/api/objects/"+a.ID+"/copy", `{"parent":""}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a page to the top = %d", got)
+	}
+}

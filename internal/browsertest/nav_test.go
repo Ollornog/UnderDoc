@@ -51,7 +51,7 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 
 // gapAt tells where the gap of a drag is: right below which entry, as the text or the mark of that entry.
 const gapAt = `(() => { const g = document.querySelector('.dropgap'); if (!g) return 'none';
-	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('.nav2 .collrow, .nav3 .row, .nav3 .cheadrow')].filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
+	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('.nav2 .collrow, .nav3 .row, .nav3 .cheadrow')].filter(n => !n.closest('.dropgap')).filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
 	return up ? (up.dataset.deco || up.dataset.favid || up.textContent.trim()) + ' ' + Math.round(r.height) : 'nothing above ' + Math.round(r.top); })()`
 
 // makeTeam makes a collection with pages A, B and C through the API, as a setup, and returns its ID.
@@ -84,11 +84,14 @@ func TestNav2ShowsWhatIsKeptOpen(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('.nav2 [data-id="ops"][data-pinned]')`) {
 		t.Fatal("a double click keeps it open")
 	}
-	if got := bar("ops"); !strings.HasSuffix(got, " 4px 0px 0px 0px inset") {
+	if got := bar("ops"); !strings.HasSuffix(got, " 3px 0px 0px 0px inset") {
 		t.Errorf("kept open: a thick line on the left, got %q", got)
 	}
 	b.clickOn(`.nav2 [data-act="coll"][data-id="pro"]`, 1)
 	b.shot("nav2-thin-and-thick")
+	if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .cheadrow .chead')).fontSize`); got != "13.5px" {
+		t.Errorf("the name of a collection in nav3 reads as a heading: %q", got)
+	}
 	if got := b.eval(`document.querySelectorAll('.nav2 .star, .nav2 .pinmark, [data-act="star"]').length`); got != "0" {
 		t.Errorf("no star and no pin any more: %s", got)
 	}
@@ -119,11 +122,11 @@ func TestDividersInNav2(t *testing.T) {
 		if got := b.eval(gapAt); got != "pro "+h {
 			t.Errorf("the gap is not below pro: %q", got)
 		}
-		if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('.dropgap')); return s.borderTopStyle + ' ' + s.borderTopWidth; })()`); got != "dashed 1px" {
-			t.Errorf("the gap is not drawn: %q", got)
+		if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('.dropgap')); return s.outlineStyle + ' ' + s.outlineWidth; })()`); got != "dashed 1px" {
+			t.Errorf("the place is not drawn: %q", got)
 		}
-		if got := b.eval(`[document.querySelectorAll('#clist .deco').length, document.querySelector('#clist .deco').offsetParent === null, document.getElementById('ghost')?.className].join(' ')`); got != "1 true ghost lift" {
-			t.Errorf("the line is pulled out and the ghost carries it: %q", got)
+		if got := b.eval(`[document.querySelector('#clist .deco[data-favid]').offsetParent === null, document.querySelectorAll('.dropgap .deco').length, !!document.getElementById('ghost')].join(' ')`); got != "true 1 false" {
+			t.Errorf("the line itself moves through the list, no picture floats: %q", got)
 		}
 	})
 	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
@@ -243,8 +246,8 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	if got := b.eval(gapAt); got != "B "+hC {
 		t.Errorf("lifted, the gap first stays where C was, below B: %q", got)
 	}
-	if got := b.eval(`(() => { const g = document.getElementById('ghost').getBoundingClientRect(); return g.height < ` + hC + ` * 1.5; })()`); got != "true" {
-		t.Errorf("the ghost is not one entry high: %s", b.eval(`document.getElementById('ghost').getBoundingClientRect().height`))
+	if got := b.eval(`[...document.querySelectorAll('.dropgap .row')].map(n => n.textContent.trim()).join() + ' ' + !!document.getElementById('ghost')`); got != "C false" {
+		t.Errorf("C is held in the list as it looks, nothing floats: %q", got)
 	}
 	to(a, 0.8)
 	first := b.eval(gapAt)
@@ -266,9 +269,6 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	// Moved to the right by more than one step, C goes below A: the gap shows it indented.
 	b.dragToX(c, a, 0.8, 30, func() {
 		b.shot("nav3-gap-nested")
-		if got := b.eval(`(() => { const g = document.getElementById('ghost').getBoundingClientRect(), n = document.querySelector(` + strconv.Quote(a) + `).getBoundingClientRect(); return Math.abs(g.width - n.width) < 2; })()`); got != "true" {
-			t.Errorf("the ghost is not as wide as the entry it carries: %s", b.eval(`document.getElementById('ghost').getBoundingClientRect().width`))
-		}
 		if got := b.eval(`(() => { const g = document.querySelector('.dropgap'), n = document.querySelector('` + strings.ReplaceAll(a, `"`, `\"`) + `'); return g && g.getBoundingClientRect().left > n.getBoundingClientRect().left + 5; })()`); got != "true" {
 			t.Errorf("the gap is not indented below A: %s", b.eval(gapAt))
 		}
@@ -324,15 +324,16 @@ func TestNoGapWhereOneMayOnlyRead(t *testing.T) {
 	if b.eval(`!!document.querySelector('`+src+`') && !!document.querySelector('.nav3 .row[data-row="old"]')`) != "true" {
 		t.Fatalf("the demo changed: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
 	}
+	// Onto it, after waiting, and below it: the entry stays faint where it was, and nothing is framed.
 	b.dragTo(`.nav3 .row[data-row="net"]`, `.nav3 .row[data-row="old"]`, 0.5, func() {
-		if got := b.eval(gapAt); got != "none" {
-			t.Errorf("a gap opens in the archive, which may only be read: %q", got)
+		time.Sleep(600 * time.Millisecond)
+		if got := b.eval(`!!document.querySelector('.dropgap.idle') && !document.querySelector('.drop-into') && !document.querySelector('[data-row="old"]').closest('ul').querySelector('.dropgap')`); got != "true" {
+			t.Errorf("onto an entry of the archive, which may only be read: %s", b.eval(gapAt))
 		}
 	})
-	// Below it, beside it, the same.
 	b.dragTo(`.nav3 .row[data-row="net"]`, `.nav3 .row[data-row="old"]`, 0.9, func() {
-		if got := b.eval(gapAt); got != "none" {
-			t.Errorf("a gap opens beside an entry of the archive: %q", got)
+		if got := b.eval(`!!document.querySelector('.dropgap.idle') && !document.querySelector('[data-row="old"]').closest('ul').querySelector('.dropgap')`); got != "true" {
+			t.Errorf("beside an entry of the archive: %s", b.eval(gapAt))
 		}
 	})
 	if got := b.eval(`D.arc.kids.join(' ')`); got != "old" {
@@ -356,12 +357,14 @@ func TestDropOntoAndAcross(t *testing.T) {
 		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
 	}
 	b.dragTo(rowNamed(b, "C"), rowNamed(b, "A"), 0.5, func() {
-		b.shot("drop-onto")
-		if got := b.eval(`[document.querySelector('.dropgap')?.classList.contains('idle'), getComputedStyle(document.getElementById('ghost')).opacity < 0.5].join(' ')`); got != "true true" {
-			t.Errorf("onto A, the gap waits unseen and the ghost lets A show through: %q", got)
+		// Up and down goes between entries; only waiting on the middle of A goes into it.
+		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+			t.Errorf("at once, the middle of A is not yet onto it")
 		}
-		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join()`); got != "A" {
-			t.Errorf("the middle of A frames A: %q", got)
+		time.Sleep(600 * time.Millisecond)
+		b.shot("drop-onto")
+		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join() + ' ' + getComputedStyle(document.querySelector('.dropgap')).opacity`); got != "A 0.4" {
+			t.Errorf("after waiting, A is framed and C waits faint: %q", got)
 		}
 	})
 	if got := kids("A"); got != "C" {
@@ -422,8 +425,8 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	}
 	b.dragTo(rowNamed(b, "A"), rowNamed(b, "B"), 0.8, func() {
 		b.shot("select-drag")
-		if got := b.eval(`document.querySelector('#ghost .count')?.textContent`); got != "2" {
-			t.Errorf("the ghost says two: %q", got)
+		if got := b.eval(`[...document.querySelectorAll('.dropgap .row')].map(n => n.textContent.trim()).join(' ')`); got != "A C" {
+			t.Errorf("both are held together: %q", got)
 		}
 	})
 	if got := tops(); got != "B A C" {
@@ -447,7 +450,7 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	ctrl(rowNamed(b, "A"), 2)
 	ctrl(rowNamed(b, "C"), 2)
 	b.dragTo(rowNamed(b, "A"), `[data-win="0"] .wbody`, 0.5, func() {
-		if got := b.eval(`!!document.querySelector('[data-win="0"].zone-open') && !document.querySelector('.dropgap')`); got != "true" {
+		if got := b.eval(`!!document.querySelector('[data-win="0"].zone-open') && !!document.querySelector('.dropgap.idle')`); got != "true" {
 			t.Error("over the window it says it opens there")
 		}
 	})
@@ -457,6 +460,12 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	if got := tops(); got != "B A C" {
 		t.Errorf("opening moves nothing: %q", got)
 	}
+	// A tab still drags as a label; it takes the sizes of the workspace although it hangs outside it.
+	b.dragTo(probe(b, `[data-win="0"] .dtab`, "C"), `[data-win="0"] .wbody`, 0.5, func() {
+		if got := b.eval(`getComputedStyle(document.getElementById('ghost')).paddingLeft`); got == "0px" || got == "" {
+			t.Errorf("the label of a dragged tab has no padding: %q", got)
+		}
+	})
 
 	// In nav2, Ctrl and click selects and no longer keeps a collection open; the right click keeps the selection open.
 	ctrl(`.nav2 [data-act="coll"][data-id="ops"]`, 2)
@@ -468,5 +477,155 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	b.clickOn(probe(b, `.ctxpop button`, "Keep them open"), 1)
 	if got := b.eval(`document.querySelectorAll('.nav2 [data-pinned]').length`); got != "2" {
 		t.Errorf("the right click keeps both open: %s", got)
+	}
+}
+
+// A plain click is where a range starts: Shift and click right after it takes the range, Ctrl and click adds to it.
+func TestShiftAfterAPlainClick(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	click := func(sel string, mods int) {
+		r := b.rect(sel)
+		b.mouse("mouseMoved", r.X, r.Y, 0, 0)
+		b.mouse("mousePressed", r.X, r.Y, 1, mods)
+		b.mouse("mouseReleased", r.X, r.Y, 1, mods)
+	}
+	selected := func() string {
+		return b.eval(`[...document.querySelectorAll('.nav3 [aria-selected="true"]')].map(n => n.textContent.trim()).join(' ')`)
+	}
+	click(rowNamed(b, "A"), 0)
+	if got := selected(); got != "" {
+		t.Errorf("a plain click selects nothing to see: %q", got)
+	}
+	click(rowNamed(b, "C"), 8)
+	if got := selected(); got != "A B C" {
+		t.Errorf("Shift right after a plain click takes the range: %q", got)
+	}
+	click(rowNamed(b, "B"), 0)
+	click(rowNamed(b, "C"), 2)
+	if got := selected(); got != "B C" {
+		t.Errorf("Ctrl right after a plain click adds to it: %q", got)
+	}
+	// In nav2 too, where no open document stands in for the click.
+	click(probe(b, `.nav2 [data-act="coll"]`, "My notes"), 0)
+	click(probe(b, `.nav2 [data-act="coll"]`, "Home"), 8)
+	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => n.textContent.trim()).join(', ')`); !strings.HasPrefix(got, "My notes, ") || !strings.HasSuffix(got, ", Home") {
+		t.Errorf("Shift after a plain click in nav2: %q", got)
+	}
+}
+
+// An entry dropped on a collection of nav2 goes into it, at once, wherever on it.
+func TestIntoACollectionOfNav2(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.other = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Other"}'}).then(r => r.json()).then(j => { window.other = j.id; })`)
+	if !b.waitFor(`!!window.other`) {
+		t.Fatal("no second collection")
+	}
+	other := b.eval(`window.other`)
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	target := probe(b, `.nav2 [data-act="coll"]`, "Other")
+	b.dragTo(rowNamed(b, "A"), target, 0.2, func() {
+		if got := b.eval(`(() => { const n = document.querySelector('#clist .drop-into'); return n ? n.textContent.trim() + ' ' + (getComputedStyle(n).boxShadow !== 'none') : 'none'; })()`); got != "Other true" {
+			t.Errorf("Other is framed at once: %q", got)
+		}
+	})
+	time.Sleep(500 * time.Millisecond)
+	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`); got != "B C" {
+		t.Errorf("A left the team: %q", got)
+	}
+	b.eval(`window.kids = null; fetch('/api/state').then(r => r.json()).then(j => { window.kids = j.collections.find(c => c.id === '` + other + `').kids.map(k => k.n).join(' '); })`)
+	if !b.waitFor(`window.kids !== null`) || b.eval(`window.kids`) != "A" {
+		t.Errorf("the database has A in Other: %q", b.eval(`window.kids`))
+	}
+}
+
+// Ctrl at the drop copies; the right click duplicates an entry and sorts the children of a parent; every entry of a
+// menu has its icon.
+func TestCopyDuplicateAndSort(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	tops := func() string {
+		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.dataset.deco || n.textContent.trim()).join(', ')`)
+	}
+	from, to := b.rect(rowNamed(b, "C")), b.rect(rowNamed(b, "A"))
+	b.mouse("mouseMoved", from.X, from.Y, 0, 0)
+	b.mouse("mousePressed", from.X, from.Y, 1, 0)
+	y := to.Top + (to.Bottom-to.Top)*0.85
+	for step := 1; step <= 8; step++ {
+		b.mouse("mouseMoved", from.X, from.Y+(y-from.Y)*float64(step)/8, 0, 2)
+	}
+	time.Sleep(250 * time.Millisecond)
+	if got := b.eval(`!!document.querySelector('.dropgap.copy')`); got != "true" {
+		t.Error("with Ctrl held, the held entry says it is copied")
+	}
+	b.mouse("mouseReleased", from.X, y, 1, 2)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'C (copy)')`) {
+		t.Fatalf("Ctrl at the drop copies: %q", tops())
+	}
+	if got := tops(); got != "A, C (copy), B, C" {
+		t.Errorf("the copy lands where it was dropped, the original stays: %q", got)
+	}
+	b.rightClickOn(rowNamed(b, "B"))
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].every(n => n.querySelector('svg'))`); got != "true" {
+		t.Errorf("an entry of the menu has no icon: %s", b.eval(`[...document.querySelectorAll('.ctxpop button')].filter(n => !n.querySelector('svg')).map(n => n.textContent).join()`))
+	}
+	b.clickOn(probe(b, `.ctxpop button`, "Duplicate"), 1)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'B (copy)')`) {
+		t.Fatalf("Duplicate: %q", tops())
+	}
+	b.rightClickOn(`.nav3 .cheadrow[data-cdrop="` + team + `"] .chead`)
+	b.clickOn(probe(b, `.ctxpop button`, "Sort its children Z to A"), 1)
+	if got := tops(); got != "C (copy), C, B (copy), B, A" {
+		t.Errorf("sorted Z to A: %q", got)
+	}
+	// A line stays where it is: each group around it is sorted on its own.
+	b.rightClickOn(rowNamed(b, "B (copy)"))
+	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) {
+		t.Fatal("no line")
+	}
+	b.rightClickOn(`.nav3 .cheadrow[data-cdrop="` + team + `"] .chead`)
+	b.clickOn(probe(b, `.ctxpop button`, "Sort its children A to Z"), 1)
+	want := "B (copy), C, C (copy), line, A, B"
+	if got := tops(); got != want {
+		t.Errorf("sorted A to Z around the line: %q", got)
+	}
+	time.Sleep(700 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := tops(); got != want {
+		t.Errorf("the database keeps the copies and the order: %q", got)
+	}
+}
+
+// While a single window holds only the general tab, neither tabs nor the window are drawn; a button beside New holds
+// what the tab offers, and a second tab brings the tabs back.
+func TestOneWindowShowsNoTabs(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if got := b.eval(`[document.querySelectorAll('.tabrow').length, document.querySelectorAll('.brandrow .winbtn').length].join(' ')`); got != "0 1" {
+		t.Fatalf("no tabs, a window button: %q", got)
+	}
+	b.clickOn(`.brandrow .winbtn`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].every(n => n.querySelector('svg')) && !!document.querySelector('.ctxpop')`); got != "true" {
+		t.Errorf("the window menu, with icons: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
+	}
+	b.shot("window-menu")
+	b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
+	if got := b.eval(`[document.querySelectorAll('.tabrow').length, document.querySelectorAll('.brandrow .winbtn').length].join(' ')`); got != "1 0" {
+		t.Errorf("a tab of its own brings the tabs back: %q", got)
 	}
 }
