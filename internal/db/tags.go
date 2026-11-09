@@ -16,7 +16,7 @@ const (
 )
 
 // ErrTag is a tag that is empty, too long or made of other characters than letters, digits, "-", "_" and ".".
-var ErrTag = errors.New("a tag is 1 to 40 letters, digits, - _ or .")
+var ErrTag = errors.New("a tag is 1 to 40 letters, digits, dashes, underscores or dots")
 
 var tagForm = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N}._-]*$`)
 
