@@ -939,8 +939,8 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus')?.disabled].join(' ')`); got != "false true" {
-		t.Errorf("for someone else no settings, and New is off: %q", got)
+	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus') === null].join(' ')`); got != "false true" {
+		t.Errorf("for someone else no settings, and no New: %q", got)
 	}
 	// Back to edit: someone else may rename it, but not set what others may do.
 	b.signIn(true)
@@ -1073,11 +1073,217 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b3"]')`) {
 		t.Fatal("Plan is not in editing")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.bbar em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
+	if got := b.eval(`[...document.querySelectorAll('.btool em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
 		t.Errorf("the bars: %q", got)
 	}
+	b.eval(`document.querySelector('textarea[data-blk="b3"]').focus()`)
 	b.clickOn(`[data-act="blkdel"][data-id="b3"]`, 1)
-	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete? Yes" {
+	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete?" {
 		t.Errorf("an empty block in use asks first: %q", got)
 	}
+}
+
+// Editing is found: left of the title a large button says Reading or Editing and turns it, greyed with the reason where a
+// page cannot be edited; the setting "open documents for editing" opens pages that way. In editing, a bar above the block
+// being written turns it into another kind, formats the selection and moves the block; "/" in an empty block opens the kinds.
+func TestEditingIsFound(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.getAttribute('aria-label') + ' | ' + p.title : 'none'; })()`
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | Read only. From the folder source, read only") {
+		t.Errorf("a page of the folder source: %q", got)
+	}
+	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] .tools [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.doc .cblk').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
+		t.Errorf("a page of the folder source takes no comments it would not keep: %q", got)
+	}
+	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
+	if got := b.eval(`(() => { try { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); openNew(id); render();
+		const p = document.querySelector('.cmdpop [data-act="add"][data-id="page"]'); return id + ' ' + (p ? p.disabled + ' ' + p.title : 'none'); } catch (e) { return 'error ' + e.message; } })()`); !strings.HasSuffix(got, "true The folder source is read only. Pages are made in collections of the database") {
+		t.Errorf("Page in New of the folder source: %q", got)
+	}
+	b.eval(`S.addIn = null; render()`)
+	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); S.open[id] = true; render();
+		const h = document.querySelector('.cheadrow[data-cdrop="' + id + '"]'); return h ? String(!h.querySelector('.newplus')) : 'no head'; })()`); got != "true" {
+		t.Errorf("a collection of the folder source shows no New in nav3: %q", got)
+	}
+	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'page'); S.ctx = {kind: 'row', id, x: 20, y: 20}; render();
+		const p = document.querySelector('[data-act="addchild"]'); return p ? p.disabled + ' ' + p.title : 'none'; })()`); got != "true The folder source is read only. Pages are made in collections of the database" {
+		t.Errorf("New page below it, in the folder source: %q", got)
+	}
+	b.eval(`(() => { S.ctx = null; S.into = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); S.newAt = 'bar'; render(); })()`)
+	b.clickOn(`[data-act="newdoc"][data-id="page"]`, 1)
+	if got := b.eval(`(document.querySelector('.toast')?.textContent || '') + ' | ' + (D[at(0).d]?.real ? 'kept' : 'made')`); got != "The folder source is read only. Pages are made in collections of the database. | kept" {
+		t.Errorf("New in the head makes nothing in the folder source: %q", got)
+	}
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Notes', parent: team.id});
+		const b1 = await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'Second', after: b1.id});
+		const other = await post('/api/pages', {title: 'Other', parent: team.id});
+		await post('/api/pages/' + other.id + '/blocks', {md: 'x', after: ''});
+		window.made = [page.id, other.id];
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the pages for the test were not made")
+	}
+	notes, other := b.eval(`window.made[0]`), b.eval(`window.made[1]`)
+	b.open(base + "/o/" + notes)
+	b.ready("Notes")
+	if got := b.eval(status); got != "false Reading | Reading. Click to edit" {
+		t.Errorf("a page of the database opens for reading: %q", got)
+	}
+	if got := b.eval(`(() => { const r = e => document.querySelector('[data-win="0"] ' + e).getBoundingClientRect(), s = r('.dstatus'), p = r('.tools .place'), h = r('.dtitle h1');
+		return [s.top <= p.top + 2, s.bottom >= h.bottom - 2, s.right <= Math.min(p.left, h.left), Math.abs(s.width - s.height) < 1].join(' '); })()`); got != "true true true true" {
+		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
+	}
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('textarea[data-blk]').length`); got != "false Editing | Editing. Click to read 2" {
+		t.Errorf("the button turns it to editing: %q", got)
+	}
+	// The bar: turn the first block into a heading, make a word bold, move the second block up.
+	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(0, 5); })()`)
+	b.clickOn(`.btool [data-act="blkfmt"][data-id="b1"][data-k="bold"]`, 1)
+	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value + ' ' + (document.activeElement?.dataset?.blk || '')`); got != "**First** b1" {
+		t.Errorf("bold wraps the selection and the block keeps the focus: %q", got)
+	}
+	b.eval(`(() => { const s = document.querySelector('select[data-btype="b1"]'); s.value = 'h2'; s.dispatchEvent(new Event('change', {bubbles: true})); })()`)
+	if !b.waitFor(`document.querySelector('textarea[data-blk="b1"]').value === '## **First**'`) {
+		t.Errorf("turned into a heading: %q", b.eval(`document.querySelector('textarea[data-blk="b1"]').value`))
+	}
+	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(5, 10); })()`)
+	b.press("i", "KeyI", 73, 2) // Ctrl+I
+	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value`); got != "## **_First_**" {
+		t.Errorf("Ctrl+I makes it italic: %q", got)
+	}
+	b.eval(`document.querySelector('textarea[data-blk="b2"]').focus()`)
+	b.clickOn(`.btool [data-act="blkmove"][data-id="b2"][data-k="up"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ') === 'b2 b1'`) {
+		t.Errorf("b2 moved up: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
+	}
+	// "/" in a new block opens the kinds; typing filters, Enter takes one.
+	b.clickOn(`.bplus[data-id="b1"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b3' && !!document.querySelector('.bslash')`) {
+		t.Fatalf("the plus adds a block and opens the kinds: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	}
+	b.typeText("/tab")
+	if got := b.eval(`[...document.querySelectorAll('.bslash [role=option]')].map(o => o.textContent).join(',')`); got != "Table" {
+		t.Errorf("typing filters the kinds: %q", got)
+	}
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`document.querySelector('textarea[data-blk="b3"]')?.value.startsWith('| Column | Column |') && !document.querySelector('.bslash')`) {
+		t.Errorf("Enter makes a table: %q", b.eval(`document.querySelector('textarea[data-blk="b3"]')?.value`))
+	}
+	b.shot("edit-bar")
+	b.clickOn(`[data-win="0"] .dstatus`, 1) // leaving the block saves it
+	b.open(base + "/o/" + notes)
+	b.ready("Notes")
+	if got := b.eval(`[...document.querySelectorAll('article.doc [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.doc h2')?.innerHTML + ' | ' + document.querySelectorAll('article.doc table').length`); got != "b2 b1 b3 | <strong><em>First</em></strong> | 1" {
+		t.Errorf("all of it is kept: %q", got)
+	}
+	// The setting opens documents for editing.
+	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
+	b.clickOn(`[data-act="sec"][data-id="docs"]`, 1)
+	b.clickOn(`[data-act="openedit"][data-id="true"]`, 1)
+	b.open(base + "/o/" + other)
+	b.ready("Other")
+	if got := b.eval(status); got != "false Editing | Editing. Click to read" {
+		t.Errorf("with the setting, a page opens for editing: %q", got)
+	}
+}
+
+// In reading, every block has a handle at its left; its menu copies the address, opens the block for editing, comments on
+// it and says where it is used.
+func TestTheHandleOfABlock(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Plan', parent: team.id});
+		const b1 = await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'Second', after: b1.id});
+		const rack = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + rack.id + '/blocks', {md: '::embed{ref="' + page.id + '#b2"}', after: ''});
+		await post('/api/objects/' + team.id + '/access', {access: 'comment'});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the pages for the test were not made")
+	}
+	page := b.eval(`window.made`)
+	b.open(base + "/o/" + page)
+	b.ready("Plan")
+	if got := b.eval(`document.querySelectorAll('article.doc [data-b] > .bhandle').length`); got != "2" {
+		t.Fatalf("each block has a handle: %s", got)
+	}
+	b.clickOn(`article.doc [data-b="b2"] > .bhandle`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Comment | Used in Rack" {
+		t.Errorf("the menu of b2: %q", got)
+	}
+	b.clickOn(`.bmenu [data-act="blkedit"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
+		t.Errorf("Edit this block opens editing at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	}
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	b.shot("block-handle")
+	b.clickOn(`.dtitle h1`, 1)
+	if got := b.eval(`!!document.querySelector('.bmenu')`); got != "false" {
+		t.Errorf("a click elsewhere closes the menu")
+	}
+	// Someone who may only comment: no editing, but comments.
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.open(base + "/o/" + page)
+	b.ready("Plan")
+	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
+		t.Errorf("the menu for someone who may comment: %q", got)
+	}
+	b.clickOn(`.bmenu [data-act="bcmt"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0' && document.querySelector('.cfor em')?.textContent === '#b1'`) {
+		t.Errorf("Comment opens the comments of b1, ready to write: %s", b.eval(`document.querySelector('.cfor')?.textContent`))
+	}
+}
+
+// The right click on the free part of nav2 opens the list of problems: what does not resolve in the pages one sees, with a
+// way to the page, and what the folder source ran into.
+func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + page.id + '/blocks', {md: '::embed{ref="zzzzzzzzzz"}', after: ''});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	b.open(base + "/")
+	b.ready("")
+	n2 := b.rect(".nav2")
+	h := b.eval(`String(document.querySelector('.nav2').getBoundingClientRect().bottom)`)
+	y, _ := strconv.ParseFloat(h, 64)
+	for _, kind := range []string{"mousePressed", "mouseReleased"} {
+		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": y - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
+	}
+	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+		t.Fatal("no menu on the free part of nav2")
+	}
+	b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
+	if !b.waitFor(`document.querySelectorAll('tr[data-problem]').length === 1`) {
+		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(0, 300)`))
+	}
+	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.dtitle h1').textContent + ' | ' + [...document.querySelectorAll('article.doc table')].length + ':' + (document.querySelector('article.doc h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 2:Folder source" {
+		t.Errorf("the list: %q", got)
+	}
+	b.shot("problems")
+	b.clickOn(`tr[data-problem] [data-act="open"]`, 1)
+	b.ready("Rack")
 }

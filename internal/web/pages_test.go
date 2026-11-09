@@ -181,3 +181,94 @@ func TestEmbeddingThroughTheAPI(t *testing.T) {
 		t.Errorf("bob does not see the secret: %+v", got.Blocks)
 	}
 }
+
+func TestMovingABlockThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	b1 := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"one"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"two","after":"`+b1.ID+`"}`, sameSite)
+	if got := s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks/b2/move", `{"after":""}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("move = %d", got)
+	}
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks; len(got) != 2 || got[0].ID != "b2" {
+		t.Errorf("b2 comes first: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks/b2/move", `{"after":"b2"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("after itself = %d", got)
+	}
+}
+
+// The list of problems names what does not resolve in the pages of the database, for the viewer, and what the folder
+// source ran into.
+func TestTheListOfProblems(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	newPage := func(parent, title string, blocks ...string) string {
+		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+parent+`"}`, sameSite))
+		after := ""
+		for _, md := range blocks {
+			body, _ := json.Marshal(map[string]string{"md": md, "after": after})
+			after = decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", string(body), sameSite)).ID
+		}
+		return p.ID
+	}
+	plan := newPage(team.ID, "Plan", "one", "two")
+	gone := newPage(team.ID, "Gone", "::embed{ref=\"zzzzzzzzzz\"}")
+	notes := ""
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		if c.Private {
+			notes = c.ID
+		}
+	}
+	secret := newPage(notes, "Secret", "4711")
+	newPage(team.ID, "Rack",
+		"::embed{ref=\""+plan+"#b1\"}\n\n[fine](/o/"+plan+")",
+		"::embed{ref=\""+plan+"#b9\"}",
+		"::embed{ref=\"zzzzzzzzzz\"}\n\n[nowhere](/o/zzzzzzzzzz)",
+		"[[No such page]]\n\n```\n[[Inside code]]\n::embed{ref=\"zzzzzzzzzz\"}\n```",
+		"::embed{ref=\""+gone+"\"}",
+		"::embed{ref=\""+secret+"\"}",
+		"::embed{ref=\""+team.ID+"\"}")
+	if got := s.send(http.MethodDelete, "/api/objects/"+gone, "", sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
+		t.Fatalf("delete = %d", got)
+	}
+	list := func(as map[string]string) []string {
+		var p apiProblems
+		res := s.get("/api/problems")
+		if as != nil {
+			res = s.getWith("/api/problems", as)
+		}
+		if err := json.Unmarshal(res.Body.Bytes(), &p); err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, x := range p.Database {
+			out = append(out, x.Title+" #"+x.Block+" "+x.Ref+": "+x.Why)
+		}
+		return out
+	}
+	r := func(b string) string { return "Rack #" + b + " " }
+	want := []string{
+		r("b2") + plan + "#b9: embeds block #b9, which is no longer in Plan",
+		r("b3") + "zzzzzzzzzz: embeds something that is not to be found",
+		r("b3") + "/o/zzzzzzzzzz: links to a page that is not to be found",
+		r("b4") + "[[No such page]]: no such page",
+		r("b5") + gone + ": embeds something that is not to be found",
+		r("b7") + team.ID + ": embeds Team, which is not a page",
+	}
+	if got := list(nil); !slices.Equal(got, want) {
+		t.Errorf("for the owner:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	var all apiProblems
+	_ = json.Unmarshal(s.get("/api/problems").Body.Bytes(), &all)
+	if len(all.Source) != 1 || all.Source[0].Source != "README.md" || all.Source[0].Message != "[[gone]]: no such page" || all.More {
+		t.Errorf("what the folder source ran into: %+v", all.Source)
+	}
+	asBob := merged(bob)
+	asBob["Sec-Fetch-Site"] = "same-origin"
+	got := list(asBob)
+	if len(got) != len(want)+1 || !slices.Contains(got, r("b6")+secret+": embeds something that is not to be found") {
+		t.Errorf("for bob, the private page is not to be found:\n%s", strings.Join(got, "\n"))
+	}
+}

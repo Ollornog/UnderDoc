@@ -364,3 +364,22 @@ func TestTagged(t *testing.T) {
 		t.Fatal(titles)
 	}
 }
+
+// A block of the database may link to an object of the database by its address; the folder source cannot know it, so the
+// link stays as written and is checked by the list of problems. Pages of the folder source keep their checks.
+func TestBlocksLinkToTheDatabase(t *testing.T) {
+	lib := Build(Input{Pages: []Page{page("plan.md", "---\nid: plan\n---\n# Plan\n"), page("other.md", "# Other\n\n[x](/o/7k2m9q4x1c)\n")}})
+	got, err := lib.RenderMarkdown("[Rack](/o/7k2m9q4x1c) and [named](/o/7k2m9q4x1c/rack) and [plan](/o/plan) and [bad](/o/NOT-AN-ID)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.HTML, `href="/o/7k2m9q4x1c"`) || !strings.Contains(got.HTML, `href="/o/7k2m9q4x1c/rack"`) || !strings.Contains(got.HTML, `href="/o/plan"`) {
+		t.Errorf("links to the database stay: %s", got.HTML)
+	}
+	if len(got.Broken) != 1 || got.Broken[0].Reference != "/o/NOT-AN-ID" {
+		t.Errorf("what is not an address is still broken: %+v", got.Broken)
+	}
+	if len(lib.Problems()) != 1 || !strings.Contains(lib.Problems()[0].Message, "/o/7k2m9q4x1c") {
+		t.Errorf("a page of the folder source does not link into the database unchecked: %+v", lib.Problems())
+	}
+}

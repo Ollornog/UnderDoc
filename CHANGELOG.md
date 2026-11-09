@@ -8,11 +8,29 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A link in a block of the database to another object of the database, `/o/<id>`, showed as broken, since only the folder
+  source was asked. It now stays a link, and the list of problems checks it against the database.
+- A new page made in a collection of the folder source or of the demo was a mock-up that could not be written. New, the
+  right click ("New page below it") and New in the head now make pages only in collections of the database and say why
+  elsewhere.
 - An entry could not be dropped onto an empty collection inside another: while the pointer waited on its middle, the held
   entry slid it away from under the pointer, and the waiting began anew. It now stays where it is while waiting.
 
 ### Changed
 
+- Pages of the folder source take no comments: they are files and read only, and comments there were never kept. Their
+  speech bubble is greyed and says so; comments are kept on pages of the database. The actions of a comment (reply,
+  resolve, edit, delete) have icons.
+- Reading and editing: a square button, icon only, at the left of the head of a document, as tall as path and title,
+  turns the document between reading (book) and editing (pencil, filled); where a page cannot be edited it shows a lock
+  and says why (folder source, demo, only read or comment). The pencil in the head is gone. New in the head of a
+  collection in nav3 is gone where one may not add anything there (folder source, only read or comment). A setting under Profile, Documents, opens documents for editing (it follows the account).
+- Editing a block as Docmost shows it (the idea only, no code): a bar floats above the block being written, to turn it
+  into another kind (text, headings, lists, to-do, quote, code), make the selection bold, italic, struck through, code or a
+  link (Ctrl+B, Ctrl+I, Ctrl+K), move the block up or down, duplicate it, copy its address or delete it. A "+" at its left
+  adds a block below and opens the list of kinds, which typing "/" in an empty block opens too, filtered while typing:
+  text, headings, lists, quote, code, divider, table, embed; image and file are greyed until there is a store for files.
+  A block is saved when it is left. New API: `POST /api/pages/{id}/blocks/{block}/move`.
 - The browser tests say why Chrome does not answer: whether it still runs, and the end of what it wrote to stderr. Once,
   on the CI, Chrome gave no answer to its first tab, and the test could not say more.
 - Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was
@@ -88,6 +106,24 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The list of problems (M-3), from the right click on the free part of nav2: embeddings and links in the pages one sees
+  that point at a page or block that is gone, never there or not to be seen, links of the Markdown that find nothing, and
+  what the folder source ran into, each with a way to its page (`GET /api/problems`).
+- Import keeps the links between the pages: relative links to Markdown files and `[[page]]` by ID, path, file name or title
+  become links to the pages they became, with their anchors; links and embeddings of objects that got a new ID follow.
+- In reading, every block of a page has a handle at its left, shown on hover (as Docmost has one, the idea only). Its menu
+  copies the address to embed the block, opens the block for editing, comments on it and says where it is used. It
+  replaces the address chip on tables of such pages.
+- Comments on pages of the database (ADR-18, ADR-20), on the whole page or on one block through its ID, with replies one
+  level deep (migration 007, table `comments`). The drawer of the head opens on the whole page; the speech bubble beside
+  a block in reading mode, the comment button in the bar of a block while editing, and `commentOn(docKey, blockId)` open
+  it on that block. A thread is resolved and opened again by its author or by whoever may edit the page; each author
+  changes and deletes their own comments, and a comment others have replied to stays (resolve it instead). The head and
+  each block count the open comments. Read only shows the comments without a field; the owner may always comment. A
+  deleted block keeps its comments, listed as "a block that is gone", still to be answered. The text is plain, at most
+  10000 characters. The made-up documents keep their made-up comments. New API: `GET` and `POST
+  /api/pages/{id}/comments`, `PATCH` and `DELETE /api/comments/{id}`; `/api/doc` carries `comments` and `canComment`, each
+  block its `comments`.
 - Embedding by ID (ADR-18): a block line `::embed{ref="<page id>#<block id>"}`, or without `#<block id>` for a whole
   page, shows that source live, framed, with a link back. "Copy address" in the bar of a block puts its address on the
   clipboard; pasted alone into an empty block, it becomes the embedding and is saved. The database keeps every reference

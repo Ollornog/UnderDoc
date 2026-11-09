@@ -138,3 +138,64 @@ func TestExportAndImport(t *testing.T) {
 		}
 	}
 }
+
+// Links between imported pages point at the pages they became: relative links to Markdown files and [[links]] by ID,
+// file name or title; what finds nothing, and what stands in fenced code, stays as written. An embedding of an imported
+// page follows it to its new ID.
+func TestImportedLinksFollowThePages(t *testing.T) {
+	ctx := context.Background()
+	store, url := database(t)
+	dir := t.TempDir()
+	write := func(name, content string) {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("a/one.md", "# One\n\nSee [two](../b/two.md#part), [[Two]], [[two|the second]], [[T-3#Part B]], [[missing]] and [web](https://example.com/x.md).\n\n```\n[[Two]]\n```\n\n::embed{ref=\"T-3\"}\n")
+	write("b/two.md", "---\nid: T-3\n---\n# Two\n\n## Part B\n\ntext\n")
+	t.Setenv("UNDERDOC_DATABASE_URL", url)
+	if code, stdout, errOut := runCommand(t, "import", "--owner", "anna", dir, "Docs"); code != 0 {
+		t.Fatalf("import: exit %d, %q %q", code, stdout, errOut)
+	}
+	var one, two string
+	var walk func(id string)
+	walk = func(id string) {
+		kids, _ := store.Children(ctx, id, "u-anna")
+		for _, k := range kids {
+			switch k.Title {
+			case "One":
+				one = k.ID
+			case "Two":
+				two = k.ID
+			}
+			walk(k.ID)
+		}
+	}
+	tops, _ := store.Collections(ctx, "u-anna")
+	for _, c := range tops {
+		if c.Title == "Docs" {
+			walk(c.ID)
+		}
+	}
+	if one == "" || two == "" || two == "T-3" {
+		t.Fatalf("pages: one %q two %q", one, two)
+	}
+	blocks, _ := store.Blocks(ctx, one, "u-anna")
+	var body strings.Builder
+	for _, b := range blocks {
+		body.WriteString(b.Body + "\n")
+	}
+	got := body.String()
+	for _, want := range []string{"[two](/o/" + two + "#part)", "[Two](/o/" + two + ")", "[the second](/o/" + two + ")", "[Two](/o/" + two + "#h-part-b)",
+		"[[missing]]", "[web](https://example.com/x.md)", "```\n[[Two]]\n```", `::embed{ref="` + two + `"}`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%q is not in:\n%s", want, got)
+		}
+	}
+	if refs, _ := store.UsedIn(ctx, two, "u-anna"); len(refs) != 1 || refs[0].Page != one {
+		t.Errorf("the embedding is kept as a reference: %+v", refs)
+	}
+}

@@ -106,3 +106,13 @@ build: the list of broken references (problems in the workspace), embedding by d
 come back through an HTML comment before each block, and a round trip into an empty database gives the same files. The
 right click on a collection downloads it as a zip. Images and other files wait for the content store, and links of the folder
 source by its own IDs do not follow yet (docs/export.md).
+
+**State on 2026-11-09 (handle, problems, links):** in reading, every block has a handle at its left with its address,
+editing, comments and where it is used. The list of problems names broken embeddings and links of the pages one sees and
+what the folder source ran into. Import points the links between the imported pages at their new IDs.
+
+**State on 2026-11-09 (comments):** comments live in the database, on the whole page or on one block through its ID, with
+replies one level deep; the drawer of the head, the speech bubble beside a block and its bar while editing open them, and
+the head and each block count the open ones. Rights as ADR-20 says: read sees them, comment adds, edit resolves those of
+others, each author changes and deletes their own. A deleted block keeps its comments as "a block that is gone". Pages of the
+folder source have no comments: they are read only and have no block IDs.

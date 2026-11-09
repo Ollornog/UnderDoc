@@ -11,6 +11,7 @@ import (
 	"html"
 	"maps"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -185,7 +186,7 @@ func (lib *Library) render(doc *document.Document, parsed map[document.ID]*markd
 // (ADR-19). Links resolve as from a page at the root of the folder source. A leading line of dashes stays a rule: a block
 // has no front matter.
 func (lib *Library) RenderMarkdown(source string) (markdown.Rendered, error) {
-	return safeRender(markdown.Parse([]byte("\n"+source)), &resolver{lib: lib, doc: &document.Document{Source: "block.md"}})
+	return safeRender(markdown.Parse([]byte("\n"+source)), &resolver{lib: lib, doc: &document.Document{Source: "block.md"}, database: true})
 }
 
 func safeRender(page *markdown.Page, res markdown.Resolver) (result markdown.Rendered, err error) {
@@ -263,7 +264,13 @@ func (lib *Library) Home() (*document.Document, bool) {
 type resolver struct {
 	lib *Library
 	doc *document.Document
+	// database is set for blocks of pages in the database: a link to /o/<id> may name an object of the database, which
+	// the folder source does not know; it stays as written, and the list of problems checks it against the database.
+	database bool
 }
+
+// databaseLink is the address of an object, as a block of the database links to it: /o/<id>, maybe with a name after it.
+var databaseLink = regexp.MustCompile(`^/o/[0-9a-hjkmnp-tv-z]{10}(/[^/?#]*)?$`)
 
 // Wiki resolves in this order: stable ID, path relative to the page, path from the root, then title or file name.
 func (r *resolver) Wiki(target string) (markdown.Target, error) {
@@ -307,6 +314,14 @@ func (r *resolver) relative(target string) string {
 
 // Link resolves a normal relative link, to a page, an image or a folder.
 func (r *resolver) Link(linkPath string) (markdown.Target, bool) {
+	if r.database && strings.HasPrefix(linkPath, "/o/") {
+		if doc, ok := r.lib.documents[document.ID(strings.SplitN(linkPath[3:], "/", 2)[0])]; ok {
+			return documentTarget(doc), true
+		}
+		if databaseLink.MatchString(linkPath) {
+			return markdown.Target{Href: linkPath}, true
+		}
+	}
 	relative := r.relative(linkPath)
 	if doc, ok := r.lib.byPath[pathKey(relative)]; ok && isMarkdownPath(relative) {
 		return documentTarget(doc), true

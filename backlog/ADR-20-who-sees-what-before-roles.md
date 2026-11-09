@@ -38,3 +38,11 @@ The second option.
 
 - M-5 replaces the one level for all others with roles per person and group, and keeps the owner.
 - Comments arrive with the first build, each on an element of a page through its ID (ADR-18).
+- **Comments, settled on 2026-11-09:** a comment belongs to a page of the database, to the whole page or to one block.
+  Whoever sees the page reads its comments, also with read only; a page in the trash or a private page of someone else
+  shows none. The owner and, while the page lets them comment or edit, all others add comments and replies. Each author
+  changes and deletes only their own, and only while they may still comment. A thread is resolved, and opened again, by
+  its author or by whoever may edit the page; a reply goes with its thread. A comment others have replied to cannot be
+  deleted, so their replies keep what they answer; it can be resolved instead. A deleted block keeps its comments: they
+  show as on "a block that is gone" and can still be answered, but no new thread starts there. Block IDs are never given
+  out twice, so such a comment can never land on another block.

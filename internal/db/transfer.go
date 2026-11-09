@@ -19,6 +19,8 @@ import (
 // Node is an object with everything below it and, for a page, its blocks.
 type Node struct {
 	Object
+	// Key is the name the links of an imported tree use for this node, as /o/<key>; Import puts its new ID in their place.
+	Key string
 	// NextBlock is the number the next block of a page gets, so an ID deleted at the end is not given out again.
 	NextBlock int
 	Blocks    []Block
@@ -184,6 +186,14 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 	}
 	result := Imported{Renamed: map[string]string{}}
 	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		// First every object, so each has its ID; then the blocks, with the links between the imported pages and their
+		// embeddings pointing at those IDs.
+		type made struct {
+			n  *Node
+			id string
+		}
+		var all []made
+		ids := map[string]string{}
 		var write func(n *Node, parent string, position int) (Object, error)
 		write = func(n *Node, parent string, position int) (Object, error) {
 			o := n.Object
@@ -192,43 +202,27 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 			if IsDivider(o.Kind) {
 				o.Title, o.Description, o.Access = o.Kind, "", ""
 			}
-			made, err := insertWithID(ctx, tx, o)
+			m, err := insertWithID(ctx, tx, o)
 			if err != nil {
 				return Object{}, err
 			}
-			if o.ID != "" && made.ID != o.ID {
-				result.Renamed[o.ID] = made.ID
+			if o.ID != "" {
+				ids[o.ID] = m.ID
+				if m.ID != o.ID {
+					result.Renamed[o.ID] = m.ID
+				}
+			}
+			if n.Key != "" {
+				ids[n.Key] = m.ID
 			}
 			result.Objects++
-			next := max(n.NextBlock, 1)
-			for i, b := range n.Blocks {
-				if !blockID.MatchString(b.ID) {
-					return Object{}, errors.New("block ID " + strconv.Quote(b.ID) + " is not valid")
-				}
-				if err := checkBody(b.Body); err != nil {
-					return Object{}, err
-				}
-				number, _ := strconv.Atoi(b.ID[1:])
-				next = max(next, number+1)
-				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", made.ID, b.ID, i, b.Body); err != nil {
-					return Object{}, err
-				}
-				if err := syncRefs(ctx, tx, made.ID, b.ID, b.Body); err != nil {
-					return Object{}, err
-				}
-				if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", made.ID, b.ID, b.Body, owner); err != nil {
-					return Object{}, err
-				}
-			}
-			if _, err := tx.Exec(ctx, "UPDATE objects SET next_block = $2 WHERE id = $1", made.ID, next); err != nil {
-				return Object{}, err
-			}
+			all = append(all, made{n, m.ID})
 			for i, k := range n.Kids {
-				if _, err := write(k, made.ID, i); err != nil {
+				if _, err := write(k, m.ID, i); err != nil {
 					return Object{}, err
 				}
 			}
-			return made, nil
+			return m, nil
 		}
 		root := *top
 		root.Kind, root.Title = KindCollection, title
@@ -236,11 +230,60 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 		if err := tx.QueryRow(ctx, "SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NULL").Scan(&position); err != nil {
 			return err
 		}
-		made, err := write(&root, "", position)
-		result.Top = made
-		return err
+		m, err := write(&root, "", position)
+		if err != nil {
+			return err
+		}
+		result.Top = m
+		for _, a := range all {
+			next := max(a.n.NextBlock, 1)
+			for i, b := range a.n.Blocks {
+				if !blockID.MatchString(b.ID) {
+					return errors.New("block ID " + strconv.Quote(b.ID) + " is not valid")
+				}
+				body := relink(b.Body, ids)
+				if err := checkBody(body); err != nil {
+					return err
+				}
+				number, _ := strconv.Atoi(b.ID[1:])
+				next = max(next, number+1)
+				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", a.id, b.ID, i, body); err != nil {
+					return err
+				}
+				if err := syncRefs(ctx, tx, a.id, b.ID, body); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", a.id, b.ID, body, owner); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.Exec(ctx, "UPDATE objects SET next_block = $2 WHERE id = $1", a.id, next); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return result, err
+}
+
+var (
+	objectLink = regexp.MustCompile(`(/o/)([^\s)#/"?<>]+)`)
+	embedRef   = regexp.MustCompile(`(::embed\{ref=")([^"#]+)`)
+)
+
+// relink points the links and embeddings of an imported block at the IDs its pages got: /o/<old> and ref="<old>" become
+// the new ID wherever the old one, or the key of an imported page, is known. Everything else stays as written.
+func relink(body string, ids map[string]string) string {
+	for _, re := range []*regexp.Regexp{objectLink, embedRef} {
+		body = re.ReplaceAllStringFunc(body, func(m string) string {
+			parts := re.FindStringSubmatch(m)
+			if id, ok := ids[parts[2]]; ok {
+				return parts[1] + id
+			}
+			return m
+		})
+	}
+	return body
 }
 
 // insertWithID inserts an object with the ID it brings if that is valid and not taken by anything, the trash included,
