@@ -51,8 +51,8 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 
 // gapAt tells where the gap of a drag is: right below which entry, as the text or the mark of that entry.
 const gapAt = `(() => { const g = document.querySelector('.dropgap'); if (!g) return 'none';
-	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('.nav2 .collrow, .nav3 .row, .nav3 .cheadrow')].filter(n => !n.closest('.dropgap')).filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
-	return up ? (up.dataset.deco || up.dataset.favid || up.textContent.trim()) + ' ' + Math.round(r.height) : 'nothing above ' + Math.round(r.top); })()`
+	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('#clist > :not(.dropgap), .nav3 .row, .nav3 .cheadrow')].filter(n => !n.closest('.dropgap')).filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
+	return up ? (up.dataset.deco || up.dataset.favid || up.querySelector(':scope > .collrow')?.dataset.favid || up.textContent.trim()) + ' ' + Math.round(r.height) : 'nothing above ' + Math.round(r.top); })()`
 
 // makeTeam makes a collection with pages A, B and C through the API, as a setup, and returns its ID.
 func makeTeam(b *browser) string {
@@ -116,12 +116,13 @@ func TestDividersInNav2(t *testing.T) {
 	b.ready("Network plan")
 	b.rightClickOn(`.nav2 [data-favid="ops"]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).slice(0, 8).join(' ')`); !strings.Contains(got, "ops line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).slice(0, 8).join(' ')`); !strings.Contains(got, "ops line") {
 		t.Fatalf("the line is below ops: %q", got)
 	}
 	// While dragging, the line leaves its place and a gap of its height opens below pro, drawn with a dashed border.
 	h := b.eval(`Math.round(document.querySelector('#clist .deco').getBoundingClientRect().height)`)
-	b.dragTo(`#clist .deco`, `#clist [data-favid="pro"]`, 0.95, func() {
+	// Projects holds collections, so in nav2 it is a box with its children: below the box is below Projects.
+	b.dragTo(`#clist .deco`, `#clist .collgroup:has([data-favid="pro"])`, 0.97, func() {
 		b.shot("nav2-gap")
 		if got := b.eval(gapAt); got != "pro "+h {
 			t.Errorf("the gap is not below pro: %q", got)
@@ -133,12 +134,12 @@ func TestDividersInNav2(t *testing.T) {
 			t.Errorf("the line itself moves through the list, no picture floats: %q", got)
 		}
 	})
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
 		t.Errorf("the line moved below pro: %q", got)
 	}
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
 		t.Errorf("the browser keeps the line: %q", got)
 	}
 	b.clickOn(`.nav2 [data-act="coll"][data-id="pro"]`, 2)
@@ -635,5 +636,91 @@ func TestOneWindowShowsNoTabs(t *testing.T) {
 	b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
 	if got := b.eval(`[document.querySelectorAll('.tabrow').length, document.querySelectorAll('.brandrow .winbtn').length].join(' ')`); got != "1 0" {
 		t.Errorf("a tab of its own brings the tabs back: %q", got)
+	}
+}
+
+// A folder is made in a collection and named in place; a collection and a folder turn into each other; collections
+// inside a collection show in nav2 inside the box of their parent, three levels deep, and nothing inside a folder does.
+func TestFoldersAndChildrenInNav2(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.eval(`window.done = false; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		let parent = '` + team + `';
+		for (const title of ['L1', 'L2', 'L3', 'L4']) parent = (await post('/api/collections', {title, parent})).id;
+		const f = await post('/api/folders', {title: 'Box', parent: '` + team + `'});
+		await post('/api/collections', {title: 'Hidden', parent: f.id});
+		window.done = true;
+	})()`)
+	if !b.waitFor(`window.done`) {
+		t.Fatal("the tree for the test was not made")
+	}
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	nested := func() string {
+		return b.eval(`[...(document.querySelector('#clist [data-favid="` + team + `"]')?.closest('.collgroup')?.querySelectorAll('.collrow.nest') || [])].map(n => n.textContent.trim()).join(', ')`)
+	}
+	if got := nested(); got != "L1, L2, L3" {
+		t.Errorf("three levels in the box of Team, nothing from the folder: %q", got)
+	}
+	b.shot("nav2-children")
+	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('#clist .collgroup')); return s.borderTopStyle + ' ' + s.borderTopWidth; })()`); got != "solid 1px" {
+		t.Errorf("the box of a collection with its children is drawn: %q", got)
+	}
+	if got := b.eval(`document.querySelectorAll('#clist [data-favid="` + team + `"] svg rect').length`); got != "4" {
+		t.Errorf("a collection of the database has the icon of a collection, not of a folder: %s rects", got)
+	}
+	// Dragged, a collection takes its box along.
+	b.dragTo(`#clist [data-favid="`+team+`"]`, probe(b, `.nav2 [data-act="coll"]`, "ops"), 0.9, func() {
+		if got := b.eval(`document.querySelector('#clist [data-favid="` + team + `"]').closest('.collgroup').offsetParent === null`); got != "true" {
+			t.Error("the box of Team stays while Team is dragged")
+		}
+	})
+	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.typeText("folder")
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`document.activeElement?.dataset?.ren !== undefined && document.activeElement.value === 'New folder (1)'`) {
+		t.Fatalf("the folder is named in place: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
+	}
+	b.typeText("Drawings")
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`!!document.querySelector(` + strconv.Quote(`.nav3 .row`) + `) && [...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'Drawings')`) {
+		t.Fatal("no folder Drawings in nav3")
+	}
+	kind := func(title string) string {
+		b.eval(`window.kind = null; fetch('/api/state').then(r => r.json()).then(j => { const walk = l => l.forEach(n => { if (n.n === ` + strconv.Quote(title) + `) window.kind = n.t; walk(n.kids || []); }); walk(j.collections); })`)
+		b.waitFor(`window.kind !== null`)
+		return b.eval(`window.kind`)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if got := kind("Drawings"); got != "folder" {
+		t.Errorf("the database has a folder: %q", got)
+	}
+	if got := nested(); got != "L1, L2, L3" {
+		t.Errorf("a folder stays out of nav2: %q", got)
+	}
+	b.rightClickOn(rowNamed(b, "Drawings"))
+	b.clickOn(probe(b, `.ctxpop button`, "Turn into a collection"), 1)
+	if !b.waitFor(`[...document.querySelectorAll('#clist .collrow.nest')].some(n => n.textContent.trim() === 'Drawings')`) {
+		t.Errorf("as a collection it shows in nav2: %q", nested())
+	}
+	if got := kind("Drawings"); got != "collection" {
+		t.Errorf("the database has a collection: %q", got)
+	}
+	// A collection of nav2 opens in nav3 as its own heading.
+	b.clickOn(probe(b, `#clist .collrow.nest [data-act="coll"]`, "L2"), 1)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 .cheadrow .chead')].some(n => n.textContent.trim() === 'L2')`) {
+		t.Errorf("L2 does not open in nav3: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\\s+/g, ' ')`))
+	}
+	b.rightClickOn(probe(b, `#clist .collrow.nest [data-act="coll"]`, "Drawings"))
+	b.clickOn(probe(b, `.ctxpop button`, "Turn into a folder"), 1)
+	if !b.waitFor(`![...document.querySelectorAll('#clist .collrow.nest')].some(n => n.textContent.trim() === 'Drawings')`) {
+		t.Errorf("as a folder it leaves nav2: %q", nested())
+	}
+	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Turn into'))`); got != "false" {
+		t.Error("a collection at the top offers to become a folder")
 	}
 }
