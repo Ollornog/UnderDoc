@@ -1287,3 +1287,92 @@ func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
 	b.clickOn(`tr[data-problem] [data-act="open"]`, 1)
 	b.ready("Rack")
 }
+
+// Tags of a page of the database are added and taken off in the gear, kept by the server, shown in the head and found by
+// the search filter.
+func TestTagsOfAPage(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Rack', parent: team.id});
+		const other = await post('/api/pages', {title: 'Other', parent: team.id});
+		await fetch('/api/objects/' + other.id + '/tags', {method: 'PUT', headers: json, body: JSON.stringify({tags: ['rack']})});
+		await post('/api/objects/' + team.id + '/access', {access: 'read'});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	page := b.eval(`window.made`)
+	b.open(base + "/o/" + page)
+	b.ready("Rack")
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.clickOn(`.fdrawer [data-addtag]`, 1)
+	b.typeText("Network")
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`[...document.querySelectorAll('.fdrawer [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#network'`) {
+		t.Fatalf("the tag is added: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	}
+	b.clickOn(`.fdrawer [data-addtag]`, 1)
+	b.typeText("rack")
+	b.press("Enter", "Enter", 13, 0)
+	b.waitFor(`document.querySelectorAll('.fdrawer [data-act="tagsearch"]').length === 2`)
+	b.open(base + "/o/" + page)
+	b.ready("Rack")
+	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .tools .tagline [data-act="tagsearch"]')].map(x => x.textContent).join(' ')`); got != "#network #rack" {
+		t.Errorf("the server keeps them, the head shows them: %q", got)
+	}
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.clickOn(`.fdrawer [data-act="tagdel"][data-tag="network"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('.fdrawer [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#rack'`) {
+		t.Errorf("the x takes it off: %s", b.eval(`document.querySelector('.fdrawer .tagrow')?.innerText`))
+	}
+	b.clickOn(`.fdrawer [data-act="tagsearch"][data-tag="rack"]`, 1)
+	if !b.waitFor(`['Rack', 'Other'].every(n => [...document.querySelectorAll('.nav3 [data-id]')].some(x => D[x.dataset.id]?.n === n))`) {
+		t.Errorf("the tag finds the page, and one never opened: %s", b.eval(`document.querySelector('.nav3')?.innerText.slice(0, 200)`))
+	}
+	// Someone who may only read sees the tags, but changes none.
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.open(base + "/o/" + page)
+	b.ready("Rack")
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	if got := b.eval(`[document.querySelectorAll('.fdrawer [data-act="tagsearch"]').length, !!document.querySelector('.fdrawer [data-addtag]'), !!document.querySelector('.fdrawer [data-act="tagdel"]'), document.querySelector('.fdrawer .tagrow + .hint')?.textContent].join(' | ')`); got != "1 | false | false | Only who may change this adds tags." {
+		t.Errorf("for a reader: %q", got)
+	}
+}
+
+// Deleting something that is embedded elsewhere names those pages in the question, before the second click deletes.
+func TestDeletingSomethingInUse(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const plan = await post('/api/pages', {title: 'Plan', parent: team.id});
+		await post('/api/pages/' + plan.id + '/blocks', {md: 'one', after: ''});
+		const rack = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + rack.id + '/blocks', {md: '::embed{ref="' + plan.id + '#b1"}', after: ''});
+		window.made = team.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the pages for the test were not made")
+	}
+	b.open(base + "/o/" + b.eval(`window.made`))
+	b.ready("Team")
+	b.rightClickOn(rowNamed(b, "Plan"))
+	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	if !b.waitFor(`document.querySelector('.ctxpop [data-uses]')?.textContent === 'Embedded in Rack. There it will show that it is gone.'`) {
+		t.Fatalf("the question names Rack: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
+	}
+	b.press("Escape", "Escape", 27, 0)
+	b.rightClickOn(rowNamed(b, "Rack"))
+	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	b.eval(`new Promise(r => setTimeout(r, 300))`)
+	if got := b.eval(`document.querySelector('.ctxpop [data-act="delobj"]')?.textContent + ' | ' + !!document.querySelector('.ctxpop [data-uses]')`); got != "Delete? Yes | false" {
+		t.Errorf("what is used nowhere just asks: %q", got)
+	}
+}

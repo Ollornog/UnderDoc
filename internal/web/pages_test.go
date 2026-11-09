@@ -272,3 +272,36 @@ func TestTheListOfProblems(t *testing.T) {
 		t.Errorf("for bob, the private page is not to be found:\n%s", strings.Join(got, "\n"))
 	}
 }
+
+func TestTagsThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/tags", `{"tags":["Network","#rack","network"]}`, sameSite)
+	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"tags":["network","rack"]`) {
+		t.Fatalf("set: %d %s", res.Code, res.Body.String())
+	}
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Tags; !slices.Equal(got, []string{"network", "rack"}) {
+		t.Errorf("the document has them: %q", got)
+	}
+	var found []string
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		for _, k := range c.Kids {
+			if k.ID == p.ID {
+				found = k.Tags
+			}
+		}
+	}
+	if !slices.Equal(found, []string{"network", "rack"}) {
+		t.Errorf("the tree has them, so search finds by tag: %q", found)
+	}
+	if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/tags", `{"tags":["two words"]}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a bad tag = %d", got)
+	}
+	asBob := merged(bob)
+	asBob["Sec-Fetch-Site"] = "same-origin"
+	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/tags", `{"tags":["x"]}`, asBob).Code; got != http.StatusForbidden && got != http.StatusNotFound {
+		t.Errorf("bob may only read = %d", got)
+	}
+}

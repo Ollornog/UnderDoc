@@ -53,7 +53,7 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 	nodes, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*Node, error) {
 		n := &Node{}
 		o := &n.Object
-		err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &n.NextBlock)
+		err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags, &n.NextBlock)
 		return n, err
 	})
 	if err != nil {
@@ -200,7 +200,12 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 			o.Owner, o.Parent, o.Position = owner, parent, position
 			o.Private = o.Private && parent == ""
 			if IsDivider(o.Kind) {
-				o.Title, o.Description, o.Access = o.Kind, "", ""
+				o.Title, o.Description, o.Access, o.Tags = o.Kind, "", "", nil
+			}
+			if clean, err := CleanTags(o.Tags); err == nil {
+				o.Tags = clean
+			} else {
+				o.Tags = nil
 			}
 			m, err := insertWithID(ctx, tx, o)
 			if err != nil {
@@ -299,10 +304,10 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private)
-			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10)
 			ON CONFLICT (id) DO NOTHING
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o)))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}

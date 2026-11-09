@@ -2,7 +2,7 @@
 id: M-28
 type: Milestone
 title: "First build: sign-in, account, collections and documents as objects"
-status: offen
+status: erledigt
 blocked_by: [M-1]
 tags: [shell, people, architecture]
 created: 2026-11-07
@@ -116,3 +116,22 @@ replies one level deep; the drawer of the head, the speech bubble beside a block
 the head and each block count the open ones. Rights as ADR-20 says: read sees them, comment adds, edit resolves those of
 others, each author changes and deletes their own. A deleted block keeps its comments as "a block that is gone". Pages of the
 folder source have no comments: they are read only and have no block IDs.
+
+**State on 2026-11-09 (tags, deleting what is used):** objects of the database carry tags, set in the gear, kept with
+copies, import and export, found by the tag filter. Deleting something embedded elsewhere names those pages first.
+
+**State on 2026-11-09 (phone width):** at 390×844 and 360×740 nothing is cut off and everything can be reached, before the
+phone has a layout of its own (T-10). nav3 takes its width again when nav2 and nav3 lie over the window, the handle, the
+plus and the speech bubble beside a block are in the window and in sight on a touch screen, and a long press is the right
+click. Browser tests walk the main states with touch input and fail for anything cut off, covered, hidden behind hover or
+scrolling sideways.
+
+**State on 2026-11-09 (restore):** a backup of the database and the content proved to restore the whole state on the test
+instance: a dump of the database and an archive of the content directory, restored into a throwaway database, give the
+same `underdoc export` (116 files), the same dump and the same files with their checksums; a row and a file changed on
+purpose are found each time. The backup is configured by the operations side, not by the app. There is no content store
+for files yet; when it comes, its directory joins the backup.
+
+**Accepted on 2026-11-09:** the maintainer took the acceptance round and accepted M-28. Left for later, by plan: the
+content store for files (its directory joins the backup), the phone layout of its own (T-10), touch dragging, and
+embedding by dragging or from search while typing.

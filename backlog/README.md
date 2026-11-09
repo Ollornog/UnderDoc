@@ -20,7 +20,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ☐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
-* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/1 erledigt
+* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/2 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
@@ -34,7 +34,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-25](M-25-bookmarks.md)** Bookmarks — noch keine Aufgaben
 * ☐ **[M-26](M-26-news.md)** News from subscribed feeds — noch keine Aufgaben
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
-* ☐ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — 0/1 erledigt
+* ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
 
 ## Aufgaben
@@ -48,7 +48,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-7](T-7-review-model.md)** Decide how reviews work, with which forge · M-20
 * ☐ **[T-8](T-8-website-kinds.md)** Settle what the site builder covers · M-21
 * ☐ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
-* ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-28
+* ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
 
 ## Fehler
 

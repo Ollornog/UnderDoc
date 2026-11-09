@@ -8,6 +8,17 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- At phone width nothing is cut off and everything can be reached, before the phone has a layout of its own (M-28):
+  nav3 had no width when nav2 and nav3 lay over the window, so its lists, the search and the profile were out of reach;
+  the handle and the plus beside a block and its speech bubble stood outside the window and showed only to a hovering
+  pointer; the menu of a block started off the screen; the windows of commented pages scrolled sideways; and the label
+  Administration in nav2 was cut off. A touch screen now shows the handle, the plus and the bubble faintly (C22 block
+  `.c22-app-workspace`, vendored from a branch until it is merged there).
+- A long press on a touch screen is the right click (ADR-17): it opens the same menu, so the trash, the problems and the
+  menus of entries and tabs are in reach on a phone; where the browser opens a menu of its own, only one opens, and the
+  lifting finger clicks nothing. Browser tests at 390×844 and 360×740 walk the main states with real touch input and fail
+  for anything cut off, covered, hidden behind hover or making the page scroll sideways.
+
 - A link in a block of the database to another object of the database, `/o/<id>`, showed as broken, since only the folder
   source was asked. It now stays a link, and the list of problems checks it against the database.
 - A new page made in a collection of the folder source or of the demo was a mock-up that could not be written. New, the
@@ -106,6 +117,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Tags on pages, folders and collections of the database (migration 008): added in the gear and taken off with the x of a
+  tag by whoever may change the object, shown in the head and found by the tag filter of the search, also for objects
+  never opened. Lower case, each once, letters, digits, - _ and ., at most 40 characters and 50 per object
+  (`PUT /api/objects/{id}/tags`). Copies keep them; import reads them from the front matter or `.underdoc.yaml`, as a list
+  or a line with commas, and export writes them.
+- Deleting something that is embedded elsewhere names those pages in the question, also for what lies below it, and
+  counts the pages the viewer may not see without naming them (`GET /api/objects/{id}/uses`).
 - The list of problems (M-3), from the right click on the free part of nav2: embeddings and links in the pages one sees
   that point at a page or block that is gone, never there or not to be seen, links of the Markdown that find nothing, and
   what the folder source ran into, each with a way to its page (`GET /api/problems`).

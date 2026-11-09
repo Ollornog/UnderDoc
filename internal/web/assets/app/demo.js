@@ -154,6 +154,7 @@ function rebuildPlaces(){for(const k in PARENT)delete PARENT[k];for(const k in C
 rebuildPlaces();
 const placeOf=id=>{if(D[id].place)return D[id].place;if(C.some(c=>c.id===id))return 'Workspace';const a=[];for(let x=PARENT[id];x;x=PARENT[x])a.unshift(D[x].n);return (COLL[id]?[COLL[id].n,...a]:a).join(' › ');};
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const unesc=s=>String(s).replace(/&(amp|lt|gt|quot);/g,(m,k)=>({amp:'&',lt:'<',gt:'>',quot:'"'}[k]));
 const plain=h=>{const e=document.createElement('div');e.innerHTML=h;return e.textContent;};
 const phone=()=>matchMedia('(max-width: 760px)').matches;
 const W3=300;
@@ -271,7 +272,15 @@ function delItem(id){
   const d=D[id];if(!d||isDeco(id))return '';
   const top=C.some(c=>c.id===id&&!c.alias),ask=!!(S.ctx&&S.ctx.ask);
   const why=d.real&&!d.db?'The folder source is read only':d.private||id==='me'?'Private notes stay':!d.db?'':top&&!d.mine?'Only its owner deletes a collection at the top':!d.mine&&accOf(id)!=='edit'?ACC[accOf(id)]:'';
-  return `<hr><button data-act="delobj" data-id="${id}" aria-pressed="${ask}"${why?` disabled title="${why}"`:''}>${mi('delobj')}${ask?'Delete? Yes':'Delete'}</button>`;
+  const u=ask&&S.ctx.uses,used=u&&(u.usedIn.length||u.hidden)?`<p class="hint" data-uses="${id}">Embedded in ${[...u.usedIn,...(u.hidden?[u.hidden+(u.hidden===1?' page':' pages')+' you cannot see']:[])].join(', ')}. There it will show that it is gone.</p>`:'';
+  return `<hr><button data-act="delobj" data-id="${id}" aria-pressed="${ask}"${why?` disabled title="${why}"`:''}>${mi('delobj')}${ask?'Delete? Yes':'Delete'}</button>${used}`;
+}
+/* Before deleting, the question names where the object, or anything below it, is embedded (M-28). */
+async function loadUses(id){
+  const d=D[id];if(!d||!d.db)return;
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/uses',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();if(S.ctx&&S.ctx.ask&&S.ctx.id===id){S.ctx.uses={usedIn:a.usedIn.map(esc),hidden:a.hidden|0};render();}}
+  catch(e){}
 }
 /* Export as files: a zip of the collection as normal files, what the viewer sees (docs/export.md). */
 function exportItem(id){return D[id]&&D[id].db?`<button data-act="export" data-id="${id}">${mi('export')}Export as files</button>`:'';}
@@ -410,9 +419,25 @@ function gearHtml(t,i,hasSecs){
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload. In the product, saving from the web comes with editing (M-8).</p>
-    <h3>Tags</h3><div class="tagrow">${d.tags.length?tagChips(d.tags,'tagsearch'):'<span class="lab">No tags yet.</span>'}</div>
-    <input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag">
+    ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
+}
+/* Tags of an object of the database are kept in it: whoever may change it adds them here and takes them off with the x of
+   a tag (M-28). Pages of the folder source take theirs from the front matter; the demo keeps its own until reload. */
+const mayTag=id=>{const d=D[id];return d.db&&(d.canEdit!==undefined?d.canEdit:d.mine||accOf(id)==='edit');};
+function tagsHtml(id,i){
+  const d=D[id],may=mayTag(id),chips=d.tags.map(t=>tagChips([t],'tagsearch')+(may?`<button class="tagc" data-act="tagdel" data-w="${i}" data-tag="${t}" aria-label="Remove the tag ${t}" title="Remove the tag ${t}">${ic('x')}</button>`:'')).join('');
+  const add=may||!d.db&&!d.real?`<input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag" maxlength="40">`
+    :d.db?'<p class="hint">Only who may change this adds tags.</p>':'<p class="hint">Tags of the folder source come from the front matter of the file.</p>';
+  return `<h3>Tags</h3><div class="tagrow">${chips||'<span class="lab">No tags yet.</span>'}</div>${add}`;
+}
+async function saveTags(id,tags){
+  const d=D[id];
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/tags',{...same,method:'PUT',body:JSON.stringify({tags})});
+    if(r.status===400){toast('A tag is 1 to 40 letters, digits, - _ or ., and an object has at most 50.');return;}
+    if(!r.ok)throw new Error(String(r.status));
+    d.tags=(await r.json()).tags.map(esc);render();}
+  catch(e){toast(e.message==='403'?'Only who may change this adds tags.':'The tags could not be saved.');}
 }
 function tabHtml(x,k,i){
   const on=k===S.wins[i].a;
@@ -844,7 +869,7 @@ document.addEventListener('click',e=>{
     case 'linefirst':case 'spacefirst':addDivider(act.startsWith('line')?'line':'space',a.id,'');break;
     case 'lineafter':case 'spaceafter':addDivider(act.startsWith('line')?'line':'space',contOf(a.id),a.id);break;
     case 'decodel':removeDivider(a.id);break;
-    case 'delobj':if(!ctx0||!ctx0.ask){S.ctx={...ctx0,ask:true};break;}deleteObject(a.id);break;
+    case 'delobj':if(!ctx0||!ctx0.ask){S.ctx={...ctx0,ask:true};loadUses(a.id);break;}deleteObject(a.id);break;
     case 'trash':openDoc('trash:');loadTrash();break;
     case 'problems':openDoc('problems:');loadProblems();break;
     case 'trrestore':restoreTrash(a.id);break;
@@ -878,6 +903,7 @@ document.addEventListener('click',e=>{
     case 'filters':S.filters=!S.filters;break;
     case 'recent':S.sq=a.id;break;
     case 'ftag':{const g=esc(a.tag);S.ftags=S.ftags.includes(g)?S.ftags.filter(x=>x!==g):[...S.ftags,g];break;}
+    case 'tagdel':{const id=t.d,d=D[id];saveTags(id,d.tags.filter(x=>x!==a.tag).map(unesc));return;}
     case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[esc(a.tag)];S.filters=true;break;
     case 'sel':w.a=tk;S.focus=i;break;
     case 'keep':{const c=take(w,0);w.tabs.push(c);w.a=w.tabs.length-1;break;}
@@ -991,7 +1017,9 @@ document.addEventListener('keydown',e=>{
   if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
-  if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
+  if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),id=at(+x.dataset.addtag).d,d=D[id];
+    if(d.db){if(v&&!d.tags.includes(esc(v)))saveTags(id,[...d.tags.map(unesc),v]);return;}
+    if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
   if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
   if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.cur++;render();const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();}
@@ -1255,7 +1283,7 @@ function addNode(node){
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
-  D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
+  D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   return id;
 }
@@ -1759,5 +1787,22 @@ async function boot(){
    leave it to the browser. */
 document.addEventListener('click',e=>{const l=e.target.closest&&e.target.closest('article.doc a[href^="/o/"]');if(!l||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;
   const id=SID[l.getAttribute('href').slice(3).split('#')[0].split('/').map(decodeURIComponent).join('/')];if(!id)return;e.preventDefault();e.stopPropagation();openDoc(id);render();},true);
+/* A long press on a touch screen is the right click (ADR-17): a finger held still for half a second opens the same menu
+   as the right mouse button, so what only the right click offers (Trash, Problems, Delete …) is in reach on a phone too.
+   Where the browser opens a menu of its own on a long press, its event comes first and this one stays away, or it comes
+   later and is dropped; the finger lifting after the menu opened clicks nothing (M-28, phone width). */
+const PRESS={ms:500,slack:10,timer:0,at:null,done:false};
+function longPress(){
+  const stop=()=>{clearTimeout(PRESS.timer);PRESS.at=null;};
+  document.addEventListener('pointerdown',e=>{PRESS.done=false;stop();if(e.pointerType!=='touch'||!e.isPrimary)return;PRESS.at={x:e.clientX,y:e.clientY,el:e.target};
+    PRESS.timer=setTimeout(()=>{const p=PRESS.at;PRESS.at=null;if(!p||!p.el.isConnected)return;PRESS.done=true;
+      p.el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:p.x,clientY:p.y,button:2,buttons:2}));},PRESS.ms);},true);
+  document.addEventListener('pointermove',e=>{if(e.pointerType==='touch'&&PRESS.at&&Math.hypot(e.clientX-PRESS.at.x,e.clientY-PRESS.at.y)>PRESS.slack)stop();},true);
+  ['pointerup','pointercancel'].forEach(k=>document.addEventListener(k,e=>{if(e.pointerType==='touch')stop();},true));
+  /* On the window, so it comes before the listeners of the document. */
+  addEventListener('contextmenu',e=>{if(!e.isTrusted)return;if(PRESS.done){e.preventDefault();e.stopImmediatePropagation();return;}stop();},true);
+  addEventListener('click',e=>{if(!PRESS.done)return;PRESS.done=false;e.preventDefault();e.stopImmediatePropagation();},true);
+}
+longPress();
 window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
 boot();
