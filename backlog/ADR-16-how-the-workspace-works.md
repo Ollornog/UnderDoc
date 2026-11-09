@@ -49,9 +49,12 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   2026-11-09 this was open, and a collection inside a collection was treated much like a folder (M-28).
   - A folder may hold collections too. nav2 follows collections only and leaves everything else aside: a collection inside a
     folder shows in nav3 alone. A collection at the top stays one, as only collections stand there.
-  - **Trial (2026-11-09):** the collections inside a collection show in nav2 inside the box of their parent, three levels
-    deep at most, and open in nav3 as headings of their own. The maintainer would rather show no children in nav2, so this
-    stays only if it proves itself.
+  - **Shown in nav2 (2026-11-09):** a collection inside another lies in nav3 only, until the right click shows it in nav2
+    as well. That entry only points at it: the collection stays where it lies, opens in nav3 as a heading of its own, and the
+    entry goes with "Remove from nav2" or when it stops being a collection. Until accounts store it, the browser keeps it
+    with the order of nav2. ~~A trial the same day showed the children of a collection in nav2 inside its box~~; the
+    maintainer did not like it.
+- **Menus stay inside the window (2026-11-09):** a right click menu at the edge moves in, and a long one scrolls.
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
   offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
   collection offers a new collection inside it. A new collection opens with its settings, ready to be named.

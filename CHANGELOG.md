@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- A right click menu stays inside the window: at the edge it moves in, and a long one scrolls. The menu of a tab and New do
+  the same; before, a moved place could be overwritten right after it was set.
 - The gear of the settings is Lucide's, as the drawn one read as a sun; its licence ships in `assets/app/licenses`.
 - While dragging, nothing lights up under the pointer; waiting to put an entry below another takes 0.3 s instead of 0.5 s.
 - Each open collection in nav3 begins with a band of its own, set apart from the one before. New keeps its scrollbar.
@@ -74,8 +76,9 @@ All notable changes to this project are documented in this file. The format foll
 - Folders in the database: New in a collection makes one, named in place (`POST /api/folders`), and the right click turns
   a collection into a folder or back (`POST /api/objects/{id}/kind`). A folder shows only in nav3; a collection at the top
   stays one. Collections of the database now have the icon of a collection, not of a folder.
-- As a trial, collections inside a collection show in nav2 inside the box of their parent, three levels deep, and open in
-  nav3 as headings of their own; whatever lies in a folder stays out of nav2. The demo has three such levels below Projects.
+- A collection inside another can be shown in nav2 as well, by the right click ("Show in nav2"); the entry only points at it,
+  opens it in nav3 as a heading of its own, and goes with "Remove from nav2". The browser keeps it with the order of nav2.
+  This replaces a trial of the same day that showed the children of a collection in nav2 inside its box.
 - Duplicating: the right click copies an entry with everything below it, right after it, and Ctrl held at a drop copies
   instead of moving (`POST /api/objects/{id}/copy`, at most 500 objects at once). The copies belong to whoever copies, pages
   keep their blocks and block IDs, and each copy starts its own history.
