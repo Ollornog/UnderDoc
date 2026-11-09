@@ -13,9 +13,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
-- Editing is easier to find: the pencil in the head of a document is always there, greyed with the reason where the page
-  cannot be edited (folder source, demo, only read or comment), and a double click on a block of a page one may edit opens
-  editing at that block.
+- Reading and editing: left of the title a large button says "Reading" or "Editing" in words and an icon and turns the
+  document; where a page cannot be edited it says "Read only" and why (folder source, demo, only read or comment). The
+  pencil in the head is gone. A setting under Profile, Documents, opens documents for editing (it follows the account).
+- Editing a block as Docmost shows it (the idea only, no code): a bar floats above the block being written, to turn it
+  into another kind (text, headings, lists, to-do, quote, code), make the selection bold, italic, struck through, code or a
+  link (Ctrl+B, Ctrl+I, Ctrl+K), move the block up or down, duplicate it, copy its address or delete it. A "+" at its left
+  adds a block below and opens the list of kinds, which typing "/" in an empty block opens too, filtered while typing:
+  text, headings, lists, quote, code, divider, table, embed; image and file are greyed until there is a store for files.
+  A block is saved when it is left. New API: `POST /api/pages/{id}/blocks/{block}/move`.
 - The browser tests say why Chrome does not answer: whether it still runs, and the end of what it wrote to stderr. Once,
   on the CI, Chrome gave no answer to its first tab, and the test could not say more.
 - Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was

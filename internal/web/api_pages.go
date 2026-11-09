@@ -252,6 +252,21 @@ func (h *handler) apiAddBlock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, h.block(r, r.PathValue("id"), b, nil))
 }
 
+// apiMoveBlock puts a block after another, or first.
+func (h *handler) apiMoveBlock(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		After string `json:"after"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.MoveBlock(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.After), "move block") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // apiEditBlock gives a block new Markdown.
 func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {

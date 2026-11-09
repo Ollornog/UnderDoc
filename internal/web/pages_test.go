@@ -181,3 +181,20 @@ func TestEmbeddingThroughTheAPI(t *testing.T) {
 		t.Errorf("bob does not see the secret: %+v", got.Blocks)
 	}
 }
+
+func TestMovingABlockThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	b1 := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"one"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"two","after":"`+b1.ID+`"}`, sameSite)
+	if got := s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks/b2/move", `{"after":""}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("move = %d", got)
+	}
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks; len(got) != 2 || got[0].ID != "b2" {
+		t.Errorf("b2 comes first: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks/b2/move", `{"after":"b2"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("after itself = %d", got)
+	}
+}

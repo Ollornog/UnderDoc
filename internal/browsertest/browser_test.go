@@ -851,11 +851,11 @@ func TestEditAPageBlockByBlock(t *testing.T) {
 	page := b.eval(`location.pathname.slice(3)`)
 	b.typeText("## Switches\n\nTwo in the rack.")
 	b.press("Enter", "Enter", 13, 2) // Ctrl+Enter saves
-	if !b.waitFor(`document.querySelector('.bbar em')?.textContent === 'Saved · #b1'`) {
-		t.Fatalf("the block was not saved: %q", b.eval(`document.querySelector('.bbar')?.textContent`))
+	if !b.waitFor(`document.querySelector('.btool em')?.textContent === 'Saved · #b1'`) {
+		t.Fatalf("the block was not saved: %q", b.eval(`document.querySelector('.btool')?.textContent`))
 	}
-	b.clickOn(probe(b, `.bbar .chip`, "Block below"), 1)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
+	b.clickOn(`.bplus[data-id="b1"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2' && !!document.querySelector('.bslash')`) {
 		t.Fatalf("the block below has the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
 	b.typeText("| Port | VLAN |\n|---|---|\n| 1 | 10 |")
@@ -882,11 +882,12 @@ func TestEditAPageBlockByBlock(t *testing.T) {
 	b.clickOn(`[data-act="gear"]`, 1)
 
 	b.clickOn(`[data-act="edit"]`, 1)
-	b.clickOn(`.bedit:first-child .bbar [data-act="blkdel"]`, 1)
-	if got := b.eval(`document.querySelectorAll('textarea[data-blk]').length + ' ' + document.querySelector('.bedit:first-child [data-act="blkdel"]').textContent`); got != "2 Delete? Yes" {
+	b.eval(`document.querySelector('textarea[data-blk="b1"]').focus()`)
+	b.clickOn(`.bedit:first-child .btool [data-act="blkdel"]`, 1)
+	if got := b.eval(`document.querySelectorAll('textarea[data-blk]').length + ' ' + document.querySelector('.bedit:first-child [data-act="blkdel"]').textContent`); got != "2 Delete?" {
 		t.Fatalf("a block with text asks first: %q", got)
 	}
-	b.clickOn(`.bedit:first-child .bbar [data-act="blkdel"]`, 1)
+	b.clickOn(`.bedit:first-child .btool [data-act="blkdel"]`, 1)
 	if !b.waitFor(`document.querySelectorAll('textarea[data-blk]').length === 1 && document.querySelector('textarea[data-blk]').dataset.blk === 'b2'`) {
 		t.Errorf("the block is deleted: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
 	}

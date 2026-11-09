@@ -59,6 +59,14 @@ function bodyHtml(w,i){
   if(d.html) h=d.t==='coll'?d.html+h:h+d.html;
   return {h,hs};
 }
+/* Lucide (ISC, licenses/Lucide-LICENSE.txt): book-open, bold, italic, strikethrough, heading, list-ordered, type. */
+Object.assign(I,{book:'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  bold:'<path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/>',
+  italic:'<path d="M19 4h-9M14 20H5M15 4 9 20"/>',
+  strike:'<path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><path d="M4 12h16"/>',
+  heading:'<path d="M6 12h12M6 20V4M18 20V4"/>',
+  olist:'<path d="M10 12h11M10 18h11M10 6h11M4 10h2M4 6h1v4"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+  text:'<path d="M12 4v16M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2M9 20h6"/>'});
 Object.assign(I,{chat:'<path d="M4 5h16v11H9l-5 4z"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
   /* The gear is Lucide's "settings" (ISC, licenses/Lucide-LICENSE.txt): the drawn one read as a sun (2026-11-09). */
   gear:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
@@ -184,6 +192,9 @@ const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','not
 const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','mods','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
 const later=(kind,id)=>S.first&&LATER[kind].includes(id);
 /* Why a document cannot be edited, for the greyed pencil: nothing that is not built or not allowed simply goes missing. */
+/* Whether a tab shows its document for editing: what was chosen for this document, else the setting "open for editing". */
+const editing=t=>!!(t&&(t.editOf===t.d?t.edit:S.openEdit));
+const setEdit=(t,v)=>{t.edit=!!v;t.editOf=t.d;};
 const noEdit=id=>{const d=D[id];return d.blocks?'You may only '+(accOf(id)==='comment'?'comment on':'read')+' this page'
   :d.real?'From the folder source, read only: change the file in the share, or import the folder (underdoc import)':'Made-up content of the demo, not editable';};
 const off=(kind,id)=>later(kind,id)?' disabled data-later="1"':'';
@@ -428,10 +439,12 @@ function winHtml(w,i){
   const crumbs=placeOf(t.d),tg=d.tags.length?`<span class="tagline">${tagChips(d.tags,'tagsearch')}</span>`:'';
   const ac=accOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
   const place=`<span class="place" title="${crumbs}">${crumbs}</span>${tg}${badge}<span class="tspace"></span>`;
-  const dhead=`<div class="dtitle"><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
+  /* Reading or editing, as a large button left of the title: the state in words and icon, a click turns it (2026-11-09). */
+  const ed=editing(t)&&d.blocks&&d.canEdit,status=d.blocks&&d.canEdit?`<button class="dstatus" data-act="edit" data-w="${i}" aria-pressed="${!!ed}" title="${ed?'Editing. Click to read':'Reading. Click to edit'}">${ic(ed?'pencil':'book')}<span>${ed?'Editing':'Reading'}</span></button>`
+    :d.blocks||d.doc?`<button class="dstatus" data-act="edit" data-w="${i}" disabled title="${noEdit(t.d)}">${ic('lock')}<span>Read only</span></button>`:'';
+  const dhead=`<div class="dtitle"><div class="dtline">${status}<h1>${d.n}</h1></div>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
   const tools=`<div class="tools">${place}${marker}${find}
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
-    ${d.blocks&&d.canEdit?`<button class="ic" data-act="edit" data-w="${i}" aria-pressed="${!!t.edit}" aria-label="Edit" title="Edit block by block (or double click a block)">${ic('pencil')}</button>`:d.blocks||d.doc?`<button class="ic" data-act="edit" data-w="${i}" disabled aria-label="Edit" title="${noEdit(t.d)}">${ic('pencil')}</button>`:''}
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
     ${accOf(t.d)!=='read'&&!d.tool?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
@@ -546,6 +559,8 @@ function settingsHtml(sec){
     <div class="slab">Width, or drag the right edge of each column</div>
     <div class="setrow"><span>Nav1</span>${seg3('s1',STAGENAMES,S.s1)}</div><div class="setrow"><span>Nav2</span>${seg3('s2',STAGENAMES,S.s2)}</div>
     <div class="setrow"><span>Nav3</span><button class="chip" data-act="w3reset" title="Back to the default">${S.w3} px, reset</button></div>`;
+  if(sec==='docs') b=`<div class="shead">Documents</div><div class="setrow"><span>Open documents for</span>${seg3('openedit',[['false','Reading'],['true','Editing']],!!S.openEdit)}</div>
+    <p class="hint">The button left of the title turns a document between reading and editing; this says how it opens. Only pages you may change open for editing.</p>`;
   if(sec==='lang') b='<div class="shead">Language</div><p class="hint">English for now. German comes as a translation of the interface.</p>';
   if(sec==='notif') b='<div class="shead">Notifications</div><p class="hint">Mail for mentions and replies comes with M-16.</p>';
   return `<div class="spanel">${b}<p class="hint">These belong to you. With the database your account keeps them; without, this browser does.</p></div>`;
@@ -571,7 +586,7 @@ const TL=[{id:'mine',n:'My to-dos',i:'check',items:[{t:'Renew the first aid cour
 const CALS=[{id:'me',n:'Personal',i:'cal',ev:{3:'Dentist',12:'Review',24:'Vacation',25:'Vacation'}},{id:'team',n:'Team',i:'user',ev:{7:'Crane call',18:'Team lunch'},src:'Shared by the project team'},{id:'hol',n:'Holidays',i:'globe',ev:{1:'Public holiday'},src:'Imported from a calendar file'}];
 const BOARDS=[{id:'quick',n:'Quick notes',i:'note',doc:'qn'},{id:'ideas',n:'Ideas',i:'spark',doc:'nb:ideas'}];
 const SORT={todo:TL,cal:CALS,notes:BOARDS,bookmarks:BM};
-const PROFSET=[['acct','Account','user'],['look','Appearance','sun'],['navi','Navigation','panel'],['lang','Language','globe'],['notif','Notifications','mail']];
+const PROFSET=[['acct','Account','user'],['look','Appearance','sun'],['navi','Navigation','panel'],['docs','Documents','page'],['lang','Language','globe'],['notif','Notifications','mail']];
 const PROFADM=[['mods','Modules','grid'],['users','Users and groups','user'],['src','Sources','db'],['store','Storage and backup','hd'],['signin','Sign-in','lock'],['audit','Audit log','list']];
 const tickRow=(l,k,x)=>{const t=at(S.focus),id=`ti:${l.id}/${k}`;return `<li><div class="row${t&&t.d===id?' cur':''}"><button class="tick" data-act="tick" data-l="${l.id}" data-id="${k}" aria-pressed="${x.done}" aria-label="Done: ${esc(x.t)}">${x.done?ic('check'):'<span class="box"></span>'}</button><button class="name${x.done?' done':''}" data-act="open" data-id="${id}" title="${esc(x.t)}"><span>${esc(x.t)}</span></button>${x.due?`<span class="count">${x.due}</span>`:''}</div></li>`;};
 /* Private lists follow the rule of collections: a click opens one and closes what is not kept open, a double click keeps one open. */
@@ -847,6 +862,7 @@ document.addEventListener('click',e=>{
     case 's2':S.s2=+a.id;break;
     case 'w3reset':S.w3=W3;break;
     case 'theme':S.theme=a.id;break;
+    case 'openedit':S.openEdit=a.id==='true';break;
     case 'scale':S.scale=+a.id===0?100:Math.min(150,Math.max(70,S.scale+ +a.id));break;
     case 'mod':S.mods[a.id]=!S.mods[a.id];break;
     case 'strat':S.strat=a.id;break;
@@ -872,12 +888,16 @@ document.addEventListener('click',e=>{
     case 'tablist':S.tlist=hadTl===i?null:i;break;
     case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
-    case 'edit':t.edit=!t.edit;t.src=false;if(t.edit&&!D[t.d].blocks.length)addBlock(t.d,'');break;
-    case 'blkadd':addBlock(t.d,a.id);return;
+    case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t)&&!D[t.d].blocks.length)addBlock(t.d,'');break;
+    case 'blkfmt':{const x=fieldOf(t.d,a.id);if(x)formatIn(x,a.k);return;}
+    case 'blkmove':moveBlock(t.d,a.id,a.k);return;
+    case 'blkdup':dupBlock(t.d,a.id);return;
+    case 'slashpick':pickSlash(+a.k);return;
+    case 'blkadd':addBlock(t.d,a.id,true);return;
     case 'blkdel':deleteBlock(t.d,a.id);return;
     case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
       (navigator.clipboard?navigator.clipboard.writeText(addr):Promise.reject()).then(()=>toast('Address copied. Paste it alone into a block to embed this one.'),()=>toast(addr));return;}
-    case 'src':t.src=!t.src;t.top=0;if(t.src)t.edit=false;break;
+    case 'src':t.src=!t.src;t.top=0;if(t.src)setEdit(t,false);break;
     case 'find':t.find=!t.find;if(t.find){render();const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();return;}break;
     case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
     case 'fly':t.fly=!t.fly;break;
@@ -894,7 +914,10 @@ function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=
 document.addEventListener('input',e=>{
   if(e.target.dataset&&e.target.dataset.nfilter!==undefined){S.addQ=e.target.value;filterNew(S.addQ);return;}
   const x=e.target;
-  if(x.dataset.blk!==undefined){const b=blockIn(x);if(b)b.draft=x.value;return;}
+  if(x.dataset.blk!==undefined){const b=blockIn(x);if(b)b.draft=x.value;
+    const m=/^\/([\w -]{0,24})$/.exec(x.value),was=!!S.slash;
+    if(m)S.slash={d:x.dataset.d,blk:x.dataset.blk,q:m[1],cur:0};else if(S.slash&&!(S.slash.blk===x.dataset.blk&&!x.value))S.slash=null;
+    if(m||was!==!!S.slash)render();return;}
   if(x.id==='search'){S.sq=x.value;searchServer();if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
   if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
@@ -903,7 +926,7 @@ let rendering=false;
 document.addEventListener('focusout',e=>{const x=e.target;if(!rendering&&x.dataset&&x.dataset.ren!==undefined)renameDone(x);});
 document.addEventListener('change',e=>{
   const x=e.target;
-  if(x.dataset.blk!==undefined){saveBlock(x.dataset.d,x.dataset.blk,x.value,x);return;}
+  if(x.dataset.btype!==undefined){const f=fieldOf(x.dataset.d,x.dataset.btype);if(f){setField(f,turnInto(f.value,x.value),0);saveBlock(x.dataset.d,x.dataset.btype,f.value,f);}return;}
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
   if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=esc(v);if(D[cid].real)renameObject(cid,v);}render();}
@@ -928,11 +951,15 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
 document.addEventListener('auxclick',e=>{const op=e.button===1&&e.target.closest&&e.target.closest('.nav3 [data-act="open"]');if(op&&D[op.dataset.id]){e.preventDefault();openTab(op.dataset.id);render();return;}
   const tb=e.button===1&&e.target.closest&&e.target.closest('.dtab[data-dw]');if(!tb)return;e.preventDefault();const i=+tb.dataset.dw,k=+tb.dataset.dt,w=S.wins[i];
   if(w.tabs[k].general)popGeneral(w);else{w.tabs.splice(k,1);if(w.a>=k&&w.a>0)w.a--;}compact();render();});
-/* A double click on a block of a page one may edit opens editing right there. */
-document.addEventListener('dblclick',e=>{const blk=e.target.closest&&e.target.closest('article.doc [data-b]'),win=blk&&blk.closest('[data-win]');if(!win)return;
-  const i=+win.dataset.win,t=at(i),d=t&&D[t.d];if(!d||!d.blocks||!d.canEdit||t.edit||t.src)return;
-  window.getSelection()?.removeAllRanges();S.focus=i;t.edit=true;S.focusNext={d:t.d,id:blk.dataset.b,pos:0};render();});
 document.addEventListener('dblclick',e=>{const r=e.target.closest&&e.target.closest('.tabrow');if(!r||e.target.closest('.dtab,button'))return;const i=+r.closest('[data-win]').dataset.win;S.focus=i;S.newAt=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();});
+/* A block is saved when it is left, also after the bar changed it, which fires no change. A field that a redraw took away
+   is not left: its text lives on as the draft in the new one. */
+document.addEventListener('focusout',e=>{const x=e.target;if(rendering||!x.dataset||x.dataset.blk===undefined||!x.isConnected)return;
+  if(e.relatedTarget&&x.closest('.bedit')&&x.closest('.bedit').contains(e.relatedTarget))return;
+  const b=blockIn(x);if(b&&b.draft!==undefined&&b.draft!==b.raw)saveBlock(x.dataset.d,x.dataset.blk,b.draft,x);
+  if(S.slash&&S.slash.blk===x.dataset.blk&&!(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.bslash'))){S.slash=null;render();}});
+/* The buttons of the bar and of the menu of kinds keep the focus and the selection in the block. */
+document.addEventListener('mousedown',e=>{if(e.target.closest&&e.target.closest('.btool button,.bslash button,.bplus'))e.preventDefault();});
 document.addEventListener('keydown',e=>{
   const x=e.target;
   if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
@@ -941,6 +968,11 @@ document.addEventListener('keydown',e=>{
   if(x.dataset&&x.dataset.ren!==undefined&&(e.key==='Enter'||e.key==='Escape')){e.preventDefault();if(e.key==='Escape')x.value=x.defaultValue;x.blur();return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(e.key==='Escape'&&S.sel&&!S.sel.soft&&!drag){S.sel=null;render();return;}
+  if(x.dataset&&x.dataset.blk!==undefined&&S.slash&&S.slash.blk===x.dataset.blk){const n=slashItems().length;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(n)S.slash.cur=(S.slash.cur+(e.key==='ArrowDown'?1:n-1))%n;render();return;}
+    if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();const it=slashItems()[S.slash.cur];if(it)pickSlash(SLASH.indexOf(it));return;}
+    if(e.key==='Escape'){e.preventDefault();S.slash=null;render();return;}}
+  if(x.dataset&&x.dataset.blk!==undefined&&(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&['b','i','k'].includes(e.key.toLowerCase())){e.preventDefault();formatIn(x,{b:'bold',i:'italic',k:'link'}[e.key.toLowerCase()]);return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
   if(e.key!=='Enter')return;
@@ -1278,12 +1310,83 @@ document.addEventListener('paste',e=>{
 const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc)});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 const blockIn=x=>{const d=D[x.dataset.d];return d&&d.blocks&&d.blocks.find(b=>b.id===x.dataset.blk);};
+/* Editing a block as Docmost shows it (only the idea is taken, no code): a bar above the block being written, to turn
+   it into another kind, to format the selection and for the block itself; a "+" at its left adds a block below and opens
+   the menu of kinds, which typing "/" in an empty block opens too (2026-11-09). */
+const KINDS=[['p','Text','text'],['h1','Heading 1','heading'],['h2','Heading 2','heading'],['h3','Heading 3','heading'],['ul','Bulleted list','list'],
+  ['ol','Numbered list','olist'],['todo','To-do list','check'],['quote','Quote','quote'],['code','Code','code']];
+const SLASH=[...KINDS.map(k=>({k:k[0],n:k[1],i:k[2]})),{k:'hr',n:'Divider',i:'hr'},{k:'table',n:'Table',i:'table'},
+  {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
+const FMT=[['bold','Bold (Ctrl+B)','bold'],['italic','Italic (Ctrl+I)','italic'],['strike','Strikethrough','strike'],['code','Inline code','code'],['link','Link (Ctrl+K)','link']];
+function kindOfMd(md){
+  if(/^```/.test(md))return 'code';const m=/^(#{1,3}) /.exec(md);if(m)return 'h'+m[1].length;
+  if(/^[-*+] \[[ xX]\] /.test(md))return 'todo';if(/^[-*+] /.test(md))return 'ul';if(/^\d+[.)] /.test(md))return 'ol';if(/^>/.test(md))return 'quote';return 'p';
+}
+function turnInto(md,kind){
+  let lines=md.split('\n');
+  if(/^```/.test(md)){lines=lines.slice(1);if(lines.length&&/^```\s*$/.test(lines[lines.length-1]))lines.pop();}
+  else lines=lines.map(l=>l.replace(/^(#{1,6} |[-*+] \[[ xX]\] |[-*+] |\d+[.)] |> ?)/,''));
+  const text=lines.join('\n'),each=f=>lines.map((l,n)=>l.trim()?f(l,n):l).join('\n');
+  switch(kind){
+    case 'h1':case 'h2':case 'h3':return '#'.repeat(+kind[1])+' '+lines.join(' ').trim();
+    case 'ul':return each(l=>'- '+l);case 'ol':{let n=0;return each(l=>(++n)+'. '+l);}
+    case 'todo':return each(l=>'- [ ] '+l);case 'quote':return lines.map(l=>'> '+l).join('\n');
+    case 'code':return '```\n'+text+'\n```';case 'hr':return '---';
+    case 'table':return '| Column | Column |\n|---|---|\n|  |  |';
+    default:return text;
+  }
+}
+const fieldOf=(id,blk)=>document.querySelector(`textarea[data-blk="${blk}"][data-d="${id}"]`);
+/* Set from here, a field fires no input, so the draft is kept by hand; leaving the block saves it. */
+function setField(x,value,a,b){x.value=value;x.setSelectionRange(a,b===undefined?a:b);const bl=blockIn(x);if(bl)bl.draft=value;x.focus();}
+function formatIn(x,kind){
+  const s0=x.selectionStart,e0=x.selectionEnd,v=x.value,sel=v.slice(s0,e0);
+  if(kind==='link'){const label=sel||'text',out=`[${label}](https://)`;setField(x,v.slice(0,s0)+out+v.slice(e0),s0+label.length+3,s0+out.length-1);return;}
+  const m={bold:'**',italic:'_',strike:'~~',code:'`'}[kind];if(!m)return;
+  if(v.slice(s0-m.length,s0)===m&&v.slice(e0,e0+m.length)===m){setField(x,v.slice(0,s0-m.length)+sel+v.slice(e0+m.length),s0-m.length,e0-m.length);return;}
+  setField(x,v.slice(0,s0)+m+sel+m+v.slice(e0),s0+m.length,e0+m.length);
+}
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
-  if(!(w.edit&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Edit adds the first block.':''}</p>`;
-  return d.blocks.map(b=>{const text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,(b.draft!==undefined?b.draft:b.raw).split('\n').length+1));
-    return `<div class="bedit"><textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown">${text}</textarea>
-      <div class="bbar"><button class="chip" data-act="blkadd" data-w="${i}" data-id="${b.id}">${ic('plus')}Block below</button><button class="chip" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}">${b.ask?'Delete? Yes':'Delete'}</button><button class="chip" data-act="blkaddr" data-w="${i}" data-id="${b.id}" title="Copy the address: pasted alone into a block of another page, it embeds this one there">${ic('link')}Copy address</button><em>${b.usedIn&&b.usedIn.length?`<span title="${b.usedIn.join(', ')}">Used in ${b.usedIn.length} · </span>`:''}${b.saved?'Saved · ':''}#${b.id}</em></div></div>`;}).join('');
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(!d.blocks.length)return `<p class="lab">Empty. <button class="chip" data-act="blkadd" data-w="${i}" data-id="">${ic('plus')}Add a block</button></p>`;
+  return d.blocks.map((b,n)=>{const raw=b.draft!==undefined?b.draft:b.raw,text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,raw.split('\n').length+1)),kind=kindOfMd(raw);
+    const B=(act,k,icon,label,extra='')=>`<button class="ic" data-act="${act}" data-w="${i}" data-id="${b.id}"${k?` data-k="${k}"`:''} title="${label}" aria-label="${label}"${extra}>${ic(icon)}</button>`;
+    const sl=S.slash&&S.slash.d===key&&S.slash.blk===b.id?slashHtml(i):'';
+    return `<div class="bedit${sl?' slashing':''}" data-bk="${b.id}">
+      <div class="btool" role="toolbar" aria-label="Block ${b.id}">
+        <select class="btype" data-btype="${b.id}" data-d="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===kind?' selected':''}>${k[1]}</option>`).join('')}</select>
+        <span class="bsep"></span>${FMT.map(f=>B('blkfmt',f[0],f[2],f[1])).join('')}
+        <span class="bsep"></span>${B('blkmove','up','up','Move up',n===0?' disabled':'')}${B('blkmove','down','down','Move down',n===d.blocks.length-1?' disabled':'')}${B('blkdup','','copy','Duplicate')}${B('blkaddr','','link','Copy the address: pasted alone into a block of another page, it embeds this one there')}
+        <button class="ic${b.ask?' asking':''}" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}" title="${b.ask?'Click again to delete':'Delete'}" aria-label="Delete">${ic('trash')}${b.ask?'<span>Delete?</span>':''}</button>
+        <button class="ic" disabled data-later="1" title="Comments on a block come with comments" aria-label="Comment">${ic('chat')}</button>
+        <em>${b.usedIn&&b.usedIn.length?`<span title="${b.usedIn.join(', ')}">Used in ${b.usedIn.length} · </span>`:''}${b.saved?'Saved · ':''}#${b.id}</em></div>
+      <button class="bplus" data-act="blkadd" data-w="${i}" data-id="${b.id}" title="Add a block below" aria-label="Add a block below">${ic('plus')}</button>
+      <textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown" placeholder="Write, or type / for a block">${text}</textarea>${sl}</div>`;}).join('');
+}
+function slashItems(){const q=(S.slash&&S.slash.q||'').toLowerCase();return SLASH.filter(x=>!q||x.n.toLowerCase().includes(q)||x.k===q);}
+function slashHtml(i){
+  const items=slashItems();
+  return `<div class="bslash" role="listbox" aria-label="Add a block">${items.length?items.map((x,n)=>`<button role="option" data-act="slashpick" data-w="${i}" data-k="${SLASH.indexOf(x)}" aria-selected="${n===S.slash.cur}"${x.later?` disabled title="${x.later}"`:x.hint?` title="${x.hint}"`:''}>${ic(x.i)}<span>${x.n}</span>${x.later?'<small>later</small>':''}</button>`).join(''):'<div class="lab">Nothing fits.</div>'}</div>`;
+}
+function pickSlash(k){
+  const sl=S.slash,x=sl&&fieldOf(sl.d,sl.blk),it=SLASH[k];S.slash=null;if(!x||!it||it.later){render();return;}
+  const v=it.k==='embed'?'':turnInto('',it.k),caret=it.k==='code'?4:it.k==='table'?2:v.length;
+  setField(x,v,caret,it.k==='table'?8:caret);
+  if(it.k==='embed')toast('Paste the address of a block or page here, as Copy address put it on the clipboard.');else render();
+}
+async function moveBlock(id,blk,dir){
+  const d=D[id],k=d.blocks.findIndex(x=>x.id===blk),to=dir==='up'?k-1:k+1;if(k<0||to<0||to>=d.blocks.length)return;
+  const after=dir==='up'?(to>0?d.blocks[to-1].id:''):d.blocks[to].id;
+  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk)+'/move',{...same,method:'POST',body:JSON.stringify({after})});if(!r.ok)throw new Error(String(r.status));
+    const [b]=d.blocks.splice(k,1);d.blocks.splice(to,0,b);syncBlocks(d);S.focusNext={d:id,id:blk,pos:0};render();}
+  catch(e){toast('The block could not be moved.');}
+}
+async function dupBlock(id,blk){
+  const d=D[id],b=d.blocks.find(x=>x.id===blk);if(!b)return;
+  try{const r=await fetch(pageURL(id)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:blk,md:b.draft!==undefined?b.draft:b.raw})});if(!r.ok)throw new Error(String(r.status));
+    const n=blockOf(await r.json());d.blocks.splice(d.blocks.indexOf(b)+1,0,n);syncBlocks(d);S.focusNext={d:id,id:n.id,pos:0};if(gearOpen(id))loadVersions(id);render();}
+  catch(e){toast('The block could not be duplicated.');}
 }
 function refocusBlock(f){if(!f)return;const x=document.querySelector(`textarea[data-blk="${f.id}"][data-d="${f.d}"]`);if(!x)return;x.focus();const p=Math.min(f.pos,x.value.length);x.setSelectionRange(p,p);}
 function versionsHtml(d){
@@ -1311,10 +1414,11 @@ async function saveBlock(id,blk,value,field){
     if(gearOpen(id))loadVersions(id);}
   catch(e){toast(e.message==='403'?'Others may not change this page.':'This block could not be saved. The text stays in the field.');}
 }
-async function addBlock(id,after){
+async function addBlock(id,after,slash){
   const d=D[id];
   try{const r=await fetch(pageURL(id)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:after||'',md:''})});if(!r.ok)throw new Error(String(r.status));
     const b=blockOf(await r.json()),k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,b);syncBlocks(d);S.focusNext={d:id,id:b.id,pos:0};
+    if(slash)S.slash={d:id,blk:b.id,q:'',cur:0};
     if(gearOpen(id))loadVersions(id);render();}
   catch(e){toast('The block could not be added.');}
 }
@@ -1332,7 +1436,7 @@ async function createPage(parent,title){
     const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
-    const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)t.edit=true;
+    const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)setEdit(t,true);
     render();addBlock(id,'');}
   catch(e){toast(e.message==='403'?'Others may not add pages here.':'The page could not be made.');}
 }
@@ -1457,7 +1561,7 @@ function applyN2(list){
 }
 
 /* The settings of the workspace: widths, the order of nav2, what is kept open, zoom and theme. */
-const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme'];
+const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme','openEdit'];
 /* With the database the account keeps them, so they follow it from browser to browser (M-28); a change goes to the
    server a moment later, once, and the browser keeps a copy for the next start and for the workspace without database. */
 let sentSettings=null,settingsTimer=0;

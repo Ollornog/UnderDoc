@@ -1073,23 +1073,25 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b3"]')`) {
 		t.Fatal("Plan is not in editing")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.bbar em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
+	if got := b.eval(`[...document.querySelectorAll('.btool em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
 		t.Errorf("the bars: %q", got)
 	}
+	b.eval(`document.querySelector('textarea[data-blk="b3"]').focus()`)
 	b.clickOn(`[data-act="blkdel"][data-id="b3"]`, 1)
-	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete? Yes" {
+	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete?" {
 		t.Errorf("an empty block in use asks first: %q", got)
 	}
 }
 
-// Editing is found: the pencil is always there, greyed with the reason where a page cannot be edited, and a double click on
-// a block of a page one may edit opens editing at that block.
+// Editing is found: left of the title a large button says Reading or Editing and turns it, greyed with the reason where a
+// page cannot be edited; the setting "open documents for editing" opens pages that way. In editing, a bar above the block
+// being written turns it into another kind, formats the selection and moves the block; "/" in an empty block opens the kinds.
 func TestEditingIsFound(t *testing.T) {
 	b, base := setupWithDatabase(t)
-	pencil := `(() => { const p = document.querySelector('[data-win="0"] [data-act="edit"]'); return p ? p.disabled + ' ' + p.title : 'none'; })()`
+	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.textContent.trim() + ' | ' + p.title : 'none'; })()`
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(pencil); !strings.HasPrefix(got, "true From the folder source, read only") {
+	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
 	b.eval(`window.made = null; (async () => {
@@ -1098,18 +1100,70 @@ func TestEditingIsFound(t *testing.T) {
 		const page = await post('/api/pages', {title: 'Notes', parent: team.id});
 		const b1 = await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
 		await post('/api/pages/' + page.id + '/blocks', {md: 'Second', after: b1.id});
-		window.made = page.id;
+		const other = await post('/api/pages', {title: 'Other', parent: team.id});
+		await post('/api/pages/' + other.id + '/blocks', {md: 'x', after: ''});
+		window.made = [page.id, other.id];
 	})()`)
 	if !b.waitFor(`!!window.made`) {
-		t.Fatal("the page for the test was not made")
+		t.Fatal("the pages for the test were not made")
 	}
-	b.open(base + "/o/" + b.eval(`window.made`))
+	notes, other := b.eval(`window.made[0]`), b.eval(`window.made[1]`)
+	b.open(base + "/o/" + notes)
 	b.ready("Notes")
-	if got := b.eval(pencil); got != "false Edit block by block (or double click a block)" {
-		t.Errorf("a page of the database: %q", got)
+	if got := b.eval(status); got != "false Reading | Reading. Click to edit" {
+		t.Errorf("a page of the database opens for reading: %q", got)
 	}
-	b.clickOn(`article.doc [data-b="b2"]`, 2)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
-		t.Fatalf("a double click edits that block: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('textarea[data-blk]').length`); got != "false Editing | Editing. Click to read 2" {
+		t.Errorf("the button turns it to editing: %q", got)
+	}
+	// The bar: turn the first block into a heading, make a word bold, move the second block up.
+	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(0, 5); })()`)
+	b.clickOn(`.btool [data-act="blkfmt"][data-id="b1"][data-k="bold"]`, 1)
+	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value + ' ' + (document.activeElement?.dataset?.blk || '')`); got != "**First** b1" {
+		t.Errorf("bold wraps the selection and the block keeps the focus: %q", got)
+	}
+	b.eval(`(() => { const s = document.querySelector('select[data-btype="b1"]'); s.value = 'h2'; s.dispatchEvent(new Event('change', {bubbles: true})); })()`)
+	if !b.waitFor(`document.querySelector('textarea[data-blk="b1"]').value === '## **First**'`) {
+		t.Errorf("turned into a heading: %q", b.eval(`document.querySelector('textarea[data-blk="b1"]').value`))
+	}
+	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(5, 10); })()`)
+	b.press("i", "KeyI", 73, 2) // Ctrl+I
+	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value`); got != "## **_First_**" {
+		t.Errorf("Ctrl+I makes it italic: %q", got)
+	}
+	b.eval(`document.querySelector('textarea[data-blk="b2"]').focus()`)
+	b.clickOn(`.btool [data-act="blkmove"][data-id="b2"][data-k="up"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ') === 'b2 b1'`) {
+		t.Errorf("b2 moved up: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
+	}
+	// "/" in a new block opens the kinds; typing filters, Enter takes one.
+	b.clickOn(`.bplus[data-id="b1"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b3' && !!document.querySelector('.bslash')`) {
+		t.Fatalf("the plus adds a block and opens the kinds: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	}
+	b.typeText("/tab")
+	if got := b.eval(`[...document.querySelectorAll('.bslash [role=option]')].map(o => o.textContent).join(',')`); got != "Table" {
+		t.Errorf("typing filters the kinds: %q", got)
+	}
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`document.querySelector('textarea[data-blk="b3"]')?.value.startsWith('| Column | Column |') && !document.querySelector('.bslash')`) {
+		t.Errorf("Enter makes a table: %q", b.eval(`document.querySelector('textarea[data-blk="b3"]')?.value`))
+	}
+	b.shot("edit-bar")
+	b.clickOn(`[data-win="0"] .dstatus`, 1) // leaving the block saves it
+	b.open(base + "/o/" + notes)
+	b.ready("Notes")
+	if got := b.eval(`[...document.querySelectorAll('article.doc [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.doc h2')?.innerHTML + ' | ' + document.querySelectorAll('article.doc table').length`); got != "b2 b1 b3 | <strong><em>First</em></strong> | 1" {
+		t.Errorf("all of it is kept: %q", got)
+	}
+	// The setting opens documents for editing.
+	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
+	b.clickOn(`[data-act="sec"][data-id="docs"]`, 1)
+	b.clickOn(`[data-act="openedit"][data-id="true"]`, 1)
+	b.open(base + "/o/" + other)
+	b.ready("Other")
+	if got := b.eval(status); got != "false Editing | Editing. Click to read" {
+		t.Errorf("with the setting, a page opens for editing: %q", got)
 	}
 }

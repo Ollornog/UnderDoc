@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"time"
 
@@ -150,6 +151,36 @@ func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) 
 		return err
 	})
 	return b, err
+}
+
+// MoveBlock puts a block after the block named by after, or first if after is empty. Its text and ID stay, so no version is
+// made; the order is written anew as 0, 1, 2, ...
+func (db *DB) MoveBlock(ctx context.Context, pageID, blockID, viewer, after string) error {
+	if after == blockID {
+		return ErrPlace
+	}
+	return db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, "SELECT id FROM blocks WHERE page = $1 ORDER BY position, id", pageID)
+		if err != nil {
+			return err
+		}
+		ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		from := slices.Index(ids, blockID)
+		if from < 0 || (after != "" && !slices.Contains(ids, after)) {
+			return ErrNotFound
+		}
+		ids = slices.Delete(ids, from, from+1)
+		to := 0
+		if after != "" {
+			to = slices.Index(ids, after) + 1
+		}
+		ids = slices.Insert(ids, to, blockID)
+		_, err = tx.Exec(ctx, "UPDATE blocks b SET position = o.n - 1 FROM unnest($2::text[]) WITH ORDINALITY o(id, n) WHERE b.page = $1 AND b.id = o.id", pageID, ids)
+		return err
+	})
 }
 
 // EditBlock gives a block new text and keeps the change as a version. The same text again makes no version.

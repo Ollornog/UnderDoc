@@ -145,3 +145,55 @@ func TestBlockLimits(t *testing.T) {
 		t.Errorf("a page needs a title: %v", err)
 	}
 }
+
+func TestMovingBlocks(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
+	after := ""
+	for _, body := range []string{"one", "two", "three"} {
+		b, _ := db.AddBlock(ctx, page.ID, anna.ID, after, body)
+		after = b.ID
+	}
+	order := func() string {
+		blocks, _ := db.Blocks(ctx, page.ID, anna.ID)
+		var out []string
+		for _, b := range blocks {
+			out = append(out, b.ID)
+		}
+		return strings.Join(out, " ")
+	}
+	for _, step := range []struct{ block, after, want string }{
+		{"b3", "", "b3 b1 b2"},
+		{"b3", "b1", "b1 b3 b2"},
+		{"b1", "b2", "b3 b2 b1"},
+		{"b2", "b1", "b3 b1 b2"},
+	} {
+		if err := db.MoveBlock(ctx, page.ID, step.block, anna.ID, step.after); err != nil {
+			t.Fatal(err)
+		}
+		if got := order(); got != step.want {
+			t.Errorf("%s after %q: %s, want %s", step.block, step.after, got, step.want)
+		}
+	}
+	versions, _ := db.Versions(ctx, page.ID, anna.ID, 100)
+	if len(versions) != 3 {
+		t.Errorf("moving makes no version: %d", len(versions))
+	}
+	if err := db.MoveBlock(ctx, page.ID, "b9", anna.ID, ""); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a block that is not there: %v", err)
+	}
+	if err := db.MoveBlock(ctx, page.ID, "b1", anna.ID, "b9"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("after a block that is not there: %v", err)
+	}
+	if err := db.MoveBlock(ctx, page.ID, "b1", anna.ID, "b1"); !errors.Is(err, ErrPlace) {
+		t.Errorf("after itself: %v", err)
+	}
+	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "read"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.MoveBlock(ctx, page.ID, "b1", bob.ID, ""); err == nil || order() != "b3 b1 b2" {
+		t.Errorf("only who may edit moves blocks: %v %s", err, order())
+	}
+}

@@ -107,6 +107,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("POST /api/pages/{id}/blocks", h.apiAddBlock)
 	mux.HandleFunc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)
 	mux.HandleFunc("DELETE /api/pages/{id}/blocks/{block}", h.apiDeleteBlock)
+	mux.HandleFunc("POST /api/pages/{id}/blocks/{block}/move", h.apiMoveBlock)
 	mux.HandleFunc("GET /api/pages/{id}/versions", h.apiVersions)
 	mux.HandleFunc("POST /api/dividers", h.apiCreateDivider)
 	mux.HandleFunc("DELETE /api/objects/{id}", h.apiDeleteObject)
