@@ -745,6 +745,13 @@ func TestNewMenuFilters(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Write, Data, Media, Organize, Set apart, Bring in" {
+		t.Errorf("New in a collection, in blocks: %q", got)
+	}
+	b.shot("new-menu-blocks")
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="group"]')].every(g => { const l = [...g.querySelectorAll('[role="menuitem"]')].map(n => n.textContent.trim()); return l.join() === [...l].sort((a, b) => a.localeCompare(b)).join() || g.querySelector('[role="heading"]').textContent === 'Bring in'; })`); got != "true" {
+		t.Errorf("each block sorted by name: %s", b.eval(`document.querySelector('.cmdpop [role="menu"]').innerText.replace(/\s+/g, ' ')`))
+	}
 	b.typeText("lin")
 	b.shot("new-menu-filtered")
 	if got := b.eval(visible); got != "Line, Link" {

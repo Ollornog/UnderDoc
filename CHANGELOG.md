@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Ctrl and click selects entries of nav2 and nav3, Shift and click a range; dragging one moves all of them in their order, and
+  dropped on a window they open there as tabs. Keeping a collection open is now a double click or the right click, and a
+  middle click opens an entry as a tab of its own (both were also Ctrl and click before).
+- Dragging in nav3: the middle third of an entry puts the dragged one below it, framed, while nothing moves; above and below
+  that it lands before or after, and the left edge of the ghost picks the depth: level with the entry above, beside it;
+  further right, below it; further left, out towards the top.
+- Lifting an entry no longer makes the list jump.
+- In nav2 an entry open for now draws a thin line on the left, one kept open a thick one.
+- New in a collection lists the types in blocks (write, data, media, organize), each sorted by name.
 - Dragging in nav2 and nav3 pulls the entry out of its list, and the others move apart where it would land, live, instead of
   a line on one edge or the other of each entry. Up and down picks the place; in nav3 moving it to the right puts it below
   the entry above it. Where one may only read, no gap opens. The private lists of nav2 sort the same way.

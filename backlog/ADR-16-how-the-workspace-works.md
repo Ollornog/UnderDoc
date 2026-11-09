@@ -50,8 +50,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   collection offers a new collection inside it. A new collection opens with its settings, ready to be named.
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
   new in it, favorite, and settings. The settings open in nav3.
-- A collection can be kept open. A click opens a collection and closes every open one that is not kept open. Ctrl with a click,
-  or a double click, keeps it open, or stops and closes it. A pin marks what is kept open, in nav2 and at its heading in nav3, and
+- A collection can be kept open. A click opens a collection and closes every open one that is not kept open. A double click, or
+  the right click, keeps it open, or stops and closes it; until 2026-11-09 Ctrl with a click did too, which now selects. In nav2 a
+  thick line on the left marks what is kept open and a thin one what is open for now (2026-11-09, before that a pin), and
   closing it at its heading stops keeping it open. There is no setting for this. In nav3, an open collection is a small heading
   with a separator.
 - Favorite documents join nav2 with M-16. Until accounts exist, the browser keeps the favorites.
@@ -61,7 +62,12 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   page. That page shows the name and description in the head, and the owner, what others may do, who sees it and its entries. A click
   on the heading of an open collection opens that page too, it does not close the collection. A double click or the arrow opens or
   closes the children. In Files, folders start closed.
-- Ctrl with a click or a middle click on an entry in nav3 opens it as a tab of its own, and the general tab stays as it is.
+- A middle click on an entry in nav3 opens it as a tab of its own, and the general tab stays as it is; until 2026-11-09 Ctrl
+  with a click did too.
+- **Selecting (2026-11-09):** Ctrl with a click adds an entry of nav2 or nav3 to a selection or takes it out, Shift with a click
+  takes the range from the last one; a selection stays in one list, and a plain click or Escape ends it. Dragging one of them
+  moves them all, in their order. Dropped on a window, entries open there as tabs; the right click on a selection opens them
+  as tabs (nav3), opens or keeps them open (nav2).
 
 **New**
 
@@ -164,8 +170,8 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - Only its user sees it: to-dos, calendar, time clock, vacation planning and notes. Each is a view in nav1 below the others, and
   follows the same clicks: nav2 holds its lists, such as to-do lists, calendars including imported ones, periods, years or note
   boards, nav3 their entries, and an entry or the whole list opens in the active window.
-- Its lists open like collections: a click opens one and closes the others that are not kept open, and Ctrl with a click or a
-  double click keeps one open, marked with a pin. Open lists stack in nav3 below small headings.
+- Its lists open like collections: a click opens one and closes the others that are not kept open, and a double click keeps
+  one open, marked like a collection; Ctrl with a click selects (2026-11-09). Open lists stack in nav3 below small headings.
 
 **Access**
 
