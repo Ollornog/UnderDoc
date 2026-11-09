@@ -1190,3 +1190,54 @@ func TestEditingIsFound(t *testing.T) {
 		t.Errorf("with the setting, a page opens for editing: %q", got)
 	}
 }
+
+// In reading, every block has a handle at its left; its menu copies the address, opens the block for editing, comments on
+// it and says where it is used.
+func TestTheHandleOfABlock(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Plan', parent: team.id});
+		const b1 = await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'Second', after: b1.id});
+		const rack = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + rack.id + '/blocks', {md: '::embed{ref="' + page.id + '#b2"}', after: ''});
+		await post('/api/objects/' + team.id + '/access', {access: 'comment'});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the pages for the test were not made")
+	}
+	page := b.eval(`window.made`)
+	b.open(base + "/o/" + page)
+	b.ready("Plan")
+	if got := b.eval(`document.querySelectorAll('article.doc [data-b] > .bhandle').length`); got != "2" {
+		t.Fatalf("each block has a handle: %s", got)
+	}
+	b.clickOn(`article.doc [data-b="b2"] > .bhandle`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Comment | Used in Rack" {
+		t.Errorf("the menu of b2: %q", got)
+	}
+	b.clickOn(`.bmenu [data-act="blkedit"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
+		t.Errorf("Edit this block opens editing at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	}
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	b.shot("block-handle")
+	b.clickOn(`.dtitle h1`, 1)
+	if got := b.eval(`!!document.querySelector('.bmenu')`); got != "false" {
+		t.Errorf("a click elsewhere closes the menu")
+	}
+	// Someone who may only comment: no editing, but comments.
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.open(base + "/o/" + page)
+	b.ready("Plan")
+	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
+		t.Errorf("the menu for someone who may comment: %q", got)
+	}
+}

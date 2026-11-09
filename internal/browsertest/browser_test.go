@@ -865,8 +865,8 @@ func TestEditAPageBlockByBlock(t *testing.T) {
 		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
 	}
 	b.shot("view-blocks")
-	if got := b.eval(`document.querySelector('article.doc .blk span')?.textContent`); got != "#b2" {
-		t.Errorf("a table has the ID of its block, to embed it by: %q", got)
+	if got := b.eval(`document.querySelector('article.doc [data-b="b2"] > .bhandle')?.title + ' ' + !document.querySelector('article.doc .blk')`); got != "Block #b2: address, editing, comments true" {
+		t.Errorf("a table has the handle of its block, to embed it by, and no chip of its own: %q", got)
 	}
 
 	b.open(base + "/o/" + page)

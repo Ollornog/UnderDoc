@@ -686,6 +686,7 @@ function render(){
       el.after(b);b.style.top=el.offsetTop+'px';});});
   /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
   document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src||D[t.d].tool)return;
+    if(D[t.d].blocks)return;
     art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const own=tb.closest('[data-b]'),part=own?own.dataset.b:'t'+(k+1),b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#'+part;b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#'+part+'</span>';(tb.closest('.tw, .table-container')||tb).before(b);});});
 }
 /* AI drawer on the right: it knows the document in the active window. */
@@ -782,7 +783,8 @@ document.addEventListener('click',e=>{
   const hadMenu=S.menu,hadT=S.tmenu,hadHist=S.hist,hadTl=S.tlist,hadAdd=S.addIn,hadNew=S.newAt,hadCtx=S.ctx&&S.ctx.kind,ctx0=S.ctx,hadAsk=S.trashAsk;
   if(hadAsk){S.trashAsk=null;dirty=true;}
   if(win&&+win.dataset.win!==S.focus){S.focus=+win.dataset.win;dirty=true;}
-  S.menu=null;S.tmenu=null;S.hist=null;S.tlist=null;S.addIn=null;S.ctx=null;S.newAt=null;
+  const hadBm=S.bmenu;if(S.bmenu)dirty=true;
+  S.menu=null;S.tmenu=null;S.hist=null;S.tlist=null;S.addIn=null;S.ctx=null;S.newAt=null;S.bmenu=null;
   if(!b){if(dirty)render();return;}
   const a=b.dataset,i=a.w!==undefined?+a.w:S.focus,w=S.wins[i],t=at(i),tk=a.t!==undefined?+a.t:w&&w.a;
   if(act!=='add')S.just=null;
@@ -898,6 +900,8 @@ document.addEventListener('click',e=>{
     case 'slashpick':pickSlash(+a.k);return;
     case 'blkadd':addBlock(t.d,a.id,true);return;
     case 'blkdel':deleteBlock(t.d,a.id);return;
+    case 'bmenu':if(!(hadBm&&hadBm.w===i&&hadBm.id===a.id))S.bmenu={w:i,id:a.id};break;
+    case 'blkedit':setEdit(t,true);t.src=false;S.focusNext={d:t.d,id:a.id,pos:0};break;
     case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
       (navigator.clipboard?navigator.clipboard.writeText(addr):Promise.reject()).then(()=>toast('Address copied. Paste it alone into a block to embed this one.'),()=>toast(addr));return;}
     case 'src':t.src=!t.src;t.top=0;if(t.src)setEdit(t,false);break;
@@ -1349,9 +1353,20 @@ function formatIn(x,kind){
   if(v.slice(s0-m.length,s0)===m&&v.slice(e0,e0+m.length)===m){setField(x,v.slice(0,s0-m.length)+sel+v.slice(e0+m.length),s0-m.length,e0-m.length);return;}
   setField(x,v.slice(0,s0)+m+sel+m+v.slice(e0),s0+m.length,e0+m.length);
 }
+/* In reading, every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies
+   the address to embed the block, opens the block for editing, comments on it and says where it is used (2026-11-09). */
+function handleHtml(d,w,i,b){
+  const open=S.bmenu&&S.bmenu.w===i&&S.bmenu.id===b.id,may=d.canEdit,cmt=accOf(w.d)!=='read',used=b.usedIn||[];
+  const menu=open?`<div class="bmenu" role="menu" aria-label="Block ${b.id}">
+    <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
+    <button role="menuitem" data-act="blkedit" data-w="${i}" data-id="${b.id}"${may?'':` disabled title="${noEdit(w.d)}"`}>${ic('pencil')}<span>Edit this block</span></button>
+    <button role="menuitem" data-act="cblk" data-w="${i}" data-id="${b.id}" data-l="#${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span></button>
+    <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
+  return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}" aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, editing, comments">${ic('grip')}</button>${menu}`;
+}
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
   if(!d.blocks.length)return `<p class="lab">Empty. <button class="chip" data-act="blkadd" data-w="${i}" data-id="">${ic('plus')}Add a block</button></p>`;
   return d.blocks.map((b,n)=>{const raw=b.draft!==undefined?b.draft:b.raw,text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,raw.split('\n').length+1)),kind=kindOfMd(raw);
     const B=(act,k,icon,label,extra='')=>`<button class="ic" data-act="${act}" data-w="${i}" data-id="${b.id}"${k?` data-k="${k}"`:''} title="${label}" aria-label="${label}"${extra}>${ic(icon)}</button>`;

@@ -101,6 +101,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- In reading, every block of a page has a handle at its left, shown on hover (as Docmost has one, the idea only). Its menu
+  copies the address to embed the block, opens the block for editing, comments on it and says where it is used. It
+  replaces the address chip on tables of such pages.
 - Embedding by ID (ADR-18): a block line `::embed{ref="<page id>#<block id>"}`, or without `#<block id>` for a whole
   page, shows that source live, framed, with a link back. "Copy address" in the bar of a block puts its address on the
   clipboard; pasted alone into an empty block, it becomes the embedding and is saved. The database keeps every reference
