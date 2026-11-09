@@ -1504,7 +1504,7 @@ function dbCmtHtml(t,i){
   if(!d.cmts){S.cmtFocus=i;if(!d.cmtLoading)setTimeout(()=>loadComments(key));return `<aside class="fdrawer" aria-label="Comments">${head}<p class="hint">Loading…</p></aside>`;}
   const sel=t.cb||'',blk=sel&&d.blocks.find(b=>b.id===sel),label=k=>{if(!k)return 'The whole page';const b=d.blocks.find(x=>x.id===k);return b?blockLabel(b):'A block that is gone';};
   const tops=d.cmts.filter(c=>!c.parent),thread=c=>cmtRowHtml(d,c,t,i,false)+d.cmts.filter(r=>r.parent===c.id).map(r=>cmtRowHtml(d,r,t,i,true)).join('')
-    +(t.creply===c.id?`<input class="addtag" data-replycmt="${i}" data-id="${c.id}" placeholder="Reply, then Enter" maxlength="10000" aria-label="Reply">`:'');
+    +(t.creply===c.id?`<input class="addtag reply" data-replycmt="${i}" data-id="${c.id}" placeholder="Reply, then Enter" maxlength="10000" aria-label="Reply">`:'');
   const here=tops.filter(c=>c.block===sel).map(thread).join('')||'<p class="hint">No comments on this yet.</p>';
   const add=d.canComment&&(!sel||blk)?`<input class="addtag" data-addcmt="${i}" placeholder="Write a comment, then Enter" maxlength="10000" aria-label="Write a comment">`:'';
   const why=!d.canComment?'<p class="hint">Others may only read here, so comments can be read, not added.</p>':sel&&!blk?'<p class="hint">This block is gone. Its comments stay and can still be answered.</p>':'';
