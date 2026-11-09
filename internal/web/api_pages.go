@@ -27,6 +27,8 @@ type apiBlock struct {
 	Markdown string `json:"md"`
 	// UsedIn names the pages that embed this block.
 	UsedIn []string `json:"usedIn"`
+	// Comments counts the comments on this block in threads not resolved.
+	Comments int `json:"comments,omitempty"`
 }
 
 type apiVersion struct {
@@ -63,8 +65,10 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, db.ErrHasReplies):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	case errors.Is(err, db.ErrNotAllowed):
@@ -187,8 +191,17 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	if err != nil {
 		h.log.Error("used in failed", slog.String("error", err.Error()))
 	}
+	open, err := h.options.DB.OpenComments(ctx, o.ID, user.ID)
+	if err != nil {
+		h.log.Error("open comments failed", slog.String("error", err.Error()))
+	}
 	for _, b := range blocks {
-		answer.Blocks = append(answer.Blocks, h.block(r, o.ID, b, used))
+		out := h.block(r, o.ID, b, used)
+		out.Comments = open[b.ID]
+		answer.Blocks = append(answer.Blocks, out)
+	}
+	for _, n := range open {
+		answer.Comments += n
 	}
 	for _, u := range used {
 		where := u.Title
@@ -200,6 +213,7 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		}
 	}
 	answer.CanEdit = h.options.DB.MayEdit(ctx, o, user.ID)
+	answer.CanComment = h.options.DB.MayComment(ctx, o, user.ID)
 	writeJSON(w, http.StatusOK, answer)
 }
 

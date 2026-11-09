@@ -391,6 +391,7 @@ function factsHtml(d){
 }
 /* Comments belong to an element of the page: a paragraph, heading, list or table, through its ID (ADR-18). */
 function cmtHtml(t,i){
+  if(D[t.d].blocks)return dbCmtHtml(t,i);
   const d=D[t.d],cs=d.comments||[],sel=t.cb,g={};cs.forEach(c=>(g[c.b]=g[c.b]||[]).push(c));
   const row=c=>`<div class="cmtrow"><b>${esc(c.who)}</b><em>${esc(c.when)}</em><p>${esc(c.t)}</p></div>`;
   const here=sel?`<div class="cfor">${ic('quote')}<span>${esc(t.cbl||sel)}</span><em>#${esc(sel)}</em></div>${(g[sel]||[]).map(row).join('')||'<p class="hint">No comments on this yet.</p>'}
@@ -450,13 +451,13 @@ function winHtml(w,i){
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
-    ${accOf(t.d)!=='read'&&!d.tool?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
+    ${cmtShown(t.d)?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${cmtCount(d)?', '+cmtCount(d):''}">${ic('chat')}${cmtCount(d)?`<em class="cnum">${cmtCount(d)}</em>`:''}</button>`:''}
     <button class="ic" data-act="gear" data-w="${i}" aria-pressed="${t.gear}" aria-label="Document settings" title="Document settings">${ic('gear')}</button>
     <button class="ic" data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More">${ic('more')}</button>${S.menu===i?menuHtml(i):''}${dhead}</div>`;
   const inner=t.src?`<div class="src">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="doc ${d.w}">${h}</article>`;
   const toc=hs.length&&mode==='side'&&!t.src?`<nav class="toc"><b>Contents</b>${links}</nav>`:'';
   return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}${tools}
-    <div class="wbody">${toc}<div class="scroll" data-sc="${i}"><div data-art="${i}">${inner}</div></div>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&accOf(t.d)!=='read'?cmtHtml(t,i):''}</div>${statusHtml(d)}</section>`;
+    <div class="wbody">${toc}<div class="scroll" data-sc="${i}"><div data-art="${i}">${inner}</div></div>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&cmtShown(t.d)?cmtHtml(t,i):''}</div>${statusHtml(d)}</section>`;
 }
 function menuHtml(i){return `<div class="tabmenu" role="menu">${tabMenuHtml(i,S.wins[i].a)}</div>`;}
 /* One menu for a tab, from a right click on it or from the dots: the same choices in both places. */
@@ -676,7 +677,7 @@ function render(){
   /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
   const ap=document.querySelector('.cmdpop');if(ap){stay(ap,S.addAt.up);filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
-  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read'||D[t.d].tool)return;const doc=art.querySelector('article.doc');if(!doc)return;
+  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||D[t.d].tool)return;if(D[t.d].blocks){dbBubbles(art,i,t);return;}if(accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
     doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw,.table-container').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,.table-container,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
       const k=el.matches('.tw, .table-container')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
@@ -822,7 +823,8 @@ document.addEventListener('click',e=>{
     /* At the top, edit is what nothing set means; below, "as above" takes it from there. */
     case 'cacc':setAccess(a.c,a.id==='inherit'||(a.id==='edit'&&C.some(c=>c.id===a.c&&!c.alias))?'':a.id);return;
     case 'setacc':setAccess(t.d,a.id==='inherit'?'':a.id);return;
-    case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt)t.gear=false;break;
+    case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt){t.gear=false;if(D[t.d].blocks)loadComments(t.d);}break;
+    case 'cmtreply':case 'cmtedit':case 'cmtres':case 'cmtdel':cmtAct(act,t,i,a.id);return;
     case 'cblk':t.cmt=true;t.gear=false;t.cb=a.id;t.cbl=a.l||a.id;render();{const f=document.querySelector(`[data-addcmt="${i}"]`);if(f)f.focus();}return;
     case 'blocklink':S.toast='Link copied: /o/'+a.id+'. Pasted into another page, the table shows there and stays in one place.';setTimeout(()=>{S.toast='';render();},2600);break;
     case 'secclose':S.so[S.view][a.id]=false;if(S.spin[S.view])S.spin[S.view][a.id]=false;break;
@@ -965,6 +967,7 @@ document.addEventListener('focusout',e=>{const x=e.target;if(rendering||!x.datas
 document.addEventListener('mousedown',e=>{if(e.target.closest&&e.target.closest('.btool button,.bslash button,.bplus'))e.preventDefault();});
 document.addEventListener('keydown',e=>{
   const x=e.target;
+  if(cmtKey(x,e))return;
   if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
   if(e.key==='/'&&!x.closest('input,select,textarea')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
   if(x.dataset&&x.dataset.nfilter!==undefined&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){e.preventDefault();if(e.key==='Enter'){const n=document.querySelector('.cmdpop [role="menuitem"].active')||[...document.querySelectorAll('.cmdpop [role="menuitem"]')].find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(n)n.click();}else stepNew(e.key==='ArrowDown'?1:-1);return;}
@@ -1228,7 +1231,7 @@ async function loadDoc(id){
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
     d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
-    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');syncBlocks(d);}
+    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
@@ -1310,7 +1313,7 @@ document.addEventListener('paste',e=>{
   /* Set from here, the field fires no change when it is left, so the block is saved right away. */
   e.preventDefault();x.value=`::embed{ref="${m[1]}${m[2]?'#'+m[2]:''}"}`;x.dispatchEvent(new Event('input',{bubbles:true}));saveBlock(x.dataset.d,x.dataset.blk,x.value,x);
 });
-const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc)});
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 const blockIn=x=>{const d=D[x.dataset.d];return d&&d.blocks&&d.blocks.find(b=>b.id===x.dataset.blk);};
 /* Editing a block as Docmost shows it (only the idea is taken, no code): a bar above the block being written, to turn
@@ -1362,7 +1365,7 @@ function blocksHtml(d,w,i){
         <span class="bsep"></span>${FMT.map(f=>B('blkfmt',f[0],f[2],f[1])).join('')}
         <span class="bsep"></span>${B('blkmove','up','up','Move up',n===0?' disabled':'')}${B('blkmove','down','down','Move down',n===d.blocks.length-1?' disabled':'')}${B('blkdup','','copy','Duplicate')}${B('blkaddr','','link','Copy the address: pasted alone into a block of another page, it embeds this one there')}
         <button class="ic${b.ask?' asking':''}" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}" title="${b.ask?'Click again to delete':'Delete'}" aria-label="Delete">${ic('trash')}${b.ask?'<span>Delete?</span>':''}</button>
-        <button class="ic" disabled data-later="1" title="Comments on a block come with comments" aria-label="Comment">${ic('chat')}</button>
+        <button class="ic" data-act="cblk" data-w="${i}" data-id="${b.id}" data-l="${esc(blockLabel(b))}" title="${b.cmts?b.cmts+' open comments on this block':'Comment on this block'}" aria-label="Comment">${ic('chat')}${b.cmts?`<em class="cnum">${b.cmts}</em>`:''}</button>
         <em>${b.usedIn&&b.usedIn.length?`<span title="${b.usedIn.join(', ')}">Used in ${b.usedIn.length} · </span>`:''}${b.saved?'Saved · ':''}#${b.id}</em></div>
       <button class="bplus" data-act="blkadd" data-w="${i}" data-id="${b.id}" title="Add a block below" aria-label="Add a block below">${ic('plus')}</button>
       <textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown" placeholder="Write, or type / for a block">${text}</textarea>${sl}</div>`;}).join('');
@@ -1436,12 +1439,121 @@ async function deleteBlock(id,blk){
 /* A new page lands in the collection, folder or page it was made in, and opens with its first block ready to write. */
 async function createPage(parent,title){
   try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
-    const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;
+    const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;D[id].canComment=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
     const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)setEdit(t,true);
     render();addBlock(id,'');}
   catch(e){toast(e.message==='403'?'Others may not add pages here.':'The page could not be made.');}
+}
+
+/* Comments on pages of the database (ADR-18, ADR-20): on the whole page or on one block through its ID, with replies one
+   level deep. Whoever sees the page reads them; whoever may comment adds some; each author changes and deletes their own;
+   a thread is resolved by its author or by whoever may edit. A block that is gone keeps its comments. The text is plain:
+   it is escaped here, never rendered. Made-up documents keep their made-up comments (cmtHtml). */
+const cmtShown=id=>{const d=D[id];return d.blocks?!!d.canComment||cmtCount(d)>0:accOf(id)!=='read'&&!d.tool;};
+const cmtCount=d=>d.blocks?d.ncmt||0:(d.comments||[]).length;
+const cmtURL=id=>'/api/comments/'+encodeURIComponent(id);
+function blockLabel(b){const s=(b.draft!==undefined?b.draft:b.raw||'').replace(/::embed\{ref="([^"]+)"\}/g,'Embedded $1').replace(/[#>*_`|~\[\]()-]+/g,' ').replace(/\s+/g,' ').trim();return s.slice(0,60)||'Empty block';}
+function sortCmts(d){d.cmts.sort((x,y)=>(x.parent||x.id)-(y.parent||y.id)||(x.parent?1:0)-(y.parent?1:0)||x.id-y.id);}
+/* Open comments count by block, as /api/doc counts them: a resolved thread counts no more, its replies neither. */
+function recount(d){
+  const res={},n={};d.cmts.forEach(c=>{if(!c.parent)res[c.id]=!!c.resolved;});
+  d.cmts.forEach(c=>{if(!res[c.parent||c.id])n[c.block]=(n[c.block]||0)+1;});
+  d.ncmt=Object.values(n).reduce((s,x)=>s+x,0);(d.blocks||[]).forEach(b=>{b.cmts=n[b.id]||0;});
+}
+async function loadComments(key){
+  const d=D[key];if(!d||!d.sid||d.cmtLoading)return;d.cmtLoading=true;
+  try{const r=await fetch(pageURL(key)+'/comments',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();d.cmts=a.comments;d.canComment=!!a.canComment;sortCmts(d);recount(d);}
+  catch(e){d.cmts=d.cmts||[];toast('The comments could not be loaded.');}
+  d.cmtLoading=false;render();
+  /* The drawer opened while its comments were loading: its field takes the typing once it is there. */
+  if(S.cmtFocus!==undefined&&S.cmtFocus!==null){const f=document.querySelector(`[data-addcmt="${S.cmtFocus}"]`);S.cmtFocus=null;if(f)f.focus();}
+}
+const cmtFailed=(e,what)=>toast(e.message==='403'?'Others may only read here, not comment.':e.message==='409'?'Others have replied to this comment. Resolve it instead.':e.message==='400'?'A comment has 1 to 10000 characters.':what);
+async function postComment(key,block,body,parent){
+  const d=D[key];
+  try{const r=await fetch(pageURL(key)+'/comments',{...same,method:'POST',body:JSON.stringify({block:block||'',body,parent:parent||0})});if(!r.ok)throw new Error(String(r.status));
+    d.cmts=d.cmts||[];d.cmts.push(await r.json());sortCmts(d);recount(d);return true;}
+  catch(e){cmtFailed(e,'The comment could not be saved. The text stays in the field.');return false;}
+}
+async function changeComment(key,id,patch){
+  const d=D[key];
+  try{const r=await fetch(cmtURL(id),{...same,method:'PATCH',body:JSON.stringify(patch)});if(!r.ok)throw new Error(String(r.status));
+    const c=await r.json(),k=d.cmts.findIndex(x=>x.id===id);if(k>=0)d.cmts[k]=c;recount(d);render();return true;}
+  catch(e){cmtFailed(e,'The comment could not be changed.');return false;}
+}
+async function removeComment(key,id){
+  const d=D[key];
+  try{const r=await fetch(cmtURL(id),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));
+    d.cmts=d.cmts.filter(x=>x.id!==id&&x.parent!==id);recount(d);render();}
+  catch(e){cmtFailed(e,'The comment could not be deleted.');}
+}
+function cmtRowHtml(d,c,t,i,reply){
+  const B=(act,label)=>`<button class="tagc" data-act="${act}" data-w="${i}" data-id="${c.id}">${label}</button>`,acts=[],done=!reply&&!!c.resolved;
+  if(!reply&&d.canComment&&!c.resolved)acts.push(B('cmtreply','Reply'));
+  if(!reply&&c.canResolve)acts.push(B('cmtres',c.resolved?'Reopen':'Resolve'));
+  if(c.mine&&d.canComment)acts.push(B('cmtedit','Edit'),B('cmtdel',t.cdel===c.id?'Delete? Yes':'Delete'));
+  return `<div class="cmtrow${reply?' reply':''}${done?' done':''}" data-cmt="${c.id}"><b>${esc(c.who)}</b><em>${when(c.at)}${c.edited?' · edited':''}</em>
+    ${t.cedit===c.id?`<input class="addtag" data-editcmt="${i}" data-id="${c.id}" value="${esc(c.body)}" maxlength="10000" aria-label="Change the comment, then Enter">`:`<p>${esc(c.body)}</p>`}
+    ${done?`<p class="hint">Resolved by ${esc(c.resolvedBy)}, ${when(c.resolved)}</p>`:''}${acts.length?`<div class="tagrow">${acts.join('')}</div>`:''}</div>`;
+}
+function dbCmtHtml(t,i){
+  const key=t.d,d=D[key],head=`<div class="fhead">${ic('chat')}Comments<button class="ic" data-act="cmt" data-w="${i}" aria-label="Close comments">${ic('x')}</button></div>`;
+  if(!d.cmts){S.cmtFocus=i;if(!d.cmtLoading)setTimeout(()=>loadComments(key));return `<aside class="fdrawer" aria-label="Comments">${head}<p class="hint">Loading…</p></aside>`;}
+  const sel=t.cb||'',blk=sel&&d.blocks.find(b=>b.id===sel),label=k=>{if(!k)return 'The whole page';const b=d.blocks.find(x=>x.id===k);return b?blockLabel(b):'A block that is gone';};
+  const tops=d.cmts.filter(c=>!c.parent),thread=c=>cmtRowHtml(d,c,t,i,false)+d.cmts.filter(r=>r.parent===c.id).map(r=>cmtRowHtml(d,r,t,i,true)).join('')
+    +(t.creply===c.id?`<input class="addtag" data-replycmt="${i}" data-id="${c.id}" placeholder="Reply, then Enter" maxlength="10000" aria-label="Reply">`:'');
+  const here=tops.filter(c=>c.block===sel).map(thread).join('')||'<p class="hint">No comments on this yet.</p>';
+  const add=d.canComment&&(!sel||blk)?`<input class="addtag" data-addcmt="${i}" placeholder="Write a comment, then Enter" maxlength="10000" aria-label="Write a comment">`:'';
+  const why=!d.canComment?'<p class="hint">Others may only read here, so comments can be read, not added.</p>':sel&&!blk?'<p class="hint">This block is gone. Its comments stay and can still be answered.</p>':'';
+  const pos=k=>!k?-1:(x=>x<0?1e9:x)(d.blocks.findIndex(b=>b.id===k));
+  const rest=[...new Set(tops.map(c=>c.block))].filter(k=>k!==sel).sort((x,y)=>pos(x)-pos(y)).map(k=>`<button class="cgo" data-act="cblk" data-w="${i}" data-id="${esc(k)}" data-l="${esc(label(k))}">${ic('quote')}<span>${esc(label(k))}</span><em>${k?'#'+esc(k)+' · ':''}${d.cmts.filter(c=>c.block===k).length}</em></button>`).join('');
+  return `<aside class="fdrawer" aria-label="Comments">${head}<div class="cfor">${ic('quote')}<span>${esc(label(sel))}</span>${sel?`<em>#${esc(sel)}</em>`:''}</div>${here}${add}${why}
+    ${rest?`<h3>Elsewhere on this page</h3>${rest}`:''}${sel?'':'<p class="hint">A comment can also belong to one block: click the speech bubble beside it, or the one in its bar while editing.</p>'}</aside>`;
+}
+function cmtAct(act,t,i,id){
+  const key=t.d,c=(D[key].cmts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+  if(act==='cmtreply'){t.creply=t.creply===c.id?null:c.id;render();const f=document.querySelector(`[data-replycmt="${i}"]`);if(f)f.focus();return;}
+  if(act==='cmtedit'){t.cedit=c.id;render();const f=document.querySelector(`[data-editcmt="${i}"]`);if(f){f.focus();f.select();}return;}
+  if(act==='cmtres'){changeComment(key,c.id,{resolved:!c.resolved});return;}
+  /* Deleting asks in place: the first click turns the button into the question, the second deletes. */
+  if(t.cdel!==c.id){t.cdel=c.id;render();return;}
+  t.cdel=null;removeComment(key,c.id);
+}
+/* Enter sends what was written in the drawer of a page of the database, Escape leaves a reply or a change. A field that
+   could not be sent keeps its text. */
+function cmtKey(x,e){
+  const ds=x&&x.dataset;if(!ds)return false;
+  const field=ds.addcmt!==undefined?'addcmt':ds.replycmt!==undefined?'replycmt':ds.editcmt!==undefined?'editcmt':null;if(!field)return false;
+  const i=+ds[field],t=at(i);if(!t||!t.d||!D[t.d].blocks)return false;
+  if(e.key==='Escape'){e.preventDefault();t.creply=null;t.cedit=null;render();return true;}
+  if(e.key!=='Enter')return false;
+  e.preventDefault();const v=x.value.trim();if(!v)return true;
+  const typed=x.value,again=()=>document.querySelector(`[data-${field}="${i}"]`)||document.querySelector(`[data-addcmt="${i}"]`);
+  const done=ok=>{if(ok){if(field==='replycmt')t.creply=null;if(field==='editcmt')t.cedit=null;}render();const f=again();if(f){if(!ok)f.value=typed;f.focus();}};
+  if(field==='editcmt')changeComment(t.d,+ds.id,{body:v}).then(done);
+  else postComment(t.d,field==='addcmt'?(t.cb||''):'',v,field==='replycmt'?+ds.id:0).then(done);
+  return true;
+}
+/* Speech bubbles beside the blocks of a page of the database in reading mode, one per block, with its open comments. */
+function dbBubbles(art,i,t){
+  const d=D[t.d];
+  art.querySelectorAll('article.doc [data-b]').forEach(el=>{if(el.closest('.embed'))return;const b=d.blocks.find(x=>x.id===el.dataset.b);if(!b)return;const cnt=b.cmts||0;
+    if(!cnt&&!d.canComment)return;
+    if(t.cmt&&t.cb===b.id)el.classList.add('cfocus');
+    const btn=document.createElement('button');btn.className='cblk'+(cnt?' has':'');btn.dataset.act='cblk';btn.dataset.w=i;btn.dataset.id=b.id;btn.dataset.l=blockLabel(b);
+    btn.title=cnt?cnt+(cnt===1?' open comment':' open comments')+' on this block':'Comment on this block';btn.setAttribute('aria-label',btn.title);btn.innerHTML=ic('chat')+(cnt?`<em>${cnt}</em>`:'');
+    el.after(btn);btn.style.top=el.offsetTop+'px';});
+}
+/* Opens the comments of the focused window on one block of a page; a menu of the block in reading mode calls it. */
+function commentOn(docKey,blockId){
+  const d=D[docKey];if(!d)return;
+  let t=at(S.focus);if(!t||t.d!==docKey){openDoc(docKey);t=at(S.focus);}if(!t)return;
+  const b=d.blocks&&d.blocks.find(x=>x.id===blockId);
+  t.cmt=true;t.gear=false;t.cb=blockId||null;t.cbl=b?blockLabel(b):blockId;t.creply=null;t.cedit=null;render();
+  const f=document.querySelector(`[data-addcmt="${S.focus}"]`);if(f)f.focus();
 }
 
 /* Lines and spaces. In nav2 they are the user's own and stay in this browser; in a collection of the database they are
