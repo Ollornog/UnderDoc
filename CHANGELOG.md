@@ -6,8 +6,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- An entry could not be dropped onto an empty collection inside another: while the pointer waited on its middle, the held
+  entry slid it away from under the pointer, and the waiting began anew. It now stays where it is while waiting.
+
 ### Changed
 
+- The settings of a collection are part of its overview in the window, for the owner and whoever may edit; "Settings and
+  name" opens it ready to rename, and nav3 keeps its tree instead of giving way to a settings panel.
 - A right click menu stays inside the window: at the edge it moves in, and a long one scrolls. The menu of a tab and New do
   the same; before, a moved place could be overwritten right after it was set.
 - The gear of the settings is Lucide's, as the drawn one read as a sun; its licence ships in `assets/app/licenses`.

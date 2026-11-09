@@ -784,3 +784,100 @@ func TestMenusStayInTheWindow(t *testing.T) {
 		t.Errorf("the menu of a tab leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.tabctx').getBoundingClientRect())`))
 	}
 }
+
+// An entry dragged into an empty collection lands in it: below its heading, onto its heading, and onto an empty
+// collection inside another.
+func TestDragIntoAnEmptyCollection(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.ids = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const empty = (await post('/api/collections', {title: 'Empty'})).id;
+		const team = (await post('/api/collections', {title: 'Team'})).id;
+		for (const title of ['A', 'B', 'C', 'D']) await post('/api/pages', {title, parent: team});
+		const inner = (await post('/api/collections', {title: 'Inner', parent: team})).id;
+		window.ids = [empty, team, inner];
+	})()`)
+	if !b.waitFor(`!!window.ids`) {
+		t.Fatal("the collections for the test were not made")
+	}
+	var ids []string
+	for _, k := range []string{"0", "1", "2"} {
+		ids = append(ids, b.eval(`window.ids[`+k+`]`))
+	}
+	empty, team, inner := ids[0], ids[1], ids[2]
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`.nav2 [data-act="coll"][data-id="`+team+`"]`, 2)
+	b.clickOn(`.nav2 [data-act="coll"][data-id="`+empty+`"]`, 1)
+	if !b.waitFor(`!!document.querySelector('.cheadrow[data-cdrop="` + empty + `"]') && !!document.querySelector('.cheadrow[data-cdrop="` + team + `"]')`) {
+		t.Fatalf("both are open: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	}
+	kids := func(of string) string {
+		return b.eval(`D[SID['` + of + `']].kids.map(k => D[k].n).join(' ')`)
+	}
+	b.dragTo(rowNamed(b, "A"), `.cheadrow[data-cdrop="`+empty+`"]`, 0.9, nil)
+	if got := kids(empty); got != "A" {
+		t.Errorf("below the heading of the empty collection: %q", got)
+	}
+	b.dragTo(rowNamed(b, "B"), `.cheadrow[data-cdrop="`+empty+`"]`, 0.5, func() { time.Sleep(400 * time.Millisecond) })
+	if got := kids(empty); got != "A B" {
+		t.Errorf("onto the heading, after waiting: %q", got)
+	}
+	b.dragTo(rowNamed(b, "C"), rowNamed(b, "Inner"), 0.5, func() {
+		time.Sleep(400 * time.Millisecond)
+		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join()`); got != "Inner" {
+			t.Errorf("waiting on the middle of Inner frames it: %q", got)
+		}
+	})
+	if got := kids(inner); got != "C" {
+		t.Errorf("onto an empty collection inside Team, after waiting: %q", got)
+	}
+}
+
+// The settings of a collection are in its overview: the right click opens it ready to rename, nav3 keeps its tree, and a
+// collection one may only read shows no settings.
+func TestSettingsInTheOverview(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	b.clickOn(probe(b, `.ctxpop button`, "Settings and name"), 1)
+	if !b.waitFor(`document.activeElement?.id === 'cname' && document.querySelector('.dtitle h1')?.textContent === 'Team'`) {
+		t.Fatalf("the overview of Team opens with its name ready: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+	}
+	if got := b.eval(`!!document.getElementById('tree') && [...document.querySelectorAll('article.doc h2')].some(n => n.textContent === 'Settings')`); got != "true" {
+		t.Error("nav3 keeps its tree, and the settings are in the overview")
+	}
+	b.shot("settings-in-overview")
+	b.typeText("Team space")
+	b.press("Enter", "Enter", 13, 0)
+	b.eval(`document.activeElement.blur()`)
+	if !b.waitFor(`[...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Team space')`) {
+		t.Errorf("the new name shows in nav2: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\\s+/g, ' ')`))
+	}
+	b.clickOn(`article.doc [data-act="cacc"][data-id="comment"]`, 1)
+	if got := b.eval(`document.querySelector('article.doc [data-act="cacc"][data-id="comment"]').getAttribute('aria-pressed')`); got != "true" {
+		t.Errorf("others may comment now: %q", got)
+	}
+	time.Sleep(400 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team space")
+	if got := b.eval(`!!document.getElementById('cname')`); got != "true" {
+		t.Error("the overview holds the settings")
+	}
+	// The archive of the demo may only be read: no settings there.
+	b.open(base + "/dev/ui")
+	b.ready("")
+	b.eval(`openDoc('arc'); render()`)
+	if !b.waitFor(`document.querySelector('.dtitle h1')?.textContent.startsWith('Archive')`) {
+		t.Fatal("no archive")
+	}
+	if got := b.eval(`!!document.getElementById('cname')`); got != "false" {
+		t.Error("a collection one may only read shows settings")
+	}
+}
