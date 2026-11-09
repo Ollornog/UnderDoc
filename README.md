@@ -64,6 +64,11 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 
+**Export and import** need the database. `underdoc export <dir>` writes every collection as normal files: directories,
+Markdown files with front matter, and a hidden comment before each block that keeps its ID. `underdoc import --owner <login>
+<dir> <title>` reads such a tree, or any folder of Markdown files, into a new collection. The layout and the rules are in
+[docs/export.md](docs/export.md).
+
 **Writing pages:**
 
 - A page is a `.md` file, written in any text editor. Hidden files and symbolic links are skipped.

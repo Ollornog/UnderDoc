@@ -37,6 +37,9 @@ The third option, confirmed by the maintainer, who asked for parts to get their 
   exactly one document and moves with it, so here the nesting is true and the address may show it.
 - **A part gets its ID when it is made**, so a new table can be embedded elsewhere at once. Pages live in the database as blocks
   (ADR-19), so this costs nothing in the text. A Markdown export writes a short marker only for parts that something refers to.
+  **Changed on 2026-11-09:** the export writes the marker `<!-- block bN -->` before every block, not only before those in
+  use: a page is a list of blocks (ADR-19), an import must give every block its ID back so that an embedding made after the
+  export still finds it, and an HTML comment on its own line shows in no Markdown viewer ([docs/export.md](../docs/export.md)).
 - **Pasting a part elsewhere embeds it**, so there is still one source. Pasting it as a copy, with new IDs and no tie to the
   source, comes later.
 - **Object or part:** something with a life of its own, such as a table edited in the web, a list or a drawing, is an object.
@@ -58,4 +61,5 @@ The third option, confirmed by the maintainer, who asked for parts to get their 
 - Still open:
   - Whether entries of the private area, such as to-dos, events and time records, are objects with addresses too, visible only to
     their user, or records inside one private object per kind (M-24).
-  - The exact form of the marker for parts in a Markdown export (M-2).
+  - ~~The exact form of the marker for parts in a Markdown export (M-2).~~ Settled on 2026-11-09: `<!-- block bN -->` on a
+    line of its own before each block ([docs/export.md](../docs/export.md)).

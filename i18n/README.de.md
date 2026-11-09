@@ -56,6 +56,11 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_SCAN_INTERVAL` | Wie oft der Ordner geprüft wird | `2s` |
 | `UNDERDOC_DEV_UI` | `1` zeigt alle Bausteine unter `/dev/ui` | aus |
 
+**Export und Import** brauchen die Datenbank (`UNDERDOC_DATABASE_URL`). `underdoc export <ordner>` schreibt jede Sammlung als
+normale Dateien: Ordner, Markdown-Dateien mit Kopfbereich und vor jedem Block ein unsichtbarer Kommentar, der seine ID hält.
+`underdoc import --owner <login> <ordner> <titel>` liest so einen Baum, oder jeden Ordner mit Markdown-Dateien, in eine neue
+Sammlung ein. Aufbau und Regeln stehen (englisch) in [docs/export.md](../docs/export.md).
+
 **Seiten schreiben:**
 
 - Eine Seite ist eine `.md`-Datei, geschrieben in einem beliebigen Texteditor. Versteckte Dateien und symbolische Links werden übersprungen.

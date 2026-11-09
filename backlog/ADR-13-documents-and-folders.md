@@ -35,7 +35,9 @@ The third option.
   matter the identity. This is how the read-only phase works without an editor.
 - **Share:** chosen folders are projected as real files. A change from outside becomes a new version, and a new file
   becomes a new document whose owner comes from the audit log.
-- **Way out:** `underdoc export` writes the whole tree as normal files at any time.
+- **Way out:** `underdoc export` writes the whole tree as normal files at any time. Built on 2026-11-09: directories with a
+  small `.underdoc.yaml` for what a directory cannot say, pages as Markdown with front matter, private notes of every
+  account under `private/<login>/`, and `underdoc import` as the way back ([docs/export.md](../docs/export.md)).
 
 ## Consequences
 

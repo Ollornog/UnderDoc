@@ -112,6 +112,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("DELETE /api/objects/{id}", h.apiDeleteObject)
 	mux.HandleFunc("POST /api/objects/{id}/move", h.apiMove)
 	mux.HandleFunc("POST /api/objects/{id}/copy", h.apiCopy)
+	mux.HandleFunc("GET /api/objects/{id}/export", h.apiExport)
 	mux.HandleFunc("GET /api/trash", h.apiTrash)
 	mux.HandleFunc("POST /api/trash/{id}/restore", h.apiRestore)
 	mux.HandleFunc("DELETE /api/trash/{id}", h.apiPurge)
