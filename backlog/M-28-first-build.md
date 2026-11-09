@@ -125,3 +125,9 @@ phone has a layout of its own (T-10). nav3 takes its width again when nav2 and n
 plus and the speech bubble beside a block are in the window and in sight on a touch screen, and a long press is the right
 click. Browser tests walk the main states with touch input and fail for anything cut off, covered, hidden behind hover or
 scrolling sideways.
+
+**State on 2026-11-09 (restore):** a backup of the database and the content proved to restore the whole state on the test
+instance: a dump of the database and an archive of the content directory, restored into a throwaway database, give the
+same `underdoc export` (116 files), the same dump and the same files with their checksums; a row and a file changed on
+purpose are found each time. The backup is configured by the operations side, not by the app. There is no content store
+for files yet; when it comes, its directory joins the backup.
