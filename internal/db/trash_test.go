@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestDeleteHidesTheTree(t *testing.T) {
@@ -106,8 +107,12 @@ func TestDeleteFollowsAccess(t *testing.T) {
 	if err := db.Delete(ctx, secret.ID, anna.ID); err != nil {
 		t.Errorf("a page in her own notes: %v", err)
 	}
-	// Private notes moved into a shared collection do not go with it.
-	if _, err := db.Move(ctx, notes[0].ID, anna.ID, team.ID, ""); err != nil {
+	// Private notes do not move into a shared collection any more; should they lie in one from before, they do not go with
+	// it either.
+	if _, err := db.Move(ctx, notes[0].ID, anna.ID, team.ID, ""); !errors.Is(err, ErrPlace) {
+		t.Errorf("Anna moves her private notes into Team: %v", err)
+	}
+	if _, err := db.pool.Exec(ctx, "UPDATE objects SET parent = $2 WHERE id = $1", notes[0].ID, team.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Delete(ctx, team.ID, anna.ID); !errors.Is(err, ErrNotAllowed) {
@@ -254,5 +259,66 @@ func TestPurge(t *testing.T) {
 	}
 	if err := db.Purge(ctx, b.ID, bob.ID); err != nil {
 		t.Errorf("bob purges what he deleted: %v", err)
+	}
+}
+
+func TestEmptyingAndExpiringTheTrash(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
+	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
+	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
+	c, _ := db.CreatePage(ctx, bob, "C", team.ID)
+	for _, x := range []string{a.ID, b.ID} {
+		if err := db.Delete(ctx, x, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Delete(ctx, c.ID, bob.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := db.EmptyTrash(ctx, anna.ID); err != nil || n != 2 {
+		t.Fatalf("Anna empties her trash: %d %v", n, err)
+	}
+	var left []string
+	rows, _ := db.pool.Query(ctx, "SELECT title FROM objects WHERE id IN ($1, $2, $3, $4) ORDER BY title", a.ID, kid.ID, b.ID, c.ID)
+	for rows.Next() {
+		var s string
+		_ = rows.Scan(&s)
+		left = append(left, s)
+	}
+	if len(left) != 1 || left[0] != "C" {
+		t.Errorf("A with its child and B are gone, Bob's C waits in his trash: %v", left)
+	}
+	// What lies in the trash longer than TrashDays goes by itself, for everyone; what came later stays.
+	d, _ := db.CreatePage(ctx, anna, "D", team.ID)
+	if err := db.Delete(ctx, d.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	keep, stop := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { db.KeepTrash(keep, 10*time.Millisecond, func(err error) { t.Error(err) }); close(done) }()
+	// It keeps at it: C turns old only after the first round.
+	time.Sleep(50 * time.Millisecond)
+	if _, err := db.pool.Exec(ctx, "UPDATE objects SET deleted_at = now() - interval '31 days' WHERE id = $1", c.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var n int
+		_ = db.pool.QueryRow(ctx, "SELECT count(*) FROM objects WHERE id = $1", c.ID).Scan(&n)
+		if n == 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	stop()
+	<-done
+	if list, _ := db.Trash(ctx, bob.ID); len(list) != 0 {
+		t.Errorf("C went after 30 days: %+v", list)
+	}
+	if list, _ := db.Trash(ctx, anna.ID); len(list) != 1 || list[0].Title != "D" {
+		t.Errorf("D, deleted just now, stays: %+v", list)
 	}
 }

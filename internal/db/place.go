@@ -93,8 +93,9 @@ func place(ctx context.Context, tx pgx.Tx, parent, after string) (int, error) {
 }
 
 // Move puts an object into parent, after the entry named by after or first. The viewer must be allowed to change the
-// object where it is and the parent it goes to (ADR-20). Only a collection stands at the top, nothing goes into itself
-// or below itself, and only its owner takes an object into a private collection, where no one else would see it.
+// object where it is and the parent it goes to (ADR-20). Only a collection stands at the top, private notes stay there,
+// nothing goes into itself or below itself, and only its owner takes an object into a private collection, where no one
+// else would see it.
 func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) (Object, error) {
 	o, err := db.Object(ctx, objectID, viewer)
 	if err != nil {
@@ -104,6 +105,10 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		return Object{}, err
 	}
 	if parent == "" && o.Kind != KindCollection {
+		return Object{}, ErrPlace
+	}
+	// Private notes stand at the top: inside another collection they would be an odd private island in a shared tree.
+	if o.Private && parent != "" {
 		return Object{}, ErrPlace
 	}
 	if parent != "" {

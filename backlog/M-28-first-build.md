@@ -83,6 +83,9 @@ shows in nav2 when the right click asks for it, as an entry that points at it (t
 **State on 2026-11-09 (account settings):** the settings of the workspace belong to the account and follow it from browser to
 browser; the browser keeps a copy.
 
+**State on 2026-11-09 (times, private notes, trash):** moments go out in UTC and show in the time zone of the device; private
+notes stay at the top; the trash empties as a whole and keeps things 30 days.
+
 **State on 2026-11-09 (access):** the owner sets what others may do, in the overview of a collection and the settings of a
 document; the database keeps it, and the lock shows in nav3.
 

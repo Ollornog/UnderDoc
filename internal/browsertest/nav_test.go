@@ -962,3 +962,59 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	}
 	b.signIn(true)
 }
+
+// Moments come in UTC and show in the time zone of the device.
+func TestTimesShowInTheTimeZoneOfTheDevice(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	shown := func(zone string) string {
+		b.call("Emulation.setTimezoneOverride", map[string]any{"timezoneId": zone}, nil)
+		b.open(base + "/o/plan")
+		b.ready("Network plan")
+		return b.eval(`when('2026-11-09T05:54:00Z') + ' | ' + when('2026-07-01T22:30:00Z', false) + ' | ' + when('today')`)
+	}
+	if got := shown("Europe/Berlin"); got != "Nov 09 06:54 | Jul 02 | today" {
+		t.Errorf("in Berlin: %q", got)
+	}
+	if got := shown("America/New_York"); got != "Nov 09 00:54 | Jul 01 | today" {
+		t.Errorf("in New York: %q", got)
+	}
+	// A page of the database shows when it changed as a moment of this device, not as the stamp of the server.
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
+	b.ready("A")
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	if got := b.eval(`(() => { const t = document.querySelector('.fdrawer')?.innerText || ''; return /\d{4}-\d\d-\d\dT/.test(t) + ' ' + /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d \d\d:\d\d/.test(t); })()`); got != "false true" {
+		t.Errorf("changed shows as a local moment: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	}
+	b.call("Emulation.setTimezoneOverride", map[string]any{"timezoneId": ""}, nil)
+}
+
+// Private notes stay at the top: dragged onto a collection of nav2 or into nav3, they do not go.
+func TestPrivateNotesStayAtTheTop(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	notes := probe(b, `.nav2 [data-act="coll"]`, "My notes")
+	b.dragTo(notes, `.nav2 [data-act="coll"][data-id="`+team+`"]`, 0.5, func() {
+		time.Sleep(400 * time.Millisecond)
+		if got := b.eval(`document.querySelectorAll('.drop-into').length`); got != "0" {
+			t.Error("Team offers to take the private notes")
+		}
+	})
+	b.dragTo(probe(b, `.nav2 [data-act="coll"]`, "My notes"), rowNamed(b, "A"), 0.8, func() {
+		if got := b.eval(`!!document.querySelector('.nav3 .dropgap:not(.idle)')`); got != "false" {
+			t.Error("the private notes find a place in nav3")
+		}
+	})
+	time.Sleep(300 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := b.eval(`[...document.querySelectorAll('#clist [data-act="coll"]')].some(n => n.textContent.trim() === 'My notes')`); got != "true" {
+		t.Error("the private notes left nav2")
+	}
+}

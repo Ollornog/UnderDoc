@@ -94,9 +94,9 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		return
 	}
 	answer := apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: []string{},
-		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: o.Changed.Format("Jan 02 15:04"),
+		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
-		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: o.Created.Format("Jan 02")}
+		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created)}
 	for _, b := range blocks {
 		answer.Blocks = append(answer.Blocks, h.block(b))
 	}
@@ -198,7 +198,7 @@ func (h *handler) apiVersions(w http.ResponseWriter, r *http.Request) {
 		if len(excerpt) > 80 {
 			excerpt = append(excerpt[:79], '…')
 		}
-		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: v.At.Format("Jan 02 15:04"), Deleted: v.Deleted, Excerpt: string(excerpt)})
+		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt)})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -258,7 +258,7 @@ func (h *handler) apiTrash(w http.ResponseWriter, r *http.Request) {
 	out := []apiTrashed{}
 	for _, t := range trash {
 		out = append(out, apiTrashed{ID: t.ID, Title: t.Title, Kind: t.Kind, Place: t.Place, PlaceDeleted: t.PlaceDeleted,
-			At: t.DeletedAt.Format("Jan 02 15:04"), Who: t.DeletedBy})
+			At: stamp(t.DeletedAt), Who: t.DeletedBy})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -387,4 +387,16 @@ func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Access: o.Access, Kids: []apiNode{}})
+}
+
+// apiEmptyTrash takes away for good everything in the trash the account may purge.
+func (h *handler) apiEmptyTrash(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.change(w, r, 0, nil)
+	if !ok {
+		return
+	}
+	if _, err := h.options.DB.EmptyTrash(r.Context(), user.ID); h.failed(w, err, "empty trash") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
@@ -217,7 +218,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == nil {
 			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: []string{},
-				Path: "not a file, lives in the database", Changed: o.Changed.Format("Jan 02"), Intro: "", Sections: [][]string{},
+				Path: "not a file, lives in the database", Changed: stamp(o.Changed), Intro: "", Sections: [][]string{},
 				UsedIn: []string{}, Links: []string{}, Stable: true})
 			return
 		}
@@ -245,7 +246,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	intro, sections := splitSections(withoutFirstHeading(doc.HTML, doc.StartsWithTitle))
 	answer := apiDocument{ID: string(doc.ID), Title: doc.Title, Kind: "page", Description: doc.Description, Tags: doc.Tags,
-		Place: strings.Join(place, " › "), Path: doc.Source, Changed: doc.Modified.Format("Jan 02 15:04"), Intro: intro, Sections: sections,
+		Place: strings.Join(place, " › "), Path: doc.Source, Changed: stamp(doc.Modified), Intro: intro, Sections: sections,
 		UsedIn: []string{}, Links: []string{}, Stable: doc.Stable}
 	if answer.Tags == nil {
 		answer.Tags = []string{}
@@ -321,3 +322,7 @@ func (h *handler) apiRename(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Kids: []apiNode{}})
 }
+
+// stamp writes a moment for the browser: in UTC, as RFC 3339. The browser shows it in the time zone of its device, so the
+// server needs to know none (2026-11-09).
+func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }

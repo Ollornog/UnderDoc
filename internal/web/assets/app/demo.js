@@ -162,6 +162,10 @@ const ACC={edit:'Can edit',comment:'Can comment',read:'Read only'};
 const contAcc=id=>PARENT[id]?accOf(PARENT[id]):COLL[id]?accOf(COLL[id].id):'edit';
 const accOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
 const kidsOpen=id=>{const v=S.tog[id];return v!==undefined?v:id.startsWith('dir:')?false:D[id].kids.length<=S.limit;};
+/* Moments come from the server in UTC (RFC 3339) and show in the time zone of this device (2026-11-09); what is no
+   moment, such as "today" or made-up dates, shows as it is. */
+const when=(v,time=true)=>{const t=/^\d{4}-\d\d-\d\dT/.test(v||'')?new Date(v):null;if(!t||isNaN(t))return esc(v||'');
+  return t.toLocaleString('en-US',{month:'short',day:'2-digit',...(time?{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}:{})}).replace(',','');};
 const chg=d=>String(d.ch).includes(' by ')?d.ch:`${d.ch} by ${d.by||'–'}`;
 const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" data-tag="${t}" title="All objects tagged ${t}">#${t}</button>`).join('');
 
@@ -817,6 +821,7 @@ document.addEventListener('click',e=>{
     case 'trash':openDoc('trash:');loadTrash();break;
     case 'trrestore':restoreTrash(a.id);break;
     case 'trpurge':if(hadAsk!==a.id){S.trashAsk=a.id;break;}purgeTrash(a.id);break;
+    case 'trempty':if(hadAsk!=='all'){S.trashAsk='all';break;}emptyTrash();break;
     case 'winmenu':{if(hadCtx==='win')break;const z=S.scale/100,r=b.getBoundingClientRect();S.ctx={kind:'win',x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2};break;}
     case 'dupl':copyTo([a.id],contOf(a.id)||'',a.id);break;
     case 'tokind':convertKind(a.id,a.k);break;
@@ -1001,7 +1006,8 @@ function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.pare
 /* May every dragged entry go into container c? */
 function mayInto(d,c,head){
   if(accOf(c)==='read')return false;const probe=head?{type:'coll',c}:{type:'into',id:c};
-  return d.ids.every(x=>fits(x,probe)&&!(d.kind==='fav'&&(c===x||aliasOf(x)||(COLL[c]&&COLL[c].id===x)))&&!(d.kind==='row'&&within(x,c)));
+  /* Private notes stand at the top, never inside another collection. */
+  return d.ids.every(x=>fits(x,probe)&&!D[x].private&&!(d.kind==='fav'&&(c===x||aliasOf(x)||(COLL[c]&&COLL[c].id===x)))&&!(d.kind==='row'&&within(x,c)));
 }
 const DRAG={
   scale:()=>S.scale/100,
@@ -1173,9 +1179,9 @@ async function loadDoc(id){
     const a=await r.json();
     delete d.html;
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
-    d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=esc(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
+    d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
-    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=esc(a.created||'');d.place=esc(a.place||'');syncBlocks(d);}
+    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');syncBlocks(d);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
@@ -1269,7 +1275,7 @@ function toast(text){S.toast=text;render();setTimeout(()=>{S.toast='';render();}
 const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
 async function loadVersions(id){
   try{const r=await fetch(pageURL(id)+'/versions',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    D[id].versions=(await r.json()).map(v=>({at:esc(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt)}));}
+    D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt)}));}
   catch(e){D[id].versions=[];}
   render();
 }
@@ -1375,12 +1381,13 @@ TYPE.trash=['trash','Trash'];
 D['trash:']=fill({t:'trash',n:'Trash',w:'wide',tool:true,path:'not a file, what was deleted',place:'Workspace',by:'',ch:'',vis:'Only you: what you deleted, and what was yours',
   get stat(){return S.trash?S.trash.length+(S.trash.length===1?' entry':' entries'):'Loading…';},
   get html(){const L=S.trash;if(!L)return '<p class="lab">Loading…</p>';if(!L.length)return '<p class="lab">The trash is empty.</p>';
-    return `<p class="hint">What you deleted, and what was yours. Restore puts it back where it lay, at the end. What lay in something that is in the trash too comes back after that.</p>
+    return `<p class="hint">What you deleted, and what was yours. Restore puts it back where it lay, at the end. What lay in something that is in the trash too comes back after that. After 30 days it goes for good by itself.</p>
+      <p><button class="chip" data-act="trempty" aria-pressed="${S.trashAsk==='all'}">${ic('trash')}${S.trashAsk==='all'?'Empty the trash? Yes':'Empty the trash'}</button></p>
       <div class="tw"><table><tr><th>Name</th><th>Where it lay</th><th>Deleted</th><th>By</th><th></th></tr>${L.map(x=>`<tr data-trash="${x.id}"><td>${x.n}</td><td>${x.place||'Workspace'}${x.placeGone?' (in the trash)':''}</td><td>${x.at}</td><td>${x.who}</td>
         <td><button class="chip" data-act="trrestore" data-id="${x.id}"${x.placeGone?' title="First restore what it lay in"':''}>${ic('back')}Restore</button> <button class="chip" data-act="trpurge" data-id="${x.id}" aria-pressed="${S.trashAsk===x.id}">${ic('trash')}${S.trashAsk===x.id?'Delete for good? Yes':'Delete for good'}</button></td></tr>`).join('')}</table></div>`;}});
 async function loadTrash(){
   try{const r=await fetch('/api/trash',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:esc(x.at),who:esc(x.who)}));}
+    S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:when(x.at),who:esc(x.who)}));}
   catch(e){S.trash=[];toast('The trash could not be read.');return;}
   render();
 }
@@ -1395,6 +1402,11 @@ async function restoreTrash(sid){
     rebuildPlaces();const top=COLL[id]?COLL[id].id:id;if(C.some(c=>c.id===top))S.open[top]=true;S.just=id;
     toast(plain(D[id].n)+' is back.');loadTrash();}
   catch(e){toast(e.message==='403'?'Others may not add there.':'It could not be restored.');}
+}
+async function emptyTrash(){
+  try{const r=await fetch('/api/trash',{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));toast('The trash is empty.');}
+  catch(e){toast('The trash could not be emptied.');}
+  loadTrash();
 }
 async function purgeTrash(sid){
   try{const r=await fetch('/api/trash/'+encodeURIComponent(sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));toast('Deleted for good.');}

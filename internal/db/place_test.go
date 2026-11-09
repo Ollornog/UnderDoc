@@ -113,6 +113,9 @@ func TestMovingFollowsAccess(t *testing.T) {
 	if _, err := db.Move(ctx, other.ID, bob.ID, annasNotes[0].ID, ""); !errors.Is(err, ErrNotFound) {
 		t.Errorf("bob moves into Anna's private notes: %v", err)
 	}
+	if _, err := db.Move(ctx, annasNotes[0].ID, anna.ID, team.ID, ""); !errors.Is(err, ErrPlace) {
+		t.Errorf("Anna moves her private notes into a shared collection: %v", err)
+	}
 	line, _ := db.CreateDivider(ctx, anna, KindLine, team.ID, "")
 	if err := db.DeleteDivider(ctx, line.ID, bob.ID); err != nil {
 		t.Errorf("others may edit the team, so also remove its line: %v", err)
