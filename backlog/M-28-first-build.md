@@ -94,3 +94,9 @@ goes into a trash with everything below it, reached from the right click on the 
 it lay or deletes it for good. Whoever may change an object may delete it, a collection at the top only its owner; private
 notes stay. Deleting asks every time, not only when something is not empty; asking when something is in use comes with
 embedding.
+
+**State on 2026-11-09 (embedding):** a block embeds a block or a whole page of another page by its address, live, with a link
+back; "Copy address" on a block and pasting it alone into an empty block make the embedding, so nobody types IDs. The
+database keeps every reference: a page and each of its blocks say where they are used, and a block in use asks before it
+goes. Missing sources, pages the reader may not see, loops and too deep nesting show as a visible error in place. Still to
+build: the list of broken references (problems in the workspace), embedding by dragging and from search while typing.

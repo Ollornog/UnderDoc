@@ -8,6 +8,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
@@ -24,6 +25,8 @@ type apiBlock struct {
 	ID       string `json:"id"`
 	HTML     string `json:"html"`
 	Markdown string `json:"md"`
+	// UsedIn names the pages that embed this block.
+	UsedIn []string `json:"usedIn"`
 }
 
 type apiVersion struct {
@@ -74,15 +77,98 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 }
 
 // block renders a block for the workspace. Raw HTML in it is dropped, as in every page (TestUserTextStaysText).
-func (h *handler) block(b db.Block) apiBlock {
-	out := apiBlock{ID: b.ID, Markdown: b.Body}
-	rendered, err := h.store.Library().RenderMarkdown(b.Body)
-	if err != nil {
-		out.HTML = "<pre>" + html.EscapeString(b.Body) + "</pre>"
-		return out
+func (h *handler) block(r *http.Request, page string, b db.Block, used []db.Ref) apiBlock {
+	out := apiBlock{ID: b.ID, Markdown: b.Body, HTML: h.render(r, b.Body, []string{page, page + "#" + b.ID}), UsedIn: []string{}}
+	for _, u := range used {
+		if u.TargetBlock == b.ID && !slices.Contains(out.UsedIn, u.Title) {
+			out.UsedIn = append(out.UsedIn, u.Title)
+		}
 	}
-	out.HTML = rendered.HTML
 	return out
+}
+
+// maxEmbed is how deep embeddings may nest: a block that embeds a block that embeds a block, and so on.
+const maxEmbed = 5
+
+// render turns the Markdown of a block into HTML. A line ::embed{ref="…"} becomes what it refers to, rendered for this
+// viewer each time, so it is live, with a link back to where it comes from (ADR-18). What cannot be shown says so, visibly:
+// a missing source is an error to see, never a silent gap. trail holds what is being rendered, to stop at a loop.
+func (h *handler) render(r *http.Request, body string, trail []string) string {
+	var out strings.Builder
+	last := 0
+	for _, m := range db.EmbedLine.FindAllStringSubmatchIndex(body, -1) {
+		out.WriteString(h.markdown(body[last:m[0]]))
+		block := ""
+		if m[4] >= 0 {
+			block = body[m[4]:m[5]]
+		}
+		out.WriteString(h.embed(r, body[m[2]:m[3]], block, trail))
+		last = m[1]
+	}
+	out.WriteString(h.markdown(body[last:]))
+	return out.String()
+}
+
+func (h *handler) markdown(md string) string {
+	if strings.TrimSpace(md) == "" {
+		return ""
+	}
+	rendered, err := h.store.Library().RenderMarkdown(md)
+	if err != nil {
+		return "<pre>" + html.EscapeString(md) + "</pre>"
+	}
+	return rendered.HTML
+}
+
+// embed renders one embedded block, or a whole page, of the database.
+func (h *handler) embed(r *http.Request, target, block string, trail []string) string {
+	ref := target
+	if block != "" {
+		ref += "#" + block
+	}
+	broken := func(why string) string {
+		return `<div class="embed broken" data-ref="` + html.EscapeString(ref) + `">` + html.EscapeString(why) + `</div>`
+	}
+	loop := slices.Contains(trail, ref) || slices.Contains(trail, target)
+	if block == "" {
+		loop = loop || slices.ContainsFunc(trail, func(x string) bool { return strings.HasPrefix(x, target+"#") })
+	}
+	if loop {
+		return broken("This embeds itself: " + ref)
+	}
+	if len(trail) > maxEmbed {
+		return broken("Embedded too deep: " + ref)
+	}
+	user, _ := account.From(r.Context())
+	o, err := h.options.DB.Object(r.Context(), target, user.ID)
+	if err != nil || o.Kind != db.KindPage {
+		return broken("Not to be found: " + ref)
+	}
+	blocks, err := h.options.DB.Blocks(r.Context(), target, user.ID)
+	if err != nil {
+		return broken("Not to be found: " + ref)
+	}
+	var inner strings.Builder
+	found := false
+	for _, b := range blocks {
+		if block == "" || b.ID == block {
+			found = true
+			inner.WriteString(h.render(r, b.Body, append(slices.Clone(trail), ref, target+"#"+b.ID)))
+		}
+	}
+	if block != "" && !found {
+		return broken("Block #" + block + " is no longer in " + o.Title)
+	}
+	label := o.Title
+	if block != "" {
+		label += " · #" + block
+	}
+	link := route.Object(target)
+	if block != "" {
+		link += "#" + block
+	}
+	return `<figure class="embed" data-ref="` + html.EscapeString(ref) + `"><div class="embedbody">` + inner.String() +
+		`</div><figcaption><a href="` + html.EscapeString(link) + `">` + html.EscapeString(label) + `</a></figcaption></figure>`
 }
 
 // pageDocument answers /api/doc for a page of the database: its blocks, its place and whether the viewer may change it.
@@ -97,8 +183,21 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
 		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created)}
+	used, err := h.options.DB.UsedIn(ctx, o.ID, user.ID)
+	if err != nil {
+		h.log.Error("used in failed", slog.String("error", err.Error()))
+	}
 	for _, b := range blocks {
-		answer.Blocks = append(answer.Blocks, h.block(b))
+		answer.Blocks = append(answer.Blocks, h.block(r, o.ID, b, used))
+	}
+	for _, u := range used {
+		where := u.Title
+		if u.TargetBlock != "" {
+			where += " (block #" + u.TargetBlock + ")"
+		}
+		if !slices.Contains(answer.UsedIn, where) {
+			answer.UsedIn = append(answer.UsedIn, where)
+		}
 	}
 	answer.CanEdit = h.options.DB.MayEdit(ctx, o, user.ID)
 	writeJSON(w, http.StatusOK, answer)
@@ -150,7 +249,7 @@ func (h *handler) apiAddBlock(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "new block") {
 		return
 	}
-	writeJSON(w, http.StatusCreated, h.block(b))
+	writeJSON(w, http.StatusCreated, h.block(r, r.PathValue("id"), b, nil))
 }
 
 // apiEditBlock gives a block new Markdown.
@@ -166,7 +265,8 @@ func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "block") {
 		return
 	}
-	writeJSON(w, http.StatusOK, h.block(b))
+	used, _ := h.options.DB.UsedIn(r.Context(), r.PathValue("id"), user.ID)
+	writeJSON(w, http.StatusOK, h.block(r, r.PathValue("id"), b, used))
 }
 
 // apiDeleteBlock takes a block out of its page.

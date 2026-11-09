@@ -114,6 +114,9 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) SELECT page, id, body, $2 FROM blocks WHERE page = $1 ORDER BY position", made.ID, viewer); err != nil {
 				return Object{}, err
 			}
+			if _, err := tx.Exec(ctx, "INSERT INTO refs (page, block, target, target_block) SELECT $1, block, target, target_block FROM refs WHERE page = $2", made.ID, n.o.ID); err != nil {
+				return Object{}, err
+			}
 			for _, k := range n.kids {
 				if _, err := write(k, made.ID, k.o.Title); err != nil {
 					return Object{}, err

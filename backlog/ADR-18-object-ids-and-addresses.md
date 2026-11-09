@@ -51,6 +51,10 @@ The third option, confirmed by the maintainer, who asked for parts to get their 
 
 - The ID generator and the reference index need the database, so they come with M-28.
 - On the phone, the same URL opens the same object (ADR-17).
+- Built on 2026-11-09: a block line `::embed{ref="<object id>#<part id>"}` embeds a block, without `#<part id>` a whole
+  page; the table `refs` keeps every reference in both directions. Embedding goes at most five levels deep and stops at a
+  loop, each time with a visible error in place. A reader without access to the source sees "not to be found", never its
+  content (concept: embedding bypasses nothing).
 - Still open:
   - Whether entries of the private area, such as to-dos, events and time records, are objects with addresses too, visible only to
     their user, or records inside one private object per kind (M-24).

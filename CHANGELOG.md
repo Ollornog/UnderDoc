@@ -86,6 +86,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Embedding by ID (ADR-18): a block line `::embed{ref="<page id>#<block id>"}`, or without `#<block id>` for a whole
+  page, shows that source live, framed, with a link back. "Copy address" in the bar of a block puts its address on the
+  clipboard; pasted alone into an empty block, it becomes the embedding and is saved. The database keeps every reference
+  (migration 006, table `refs`), so a page lists where it and its blocks are used, and a block in editing shows "Used in n".
+  A block in use asks before it is deleted, also when empty. What cannot be shown says why: a missing page or block, a page
+  the reader may not see, a loop, or embedding deeper than five levels. Copies of a page embed what the original did.
 - The trash empties as a whole ("Empty the trash", asking in place; `DELETE /api/trash`), and what lies there longer than
   30 days goes for good by itself, checked at start and every hour.
 - What others may do is kept in the database (`POST /api/objects/{id}/access`, part of the tree in `/api/state`): the owner
