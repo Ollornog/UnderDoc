@@ -269,7 +269,7 @@ function nav2Html(){
   if(S.view==='workspace'){
     /* Every collection is in nav2, so an open one is always in sight: favorites on top, the others below. A right click has the rest. */
     /* Open for now or kept open: kept open draws the line on the left. Lines and spaces set groups apart; all of it is
-       sorted by dragging, and the browser keeps the order until the account does. */
+       sorted by dragging, and the account keeps the order (the browser a copy). */
     const sl=c=>isSel('n2',c.id)?' aria-selected="true"':'';
     const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}"${sl(c)} data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
       :S.ren===c.id?`<div class="collrow ren">${ic(c.i||'grid')}<input class="renin" data-ren="${c.id}" value="${D[c.id].n}" aria-label="Name of the collection"></div>`
@@ -530,7 +530,7 @@ function settingsHtml(sec){
     <div class="setrow"><span>Nav3</span><button class="chip" data-act="w3reset" title="Back to the default">${S.w3} px, reset</button></div>`;
   if(sec==='lang') b='<div class="shead">Language</div><p class="hint">English for now. German comes as a translation of the interface.</p>';
   if(sec==='notif') b='<div class="shead">Notifications</div><p class="hint">Mail for mentions and replies comes with M-16.</p>';
-  return `<div class="spanel">${b}<p class="hint">These belong to you. Until accounts exist, the browser keeps them.</p></div>`;
+  return `<div class="spanel">${b}<p class="hint">These belong to you. With the database your account keeps them; without, this browser does.</p></div>`;
 }
 const ADMINTXT={users:['Users and groups','Who exists, who is in which group, who may administer. Comes with M-5.'],src:['Sources','Connections to databases and other systems. Comes with M-4.'],store:['Storage and backup','Where documents lie, the share, the export. Comes with M-2.'],signin:['Sign-in','How people sign in. The gate in front decides today.'],audit:['Audit log','Who did what. Comes with M-2 and M-5.']};
 function adminHtml(sec){
@@ -1337,7 +1337,8 @@ function sortKids(id,dir){
 }
 /* Several entries move one after the other, each after the one before, so the server keeps their order. */
 async function moveAll(moves,undo){for(const [id,cont,after] of moves)if(!await moveObject(id,cont,after,undo))return;}
-/* The order of nav2 with its lines and spaces, as the browser keeps it. A collection it does not know yet keeps its place. */
+/* The order of nav2 with its lines, spaces and shown collections, as the account keeps it. A collection it does not know
+   yet keeps its place. */
 const n2Of=()=>C.map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.alias?{k:'show',id:c.id}:c.id);
 function applyN2(list){
   if(!Array.isArray(list))return;const byId={};C.forEach(c=>{byId[c.id]=c;});const out=[];
@@ -1348,10 +1349,25 @@ function applyN2(list){
   C.length=0;out.forEach(c=>C.push(c));
 }
 
-/* The settings of the workspace stay in this browser until accounts store them (M-28): widths, favorites, pins, theme. */
+/* The settings of the workspace: widths, the order of nav2, what is kept open, zoom and theme. */
 const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme'];
-function saveSettings(){try{const o={n2:n2Of()};KEEP.forEach(k=>{o[k]=S[k];});localStorage.setItem('ud.workspace',JSON.stringify(o));}catch(e){}}
-function loadSettings(){try{const o=JSON.parse(localStorage.getItem('ud.workspace')||'null');if(o)KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;}catch(e){return null;}}
+/* With the database the account keeps them, so they follow it from browser to browser (M-28); a change goes to the
+   server a moment later, once, and the browser keeps a copy for the next start and for the workspace without database. */
+let sentSettings=null,settingsTimer=0;
+function saveSettings(){
+  const o={n2:n2Of()};KEEP.forEach(k=>{o[k]=S[k];});const j=JSON.stringify(o);
+  try{localStorage.setItem('ud.workspace',j);}catch(e){}
+  if(!S.canCreate||j===sentSettings)return;
+  clearTimeout(settingsTimer);settingsTimer=setTimeout(()=>{sentSettings=j;fetch('/api/settings',{...same,method:'PUT',body:j}).then(r=>{if(!r.ok)sentSettings=null;}).catch(()=>{sentSettings=null;});},600);
+}
+/* The account's settings come first; the browser's copy only where the account has none yet. */
+function loadSettings(server){
+  let o=null;
+  if(server&&typeof server==='object'&&!Array.isArray(server)&&Object.keys(server).length)o=server;
+  else try{o=JSON.parse(localStorage.getItem('ud.workspace')||'null');}catch(e){o=null;}
+  if(!o||typeof o!=='object')return null;
+  KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;
+}
 async function boot(){
   if(window.C22AppWorkspaceDrag)C22AppWorkspaceDrag.attach(DRAG);
   let st=null;
@@ -1363,7 +1379,7 @@ async function boot(){
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
   }
-  const kept=loadSettings();
+  const kept=loadSettings(st&&st.settings);
   if(kept)applyN2(kept.n2);
   if(kept){Object.keys(kept.fav||{}).forEach(k=>{if(D[k])S.fav[k]=kept.fav[k];});Object.keys(kept.pin||{}).forEach(k=>{if(D[k]){S.pin[k]=kept.pin[k];if(kept.pin[k])S.open[k]=true;}});}
   if(window.udTheme)S.theme=window.udTheme();

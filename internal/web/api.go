@@ -49,6 +49,8 @@ type apiState struct {
 	Collections []apiNode `json:"collections"`
 	CanCreate   bool      `json:"canCreate"`
 	Problems    int       `json:"problems"`
+	// Settings are the account's settings of the workspace, as the browser saved them; absent without the database.
+	Settings json.RawMessage `json:"settings,omitempty"`
 }
 
 type apiDocument struct {
@@ -111,6 +113,9 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, c := range collections {
 			state.Collections = append(state.Collections, h.databaseNode(r, c, 0))
+		}
+		if state.Settings, err = h.options.DB.Settings(ctx, user.ID); err != nil {
+			h.log.Error("settings failed", slog.String("error", err.Error()))
 		}
 	}
 	root := lib.Tree().Root()

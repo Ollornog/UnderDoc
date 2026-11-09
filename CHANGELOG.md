@@ -83,6 +83,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The settings of the workspace belong to the account (`accounts.settings`, migration 004, `PUT /api/settings`, part of
+  `/api/state`): the order of nav2 with its lines, spaces and shown collections, what is kept open, widths, zoom and theme
+  follow it from browser to browser. A change goes to the server a moment later; the browser keeps a copy, and without the
+  database only that. At most 64 KiB, one JSON object.
 - Folders in the database: New in a collection makes one, named in place (`POST /api/folders`), and the right click turns
   a collection into a folder or back (`POST /api/objects/{id}/kind`). A folder shows only in nav3; a collection at the top
   stays one. Collections of the database now have the icon of a collection, not of a folder.

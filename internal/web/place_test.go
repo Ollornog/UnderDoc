@@ -94,3 +94,24 @@ func TestFoldersThroughTheAPI(t *testing.T) {
 		t.Errorf("a collection at the top into a folder = %d", got)
 	}
 }
+
+func TestSettingsThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	if got := string(decode[apiState](t, s.get("/api/state")).Settings); got != "{}" {
+		t.Errorf("no settings yet: %q", got)
+	}
+	if got := s.send(http.MethodPut, "/api/settings", `{"s2":1}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+		t.Errorf("settings from another site = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/settings", `{"s2":1,"n2":["a"]}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("saving = %d", got)
+	}
+	if got := string(decode[apiState](t, s.get("/api/state")).Settings); got != `{"n2":["a"],"s2":1}` {
+		t.Errorf("the state carries them: %q", got)
+	}
+	for _, bad := range []string{`[1]`, `{"s2":`, `"x"`} {
+		if got := s.send(http.MethodPut, "/api/settings", bad, sameSite).Code; got != http.StatusBadRequest {
+			t.Errorf("%s = %d", bad, got)
+		}
+	}
+}

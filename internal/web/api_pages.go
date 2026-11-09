@@ -60,7 +60,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -300,4 +300,17 @@ func (h *handler) apiConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apiNode{ID: made.ID, Title: made.Title, Kind: made.Kind, Kids: []apiNode{}})
+}
+
+// apiSettings replaces the settings of the workspace of the account: the browser sends them whole when they change.
+func (h *handler) apiSettings(w http.ResponseWriter, r *http.Request) {
+	var in json.RawMessage
+	user, ok := h.change(w, r, db.MaxSettings, &in)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.SaveSettings(r.Context(), user.ID, in), "settings") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

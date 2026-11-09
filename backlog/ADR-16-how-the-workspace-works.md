@@ -51,8 +51,8 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
     folder shows in nav3 alone. A collection at the top stays one, as only collections stand there.
   - **Shown in nav2 (2026-11-09):** a collection inside another lies in nav3 only, until the right click shows it in nav2
     as well. That entry only points at it: the collection stays where it lies, opens in nav3 as a heading of its own, and the
-    entry goes with "Remove from nav2" or when it stops being a collection. Until accounts store it, the browser keeps it
-    with the order of nav2. ~~A trial the same day showed the children of a collection in nav2 inside its box~~; the
+    entry goes with "Remove from nav2" or when it stops being a collection. The account keeps it with the order of nav2
+    (until 2026-11-09 only the browser). ~~A trial the same day showed the children of a collection in nav2 inside its box~~; the
     maintainer did not like it.
 - **Menus stay inside the window (2026-11-09):** a right click menu at the edge moves in, and a long one scrolls.
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
@@ -67,7 +67,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
   thick line on the left marks what is kept open and a thin one what is open for now (2026-11-09, before that a pin), and
   closing it at its heading stops keeping it open. There is no setting for this. In nav3, an open collection is a small heading
   with a separator.
-- Favorite documents join nav2 with M-16. Until accounts exist, the browser keeps the favorites.
+- Favorite documents join nav2 with M-16. The settings of the workspace (the order of nav2 with its lines, spaces and shown
+  collections, what is kept open, widths, zoom, theme) belong to the account since 2026-11-09 and follow it from browser to
+  browser; the browser keeps a copy, and without the database only that.
 - New with a plus at the heading of a collection adds a document, and it is dragged in the list to where it belongs. Saving that comes with editing.
 - Folders look like documents, apart from their icon. This replaces the separators ADR-15 mentions.
 - A click on an entry in nav3 opens the object, whatever it is: a document, a folder with its overview, or a collection with its
