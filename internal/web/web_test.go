@@ -365,6 +365,18 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 	}
 }
 
+func TestEditorTrialIsADevPage(t *testing.T) {
+	if got := newSite(t, Options{}, sample).get("/dev/editor-trial").Code; got != http.StatusNotFound {
+		t.Errorf("/dev/editor-trial without the switch = %d", got)
+	}
+	got := newSite(t, Options{DevUI: true}, sample).body("/dev/editor-trial")
+	for _, editor := range []string{"milkdown", "tiptap", "codemirror"} {
+		if !strings.Contains(got, `data-editor="`+editor+`"`) || !strings.Contains(got, `/assets/app/editor-trial/`+editor+`.js?v=`) {
+			t.Errorf("the trial page lacks %s", editor)
+		}
+	}
+}
+
 // The design system only compiles classes it uses itself, and a missing class does nothing without any error. So every class
 // in the templates and in rendered pages has to exist in the vendored stylesheet.
 func TestEveryClassExistsInTheStylesheet(t *testing.T) {
@@ -383,6 +395,14 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		if known[control] {
 			t.Fatalf("control class %q found, the check itself is broken", control)
 		}
+	}
+	// The editor trial of M-8 brings its own small stylesheet for its frame.
+	trial, err := assetFiles.ReadFile("assets/app/editor-trial/trial.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, match := range regexp.MustCompile(`\.([\w-]+)`).FindAllStringSubmatch(string(trial), -1) {
+		known[match[1]] = true
 	}
 	used := map[string]string{}
 	for _, class := range markdown.Classes() {

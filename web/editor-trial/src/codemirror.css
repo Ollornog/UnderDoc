@@ -1,0 +1,190 @@
+/* SPDX-License-Identifier: MIT */
+/* The look of the live preview. It is linked inside the shadow root the editor lives in (see codemirror.js), so its
+   selectors need no prefix; only .cm-trial-host, the shadow host, sits in the page. */
+
+.cm-trial-host {
+  height: 100%;
+}
+
+/* .cm-trial is set on the editor, so these rules outrank CodeMirror's base theme, which comes later in the cascade. */
+.cm-editor.cm-trial {
+  height: 100%;
+  font-size: 15px;
+}
+
+.cm-editor.cm-trial.cm-focused {
+  outline: none;
+}
+
+.cm-editor.cm-trial .cm-scroller {
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.cm-editor.cm-trial .cm-content {
+  padding: 24px 32px;
+}
+
+/* Markers that stay visible on the cursor line are muted. */
+.tok-processingInstruction,
+.tok-meta {
+  opacity: 0.45;
+}
+
+.cm-lp-h1 {
+  font-size: 1.8em;
+  font-weight: 700;
+  line-height: 1.25;
+  padding-top: 0.3em;
+}
+
+.cm-lp-h2 {
+  font-size: 1.4em;
+  font-weight: 650;
+  line-height: 1.3;
+  padding-top: 0.4em;
+}
+
+.cm-lp-h3 {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.cm-lp-h4,
+.cm-lp-h5,
+.cm-lp-h6 {
+  font-weight: 600;
+}
+
+.cm-lp-strong {
+  font-weight: 700;
+}
+
+.cm-lp-em {
+  font-style: italic;
+}
+
+.cm-lp-strike {
+  text-decoration: line-through;
+}
+
+.cm-lp-icode {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.cm-lp-link,
+.cm-lp-wiki {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.cm-lp-wiki {
+  text-decoration-style: dotted;
+}
+
+.cm-lp-url {
+  opacity: 0.6;
+}
+
+.cm-lp-bullet-dot {
+  display: inline-block;
+  width: 1ch;
+  font-weight: 700;
+}
+
+.cm-lp-checkbox {
+  margin: 0 0.4em 0 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.cm-lp-done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.cm-lp-quote {
+  border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent);
+  padding-left: 12px !important;
+  opacity: 0.85;
+}
+
+.cm-lp-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  padding-left: 12px !important;
+}
+
+.cm-lp-code-first {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.cm-lp-code-last {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.cm-lp-code-info {
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.cm-lp-hr-line {
+  display: inline-block;
+  width: 100%;
+  border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  vertical-align: middle;
+}
+
+.cm-lp-image {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.cm-lp-table-widget {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.cm-lp-table-widget th,
+.cm-lp-table-widget td {
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  padding: 4px 8px;
+}
+
+.cm-lp-table-widget th {
+  font-weight: 600;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.cm-lp-align-right {
+  text-align: right;
+}
+
+.cm-lp-align-center {
+  text-align: center;
+}
+
+.cm-lp-align-left {
+  text-align: left;
+}
+
+.cm-lp-table-source {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.cm-lp-directive-chip {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  padding: 0.15em 0.5em;
+  border-radius: 4px;
+  border: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+}
