@@ -687,6 +687,11 @@ func TestNewCollectionByHand(t *testing.T) {
 	if !b.waitFor(`!document.querySelector('[data-ren]') && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Operations')`) {
 		t.Fatalf("Enter keeps the name: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
 	}
+	b.rightClickOn(probe(b, `.nav2 [data-act="coll"]`, "Operations"))
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].find(n => n.textContent.trim() === 'Delete')?.disabled`); got != "false" {
+		t.Errorf("a collection just made is one's own: Delete is offered at once, got %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
 	// Two more without a name: the free numbers in turn, and Escape keeps the name it got.
 	for _, want := range []string{"New collection (1)", "New collection (2)"} {
 		newIn()

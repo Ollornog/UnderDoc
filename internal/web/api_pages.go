@@ -221,14 +221,72 @@ func (h *handler) apiCreateDivider(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, apiNode{ID: made.ID, Title: made.Title, Kind: made.Kind, Kids: []apiNode{}})
 }
 
-// apiDeleteObject takes an object away. For now only a line or a space: deleting what may be in use comes with its
-// question (M-28).
+// apiDeleteObject takes an object away: a line or a space for good, anything else into the trash with everything below it.
 func (h *handler) apiDeleteObject(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.change(w, r, 0, nil)
 	if !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.DeleteDivider(r.Context(), r.PathValue("id"), user.ID), "delete") {
+	if h.failed(w, h.options.DB.Delete(r.Context(), r.PathValue("id"), user.ID), "delete") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type apiTrashed struct {
+	ID    string `json:"id"`
+	Title string `json:"n"`
+	Kind  string `json:"t"`
+	Place string `json:"place"`
+	// PlaceDeleted tells that what it lay in is in the trash too and has to be restored first.
+	PlaceDeleted bool   `json:"placeDeleted,omitempty"`
+	At           string `json:"at"`
+	Who          string `json:"who"`
+}
+
+// apiTrash lists what the viewer deleted or owns and was deleted, newest first.
+func (h *handler) apiTrash(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	trash, err := h.options.DB.Trash(r.Context(), user.ID)
+	if h.failed(w, err, "trash") {
+		return
+	}
+	out := []apiTrashed{}
+	for _, t := range trash {
+		out = append(out, apiTrashed{ID: t.ID, Title: t.Title, Kind: t.Kind, Place: t.Place, PlaceDeleted: t.PlaceDeleted,
+			At: t.DeletedAt.Format("Jan 02 15:04"), Who: t.DeletedBy})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// apiRestore puts an object of the trash back where it lay, and answers with that place and the object with its
+// children, as the tree shows them.
+func (h *handler) apiRestore(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.change(w, r, 0, nil)
+	if !ok {
+		return
+	}
+	back, err := h.options.DB.Restore(r.Context(), r.PathValue("id"), user.ID)
+	if h.failed(w, err, "restore") {
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Parent string  `json:"parent"`
+		Node   apiNode `json:"node"`
+	}{back.Parent, h.databaseNode(r, back, 0)})
+}
+
+// apiPurge takes an object of the trash away for good.
+func (h *handler) apiPurge(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.change(w, r, 0, nil)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.Purge(r.Context(), r.PathValue("id"), user.ID), "purge") {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

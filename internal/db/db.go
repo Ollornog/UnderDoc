@@ -228,21 +228,26 @@ const visible = `NOT EXISTS (
 	)
 	SELECT 1 FROM up WHERE up.private AND up.owner <> $1)`
 
+// alive is a condition on o: it is not in the trash. Deleting marks everything below an object too, so an object that is
+// not deleted never lies below one that is.
+const alive = `o.deleted_at IS NULL`
+
 // Collections returns the collections at the top that the viewer may see, in their order.
 func (db *DB) Collections(ctx context.Context, viewer string) ([]Object, error) {
-	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND `+visible+`
+	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND `+alive+` AND `+visible+`
 		ORDER BY private DESC, position, created`, viewer)
 }
 
 // Children returns what lies directly inside an object the viewer may see, in its order.
 func (db *DB) Children(ctx context.Context, parent, viewer string) ([]Object, error) {
-	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent = $2 AND `+visible+` ORDER BY position, created`, viewer, parent)
+	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent = $2 AND `+alive+` AND `+visible+` ORDER BY position, created`, viewer, parent)
 }
 
-// Object returns one object, or ErrNotFound if it does not exist or the viewer may not see it. The two look alike on
-// purpose: an ID must not tell whether a private object exists.
+// Object returns one object, or ErrNotFound if it does not exist, lies in the trash or the viewer may not see it. These
+// look alike on purpose: an ID must not tell whether a private object exists. Every change starts here, so nothing in
+// the trash is changed but by Restore and Purge.
 func (db *DB) Object(ctx context.Context, objectID, viewer string) (Object, error) {
-	o, err := scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects o WHERE id = $2 AND `+visible, viewer, objectID))
+	o, err := scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects o WHERE id = $2 AND `+alive+` AND `+visible, viewer, objectID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Object{}, ErrNotFound
 	}

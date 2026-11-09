@@ -4,6 +4,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -38,14 +39,95 @@ func TestDividersAndMovingThroughTheAPI(t *testing.T) {
 	if got := s.send(http.MethodPost, "/api/objects/"+a.ID+"/move", `{"parent":""}`, sameSite).Code; got != http.StatusBadRequest {
 		t.Errorf("a page to the top = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite).Code; got != http.StatusNotFound {
-		t.Errorf("a page is not deleted this way = %d", got)
-	}
 	if got := s.send(http.MethodDelete, "/api/objects/"+line.ID, "", sameSite).Code; got != http.StatusNoContent {
 		t.Errorf("delete the line = %d", got)
 	}
 	if got := kinds(); got != "page:B page:A " {
 		t.Errorf("the line is gone: %q", got)
+	}
+	if trash := decode[[]apiTrashed](t, s.get("/api/trash")); len(trash) != 0 {
+		t.Errorf("a line goes for good, not into the trash: %+v", trash)
+	}
+}
+
+func TestTrashThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages", `{"title":"Kid","parent":"`+a.ID+`"}`, sameSite)
+	s.send(http.MethodPost, "/api/pages", `{"title":"B","parent":"`+team.ID+`"}`, sameSite)
+	titles := func() string {
+		var out string
+		for _, k := range node(t, decode[apiState](t, s.get("/api/state")).Collections, team.ID).Kids {
+			out += k.Title + " "
+		}
+		return out
+	}
+	crossSite := map[string]string{"Sec-Fetch-Site": "cross-site"}
+	bobHere := map[string]string{"Sec-Fetch-Site": "same-origin"}
+	for k, v := range bob {
+		bobHere[k] = v
+	}
+	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", crossSite).Code; got != http.StatusForbidden {
+		t.Errorf("a delete from another site = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/objects/"+team.ID, "", bobHere).Code; got != http.StatusForbidden {
+		t.Errorf("bob deletes Anna's collection at the top = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("delete A = %d", got)
+	}
+	if got := titles(); got != "B " {
+		t.Errorf("A is gone from the tree: %q", got)
+	}
+	if got := s.get("/api/doc/" + a.ID).Code; got != http.StatusNotFound {
+		t.Errorf("A still opens: %d", got)
+	}
+	trash := decode[[]apiTrashed](t, s.get("/api/trash"))
+	if len(trash) != 1 || trash[0].ID != a.ID || trash[0].Place != "Team" || trash[0].Who != "Anna Berg" || trash[0].At == "" {
+		t.Fatalf("the trash: %+v", trash)
+	}
+	if got := decode[[]apiTrashed](t, s.getWith("/api/trash", merged(bob))); len(got) != 0 {
+		t.Errorf("bob sees Anna's trash: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/trash/"+a.ID+"/restore", "", crossSite).Code; got != http.StatusForbidden {
+		t.Errorf("a restore from another site = %d", got)
+	}
+	rec := s.send(http.MethodPost, "/api/trash/"+a.ID+"/restore", "", sameSite)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("restore = %d %s", rec.Code, rec.Body)
+	}
+	back := decode[struct {
+		Parent string  `json:"parent"`
+		Node   apiNode `json:"node"`
+	}](t, rec)
+	if back.Parent != team.ID || back.Node.ID != a.ID || len(back.Node.Kids) != 1 || back.Node.Kids[0].Title != "Kid" || !back.Node.Mine {
+		t.Errorf("the answer names the place and holds A with its child: %+v", back)
+	}
+	if got := titles(); got != "B A " {
+		t.Errorf("A is back at the end: %q", got)
+	}
+	// Under a parent in the trash, the answer says what to do.
+	s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite)
+	s.send(http.MethodDelete, "/api/objects/"+team.ID, "", sameSite)
+	rec = s.send(http.MethodPost, "/api/trash/"+a.ID+"/restore", "", sameSite)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "restore that first") {
+		t.Errorf("restore under a deleted parent = %d %s", rec.Code, rec.Body)
+	}
+	if trash := decode[[]apiTrashed](t, s.get("/api/trash")); len(trash) != 2 || !trash[1].PlaceDeleted {
+		t.Errorf("the list says that its place is in the trash: %+v", trash)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", crossSite).Code; got != http.StatusForbidden {
+		t.Errorf("a purge from another site = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", bobHere).Code; got != http.StatusNotFound {
+		t.Errorf("bob purges Anna's collection = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", sameSite).Code; got != http.StatusNoContent {
+		t.Errorf("purge = %d", got)
+	}
+	if trash := decode[[]apiTrashed](t, s.get("/api/trash")); len(trash) != 0 {
+		t.Errorf("the trash is empty, also of A that lay in it: %+v", trash)
 	}
 }
 

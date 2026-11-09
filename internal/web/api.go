@@ -42,8 +42,10 @@ type apiNode struct {
 	Private bool   `json:"private,omitempty"`
 	Owner   string `json:"owner,omitempty"`
 	// Access is what all others may do, set on this object itself; empty when it comes from above (ADR-20).
-	Access string    `json:"access,omitempty"`
-	Kids   []apiNode `json:"kids"`
+	Access string `json:"access,omitempty"`
+	// Mine tells the workspace that the viewer owns it, so it offers what only the owner may do. Each change checks again.
+	Mine bool      `json:"mine,omitempty"`
+	Kids []apiNode `json:"kids"`
 }
 
 type apiState struct {
@@ -141,7 +143,8 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
-	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner), Access: o.Access, Kids: []apiNode{}}
+	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
+		Access: o.Access, Mine: o.Owner == user.ID, Kids: []apiNode{}}
 	if depth > 8 {
 		return node
 	}

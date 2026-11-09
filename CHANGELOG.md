@@ -90,6 +90,15 @@ All notable changes to this project are documented in this file. The format foll
   `/api/state`): the order of nav2 with its lines, spaces and shown collections, what is kept open, widths, zoom and theme
   follow it from browser to browser. A change goes to the server a moment later; the browser keeps a copy, and without the
   database only that. At most 64 KiB, one JSON object.
+- Deleting with a trash: the right click on an entry of nav3 or a collection of nav2 ends with Delete, which asks in place
+  ("Delete? Yes") before it acts. What lies in the database goes into the trash with everything below it (migration
+  `005_trash.sql`, `DELETE /api/objects/{id}`), leaves every list, and windows showing it let go of it; made-up content is
+  deleted in the browser only. Whoever may change an object may delete it, a collection at the top only its owner, and
+  private notes are never deleted. Lines and spaces still go for good.
+- The trash, from the right click on the free part of nav2: a page in the window listing what one deleted or owns, newest
+  first, with where it lay, when and by whom (`GET /api/trash`). Restore puts it back where it lay, at the end, with what
+  was deleted with it (`POST /api/trash/{id}/restore`); what lay in something that is in the trash too waits until that is
+  restored. Delete for good asks in place as well and takes blocks and versions with it (`DELETE /api/trash/{id}`).
 - Folders in the database: New in a collection makes one, named in place (`POST /api/folders`), and the right click turns
   a collection into a folder or back (`POST /api/objects/{id}/kind`). A folder shows only in nav3; a collection at the top
   stays one. Collections of the database now have the icon of a collection, not of a folder.
