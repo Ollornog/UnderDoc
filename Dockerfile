@@ -1,6 +1,17 @@
-# One static binary in an image without a shell. Both base images are pinned by digest, and Dependabot moves them.
-# The build stage runs on the build platform and cross-compiles for the target (GOARCH), so an arm64 image needs no
-# emulation (.github/workflows/image.yml builds amd64 and arm64).
+# One static binary in an image without a shell. The base images are pinned by digest, and Dependabot moves them.
+# The build stages run on the build platform; the Go stage cross-compiles for the target (GOARCH), so an arm64 image needs
+# no emulation (.github/workflows/image.yml builds amd64 and arm64).
+
+# The JavaScript of the web editor and its trial, built from the sources and their lockfiles (ADR-21, scripts/build-js.sh);
+# the bundles are not in the repository. --ignore-scripts: no install script of a package runs.
+FROM --platform=$BUILDPLATFORM node:26.12.1-alpine3.24@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS js
+WORKDIR /src
+COPY web ./web
+RUN for p in editor editor-trial; do \
+      npm ci --prefix "web/$p" --ignore-scripts --no-audit --no-fund --loglevel=error && \
+      node "web/$p/build.mjs" --out "/out/$p" || exit 1; \
+    done
+
 FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine3.24@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS build
 
 WORKDIR /src
@@ -8,6 +19,8 @@ COPY go.mod go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY docs/embed.go docs/logo.svg docs/favicon.ico ./docs/
+COPY --from=js /out/editor ./internal/web/assets/app/editor
+COPY --from=js /out/editor-trial ./internal/web/assets/app/editor-trial
 # Reproducible: no cgo, no paths in the binary, no toolchain download.
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath GOTOOLCHAIN=local
 ARG TARGETOS=linux

@@ -75,7 +75,14 @@ npm run build        # into internal/web/assets/app/editor/
 ```
 
 The versions are exact, stable and were at least two weeks old when chosen (`npm install --save-exact
---before=<date>`). `scripts/check.sh` (`scripts/check-js.sh`) and the CI install from the lockfile, run the tests, build
-into a temporary directory and fail when the bundle in the repository differs. The editor trial of M-8
-(`web/editor-trial`, `/dev/editor-trial` with the dev switch or for administrators) is checked the same way until M-8
-closes.
+--before=<date>`). The bundles are not in the repository: `scripts/build-js.sh` (in `scripts/check.sh` and the CI)
+installs from the lockfile in a temporary copy, runs the tests and builds into the assets the binary embeds, and the
+Dockerfile does the same in a stage of its own. So an update of the lockfile, for example from Dependabot, is built and
+tested by the checks as it is, and merges by itself when they are green. After pulling a changed lockfile, run
+`scripts/build-js.sh` once before `go build`. The editor trial of M-8 (`web/editor-trial`, `/dev/editor-trial` with the
+dev switch or for administrators) is built the same way until M-8 closes.
+
+**Loading:** the workspace does not load the editor with every page. It comes when it is needed — on the way into
+editing, when the pointer reaches the reading/editing button, or in an idle moment when editing is likely (the setting
+opens pages for editing, or a page one may change is open). Its URL carries the version of the release, and the server
+lets the browser keep such assets for a year, so it is fetched once per release.

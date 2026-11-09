@@ -6,3 +6,7 @@
 !docs/embed.go
 !docs/logo.svg
 !docs/favicon.ico
+!web
+web/*/node_modules
+internal/web/assets/app/editor
+internal/web/assets/app/editor-trial

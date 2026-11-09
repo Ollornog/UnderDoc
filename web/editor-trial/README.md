@@ -22,8 +22,8 @@ npm run build
 
 `build.mjs` bundles with esbuild into `internal/web/assets/app/editor-trial/` (ES modules, one build per entry; what an
 editor loads on demand lands in `<entry>-chunks/`). It also writes `meta.json`: the version and licence of every bundled
-package and the gzipped size of every bundle, which the page shows under each editor. The built files are committed to the
-repository, because the Go binary embeds them, and `scripts/check-js.sh` builds them again from the lockfile and compares.
+package and the gzipped size of every bundle, which the page shows under each editor. The built files are not committed:
+`scripts/build-js.sh` and the Dockerfile build them from the lockfile wherever the Go binary that embeds them is built.
 Nothing is loaded from elsewhere.
 
 The versions are exact, stable, and were at least two weeks old when installed: `npm install --save-exact

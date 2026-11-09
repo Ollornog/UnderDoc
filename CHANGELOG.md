@@ -39,9 +39,11 @@ All notable changes to this project are documented in this file. The format foll
   used elsewhere only after a question in place, and a changed order is moved. Opening and leaving a page without typing
   writes nothing. A page changed elsewhere meanwhile is never overwritten: it is loaded again with a notice.
 - The JavaScript part in the pipeline: `web/editor` is built with esbuild from its lockfile (exact versions, all MIT),
-  with the licence texts shipped next to the bundle; `scripts/check-js.sh`, in `scripts/check.sh` and the CI, installs
-  from the lockfile, runs the tests of the editor's plan of saving with Node and fails when the bundle in the repository
-  is not exactly what the lockfile builds. The same holds for the editor trial. Dependabot watches `web/editor`.
+  with the licence texts shipped next to the bundle. The bundles are not committed: `scripts/build-js.sh`, in
+  `scripts/check.sh` and the CI, and a stage of the Dockerfile install from the lockfile, run the tests of the editor's
+  plan of saving with Node and build them. Dependabot watches `web/editor`, and its updates merge by themselves when the
+  checks are green, as Go modules now do too (the auto-merge named the ecosystem `gomod` instead of `go_modules`).
+- The editor is loaded when it is needed, not with every page, and the browser keeps assets of a release for a year.
 - The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
   `/dev/editor-trial`, with the dev switch or for administrators.
 

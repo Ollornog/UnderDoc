@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# The JavaScript part of the gate (ADR-21): for each package under web/, install exactly what its lockfile names, run its
-# tests, build it into a fresh directory and compare that with the bundle in the repository. A bundle that does not come
-# exactly from the sources and the lockfile fails, as does a missing Node.
+# The JavaScript part (ADR-21): for each package under web/, install exactly what its lockfile names, run its tests and
+# build its bundle into the assets the Go binary embeds. The bundles are not in the repository: they come from the
+# sources and the lockfile wherever UnderDoc is built (here, the CI, the Dockerfile), so an update of the lockfile, such as
+# one from Dependabot, is built and tested by the checks without a commit of its own (2026-11-09). A missing Node fails.
 #
-#   scripts/check-js.sh
+#   scripts/build-js.sh
 #
-# Repeatable: install and build happen in a temporary copy that is removed; nothing stays in the working tree.
+# Repeatable: install happens in a temporary copy that is removed; only the ignored bundle directories are written.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -38,7 +39,8 @@ for entry in "${packages[@]}"; do
         node --test --test-reporter=spec "$work"/test/*.test.mjs || fail "$dir: tests"
     fi
     node "$work/build.mjs" --out "$fresh/out/$dir" || fail "$dir: build"
-    diff -r "$fresh/out/$dir" "$bundle" >/dev/null ||
-        fail "$bundle is not what $dir builds from its lockfile: run 'npm ci --ignore-scripts && npm run build' in $dir and commit the result"
-    printf '  the bundle comes exactly from the lockfile\n'
+    rm -rf -- "$bundle"
+    mkdir -p "$(dirname "$bundle")"
+    cp -r "$fresh/out/$dir" "$bundle"
+    printf '  built from the lockfile into %s\n' "$bundle"
 done
