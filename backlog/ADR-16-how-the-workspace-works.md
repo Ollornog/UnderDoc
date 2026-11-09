@@ -90,6 +90,11 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - **Duplicate and sort (2026-11-09):** the right click duplicates an entry (with everything below it, as a copy of the one
   who copies) and sorts the children of anything holding two or more, A to Z or Z to A; lines and spaces stay where they
   are, and each group between them is sorted on its own. Every entry of a menu carries its icon.
+- **Delete and the trash (2026-11-09):** the menu of an entry of nav3 and of a collection ends with Delete, after a line. It
+  asks in place: the first click turns it into "Delete? Yes", the second deletes, and nothing asks in a dialog. What is
+  deleted leaves every list and every window, and goes into the trash with everything below it. The right click on the free
+  part of nav2 offers the trash, a page in the window that lists what one deleted or owns, with where it lay, when and by
+  whom, and restores it there or deletes it for good, asking in place as well.
 
 **New**
 

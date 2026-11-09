@@ -116,7 +116,7 @@ function divItems(mode,id){const cont=mode==='first'?id:contOf(id),ok=canPlace(c
 function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tags:[],path:'not a file, a collection',by:'A. Keller',ch:'Oct 31',vis:'Group ops',...none,
   get stat(){return `${this.kids.length} entries`;},
   /* The overview holds the settings of the collection too, for whoever may change them (the maintainer, 2026-11-09). */
-  get html(){const ac=accOf(id),may=this.db?ac==='edit'||this.owner===esc(S.user.name):!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
+  get html(){const ac=accOf(id),may=this.db?ac==='edit'||!!this.mine:!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
     const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
     const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
       <div class="slab">Others can</div><span class="seg" role="group">${(top?[]:[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?'edit':'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
@@ -144,7 +144,7 @@ function pruneAliases(){for(let i=C.length-1;i>=0;i--){const c=C[i];if(c.alias&&
 function rebuildPlaces(){for(const k in PARENT)delete PARENT[k];for(const k in COLL)delete COLL[k];pruneAliases();
   C.forEach(c=>{if(c.alias)return;const walk=(id,p)=>{PARENT[id]=p;COLL[id]=c;D[id].kids.forEach(k=>walk(k,id));};c.top.forEach(id=>walk(id,null));});}
 rebuildPlaces();
-const placeOf=id=>{if(D[id].place)return D[id].place;if(C.some(c=>c.id===id))return 'Workspace';const a=[];for(let x=PARENT[id];x;x=PARENT[x])a.unshift(D[x].n);return [COLL[id].n,...a].join(' › ');};
+const placeOf=id=>{if(D[id].place)return D[id].place;if(C.some(c=>c.id===id))return 'Workspace';const a=[];for(let x=PARENT[id];x;x=PARENT[x])a.unshift(D[x].n);return (COLL[id]?[COLL[id].n,...a]:a).join(' › ');};
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const plain=h=>{const e=document.createElement('div');e.innerHTML=h;return e.textContent;};
 const phone=()=>matchMedia('(max-width: 760px)').matches;
@@ -227,7 +227,7 @@ Object.assign(I,{trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 1
 const CTXI={copen:'eye',cpin:'pin',collhead:'x',open:'eye',addmenu2:'plus',newcoll:'grid',n2line:'hr',n2space:'gap',linefirst:'hr',lineafter:'hr',lineend:'hr',spacefirst:'gap',spaceafter:'gap',spaceend:'gap',
   cgear:'gear',opengear:'gear',decodel:'trash',opentab:'layout',opencol:'split',addchild:'plus',copylink:'link',sec:'eye',secclose:'x',secup:'up',secdown:'down',none:'pencil',view:'eye',
   selopen:'layout',selpin:'pin',selclear:'x',dupl:'copy',sortaz:'sort',sortza:'sort',close:'x',closeothers:'x',closeright:'x',closeleft:'x',closeall:'x',keep:'pin',dup:'copy',copypath:'link',
-  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split'};
+  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split',delobj:'trash',trash:'trash'};
 const mi=act=>ic(CTXI[act]||'more');
 /* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
 /* Duplicate, where one may add next to it, and sort the children of anything that holds two or more. */
@@ -243,6 +243,15 @@ function kindItem(id){
   const may=d.db?accOf(id)==='edit':true,to=d.t==='coll'?'folder':'collection';
   return `<button data-act="tokind" data-id="${id}" data-k="${to}"${may?'':' disabled'}>${ic(to==='folder'?'folder':'grid')}Turn into a ${to}</button>`;
 }
+/* Delete sits last, after a line, and asks in place: the first click turns it into the question, the second deletes
+   (no confirm(), as in C22). What lies in the database goes into the trash with everything below it; made-up content
+   goes here and now. Whoever may change it may delete it, a collection at the top only its owner, and private notes stay. */
+function delItem(id){
+  const d=D[id];if(!d||isDeco(id))return '';
+  const top=C.some(c=>c.id===id&&!c.alias),ask=!!(S.ctx&&S.ctx.ask);
+  const why=d.real&&!d.db?'The folder source is read only':d.private||id==='me'?'Private notes stay':!d.db?'':top&&!d.mine?'Only its owner deletes a collection at the top':!d.mine&&accOf(id)!=='edit'?ACC[accOf(id)]:'';
+  return `<hr><button data-act="delobj" data-id="${id}" aria-pressed="${ask}"${why?` disabled title="${why}"`:''}>${mi('delobj')}${ask?'Delete? Yes':'Delete'}</button>`;
+}
 function dupSort(id){
   const cont=contOf(id),may=cont?canPlace(cont):(D[id].db?S.canCreate:!D[id].real),kids=D[id].kids.filter(x=>!isDeco(x)).length,sorts=kids>1&&(D[id].db?accOf(id)==='edit':!D[id].real);
   return `<hr><button data-act="dupl" data-id="${id}"${may?'':' disabled'}>${mi('dupl')}Duplicate</button>`+(sorts?`<button data-act="sortaz" data-id="${id}">${mi('sortaz')}Sort its children A to Z</button><button data-act="sortza" data-id="${id}">${mi('sortza')}Sort its children Z to A</button>`:'');
@@ -250,14 +259,14 @@ function dupSort(id){
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
   const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${mi(act)}${label}</button>`;let items='',title='';
-  if(c.kind==='coll'){title=D[c.id].n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+'<hr>'+B('cgear','Settings and name');}
+  if(c.kind==='coll'){title=D[c.id].n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+'<hr>'+B('cgear','Settings and name')+delItem(c.id);}
   if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
   if(c.kind==='win'){const w=S.wins[0],older=olderOf(w);title='Window';items=tabMenuHtml(0,w.a)+(older.length?'<hr>'+older.map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join(''):'')+(S.mods.ai?'<hr>'+B('aid','AI assistant','',off('tool','aid')):'');}
   if(c.kind==='sel'&&S.sel){const z=S.sel.z;title=S.sel.ids.length+' selected';items=(z==='n3'?B('selopen','Open as tabs'):z==='n2'?B('selopen','Open them in nav3')+B('selpin','Keep them open'):'')+'<hr>'+B('selclear','Clear the selection');}
-  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+B('opengear','Settings and metadata');}
+  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+B('opengear','Settings and metadata')+delItem(c.id);}
   if(c.kind==='row'&&isDeco(c.id)){title=D[c.id].n;items=B('decodel','Remove',c.id,canPlace(contOf(c.id))?'':'disabled title="'+placeWhy(contOf(c.id))+'"');}
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
-  if(c.kind==='free'){title='New';items=c.acts.map(x=>{const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
+  if(c.kind==='free'){title='New';items=c.acts.map(x=>{if(x[0]==='-')return '<hr>';const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
   if(c.kind==='view'){title=c.label;items=B('view','Open')+(S.view===c.id&&S.rail?B('view','Hide nav2 and nav3'):'');}
   return `<div class="pop ctxpop" role="menu" data-style="left:${c.x}px;top:${c.y}px"><b>${title}</b>${items}</div>`;
 }
@@ -300,7 +309,7 @@ const docText=d=>[d.n,d.tags.join(' '),d.doc?d.doc.intro:'',d.doc?d.doc.secs.map
 function hits(){
   const q=S.sq.trim();
   if(!q&&!S.ftags.length&&!S.ftype) return null;
-  return Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':'))return false;
+  return Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')||d.gone)return false;
     if(S.ftype&&d.t!==S.ftype) return false;
     if(!S.ftags.every(t=>d.tags.includes(t))) return false;
     if(!q) return true;
@@ -416,7 +425,7 @@ function winHtml(w,i){
     ${d.blocks&&d.canEdit?`<button class="ic" data-act="edit" data-w="${i}" aria-pressed="${!!t.edit}" aria-label="Edit" title="Edit block by block">${ic('pencil')}</button>`:''}
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
-    ${accOf(t.d)!=='read'?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
+    ${accOf(t.d)!=='read'&&!d.tool?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
     <button class="ic" data-act="gear" data-w="${i}" aria-pressed="${t.gear}" aria-label="Document settings" title="Document settings">${ic('gear')}</button>
     <button class="ic" data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More">${ic('more')}</button>${S.menu===i?menuHtml(i):''}${dhead}</div>`;
   const inner=t.src?`<div class="src">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="doc ${d.w}">${h}</article>`;
@@ -640,7 +649,7 @@ function render(){
   /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
   const ap=document.querySelector('.cmdpop');if(ap){stay(ap,S.addAt.up);filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
-  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
+  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||accOf(t.d)==='read'||D[t.d].tool)return;const doc=art.querySelector('article.doc');if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
     doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw,.table-container').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,.table-container,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
       const k=el.matches('.tw, .table-container')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
@@ -649,7 +658,7 @@ function render(){
       const b=document.createElement('button');b.className='cblk'+(cnt?' has':'');b.dataset.act='cblk';b.dataset.w=i;b.dataset.id=id;b.dataset.l=lab;b.title=cnt?cnt+' comments on this':'Comment on this';b.setAttribute('aria-label',b.title);b.innerHTML=ic('chat')+(cnt?`<em>${cnt}</em>`:'');
       el.after(b);b.style.top=el.offsetTop+'px';});});
   /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
-  document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src)return;
+  document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src||D[t.d].tool)return;
     art.querySelectorAll('article.doc table').forEach((tb,k)=>{if(tb.closest('.embed'))return;const own=tb.closest('[data-b]'),part=own?own.dataset.b:'t'+(k+1),b=document.createElement('button');b.className='blk';b.dataset.act='blocklink';b.dataset.id=t.d+'#'+part;b.title='Copy the address of this table';b.innerHTML=ic('opennew')+'<span>#'+part+'</span>';(tb.closest('.tw, .table-container')||tb).before(b);});});
 }
 /* AI drawer on the right: it knows the document in the active window. */
@@ -743,7 +752,8 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('button[data-act]'),win=e.target.closest('[data-win]'),act=b&&b.dataset.act;
   if(e.target.closest('.pop')&&!b)return;
   let dirty=S.menu!==null||S.tmenu||S.hist!==null||S.tlist!==null||S.addIn!==null||S.ctx!==null||S.newAt!==null;
-  const hadMenu=S.menu,hadT=S.tmenu,hadHist=S.hist,hadTl=S.tlist,hadAdd=S.addIn,hadNew=S.newAt,hadCtx=S.ctx&&S.ctx.kind;
+  const hadMenu=S.menu,hadT=S.tmenu,hadHist=S.hist,hadTl=S.tlist,hadAdd=S.addIn,hadNew=S.newAt,hadCtx=S.ctx&&S.ctx.kind,ctx0=S.ctx,hadAsk=S.trashAsk;
+  if(hadAsk){S.trashAsk=null;dirty=true;}
   if(win&&+win.dataset.win!==S.focus){S.focus=+win.dataset.win;dirty=true;}
   S.menu=null;S.tmenu=null;S.hist=null;S.tlist=null;S.addIn=null;S.ctx=null;S.newAt=null;
   if(!b){if(dirty)render();return;}
@@ -803,6 +813,10 @@ document.addEventListener('click',e=>{
     case 'linefirst':case 'spacefirst':addDivider(act.startsWith('line')?'line':'space',a.id,'');break;
     case 'lineafter':case 'spaceafter':addDivider(act.startsWith('line')?'line':'space',contOf(a.id),a.id);break;
     case 'decodel':removeDivider(a.id);break;
+    case 'delobj':if(!ctx0||!ctx0.ask){S.ctx={...ctx0,ask:true};break;}deleteObject(a.id);break;
+    case 'trash':openDoc('trash:');loadTrash();break;
+    case 'trrestore':restoreTrash(a.id);break;
+    case 'trpurge':if(hadAsk!==a.id){S.trashAsk=a.id;break;}purgeTrash(a.id);break;
     case 'winmenu':{if(hadCtx==='win')break;const z=S.scale/100,r=b.getBoundingClientRect();S.ctx={kind:'win',x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2};break;}
     case 'dupl':copyTo([a.id],contOf(a.id)||'',a.id);break;
     case 'tokind':convertKind(a.id,a.k);break;
@@ -894,7 +908,7 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   const sc=el.closest('.nav2 [data-act="sec"]');if(sc)return at0('sec',sc.dataset.id,{label:sc.textContent.trim(),sort:!!sc.dataset.secid});
   const vw=el.closest('.strip [data-act="view"]');if(vw)return at0('view',vw.dataset.id,{label:vw.textContent.trim()});
   /* A right click on the free part of nav2 or nav3 offers what can be made there. */
-  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end']]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
+  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end'],...(S.canCreate?[['-'],['trash','Trash']]:[])]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
   if(el.closest('.nav3')&&S.view==='workspace'){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
 });
 /* A middle click closes a tab, a double click on the empty part of the tab row opens New, as in code editors. */
@@ -1114,7 +1128,7 @@ D.ip2=netDoc('198.51.100.0/24','2 of 254',[['198.51.100.5','camera gate','Camera
 D.devs=fill({t:'devices',n:'Network devices',w:'wide',path:'not a file, lives in the database',by:'A. Keller',ch:'Oct 28',vis:'Group ops, inherited',tags:['hardware'],stat:'3 devices',html:tableHtml(['Name','Kind','Room','Ports','Address'],[['router','Router','Server room','8','192.0.2.1'],['core-a','Switch','Server room','48','192.0.2.2'],['core-b','Switch','Workshop','48','192.0.2.3']])});
 D.net.kids=[...D.net.kids,'ip1','ip2','devs'];
 TYPE.search=['search','Saved search'];
-const savedHits=o=>Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')||d.t==='search')return false;if(o.type&&d.t!==o.type)return false;if(!o.ftags.every(t=>(d.tags||[]).includes(t)))return false;return !o.q||docText(d).toLowerCase().includes(o.q.toLowerCase());});
+const savedHits=o=>Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')||d.t==='search'||d.gone)return false;if(o.type&&d.t!==o.type)return false;if(!o.ftags.every(t=>(d.tags||[]).includes(t)))return false;return !o.q||docText(d).toLowerCase().includes(o.q.toLowerCase());});
 /* A saved search is a document: a query with filters and sources that runs again each time it opens. */
 D.ss1=fill({t:'search',n:'Everything on the network',w:'wide',path:'not a file, a saved search',by:'A. Keller',ch:'Oct 30',vis:'Group ops, inherited',desc:'All documents tagged network, wherever they are.',q:'',ftags:['network'],type:'',strat:'Full text',src:['Workspace','Share','Ticket system'],
   get stat(){return savedHits(this).length+' hits';},
@@ -1179,7 +1193,7 @@ function addNode(node){
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
-  D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;
+  D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   return id;
 }
@@ -1196,13 +1210,13 @@ const same={credentials:'same-origin',headers:{'Content-Type':'application/json'
 /* A folder of the database: made in a collection or folder, named in place. */
 async function createFolder(parent,title){
   try{const r=await fetch('/api/folders',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
-    const node=await r.json();node.owner=S.user.name;const id=addNode(node);D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();S.just=id;renameHere(id);}
+    const node=await r.json();node.owner=S.user.name;node.mine=true;const id=addNode(node);D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();S.just=id;renameHere(id);}
   catch(e){toast(e.message==='403'?'Others may not add here.':'The folder could not be made.');}
 }
 /* A collection turns into a folder and back: the same object, shown in nav2 or only in nav3 (ADR-16). */
 /* What others may do (ADR-20): only the owner sets it, and the database keeps it; made-up content keeps it here. If the
    server refuses, the level goes back. */
-const isOwner=id=>!D[id].db||D[id].owner===esc(S.user.name);
+const isOwner=id=>!D[id].db||!!D[id].mine;
 async function setAccess(id,level){
   const before=D[id].acc;if(level)D[id].acc=level;else delete D[id].acc;render();
   if(!D[id].db)return;
@@ -1216,7 +1230,7 @@ async function convertKind(id,kind){
 }
 async function createCollection(parent,title){
   try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title,parent})});if(!r.ok)throw new Error(String(r.status));
-    const node=await r.json();node.t='collection';node.owner=S.user.name;const id=addNode(node);
+    const node=await r.json();node.t='collection';node.owner=S.user.name;node.mine=true;const id=addNode(node);
     if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
     else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'grid'}));rebuildPlaces();onlyThis(id);}
     S.view='workspace';S.rail=true;S.just=id;renameHere(id);
@@ -1289,7 +1303,7 @@ async function deleteBlock(id,blk){
 /* A new page lands in the collection, folder or page it was made in, and opens with its first block ready to write. */
 async function createPage(parent,title){
   try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
-    const node=await r.json();node.t='page';node.owner=S.user.name;const id=addNode(node);D[id].canEdit=true;
+    const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
     const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)t.edit=true;
@@ -1336,6 +1350,56 @@ async function copyTo(ids,p,after){
     prev=n;S.just=n;
   }
   rebuildPlaces();render();
+}
+/* Deleting takes an entry out of every list, and every window showing it or something below it lets go of it. Its data
+   stay, marked, so the made-up content that points at it does not break, and a restore draws it anew. */
+function dropLocal(id){
+  const gone=[],walk=x=>{gone.push(x);(D[x].kids||[]).forEach(walk);};walk(id);
+  const list=parentList(id),k=list.indexOf(id);if(k>=0)list.splice(k,1);
+  for(let i=C.length-1;i>=0;i--)if(gone.includes(C[i].id))C.splice(i,1);
+  gone.forEach(x=>{D[x].gone=true;delete S.open[x];delete S.pin[x];});
+  S.wins.forEach(w=>{w.hist=(w.hist||[]).filter(x=>!gone.includes(x));
+    for(let j=w.tabs.length-1;j>=0;j--){if(!gone.includes(w.tabs[j].d))continue;if(w.tabs[j].general)fallback(w);else{w.tabs.splice(j,1);if(w.a>=j&&w.a>0)w.a--;}}});
+  compact();S.sel=null;rebuildPlaces();
+}
+const trashOpen=()=>S.wins.some(w=>w.tabs.some(t=>t.d==='trash:'));
+async function deleteObject(id){
+  const d=D[id];if(!d)return;
+  if(d.db){try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));}
+    catch(e){toast(e.message==='403'?'Others may not delete this.':'It could not be deleted.');return;}}
+  dropLocal(id);toast(d.db?plain(d.n)+' is in the trash.':plain(d.n)+' is deleted.');if(d.db&&trashOpen())loadTrash();
+}
+/* The trash is a page of the window: what the viewer deleted, and what was theirs, newest first, each with where it lay.
+   Restore puts it back there, at the end; deleting for good asks in place as well. */
+TYPE.trash=['trash','Trash'];
+D['trash:']=fill({t:'trash',n:'Trash',w:'wide',tool:true,path:'not a file, what was deleted',place:'Workspace',by:'',ch:'',vis:'Only you: what you deleted, and what was yours',
+  get stat(){return S.trash?S.trash.length+(S.trash.length===1?' entry':' entries'):'Loading…';},
+  get html(){const L=S.trash;if(!L)return '<p class="lab">Loading…</p>';if(!L.length)return '<p class="lab">The trash is empty.</p>';
+    return `<p class="hint">What you deleted, and what was yours. Restore puts it back where it lay, at the end. What lay in something that is in the trash too comes back after that.</p>
+      <div class="tw"><table><tr><th>Name</th><th>Where it lay</th><th>Deleted</th><th>By</th><th></th></tr>${L.map(x=>`<tr data-trash="${x.id}"><td>${x.n}</td><td>${x.place||'Workspace'}${x.placeGone?' (in the trash)':''}</td><td>${x.at}</td><td>${x.who}</td>
+        <td><button class="chip" data-act="trrestore" data-id="${x.id}"${x.placeGone?' title="First restore what it lay in"':''}>${ic('back')}Restore</button> <button class="chip" data-act="trpurge" data-id="${x.id}" aria-pressed="${S.trashAsk===x.id}">${ic('trash')}${S.trashAsk===x.id?'Delete for good? Yes':'Delete for good'}</button></td></tr>`).join('')}</table></div>`;}});
+async function loadTrash(){
+  try{const r=await fetch('/api/trash',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:esc(x.at),who:esc(x.who)}));}
+  catch(e){S.trash=[];toast('The trash could not be read.');return;}
+  render();
+}
+async function restoreTrash(sid){
+  const x=(S.trash||[]).find(y=>y.id===sid);
+  try{const r=await fetch('/api/trash/'+encodeURIComponent(sid)+'/restore',{...same,method:'POST'});
+    if(r.status===400){toast(x&&x.placeGone?'First restore '+plain(x.place.split(' › ').pop())+', where it lay.':'It cannot go back there.');return;}
+    if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json(),id=addNode(a.node),p=a.parent?SID[a.parent]:'';
+    if(a.parent&&!(D[p]&&!D[p].gone)){toast('Restored. Reload to see it where it lay.');loadTrash();return;}
+    if(p){D[p].kids.push(id);S.tog[p]=true;}else C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:D[id].i}));
+    rebuildPlaces();const top=COLL[id]?COLL[id].id:id;if(C.some(c=>c.id===top))S.open[top]=true;S.just=id;
+    toast(plain(D[id].n)+' is back.');loadTrash();}
+  catch(e){toast(e.message==='403'?'Others may not add there.':'It could not be restored.');}
+}
+async function purgeTrash(sid){
+  try{const r=await fetch('/api/trash/'+encodeURIComponent(sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));toast('Deleted for good.');}
+  catch(e){toast('It could not be deleted.');}
+  loadTrash();
 }
 /* Sorting the children by name keeps lines and spaces where they are: each group between them is sorted on its own. */
 function sortKids(id,dir){

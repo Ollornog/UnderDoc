@@ -80,7 +80,7 @@ func place(ctx context.Context, tx pgx.Tx, parent, after string) (int, error) {
 	}
 	position := 0
 	if after != "" {
-		err := tx.QueryRow(ctx, "SELECT position + 1 FROM objects WHERE id = $1 AND parent IS NOT DISTINCT FROM nullif($2, '')", after, parent).Scan(&position)
+		err := tx.QueryRow(ctx, "SELECT position + 1 FROM objects WHERE id = $1 AND parent IS NOT DISTINCT FROM nullif($2, '') AND deleted_at IS NULL", after, parent).Scan(&position)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, ErrNotFound
 		}

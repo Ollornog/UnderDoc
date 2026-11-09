@@ -85,3 +85,9 @@ browser; the browser keeps a copy.
 
 **State on 2026-11-09 (access):** the owner sets what others may do, in the overview of a collection and the settings of a
 document; the database keeps it, and the lock shows in nav3.
+
+**State on 2026-11-09 (deleting):** the right click deletes an entry of nav3 or a collection of nav2, asking in place; it
+goes into a trash with everything below it, reached from the right click on the free part of nav2, which restores it where
+it lay or deletes it for good. Whoever may change an object may delete it, a collection at the top only its owner; private
+notes stay. Deleting asks every time, not only when something is not empty; asking when something is in use comes with
+embedding.
