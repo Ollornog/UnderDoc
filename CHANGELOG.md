@@ -16,9 +16,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
-- Reading and editing: left of the title a large button says "Reading" or "Editing" in words and an icon and turns the
-  document; where a page cannot be edited it says "Read only" and why (folder source, demo, only read or comment). The
-  pencil in the head is gone. A setting under Profile, Documents, opens documents for editing (it follows the account).
+- Reading and editing: a square button, icon only, at the left of the head of a document, as tall as path and title,
+  turns the document between reading (book) and editing (pencil, filled); where a page cannot be edited it shows a lock
+  and says why (folder source, demo, only read or comment). The pencil in the head is gone. New in the head of a
+  collection in nav3 is gone where one may not add anything there (folder source, only read or comment). A setting under Profile, Documents, opens documents for editing (it follows the account).
 - Editing a block as Docmost shows it (the idea only, no code): a bar floats above the block being written, to turn it
   into another kind (text, headings, lists, to-do, quote, code), make the selection bold, italic, struck through, code or a
   link (Ctrl+B, Ctrl+I, Ctrl+K), move the block up or down, duplicate it, copy its address or delete it. A "+" at its left

@@ -939,8 +939,8 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus')?.disabled].join(' ')`); got != "false true" {
-		t.Errorf("for someone else no settings, and New is off: %q", got)
+	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus') === null].join(' ')`); got != "false true" {
+		t.Errorf("for someone else no settings, and no New: %q", got)
 	}
 	// Back to edit: someone else may rename it, but not set what others may do.
 	b.signIn(true)
@@ -1088,10 +1088,10 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 // being written turns it into another kind, formats the selection and moves the block; "/" in an empty block opens the kinds.
 func TestEditingIsFound(t *testing.T) {
 	b, base := setupWithDatabase(t)
-	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.textContent.trim() + ' | ' + p.title : 'none'; })()`
+	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.getAttribute('aria-label') + ' | ' + p.title : 'none'; })()`
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | From the folder source, read only") {
+	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | Read only. From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
 	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
@@ -1100,6 +1100,10 @@ func TestEditingIsFound(t *testing.T) {
 		t.Errorf("Page in New of the folder source: %q", got)
 	}
 	b.eval(`S.addIn = null; render()`)
+	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); S.open[id] = true; render();
+		const h = document.querySelector('.cheadrow[data-cdrop="' + id + '"]'); return h ? String(!h.querySelector('.newplus')) : 'no head'; })()`); got != "true" {
+		t.Errorf("a collection of the folder source shows no New in nav3: %q", got)
+	}
 	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'page'); S.ctx = {kind: 'row', id, x: 20, y: 20}; render();
 		const p = document.querySelector('[data-act="addchild"]'); return p ? p.disabled + ' ' + p.title : 'none'; })()`); got != "true The folder source is read only. Pages are made in collections of the database" {
 		t.Errorf("New page below it, in the folder source: %q", got)
@@ -1127,6 +1131,10 @@ func TestEditingIsFound(t *testing.T) {
 	b.ready("Notes")
 	if got := b.eval(status); got != "false Reading | Reading. Click to edit" {
 		t.Errorf("a page of the database opens for reading: %q", got)
+	}
+	if got := b.eval(`(() => { const r = e => document.querySelector('[data-win="0"] ' + e).getBoundingClientRect(), s = r('.dstatus'), p = r('.tools .place'), h = r('.dtitle h1');
+		return [s.top <= p.top + 2, s.bottom >= h.bottom - 2, s.right <= Math.min(p.left, h.left), Math.abs(s.width - s.height) < 1].join(' '); })()`); got != "true true true true" {
+		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
 	}
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
 	if got := b.eval(status + ` + ' ' + document.querySelectorAll('textarea[data-blk]').length`); got != "false Editing | Editing. Click to read 2" {

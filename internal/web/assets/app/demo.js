@@ -205,7 +205,7 @@ const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
   const open=openColls();
   if(!open.length) return '<p class="lab pad">No collection is open. Pick one in nav2.</p>';
-  return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
+  return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button>${canPlace(c.id)?`<button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="New in ${c.n}">New ${ic('plus')}</button>`:''}</div>
     <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
 }
 /* New, in nav2 and in the head of a collection: one menu in groups, and typing filters it (the command menu of C22).
@@ -443,10 +443,10 @@ function winHtml(w,i){
   const ac=accOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
   const place=`<span class="place" title="${crumbs}">${crumbs}</span>${tg}${badge}<span class="tspace"></span>`;
   /* Reading or editing, as a large button left of the title: the state in words and icon, a click turns it (2026-11-09). */
-  const ed=editing(t)&&d.blocks&&d.canEdit,status=d.blocks&&d.canEdit?`<button class="dstatus" data-act="edit" data-w="${i}" aria-pressed="${!!ed}" title="${ed?'Editing. Click to read':'Reading. Click to edit'}">${ic(ed?'pencil':'book')}<span>${ed?'Editing':'Reading'}</span></button>`
-    :d.blocks||d.doc?`<button class="dstatus" data-act="edit" data-w="${i}" disabled title="${noEdit(t.d)}">${ic('lock')}<span>Read only</span></button>`:'';
-  const dhead=`<div class="dtitle"><div class="dtline">${status}<h1>${d.n}</h1></div>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
-  const tools=`<div class="tools">${place}${marker}${find}
+  const ed=editing(t)&&d.blocks&&d.canEdit,status=d.blocks&&d.canEdit?`<button class="dstatus" data-act="edit" data-w="${i}" aria-pressed="${!!ed}" aria-label="${ed?'Editing':'Reading'}" title="${ed?'Editing. Click to read':'Reading. Click to edit'}">${ic(ed?'pencil':'book')}</button>`
+    :d.blocks||d.doc?`<button class="dstatus" data-act="edit" data-w="${i}" disabled aria-label="Read only" title="Read only. ${noEdit(t.d)}">${ic('lock')}</button>`:'';
+  const dhead=`<div class="dtitle"><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
+  const tools=`<div class="tools">${status}${place}${marker}${find}
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
