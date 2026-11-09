@@ -13,6 +13,11 @@
 //	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
 //	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
 //
+// Export and import need the database (docs/export.md):
+//
+//	underdoc export <dir>                          every collection as normal files, private notes under private/<login>/
+//	underdoc import --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
+//
 // There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
 // request headers. That is why it binds to loopback unless told otherwise, and answers nothing without those headers.
 package main
@@ -36,7 +41,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export <dir> | underdoc import --owner <login> <dir> <title> | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -65,6 +70,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 		defer stop()
 		err = serve(ctx, dir, stdout)
+	case args[0] == "export" && len(args) == 2:
+		err = export(context.Background(), args[1], stdout, stderr)
+	case args[0] == "import":
+		owner, rest, ok := ownerFlag(args[1:])
+		if !ok || len(rest) != 2 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = importTree(context.Background(), owner, rest[0], rest[1], stdout, stderr)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2

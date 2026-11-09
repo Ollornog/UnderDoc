@@ -231,7 +231,7 @@ Object.assign(I,{trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 1
 const CTXI={copen:'eye',cpin:'pin',collhead:'x',open:'eye',addmenu2:'plus',newcoll:'grid',n2line:'hr',n2space:'gap',linefirst:'hr',lineafter:'hr',lineend:'hr',spacefirst:'gap',spaceafter:'gap',spaceend:'gap',
   cgear:'gear',opengear:'gear',decodel:'trash',opentab:'layout',opencol:'split',addchild:'plus',copylink:'link',sec:'eye',secclose:'x',secup:'up',secdown:'down',none:'pencil',view:'eye',
   selopen:'layout',selpin:'pin',selclear:'x',dupl:'copy',sortaz:'sort',sortza:'sort',close:'x',closeothers:'x',closeright:'x',closeleft:'x',closeall:'x',keep:'pin',dup:'copy',copypath:'link',
-  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split',delobj:'trash',trash:'trash'};
+  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split',delobj:'trash',trash:'trash',export:'down'};
 const mi=act=>ic(CTXI[act]||'more');
 /* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
 /* Duplicate, where one may add next to it, and sort the children of anything that holds two or more. */
@@ -256,6 +256,8 @@ function delItem(id){
   const why=d.real&&!d.db?'The folder source is read only':d.private||id==='me'?'Private notes stay':!d.db?'':top&&!d.mine?'Only its owner deletes a collection at the top':!d.mine&&accOf(id)!=='edit'?ACC[accOf(id)]:'';
   return `<hr><button data-act="delobj" data-id="${id}" aria-pressed="${ask}"${why?` disabled title="${why}"`:''}>${mi('delobj')}${ask?'Delete? Yes':'Delete'}</button>`;
 }
+/* Export as files: a zip of the collection as normal files, what the viewer sees (docs/export.md). */
+function exportItem(id){return D[id]&&D[id].db?`<button data-act="export" data-id="${id}">${mi('export')}Export as files</button>`:'';}
 function dupSort(id){
   const cont=contOf(id),may=cont?canPlace(cont):(D[id].db?S.canCreate:!D[id].real),kids=D[id].kids.filter(x=>!isDeco(x)).length,sorts=kids>1&&(D[id].db?accOf(id)==='edit':!D[id].real);
   return `<hr><button data-act="dupl" data-id="${id}"${may?'':' disabled'}>${mi('dupl')}Duplicate</button>`+(sorts?`<button data-act="sortaz" data-id="${id}">${mi('sortaz')}Sort its children A to Z</button><button data-act="sortza" data-id="${id}">${mi('sortza')}Sort its children Z to A</button>`:'');
@@ -263,7 +265,7 @@ function dupSort(id){
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
   const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${mi(act)}${label}</button>`;let items='',title='';
-  if(c.kind==='coll'){title=D[c.id].n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+'<hr>'+B('cgear','Settings and name')+delItem(c.id);}
+  if(c.kind==='coll'){title=D[c.id].n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+showItem(c.id)+dupSort(c.id)+exportItem(c.id)+kindItem(c.id)+'<hr>'+B('cgear','Settings and name')+delItem(c.id);}
   if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
   if(c.kind==='win'){const w=S.wins[0],older=olderOf(w);title='Window';items=tabMenuHtml(0,w.a)+(older.length?'<hr>'+older.map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join(''):'')+(S.mods.ai?'<hr>'+B('aid','AI assistant','',off('tool','aid')):'');}
   if(c.kind==='sel'&&S.sel){const z=S.sel.z;title=S.sel.ids.length+' selected';items=(z==='n3'?B('selopen','Open as tabs'):z==='n2'?B('selopen','Open them in nav3')+B('selpin','Keep them open'):'')+'<hr>'+B('selclear','Clear the selection');}
@@ -824,6 +826,7 @@ document.addEventListener('click',e=>{
     case 'trempty':if(hadAsk!=='all'){S.trashAsk='all';break;}emptyTrash();break;
     case 'winmenu':{if(hadCtx==='win')break;const z=S.scale/100,r=b.getBoundingClientRect();S.ctx={kind:'win',x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2};break;}
     case 'dupl':copyTo([a.id],contOf(a.id)||'',a.id);break;
+    case 'export':location.href='/api/objects/'+encodeURIComponent(a.id)+'/export';break;
     case 'tokind':convertKind(a.id,a.k);break;
     case 'show':if(!aliasOf(a.id))C.push(asAlias(a.id));break;
     case 'unshow':{const k=C.findIndex(c=>c.alias&&c.id===a.id);if(k>=0)C.splice(k,1);delete S.pin[a.id];delete S.open[a.id];break;}

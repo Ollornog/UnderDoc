@@ -100,3 +100,9 @@ back; "Copy address" on a block and pasting it alone into an empty block make th
 database keeps every reference: a page and each of its blocks say where they are used, and a block in use asks before it
 goes. Missing sources, pages the reader may not see, loops and too deep nesting show as a visible error in place. Still to
 build: the list of broken references (problems in the workspace), embedding by dragging and from search while typing.
+
+**State on 2026-11-09 (import and export):** `underdoc export` writes every collection as normal files, private notes under
+`private/<login>/`, and `underdoc import` reads such a tree or a folder of the folder source into a new collection; block IDs
+come back through an HTML comment before each block, and a round trip into an empty database gives the same files. The
+right click on a collection downloads it as a zip. Images and other files wait for the content store, and links of the folder
+source by its own IDs do not follow yet (docs/export.md).

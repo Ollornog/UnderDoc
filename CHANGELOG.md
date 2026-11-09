@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The browser tests say why Chrome does not answer: whether it still runs, and the end of what it wrote to stderr. Once,
+  on the CI, Chrome gave no answer to its first tab, and the test could not say more.
 - Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was
   made, its versions, the trash. Before, the server wrote them in its own time, which showed UTC on the test system.
 - Private notes stay at the top: they no longer move into another collection, and dragging offers them no place there.
@@ -92,6 +94,14 @@ All notable changes to this project are documented in this file. The format foll
   (migration 006, table `refs`), so a page lists where it and its blocks are used, and a block in editing shows "Used in n".
   A block in use asks before it is deleted, also when empty. What cannot be shown says why: a missing page or block, a page
   the reader may not see, a loop, or embedding deeper than five levels. Copies of a page embed what the original did.
+- Export and import (ADR-13, ADR-19, [docs/export.md](docs/export.md)): `underdoc export <dir>` writes every collection as
+  normal files, collections and folders as directories with a small `.underdoc.yaml` for ID, kind, title, access and the
+  order with lines and spaces, pages as Markdown with front matter and an HTML comment `<!-- block bN -->` before each
+  block, so the block IDs come back without showing in any viewer; private notes of every account go to
+  `private/<login>/`. `underdoc import --owner <login> <dir> <title>` reads such a tree, or any folder of Markdown files,
+  into a new collection: IDs are kept where valid and free, nothing that exists is changed, and a page without markers is
+  split at its headings. Export and import into an empty database give the same files again. The right click menu of a
+  collection offers "Export as files", a zip of what the viewer sees (`GET /api/objects/{id}/export`).
 - The trash empties as a whole ("Empty the trash", asking in place; `DELETE /api/trash`), and what lies there longer than
   30 days goes for good by itself, checked at start and every hour.
 - What others may do is kept in the database (`POST /api/objects/{id}/access`, part of the tree in `/api/state`): the owner
