@@ -132,7 +132,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("GET /files/{path...}", h.file)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(http.FileServerFS(assets))))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(h.assetVersion, http.FileServerFS(assets))))
 	mux.HandleFunc("GET /assets/logo.svg", serveBytes("image/svg+xml", docs.Logo))
 	mux.HandleFunc("GET /favicon.ico", serveBytes("image/vnd.microsoft.icon", docs.Favicon))
 	if options.DevUI {
@@ -217,9 +217,16 @@ func hashAssets() (string, error) {
 	return hex.EncodeToString(hash.Sum(nil))[:12], err
 }
 
-func staticAssets(next http.Handler) http.Handler {
+// staticAssets lets the browser keep an asset for a year when its URL names the version of this release (?v=…): the URL
+// changes with every release, so nothing stale is kept, and the editor, once loaded, comes from the cache (2026-11-09).
+// Without the current version a day.
+func staticAssets(version string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=86400") // URLs carry a version
+		if version != "" && r.URL.Query().Get("v") == version {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

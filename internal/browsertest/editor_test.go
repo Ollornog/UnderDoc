@@ -439,3 +439,66 @@ func TestTheEditorDoesNotOverwriteAChangeElsewhere(t *testing.T) {
 	}
 	b.clean("conflict")
 }
+
+// The editor loads when it is needed: not on a page one only reads, but on the way into editing, and in an idle moment
+// when editing is likely.
+func TestTheEditorLoadsWhenNeeded(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	loaded := `String(!!window.UnderDocEditor) + ' ' + document.querySelectorAll('script[data-editor]').length`
+	b.eval(`new Promise(r => setTimeout(r, 2000))`)
+	if got := b.eval(loaded); got != "false 0" {
+		t.Errorf("a page of the folder source loads no editor: %q", got)
+	}
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Notes', parent: team.id});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	page := b.eval(`window.made`)
+	b.open(base + "/o/" + page)
+	b.ready("Notes")
+	if !b.waitFor(`!!window.UnderDocEditor && document.querySelectorAll('script[data-editor]').length === 1`) {
+		t.Errorf("an editable page loads the editor in an idle moment: %q", b.eval(loaded))
+	}
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-editor') && document.querySelectorAll('script[data-editor]').length === 1`) {
+		t.Errorf("editing mounts it, loaded once: %q", b.eval(loaded))
+	}
+}
+
+// Without an idle moment, the way into editing loads the editor itself.
+func TestEditingLoadsTheEditorItself(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": "window.requestIdleCallback = () => 0;"}, nil)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Notes', parent: team.id});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	b.open(base + "/o/" + b.eval(`window.made`))
+	b.ready("Notes")
+	if got := b.eval(`String(!!window.UnderDocEditor)`); got != "false" {
+		t.Fatalf("no idle moment, nothing loaded yet: %s", got)
+	}
+	b.eval(`needEditor(); needEditor(); document.querySelector('[data-win="0"] .dstatus').click()`)
+	if !b.waitFor(`!!document.querySelector('.cm-editor')`) {
+		t.Errorf("editing loads and mounts the editor: %s", b.eval(`document.querySelector('[data-cmhost]')?.textContent`))
+	}
+	if got := b.eval(`document.querySelectorAll('script[data-editor]').length`); got != "1" {
+		t.Errorf("asked three times while loading, it loads once: %s", got)
+	}
+}

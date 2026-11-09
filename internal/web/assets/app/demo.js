@@ -1408,10 +1408,31 @@ function makeEditor(key){
   });
   return e;
 }
+/* The editor is loaded when it is first needed, not with every page: on the way into editing, when the pointer comes to
+   the reading or editing button, or in an idle moment when editing is likely (pages open for editing, or an editable page
+   is open). Its URL carries the version of the assets, so the browser keeps it until the next release (2026-11-09). */
+let editorLoad=null;
+function needEditor(){
+  if(window.UnderDocEditor)return Promise.resolve();
+  if(editorLoad)return editorLoad;
+  if(editorLoad===false)return Promise.reject(new Error('editor'));
+  const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+  editorLoad=new Promise((ok,fail)=>{const s=document.createElement('script');s.src='/assets/app/editor/editor.js?v='+v;s.dataset.editor='';s.onload=ok;s.onerror=()=>{editorLoad=null;fail(new Error('editor'));};document.head.append(s);});
+  return editorLoad;
+}
+function editorLikely(){
+  if(window.UnderDocEditor||editorLoad)return;
+  const t=at(S.focus),d=t&&D[t.d];
+  if(S.openEdit||d&&d.blocks&&d.canEdit)(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>{needEditor().catch(()=>{});});
+}
+document.addEventListener('pointerover',e=>{if(e.target.closest&&e.target.closest('.dstatus'))needEditor().catch(()=>{});});
 function mountEditors(focusKey,want){
   const seen=new Set();
+  editorLikely();
   document.querySelectorAll('[data-cmhost]').forEach(h=>{const key=h.dataset.cmhost;
-    if(seen.has(key)||!window.UnderDocEditor){h.innerHTML=`<p class="lab">${window.UnderDocEditor?'This page is being written in another window.':'The editor did not load.'}</p>`;return;}
+    if(!window.UnderDocEditor){h.innerHTML=`<p class="lab">${editorLoad===false?'The editor did not load. Reload the page to try again.':'Loading the editor…'}</p>`;
+      if(editorLoad!==false)needEditor().then(()=>render(),()=>{editorLoad=false;render();});return;}
+    if(seen.has(key)){h.innerHTML='<p class="lab">This page is being written in another window.</p>';return;}
     seen.add(key);const e=EDS[key]||(EDS[key]=makeEditor(key));e.w=+h.dataset.w;h.append(e.ed.dom);e.ed.refresh();
     const sel=document.querySelector(`[data-edtype="${key}"]`);if(sel)sel.value=e.kind;});
   /* An editor whose page is no longer written is saved and closed; reading shows what it saved. */

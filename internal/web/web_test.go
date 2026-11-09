@@ -506,6 +506,29 @@ func TestAssetsArrive(t *testing.T) {
 	}
 }
 
+// An asset named with the version of this release is kept for a year, so the editor is fetched once per release; without
+// that version, or with an old one, a day.
+func TestAssetsOfThisReleaseAreKept(t *testing.T) {
+	s := newSite(t, Options{}, sample)
+	page := s.body("/")
+	m := regexp.MustCompile(`/assets/app/demo\.js\?v=([0-9a-f]+)`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("the page names no version: %.300s", page)
+	}
+	for target, want := range map[string]string{
+		"/assets/app/editor/editor.js?v=" + m[1]: "public, max-age=31536000, immutable",
+		"/assets/app/editor/editor.js":            "public, max-age=86400",
+		"/assets/app/editor/editor.js?v=old":      "public, max-age=86400",
+	} {
+		if got := s.get(target).Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: %q, want %q", target, got, want)
+		}
+	}
+	if strings.Contains(page, "/assets/app/editor/editor.js") {
+		t.Errorf("the editor is not loaded with every page")
+	}
+}
+
 func TestHealth(t *testing.T) {
 	ready := false
 	handler := Health(func() bool { return ready })
