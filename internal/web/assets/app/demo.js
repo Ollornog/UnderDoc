@@ -451,7 +451,7 @@ function winHtml(w,i){
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
-    ${cmtShown(t.d)?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${cmtCount(d)?', '+cmtCount(d):''}">${ic('chat')}${cmtCount(d)?`<em class="cnum">${cmtCount(d)}</em>`:''}</button>`:''}
+    ${cmtShown(t.d)?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${cmtCount(d)?', '+cmtCount(d):''}">${ic('chat')}${cmtCount(d)?`<em class="cnum">${cmtCount(d)}</em>`:''}</button>`:fromSource(t.d)?`<button class="ic" disabled aria-label="Comments" title="No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database.">${ic('chat')}</button>`:''}
     <button class="ic" data-act="gear" data-w="${i}" aria-pressed="${t.gear}" aria-label="Document settings" title="Document settings">${ic('gear')}</button>
     <button class="ic" data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More">${ic('more')}</button>${S.menu===i?menuHtml(i):''}${dhead}</div>`;
   const inner=t.src?`<div class="src">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="doc ${d.w}">${h}</article>`;
@@ -677,7 +677,7 @@ function render(){
   /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
   const ap=document.querySelector('.cmdpop');if(ap){stay(ap,S.addAt.up);filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
-  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||D[t.d].tool)return;if(D[t.d].blocks){dbBubbles(art,i,t);return;}if(accOf(t.d)==='read')return;const doc=art.querySelector('article.doc');if(!doc)return;
+  document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||D[t.d].tool)return;if(D[t.d].blocks){dbBubbles(art,i,t);return;}if(accOf(t.d)==='read'||fromSource(t.d))return;const doc=art.querySelector('article.doc');if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
     doc.querySelectorAll('p,h2,h3,ul,ol,pre,.tw,.table-container').forEach(el=>{if(el.parentElement.closest('.embed,.kids,.tw,.table-container,ul,ol,.todos,.keep,.board,.facts,.note,dl')||el.matches('.lab,.hint,.note')||el.closest('.embed'))return;
       const k=el.matches('.tw, .table-container')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
@@ -1468,7 +1468,10 @@ async function createPage(parent,title){
    level deep. Whoever sees the page reads them; whoever may comment adds some; each author changes and deletes their own;
    a thread is resolved by its author or by whoever may edit. A block that is gone keeps its comments. The text is plain:
    it is escaped here, never rendered. Made-up documents keep their made-up comments (cmtHtml). */
-const cmtShown=id=>{const d=D[id];return d.blocks?!!d.canComment||cmtCount(d)>0:accOf(id)!=='read'&&!d.tool;};
+/* Pages of the folder source keep no comments: they are files, read only. Their speech bubble is greyed and says so,
+   instead of taking comments that are never kept (2026-11-09). */
+const fromSource=id=>{const d=D[id];return !!(d&&d.real&&!d.db&&!d.blocks);};
+const cmtShown=id=>{const d=D[id];return d.blocks?!!d.canComment||cmtCount(d)>0:accOf(id)!=='read'&&!d.tool&&!fromSource(id);};
 const cmtCount=d=>d.blocks?d.ncmt||0:(d.comments||[]).length;
 const cmtURL=id=>'/api/comments/'+encodeURIComponent(id);
 function blockLabel(b){const s=(b.draft!==undefined?b.draft:b.raw||'').replace(/::embed\{ref="([^"]+)"\}/g,'Embedded $1').replace(/[#>*_`|~\[\]()-]+/g,' ').replace(/\s+/g,' ').trim();return s.slice(0,60)||'Empty block';}
@@ -1508,7 +1511,8 @@ async function removeComment(key,id){
   catch(e){cmtFailed(e,'The comment could not be deleted.');}
 }
 function cmtRowHtml(d,c,t,i,reply){
-  const B=(act,label)=>`<button class="tagc" data-act="${act}" data-w="${i}" data-id="${c.id}">${label}</button>`,acts=[],done=!reply&&!!c.resolved;
+  const IC={cmtreply:'back',cmtres:'check',cmtedit:'pencil',cmtdel:'trash'};
+  const B=(act,label)=>`<button class="tagc" data-act="${act}" data-w="${i}" data-id="${c.id}">${ic(IC[act])}${label}</button>`,acts=[],done=!reply&&!!c.resolved;
   if(!reply&&d.canComment&&!c.resolved)acts.push(B('cmtreply','Reply'));
   if(!reply&&c.canResolve)acts.push(B('cmtres',c.resolved?'Reopen':'Resolve'));
   if(c.mine&&d.canComment)acts.push(B('cmtedit','Edit'),B('cmtdel',t.cdel===c.id?'Delete? Yes':'Delete'));

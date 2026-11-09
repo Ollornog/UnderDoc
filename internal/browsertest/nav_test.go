@@ -1094,6 +1094,9 @@ func TestEditingIsFound(t *testing.T) {
 	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | Read only. From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
+	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] .tools [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.doc .cblk').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
+		t.Errorf("a page of the folder source takes no comments it would not keep: %q", got)
+	}
 	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
 	if got := b.eval(`(() => { try { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); openNew(id); render();
 		const p = document.querySelector('.cmdpop [data-act="add"][data-id="page"]'); return id + ' ' + (p ? p.disabled + ' ' + p.title : 'none'); } catch (e) { return 'error ' + e.message; } })()`); !strings.HasSuffix(got, "true The folder source is read only. Pages are made in collections of the database") {

@@ -94,6 +94,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	if got := b.eval(`document.querySelector('article.doc .cblk[data-id="b2"] em')?.textContent + ' ' + document.querySelectorAll('.fdrawer .cmtrow.reply [data-act="cmtreply"], .fdrawer .cmtrow.reply [data-act="cmtres"]').length`); got != "2 0" {
 		t.Errorf("the reply counts, and is neither answered nor resolved on its own: %q", got)
 	}
+	b.shot("comments")
 	b.clickOn(`.fdrawer [data-act="cmtres"]`, 1)
 	if !b.waitFor(`!!document.querySelector('.fdrawer .cmtrow.done') && !document.querySelector('article.doc .cblk[data-id="b2"] em')`) {
 		t.Fatalf("resolved, it counts no more: %s", b.eval(drawer))

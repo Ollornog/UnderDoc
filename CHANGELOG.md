@@ -18,6 +18,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Pages of the folder source take no comments: they are files and read only, and comments there were never kept. Their
+  speech bubble is greyed and says so; comments are kept on pages of the database. The actions of a comment (reply,
+  resolve, edit, delete) have icons.
 - Reading and editing: a square button, icon only, at the left of the head of a document, as tall as path and title,
   turns the document between reading (book) and editing (pencil, filled); where a page cannot be edited it shows a lock
   and says why (folder source, demo, only read or comment). The pencil in the head is gone. New in the head of a
