@@ -57,9 +57,11 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - **Menus stay inside the window (2026-11-09):** a right click menu at the edge moves in, and a long one scrolls.
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
   offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
-  collection offers a new collection inside it. A new collection opens with its settings, ready to be named.
+  collection offers a new collection inside it. A new collection is named in place (2026-11-08; before, it opened with its
+  settings).
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
-  new in it, favorite, and settings. The settings open in nav3.
+  new in it, favorite, and settings. The settings are part of the overview of the collection in the window, which the
+  right click opens ready to rename (2026-11-09; before, they took the place of nav3).
 - A collection can be kept open. A click opens a collection and closes every open one that is not kept open. A double click, or
   the right click, keeps it open, or stops and closes it; until 2026-11-09 Ctrl with a click did too, which now selects. In nav2 a
   thick line on the left marks what is kept open and a thin one what is open for now (2026-11-09, before that a pin), and

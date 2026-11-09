@@ -115,7 +115,13 @@ function divItems(mode,id){const cont=mode==='first'?id:contOf(id),ok=canPlace(c
   return '<hr>'+`<button data-act="line${mode}" data-id="${id}" ${ok}>${ic('hr')}Line ${mode==='first'?'at the top of it':'below it'}</button><button data-act="space${mode}" data-id="${id}" ${ok}>${ic('gap')}Space ${mode==='first'?'at the top of it':'below it'}</button>`;}
 function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tags:[],path:'not a file, a collection',by:'A. Keller',ch:'Oct 31',vis:'Group ops',...none,
   get stat(){return `${this.kids.length} entries`;},
-  get html(){const ac=accOf(id);return `<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd><dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd><dt>Visible to</dt><dd>${id==='me'?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl><button class="chip" data-act="cgear" data-id="${id}">${ic('gear')}Settings</button>${this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>'}`;}};}
+  /* The overview holds the settings of the collection too, for whoever may change them (the maintainer, 2026-11-09). */
+  get html(){const ac=accOf(id),may=this.db?ac==='edit'||this.owner===esc(S.user.name):!this.real&&ac==='edit';
+    const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
+    const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
+      <div class="slab">Others can</div><span class="seg" role="group">${[['edit','Edit'],['comment','Comment'],['read','Read']].map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||'edit')===x[0]}">${x[1]}</button>`).join('')}</span>
+      <p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>`:'';
+    return facts+set+(this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>');}};}
 /* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
 function asTop(c){Object.defineProperty(c,'n',{get(){return D[c.id].n;},set(v){D[c.id].n=v;},configurable:true,enumerable:true});Object.defineProperty(c,'top',{get(){return D[c.id].kids;},configurable:true,enumerable:true});return c;}
 C.forEach(c=>{const n=c.n,top=c.top;delete c.n;delete c.top;collDoc(c.id,n,top,c.i);asTop(c);});
@@ -144,7 +150,7 @@ const plain=h=>{const e=document.createElement('div');e.innerHTML=h;return e.tex
 const phone=()=>matchMedia('(max-width: 760px)').matches;
 const W3=300;
 const newTab=(d,general=false)=>({d,general,top:0,fly:false,gear:false,cmt:false,find:false,q:'',cur:0,src:false});
-const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',cgear:null,addIn:null,just:null,prof:false,filters:false,newN:0,
+const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',addIn:null,just:null,prof:false,filters:false,newN:0,
   focus:0,rail:!phone(),limit:8,tog:{},treeTop:0,s1:0,s2:3,w3:W3,theme:'system',scale:100,first:false,clock:false,
   ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',
   fav:{ops:true,pro:true,me:true,arc:false},open:{ops:true,pro:true},pin:{ops:true},so:{todo:{mine:true},cal:{all:true},time:{week:true},vac:{y26:true},notes:{quick:true}},spin:{},mods:{mail:true,private:true,bookmarks:true,news:true,ai:true,network:true,lists:true,video:true,slides:true,notes:true},menu:null,
@@ -531,13 +537,6 @@ function adminHtml(sec){
   if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;
   return `<div class="spanel"><div class="shead">Modules</div>${MODS.map(m=>`<button class="modrow" data-act="mod" data-id="${m[0]}" aria-pressed="${S.mods[m[0]]}"><span>${m[1]}<small>${m[2]}</small></span><em>${S.mods[m[0]]?'✓ On':'Off'}</em></button>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched. Only administrators see this part of the profile.</p></div>`;
 }
-function collForm(){
-  const c=C.find(x=>x.id===S.cgear)||{id:S.cgear,get n(){return D[S.cgear].n;}};
-  return `<div class="spanel"><div class="shead">${c.n}<button class="ic" data-act="cgear" data-id="${c.id}" aria-label="Close settings">${ic('x')}</button></div>
-    <label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${c.id}" value="${c.n}">
-    <div class="slab">Others can</div>${seg3('cacc',[['edit','Edit'],['comment','Comment'],['read','Read']],D[c.id].acc||'edit')}<p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>
-    <div class="slab">On disk</div><p class="hint">${c.id==='me'?'none':c.id+'/'}</p><div class="slab">Visible to</div><p class="hint">${c.id==='me'?'Only you':'Everyone who is signed in'}</p></div>`;
-}
 const listRow=(id,icon,label,side='')=>{const t=at(S.focus);return `<li><div class="row${t&&t.d===id?' cur':''}"><span class="arrow none"></span><button class="name" data-act="open" data-id="${id}" title="${label}">${ic(icon)}<span>${label}</span></button>${side?`<span class="count">${side}</span>`:''}</div></li>`;};
 const BM=[{id:'bar',n:'Toolbar',i:'star',items:[{n:'Ticket system',u:'https://tickets.example.com',d:'Open tickets of the team.'},{n:'Supplier portal',u:'https://supplier.example.net',d:'Orders and licenses.'},{n:'Weather radar',u:'https://weather.example.org',d:'Before crane work.'}]},
   {id:'work',n:'Work',i:'folder',items:[{n:'Switch manual',u:'https://docs.example.com/switch',d:'Firmware 9, chapter on VLANs.'},{n:'Crane company',u:'https://crane.example.net',d:'Booking and phone numbers.'}]},
@@ -582,7 +581,7 @@ function accountHtml(){
 }
 function nav3Html(){
   const v=S.view,sec=S.sec[v];
-  if(v==='workspace') return S.cgear?collForm():`<div class="tree" id="tree">${treeHtml()}</div>`;
+  if(v==='workspace') return `<div class="tree" id="tree">${treeHtml()}</div>`;
   if(v==='search') return searchHtml();
   if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
   if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
@@ -771,19 +770,19 @@ document.addEventListener('click',e=>{
     case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
     case 'newdoc':openDoc(createIn(S.into,a.id,''));break;
     case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
-    case 'addmenu2':{S.view='workspace';S.cgear=null;S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
+    case 'addmenu2':{S.view='workspace';S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
     case 'opentab':openTab(a.id);break;
     case 'opencol':S.wins.splice(S.focus+1,0,{tabs:[newTab(null,true),newTab(a.id)],a:1,hist:[]});S.focus++;break;
     case 'addchild':if(D[a.id].db){createPage(a.id,'New page');break;}{const id='new'+(++S.newN);D[id]={t:'page',n:'New page',w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its parent',...none,stat:'new',html:'<p class="lab">Empty.</p>'};D[a.id].kids.unshift(id);S.tog[a.id]=true;rebuildPlaces();openDoc(id);S.just=id;break;}
     case 'copylink':S.toast='Link copied: '+D[a.id].n;setTimeout(()=>{S.toast='';render();},1600);break;
     case 'opengear':openDoc(a.id);at(S.focus).gear=true;break;
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
-    case 'copen':onlyThis(a.id);S.cgear=null;break;
+    case 'copen':onlyThis(a.id);break;
     case 'cpin':togglePin(a.id);break;
     case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'',freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
       if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
       rebuildPlaces();S.view='workspace';S.rail=true;S.just=id;renameHere(id);return;}
-    case 'cacc':if(a.id==='edit')delete D[S.cgear].acc;else D[S.cgear].acc=a.id;break;
+    case 'cacc':if(a.id==='edit')delete D[a.c].acc;else D[a.c].acc=a.id;break;
     case 'setacc':if(a.id==='inherit')delete D[t.d].acc;else D[t.d].acc=a.id;break;
     case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt)t.gear=false;break;
     case 'cblk':t.cmt=true;t.gear=false;t.cb=a.id;t.cbl=a.l||a.id;render();{const f=document.querySelector(`[data-addcmt="${i}"]`);if(f)f.focus();}return;
@@ -797,7 +796,7 @@ document.addEventListener('click',e=>{
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
       if(e.detail===2){if(fold&&b.closest('.nav3 .row'))S.tog[a.id]=!kidsOpen(a.id);break;}
       openDoc(a.id);break;}
-    case 'coll':S.cgear=null;collClick(a.id,e);break;
+    case 'coll':collClick(a.id,e);break;
     case 'collhead':S.open[a.id]=false;S.pin[a.id]=false;break;
     case 'n2line':case 'n2space':{const id=decoId(),k=C.findIndex(c=>c.id===a.id);decoDoc(id,act==='n2line'?'line':'space');C.splice(k<0?C.length:k+1,0,asTop({id,i:'grid'}));break;}
     case 'linefirst':case 'spacefirst':addDivider(act.startsWith('line')?'line':'space',a.id,'');break;
@@ -812,7 +811,8 @@ document.addEventListener('click',e=>{
     case 'selopen':if(S.sel){if(S.sel.z==='n2')S.sel.ids.forEach(x=>{if(!isDeco(x))S.open[x]=true;});else S.sel.ids.forEach(openAsTab);}S.sel=null;break;
     case 'selpin':if(S.sel)S.sel.ids.forEach(x=>{if(!isDeco(x)){S.pin[x]=true;S.open[x]=true;}});S.sel=null;break;
     case 'selclear':S.sel=null;break;
-    case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
+    /* Settings and name open the overview of the collection, where they are, ready to rename. */
+    case 'cgear':{openDoc(a.id);render();const f=document.getElementById('cname');if(f){f.focus();f.select();}return;}
     case 'addmenu':if(hadAdd!==a.id)openNew(a.id,b.closest('.cheadrow,.n2head')||b);break;
     case 'lineend':case 'spaceend':{const k=D[a.id].kids;addDivider(act==='lineend'?'line':'space',a.id,k[k.length-1]||'');break;}
     case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}
@@ -894,7 +894,7 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   const vw=el.closest('.strip [data-act="view"]');if(vw)return at0('view',vw.dataset.id,{label:vw.textContent.trim()});
   /* A right click on the free part of nav2 or nav3 offers what can be made there. */
   if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end']]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
-  if(el.closest('.nav3')&&S.view==='workspace'&&!S.cgear){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
+  if(el.closest('.nav3')&&S.view==='workspace'){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
 });
 /* A middle click closes a tab, a double click on the empty part of the tab row opens New, as in code editors. */
 document.addEventListener('auxclick',e=>{const op=e.button===1&&e.target.closest&&e.target.closest('.nav3 [data-act="open"]');if(op&&D[op.dataset.id]){e.preventDefault();openTab(op.dataset.id);render();return;}
@@ -1045,8 +1045,11 @@ function liveTarget(e){
   const between=()=>{if(inGap)return g.k;if(r)return f<.5&&!(r.head&&j===0)?j:j+1;const k=z.rows.findIndex(x=>ny<(x.top+x.bot)/2);return k<0?z.rows.length:k;};
   /* In nav2 an entry that is not a collection can only go into one: at once, wherever on it. */
   if(z.where==='n2'&&d.kind==='row'&&!d.ids.every(x=>D[x].t==='coll')){d.dwell=null;return r&&r.hold?ontoAt(z,r):null;}
-  if(r&&r.hold&&z.where!=='sec'&&f>=.25&&f<=.75){if(dwelt(r))return ontoAt(z,r);}else d.dwell=null;
-  const k=between();
+  /* On the middle of an entry the held one stays where it is while the pointer waits, so the entry does not slide away
+     from under it; left and right still pick the depth at once. */
+  let still=false;
+  if(r&&r.hold&&z.where!=='sec'&&f>=.25&&f<=.75){if(dwelt(r))return ontoAt(z,r);still=!!(d.to&&d.to.z===z&&!d.to.keep);}else d.dwell=null;
+  const k=still?d.to.k:between();
   if(z.flat)return slotAt(z,k,0);
   const prev=z.rows[Math.max(1,k)-1],level=prev.head?0:prev.depth,off=e.clientX-d.gx-(z.base+level*z.ind);
   return slotAt(z,k,level+Math.trunc(off/z.step));
