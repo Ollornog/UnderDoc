@@ -3,7 +3,9 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -101,5 +103,81 @@ func TestPagesFollowAccess(t *testing.T) {
 	}
 	if got := s.send(http.MethodPut, "/api/pages/"+plan.ID+"/blocks/b1", `{"md":"Bob was here."}`, asBob).Code; got != http.StatusOK {
 		t.Errorf("bob edits a shared page: %d", got)
+	}
+}
+
+// A block embeds a block or a whole page of another page by its address: shown live, with a link back, each side knowing
+// where it is used, and what cannot be shown saying why.
+func TestEmbeddingThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	newPage := func(title string, blocks ...string) string {
+		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
+		after := ""
+		for _, md := range blocks {
+			body, _ := json.Marshal(map[string]string{"md": md, "after": after})
+			b := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", string(body), sameSite))
+			after = b.ID
+		}
+		return p.ID
+	}
+	doc := func(id string) apiDocument { return decode[apiDocument](t, s.get("/api/doc/"+id)) }
+	html := func(id string) string {
+		var out strings.Builder
+		for _, b := range doc(id).Blocks {
+			out.WriteString(b.HTML)
+		}
+		return out.String()
+	}
+	plan := newPage("Plan", "## Switches", "| Port | VLAN |\n|---|---|\n| 1 | 10 |")
+	rack := newPage("Rack", "The ports:\n\n::embed{ref=\""+plan+"#b2\"}\n\nThat is all.")
+	got := html(rack)
+	if !strings.Contains(got, `<figure class="embed" data-ref="`+plan+`#b2">`) || !strings.Contains(got, "<td>10</td>") ||
+		!strings.Contains(got, `href="/o/`+plan+`#b2"`) || !strings.Contains(got, "The ports") || !strings.Contains(got, "That is all") {
+		t.Fatalf("the table of Plan shows in Rack, with a link back: %s", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+plan+"/blocks/b2", `{"md":"| Port | VLAN |\n|---|---|\n| 1 | 20 |"}`, sameSite).Code; got != http.StatusOK {
+		t.Fatalf("edit = %d", got)
+	}
+	if got := html(rack); !strings.Contains(got, "<td>20</td>") {
+		t.Errorf("it is live: %s", got)
+	}
+	p := doc(plan)
+	if !slices.Contains(p.UsedIn, "Rack (block #b2)") || len(p.Blocks) != 2 || !slices.Equal(p.Blocks[1].UsedIn, []string{"Rack"}) || len(p.Blocks[0].UsedIn) != 0 {
+		t.Errorf("Plan and its block know where they are used: %+v %+v", p.UsedIn, p.Blocks)
+	}
+	whole := newPage("Overview", "::embed{ref=\""+plan+"\"}")
+	if got := html(whole); !strings.Contains(got, "<h2") || !strings.Contains(got, "<td>20</td>") || !strings.Contains(got, `href="/o/`+plan+`"`) {
+		t.Errorf("a whole page embeds: %s", got)
+	}
+	gone := newPage("Gone", "::embed{ref=\""+plan+"#b9\"}", "::embed{ref=\"zzzzzzzzzz\"}")
+	if got := html(gone); !strings.Contains(got, "Block #b9 is no longer in Plan") || !strings.Contains(got, "Not to be found: zzzzzzzzzz") {
+		t.Errorf("what is missing says so: %s", got)
+	}
+	self := newPage("Self", "First", "")
+	body, _ := json.Marshal(map[string]string{"md": "::embed{ref=\"" + self + "\"}"})
+	s.send(http.MethodPut, "/api/pages/"+self+"/blocks/b2", string(body), sameSite)
+	if got := html(self); !strings.Contains(got, "This embeds itself") {
+		t.Errorf("a page embedding itself stops: %s", got)
+	}
+	chain := plan
+	for k := 0; k < 7; k++ {
+		chain = newPage("Chain", "::embed{ref=\""+chain+"#b"+map[bool]string{true: "2", false: "1"}[k == 0]+"\"}")
+	}
+	if got := html(chain); !strings.Contains(got, "Embedded too deep") {
+		t.Errorf("deep embedding stops: %.300s", got)
+	}
+	// A private page embedded in a shared one: others see that it is not for them, not what it holds.
+	notes := ""
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		if c.Private {
+			notes = c.ID
+		}
+	}
+	secret := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Secret","parent":"`+notes+`"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages/"+secret.ID+"/blocks", `{"md":"The code is 4711.","after":""}`, sameSite)
+	shared := newPage("Shared", "::embed{ref=\""+secret.ID+"\"}")
+	if got := decode[apiDocument](t, s.getWith("/api/doc/"+shared, bob)); len(got.Blocks) != 1 || strings.Contains(got.Blocks[0].HTML, "4711") || !strings.Contains(got.Blocks[0].HTML, "Not to be found") {
+		t.Errorf("bob does not see the secret: %+v", got.Blocks)
 	}
 }

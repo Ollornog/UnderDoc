@@ -388,6 +388,9 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range markdown.Classes() {
 		used[class] = "package markdown"
 	}
+	for _, class := range []string{"embed", "embedbody", "broken"} {
+		used[class] = "the embedding of blocks (api_pages.go)"
+	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
 	if err != nil || len(files) == 0 {

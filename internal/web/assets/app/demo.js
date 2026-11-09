@@ -869,6 +869,8 @@ document.addEventListener('click',e=>{
     case 'edit':t.edit=!t.edit;t.src=false;if(t.edit&&!D[t.d].blocks.length)addBlock(t.d,'');break;
     case 'blkadd':addBlock(t.d,a.id);return;
     case 'blkdel':deleteBlock(t.d,a.id);return;
+    case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
+      (navigator.clipboard?navigator.clipboard.writeText(addr):Promise.reject()).then(()=>toast('Address copied. Paste it alone into a block to embed this one.'),()=>toast(addr));return;}
     case 'src':t.src=!t.src;t.top=0;if(t.src)t.edit=false;break;
     case 'find':t.find=!t.find;if(t.find){render();const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();return;}break;
     case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
@@ -1255,7 +1257,15 @@ async function renameObject(id,title){
 /* Pages of the database are blocks of Markdown (ADR-19). The view shows each block rendered by the server; Edit turns
    every block into a plain Markdown field, saved when it loses the focus or on Ctrl+Enter, and Escape takes the change
    back. A field keeps what was typed through a render: the draft stays with the block until it is saved. */
-const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md});
+/* Pasting the address of a block or page, alone, into an empty block embeds it: nobody types IDs (ADR-18). */
+const ADDRESS=/^\s*(?:https?:\/\/[^\/\s]+)?\/o\/([0-9a-hjkmnp-tv-z]{10})(?:\/[^#\s]*)?(?:#(b[1-9][0-9]{0,8}))?\s*$/;
+document.addEventListener('paste',e=>{
+  const x=e.target;if(!x||!x.dataset||x.dataset.blk===undefined||x.value.trim())return;
+  const m=ADDRESS.exec((e.clipboardData||window.clipboardData).getData('text')||'');if(!m)return;
+  /* Set from here, the field fires no change when it is left, so the block is saved right away. */
+  e.preventDefault();x.value=`::embed{ref="${m[1]}${m[2]?'#'+m[2]:''}"}`;x.dispatchEvent(new Event('input',{bubbles:true}));saveBlock(x.dataset.d,x.dataset.blk,x.value,x);
+});
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc)});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 const blockIn=x=>{const d=D[x.dataset.d];return d&&d.blocks&&d.blocks.find(b=>b.id===x.dataset.blk);};
 function blocksHtml(d,w,i){
@@ -1263,7 +1273,7 @@ function blocksHtml(d,w,i){
   if(!(w.edit&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Edit adds the first block.':''}</p>`;
   return d.blocks.map(b=>{const text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,(b.draft!==undefined?b.draft:b.raw).split('\n').length+1));
     return `<div class="bedit"><textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown">${text}</textarea>
-      <div class="bbar"><button class="chip" data-act="blkadd" data-w="${i}" data-id="${b.id}">${ic('plus')}Block below</button><button class="chip" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}">${b.ask?'Delete? Yes':'Delete'}</button><em>${b.saved?'Saved · ':''}#${b.id}</em></div></div>`;}).join('');
+      <div class="bbar"><button class="chip" data-act="blkadd" data-w="${i}" data-id="${b.id}">${ic('plus')}Block below</button><button class="chip" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}">${b.ask?'Delete? Yes':'Delete'}</button><button class="chip" data-act="blkaddr" data-w="${i}" data-id="${b.id}" title="Copy the address: pasted alone into a block of another page, it embeds this one there">${ic('link')}Copy address</button><em>${b.usedIn&&b.usedIn.length?`<span title="${b.usedIn.join(', ')}">Used in ${b.usedIn.length} · </span>`:''}${b.saved?'Saved · ':''}#${b.id}</em></div></div>`;}).join('');
 }
 function refocusBlock(f){if(!f)return;const x=document.querySelector(`textarea[data-blk="${f.id}"][data-d="${f.d}"]`);if(!x)return;x.focus();const p=Math.min(f.pos,x.value.length);x.setSelectionRange(p,p);}
 function versionsHtml(d){
@@ -1301,7 +1311,7 @@ async function addBlock(id,after){
 async function deleteBlock(id,blk){
   const d=D[id],b=d.blocks.find(x=>x.id===blk);if(!b)return;
   /* A block with text asks first, in place: the first click turns the button into the question, the second deletes. */
-  if((b.draft!==undefined?b.draft:b.raw).trim()&&!b.ask){d.blocks.forEach(x=>{delete x.ask;});b.ask=true;render();return;}
+  if(((b.draft!==undefined?b.draft:b.raw).trim()||(b.usedIn||[]).length)&&!b.ask){d.blocks.forEach(x=>{delete x.ask;});b.ask=true;render();return;}
   try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));
     d.blocks=d.blocks.filter(x=>x!==b);syncBlocks(d);if(gearOpen(id))loadVersions(id);render();}
   catch(e){toast('The block could not be deleted.');}

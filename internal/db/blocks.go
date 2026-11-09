@@ -143,6 +143,9 @@ func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) 
 		if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", pageID, b.ID, position, body); err != nil {
 			return err
 		}
+		if err := syncRefs(ctx, tx, pageID, b.ID, body); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, b.ID, body, viewer)
 		return err
 	})
@@ -166,6 +169,9 @@ func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body strin
 			return nil
 		}
 		if _, err := tx.Exec(ctx, "UPDATE blocks SET body = $3 WHERE page = $1 AND id = $2", pageID, blockID, body); err != nil {
+			return err
+		}
+		if err := syncRefs(ctx, tx, pageID, blockID, body); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer)

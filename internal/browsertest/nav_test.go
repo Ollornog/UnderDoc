@@ -1018,3 +1018,66 @@ func TestPrivateNotesStayAtTheTop(t *testing.T) {
 		t.Error("the private notes left nav2")
 	}
 }
+
+// The address of a block, pasted alone into an empty block of another page, embeds it there: live, with a link back, and
+// the source says where it is used.
+func TestEmbedABlockByItsAddress(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.ids = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const plan = await post('/api/pages', {title: 'Plan', parent: team.id});
+		const b1 = await post('/api/pages/' + plan.id + '/blocks', {md: '## Switches', after: ''});
+		const b2 = await post('/api/pages/' + plan.id + '/blocks', {md: '| Port | VLAN |\n|---|---|\n| 1 | 10 |', after: b1.id});
+		await post('/api/pages/' + plan.id + '/blocks', {md: '', after: b2.id});
+		const other = await post('/api/pages', {title: 'Other', parent: team.id});
+		await post('/api/pages/' + other.id + '/blocks', {md: '::embed{ref="' + plan.id + '#b3"}', after: ''});
+		const rack = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + rack.id + '/blocks', {md: '', after: ''});
+		window.ids = [plan.id, rack.id];
+	})()`)
+	if !b.waitFor(`!!window.ids`) {
+		t.Fatal("the pages for the test were not made")
+	}
+	plan, rack := b.eval(`window.ids[0]`), b.eval(`window.ids[1]`)
+	b.open(base + "/o/" + rack)
+	b.ready("Rack")
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b1"]')`) {
+		t.Fatal("no field to write in")
+	}
+	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); const dt = new DataTransfer(); dt.setData('text/plain', location.origin + '/o/` + plan + `#b2');
+		x.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); })()`)
+	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value`); got != `::embed{ref="`+plan+`#b2"}` {
+		t.Fatalf("pasting the address alone makes it an embedding: %q", got)
+	}
+	b.press("Enter", "Enter", 13, 2) // Ctrl+Enter saves
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!!document.querySelector('article.doc figure.embed td')`) {
+		t.Fatalf("the table of Plan shows in Rack: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	}
+	b.shot("embedded")
+	if got := b.eval(`document.querySelector('article.doc figure.embed td:last-child').textContent + ' | ' + document.querySelector('article.doc figure.embed figcaption').textContent.trim()`); got != "10 | Plan · #b2" {
+		t.Errorf("what shows and where it comes from: %q", got)
+	}
+	b.clickOn(`article.doc figure.embed figcaption a`, 1)
+	b.ready("Plan")
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	if got := b.eval(`document.querySelector('.fdrawer')?.innerText.includes('Rack (block #b2)')`); got != "true" {
+		t.Errorf("Plan says where it is used: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	}
+	// In editing, a block says where it is used, and an empty one in use asks before it goes.
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b3"]')`) {
+		t.Fatal("Plan is not in editing")
+	}
+	if got := b.eval(`[...document.querySelectorAll('.bbar em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
+		t.Errorf("the bars: %q", got)
+	}
+	b.clickOn(`[data-act="blkdel"][data-id="b3"]`, 1)
+	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete? Yes" {
+		t.Errorf("an empty block in use asks first: %q", got)
+	}
+}
