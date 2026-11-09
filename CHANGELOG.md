@@ -13,6 +13,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Editing is easier to find: the pencil in the head of a document is always there, greyed with the reason where the page
+  cannot be edited (folder source, demo, only read or comment), and a double click on a block of a page one may edit opens
+  editing at that block.
 - The browser tests say why Chrome does not answer: whether it still runs, and the end of what it wrote to stderr. Once,
   on the CI, Chrome gave no answer to its first tab, and the test could not say more.
 - Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was

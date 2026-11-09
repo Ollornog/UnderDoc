@@ -1081,3 +1081,35 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 		t.Errorf("an empty block in use asks first: %q", got)
 	}
 }
+
+// Editing is found: the pencil is always there, greyed with the reason where a page cannot be edited, and a double click on
+// a block of a page one may edit opens editing at that block.
+func TestEditingIsFound(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	pencil := `(() => { const p = document.querySelector('[data-win="0"] [data-act="edit"]'); return p ? p.disabled + ' ' + p.title : 'none'; })()`
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if got := b.eval(pencil); !strings.HasPrefix(got, "true From the folder source, read only") {
+		t.Errorf("a page of the folder source: %q", got)
+	}
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Notes', parent: team.id});
+		const b1 = await post('/api/pages/' + page.id + '/blocks', {md: 'First', after: ''});
+		await post('/api/pages/' + page.id + '/blocks', {md: 'Second', after: b1.id});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	b.open(base + "/o/" + b.eval(`window.made`))
+	b.ready("Notes")
+	if got := b.eval(pencil); got != "false Edit block by block (or double click a block)" {
+		t.Errorf("a page of the database: %q", got)
+	}
+	b.clickOn(`article.doc [data-b="b2"]`, 2)
+	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
+		t.Fatalf("a double click edits that block: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+	}
+}

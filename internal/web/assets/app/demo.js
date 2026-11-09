@@ -183,6 +183,9 @@ const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','not
 /* The first build: switched-off modules disappear, but what is not built yet stays in sight, greyed out. */
 const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','mods','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
 const later=(kind,id)=>S.first&&LATER[kind].includes(id);
+/* Why a document cannot be edited, for the greyed pencil: nothing that is not built or not allowed simply goes missing. */
+const noEdit=id=>{const d=D[id];return d.blocks?'You may only '+(accOf(id)==='comment'?'comment on':'read')+' this page'
+  :d.real?'From the folder source, read only: change the file in the share, or import the folder (underdoc import)':'Made-up content of the demo, not editable';};
 const off=(kind,id)=>later(kind,id)?' disabled data-later="1"':'';
 const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
@@ -428,7 +431,7 @@ function winHtml(w,i){
   const dhead=`<div class="dtitle"><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</div>`;
   const tools=`<div class="tools">${place}${marker}${find}
     <button class="ic" data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page">${ic('search')}</button>
-    ${d.blocks&&d.canEdit?`<button class="ic" data-act="edit" data-w="${i}" aria-pressed="${!!t.edit}" aria-label="Edit" title="Edit block by block">${ic('pencil')}</button>`:''}
+    ${d.blocks&&d.canEdit?`<button class="ic" data-act="edit" data-w="${i}" aria-pressed="${!!t.edit}" aria-label="Edit" title="Edit block by block (or double click a block)">${ic('pencil')}</button>`:d.blocks||d.doc?`<button class="ic" data-act="edit" data-w="${i}" disabled aria-label="Edit" title="${noEdit(t.d)}">${ic('pencil')}</button>`:''}
     ${d.doc?`<button class="ic" data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view">${ic('code')}</button>`:''}
     ${S.wins.length<4?`<button class="ic" data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column">${ic('split')}</button>`:''}
     ${accOf(t.d)!=='read'&&!d.tool?`<button class="ic" data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${(d.comments||[]).length?', '+d.comments.length:''}">${ic('chat')}${(d.comments||[]).length?`<em class="cnum">${d.comments.length}</em>`:''}</button>`:''}
@@ -925,6 +928,10 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
 document.addEventListener('auxclick',e=>{const op=e.button===1&&e.target.closest&&e.target.closest('.nav3 [data-act="open"]');if(op&&D[op.dataset.id]){e.preventDefault();openTab(op.dataset.id);render();return;}
   const tb=e.button===1&&e.target.closest&&e.target.closest('.dtab[data-dw]');if(!tb)return;e.preventDefault();const i=+tb.dataset.dw,k=+tb.dataset.dt,w=S.wins[i];
   if(w.tabs[k].general)popGeneral(w);else{w.tabs.splice(k,1);if(w.a>=k&&w.a>0)w.a--;}compact();render();});
+/* A double click on a block of a page one may edit opens editing right there. */
+document.addEventListener('dblclick',e=>{const blk=e.target.closest&&e.target.closest('article.doc [data-b]'),win=blk&&blk.closest('[data-win]');if(!win)return;
+  const i=+win.dataset.win,t=at(i),d=t&&D[t.d];if(!d||!d.blocks||!d.canEdit||t.edit||t.src)return;
+  window.getSelection()?.removeAllRanges();S.focus=i;t.edit=true;S.focusNext={d:t.d,id:blk.dataset.b,pos:0};render();});
 document.addEventListener('dblclick',e=>{const r=e.target.closest&&e.target.closest('.tabrow');if(!r||e.target.closest('.dtab,button'))return;const i=+r.closest('[data-win]').dataset.win;S.focus=i;S.newAt=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();});
 document.addEventListener('keydown',e=>{
   const x=e.target;
