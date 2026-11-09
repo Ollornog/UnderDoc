@@ -34,6 +34,9 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 	a := b.rect(from)
 	b.mouse("mouseMoved", a.X, a.Y, 0, 0)
 	b.mouse("mousePressed", a.X, a.Y, 1, 0)
+	// Lift first, as a hand does, then aim: lifting several entries changes where the others are.
+	b.mouse("mouseMoved", a.X, a.Y+8, 0, 0)
+	time.Sleep(200 * time.Millisecond)
 	z := b.rect(to)
 	x, y := z.X+dx, z.Top+(z.Bottom-z.Top)*fraction
 	for step := 1; step <= 8; step++ {
@@ -74,16 +77,18 @@ func TestNav2ShowsWhatIsKeptOpen(t *testing.T) {
 		return b.eval(`getComputedStyle(document.querySelector('.nav2 [data-act="coll"][data-id="` + id + `"]')).boxShadow`)
 	}
 	b.clickOn(`.nav2 [data-act="coll"][data-id="ops"]`, 1)
-	if got := bar("ops"); got != "none" {
-		t.Errorf("open for now: no line on the left, got %q", got)
+	if got := bar("ops"); !strings.HasSuffix(got, " 1px 0px 0px 0px inset") {
+		t.Errorf("open for now: a thin line on the left, got %q", got)
 	}
 	b.clickOn(`.nav2 [data-act="coll"][data-id="ops"]`, 2)
 	if !b.waitFor(`!!document.querySelector('.nav2 [data-id="ops"][data-pinned]')`) {
 		t.Fatal("a double click keeps it open")
 	}
-	if got := bar("ops"); got == "none" {
-		t.Error("kept open: the line on the left is missing")
+	if got := bar("ops"); !strings.HasSuffix(got, " 4px 0px 0px 0px inset") {
+		t.Errorf("kept open: a thick line on the left, got %q", got)
 	}
+	b.clickOn(`.nav2 [data-act="coll"][data-id="pro"]`, 1)
+	b.shot("nav2-thin-and-thick")
 	if got := b.eval(`document.querySelectorAll('.nav2 .star, .nav2 .pinmark, [data-act="star"]').length`); got != "0" {
 		t.Errorf("no star and no pin any more: %s", got)
 	}
@@ -212,6 +217,9 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	if got := b.eval(gapAt); got != "A "+hC {
 		t.Errorf("lifted, the gap stays where B was, below A: %q", got)
 	}
+	if got := b.eval(`document.getAnimations().length + ' ' + Math.round(document.querySelector(` + strconv.Quote(c) + `).getBoundingClientRect().top - ` + strconv.FormatFloat(top(c), 'f', 2, 64) + `)`); got != "0 0" {
+		t.Errorf("lifting B makes nothing jump: animations and the move of C are %q", got)
+	}
 	b.press("Escape", "Escape", 27, 0)
 	b.mouse("mouseReleased", rb.X, rb.Y+8, 1, 0)
 	if got := b.eval(`[document.querySelectorAll('.dropgap, #ghost').length, [...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')].join(' ')`); got != "0 A B C" {
@@ -296,6 +304,14 @@ func TestPrivateListsSortWithAGap(t *testing.T) {
 	if got := order(); got != "car mine shop" {
 		t.Errorf("after the drop: %q", got)
 	}
+	// Ctrl and click selects here too, and keeps nothing open.
+	r := b.rect(`.nav2 [data-secid="shop"]`)
+	b.mouse("mouseMoved", r.X, r.Y, 0, 0)
+	b.mouse("mousePressed", r.X, r.Y, 1, 2)
+	b.mouse("mouseReleased", r.X, r.Y, 1, 2)
+	if got := b.eval(`[document.querySelector('.nav2 [data-secid="shop"]').getAttribute('aria-selected'), document.querySelectorAll('.nav2 [data-pinned]').length].join(' ')`); got != "true 0" {
+		t.Errorf("Ctrl and click selects a list: %q", got)
+	}
 }
 
 // Nothing lands where one may only read: no gap opens there, and a drop leaves everything where it was.
@@ -313,7 +329,144 @@ func TestNoGapWhereOneMayOnlyRead(t *testing.T) {
 			t.Errorf("a gap opens in the archive, which may only be read: %q", got)
 		}
 	})
+	// Below it, beside it, the same.
+	b.dragTo(`.nav3 .row[data-row="net"]`, `.nav3 .row[data-row="old"]`, 0.9, func() {
+		if got := b.eval(gapAt); got != "none" {
+			t.Errorf("a gap opens beside an entry of the archive: %q", got)
+		}
+	})
 	if got := b.eval(`D.arc.kids.join(' ')`); got != "old" {
 		t.Errorf("the archive changed: %q", got)
+	}
+}
+
+// The middle third of an entry puts the dragged one below it; level with the entry above it lands beside it, and further
+// left it goes out towards the top.
+func TestDropOntoAndAcross(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	kids := func(name string) string {
+		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > .row') || [])].map(n => n.textContent.trim()).join(' ')`)
+	}
+	tops := func() string {
+		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+	}
+	b.dragTo(rowNamed(b, "C"), rowNamed(b, "A"), 0.5, func() {
+		b.shot("drop-onto")
+		if got := b.eval(`[document.querySelector('.dropgap')?.classList.contains('idle'), getComputedStyle(document.getElementById('ghost')).opacity < 0.5].join(' ')`); got != "true true" {
+			t.Errorf("onto A, the gap waits unseen and the ghost lets A show through: %q", got)
+		}
+		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join()`); got != "A" {
+			t.Errorf("the middle of A frames A: %q", got)
+		}
+	})
+	if got := kids("A"); got != "C" {
+		t.Fatalf("C is below A: %q", got)
+	}
+	b.dragTo(rowNamed(b, "B"), rowNamed(b, "C"), 0.8, func() {
+		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+			t.Errorf("the lower part of C is beside it, not onto it")
+		}
+	})
+	if got := kids("A"); got != "C B" {
+		t.Fatalf("level with C, B lands beside it: %q", got)
+	}
+	b.dragToX(rowNamed(b, "B"), rowNamed(b, "C"), 0.8, -40, nil)
+	if got := tops() + " | " + kids("A"); got != "A B | C" {
+		t.Fatalf("further left, B goes out to the top: %q", got)
+	}
+	time.Sleep(500 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := tops() + " | " + kids("A"); got != "A B | C" {
+		t.Errorf("the database keeps it: %q", got)
+	}
+}
+
+// Ctrl and click selects, Shift and click a range; dragging one moves all of them, and on a window they open as tabs.
+func TestSelectSeveralAndMove(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	ctrl := func(sel string, mods int) {
+		r := b.rect(sel)
+		b.mouse("mouseMoved", r.X, r.Y, 0, 0)
+		b.mouse("mousePressed", r.X, r.Y, 1, mods)
+		b.mouse("mouseReleased", r.X, r.Y, 1, mods)
+	}
+	selected := func() string {
+		return b.eval(`[...document.querySelectorAll('[aria-selected="true"]')].map(n => n.textContent.trim() || n.dataset.deco).join(' ')`)
+	}
+	tops := func() string {
+		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+	}
+	title := b.eval(`document.querySelector('.dtitle h1').textContent`)
+	ctrl(rowNamed(b, "A"), 2)
+	ctrl(rowNamed(b, "C"), 2)
+	if got := selected(); got != "A C" {
+		t.Fatalf("Ctrl and click selects: %q", got)
+	}
+	b.shot("selected")
+	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('.nav3 [aria-selected="true"]')); return s.outlineStyle + ' ' + s.outlineWidth; })()`); got != "solid 1px" {
+		t.Errorf("a selected entry is framed: %q", got)
+	}
+	if got := b.eval(`document.querySelector('.dtitle h1').textContent`); got != title {
+		t.Errorf("selecting opens nothing: %q", got)
+	}
+	b.dragTo(rowNamed(b, "A"), rowNamed(b, "B"), 0.8, func() {
+		b.shot("select-drag")
+		if got := b.eval(`document.querySelector('#ghost .count')?.textContent`); got != "2" {
+			t.Errorf("the ghost says two: %q", got)
+		}
+	})
+	if got := tops(); got != "B A C" {
+		t.Fatalf("both move below B: %q", got)
+	}
+	time.Sleep(500 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := tops(); got != "B A C" {
+		t.Errorf("the database keeps the order: %q", got)
+	}
+	ctrl(rowNamed(b, "B"), 2)
+	ctrl(rowNamed(b, "C"), 8) // Shift
+	if got := selected(); got != "B A C" {
+		t.Fatalf("Shift and click takes the range: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	if got := selected(); got != "" {
+		t.Errorf("Escape ends the selection: %q", got)
+	}
+	ctrl(rowNamed(b, "A"), 2)
+	ctrl(rowNamed(b, "C"), 2)
+	b.dragTo(rowNamed(b, "A"), `[data-win="0"] .wbody`, 0.5, func() {
+		if got := b.eval(`!!document.querySelector('[data-win="0"].zone-open') && !document.querySelector('.dropgap')`); got != "true" {
+			t.Error("over the window it says it opens there")
+		}
+	})
+	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .dtab')].map(n => n.textContent.trim()).filter(n => n === 'A' || n === 'C').join(' ')`); got != "A C" {
+		t.Errorf("dropped on the window, both open as tabs: %s", b.eval(`document.querySelector('[data-win="0"] .tabrow').innerText.replace(/\s+/g, ' ')`))
+	}
+	if got := tops(); got != "B A C" {
+		t.Errorf("opening moves nothing: %q", got)
+	}
+
+	// In nav2, Ctrl and click selects and no longer keeps a collection open; the right click keeps the selection open.
+	ctrl(`.nav2 [data-act="coll"][data-id="ops"]`, 2)
+	ctrl(probe(b, `.nav2 [data-act="coll"]`, "Home"), 2)
+	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => n.textContent.trim()).join(' ') + ' ' + document.querySelectorAll('.nav2 [data-pinned]').length`); got != "Home Operations (demo) 0" {
+		t.Fatalf("nav2 selects with Ctrl and click, and pins nothing: %q", got)
+	}
+	b.rightClickOn(`#clist [aria-selected="true"]`)
+	b.clickOn(probe(b, `.ctxpop button`, "Keep them open"), 1)
+	if got := b.eval(`document.querySelectorAll('.nav2 [data-pinned]').length`); got != "2" {
+		t.Errorf("the right click keeps both open: %s", got)
 	}
 }

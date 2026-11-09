@@ -12,7 +12,7 @@ People who want Excel keep Excel on a share, and the web shows the same file.
 
 Every feature is checked against these before it is built, see [ADR-17](../backlog/ADR-17-guiding-principles.md).
 
-- **The same action gets the same reaction, everywhere.** A click opens only this, Ctrl with a click adds without replacing, a
+- **The same action gets the same reaction, everywhere.** A click opens only this, Ctrl with a click adds to a selection, a
   click on anything with children opens them, and a right click opens the menu of what is under the pointer.
 - **Everything is an object** with a stable ID, its own address and a way to be embedded elsewhere, down to a table or a
   paragraph inside a page ([ADR-18](../backlog/ADR-18-object-ids-and-addresses.md)).
@@ -129,8 +129,8 @@ Three views on one set of objects ([ADR-15](../backlog/ADR-15-workspace-of-typed
   moves.
 - **One rule for clicks:** as a rule nav1 opens nav2, nav2 opens nav3, nav3 opens into the active window. Everything has its own
   right-click menu.
-- **Collections:** favorites sit in nav2, and Collections lists all of them in nav3 with stars and gears. A click opens only that one, Ctrl
-  with a click opens several, and a setting offers marking with a double click instead. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
+- **Collections:** favorites sit in nav2, and Collections lists all of them in nav3 with stars and gears. A click opens only that one, a double
+  click keeps one open, and Ctrl with a click selects several, to move them or open them together. Open ones stack in nav3. Documents open by themselves up to a set number of children. A plus adds a
   document, which is then dragged to its place.
 - **Tabs:** every window has a general tab, always its first, and a list opens into the one of the active window. The next document
   replaces it, the older ones show as a stack with an arrow to list the last 15, and dragging it keeps the document as a tab of its

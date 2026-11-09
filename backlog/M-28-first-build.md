@@ -64,3 +64,7 @@ deleting objects, folders in the database, import and export, the list of proble
 apart, bring in), and typing filters it. A new collection is made at once as "New collection (n)", with the first free
 number, and its name is written in place. Dragging pulls the entry out of its list and opens a gap where it would land; in
 nav3 moving it to the right puts it below the entry above it. Import and Link in New come later.
+
+**State on 2026-11-09 (selecting):** Ctrl and click selects in nav2 and nav3, Shift and click a range; dragging moves the
+selection, and on a window it opens as tabs. The middle third of an entry is the drop onto it; the left edge of the ghost
+picks the depth. New in a collection is in blocks.

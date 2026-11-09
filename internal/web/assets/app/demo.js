@@ -151,9 +151,10 @@ const tagChips=(tags,act)=>tags.map(t=>`<button class="tagc" data-act="${act}" d
 
 function rowHtml(id){
   if(!shown(id))return '';
-  if(isDeco(id))return `<li><div class="row deco" data-deco="${D[id].t}" data-row="${id}" title="${D[id].n}: drag it, or right click to remove it"></div></li>`;
+  const sl=isSel('n3',id)?' aria-selected="true"':'';
+  if(isDeco(id))return `<li><div class="row deco" data-deco="${D[id].t}" data-row="${id}"${sl} title="${D[id].n}: drag it, or right click to remove it"></div></li>`;
   const d=D[id],open=kidsOpen(id),t=at(S.focus),cur=t&&t.d===id;
-  return `<li><div class="row${cur?' cur':''}${S.just===id?' just':''}" data-row="${id}">
+  return `<li><div class="row${cur?' cur':''}${S.just===id?' just':''}" data-row="${id}"${sl}>
     <button class="arrow ${d.kids.length?(open?'open':''):'none'}" data-act="tog" data-id="${id}" aria-label="Toggle ${d.n}">${ic('chev')}</button>
     ${S.ren===id?`<span class="name">${ic(d.i||TYPE[d.t][0])}<input class="renin" data-ren="${id}" value="${d.n}" aria-label="Name"></span>`:`<button class="name" data-act="open" data-id="${id}" title="${d.n}">${ic(d.i||TYPE[d.t][0])}<span>${d.n}</span></button>`}</div>
     ${d.kids.length&&open?`<ul class="t">${d.kids.map(rowHtml).join('')}</ul>`:''}</li>`;
@@ -174,6 +175,8 @@ function treeHtml(){
    It floats over everything below its button, so nothing moves. */
 Object.assign(I,{link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',hr:'<path d="M4 12h16"/>',gap:'<path d="M4 5h16M4 19h16M12 9v6"/>'});
 const SOON=' disabled data-later="1" title="Comes later"';
+/* New in a collection: the types in blocks, each sorted by name. */
+const NEWGROUPS=[['Write',['page','notes','todo','kanban']],['Data',['table','db','view','excel','ipnet','devices']],['Media',['images','slides','video']],['Organize',['folder','search','bookmark']]];
 function addPop(){
   if(!S.addIn)return '';
   const n2=S.addIn==='n2',c=!n2&&D[S.addIn];if(!n2&&!c)return '';
@@ -181,7 +184,9 @@ function addPop(){
   const grp=(h,items)=>`<div role="group"><span role="heading">${h}</span>${items}</div>`;
   const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
   const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
-    :[grp('Make',addTypes().map(k=>it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+off('add',k))).join('')+it('newcoll',S.addIn,'Collection','grid')),
+    :[...NEWGROUPS.map(([h,ks])=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+off('add',k))]);
+        if(h==='Organize')items.push(['Collection',it('newcoll',S.addIn,'Collection','grid')]);
+        return items.length?grp(h,items.sort((x,y)=>x[0].localeCompare(y[0])).map(x=>x[1]).join('')):'';}).filter(Boolean),
       grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
       grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON)+(S.mods.bookmarks?it('open','bm:import','Import bookmarks','down',off('add','bookmark')):''))];
   return `<div class="pop ctxpop cmdpop" data-style="left:${S.addAt.x}px;top:${S.addAt.y}px"><div class="command" aria-label="New ${n2?'in nav2':'in '+c.n}"><header>${ic('search')}<input data-nfilter value="${esc(S.addQ)}" placeholder="Type to filter" aria-label="Filter" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true"></header><div role="menu" data-empty="Nothing matches.">${groups.join('<hr role="separator">')}</div></div></div>`;
@@ -203,8 +208,9 @@ function freeName(base){const used=new Set(Object.values(D).filter(d=>d.t==='col
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
   const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${label}</button>`;let items='',title='';
-  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also Ctrl and click, or a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+'<hr>'+B('cgear','Settings and name');}
+  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+'<hr>'+B('cgear','Settings and name');}
   if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
+  if(c.kind==='sel'&&S.sel){const z=S.sel.z;title=S.sel.ids.length+' selected';items=(z==='n3'?B('selopen','Open as tabs'):z==='n2'?B('selopen','Open them in nav3')+B('selpin','Keep them open'):'')+'<hr>'+B('selclear','Clear the selection');}
   if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+B('opengear','Settings and metadata');}
   if(c.kind==='row'&&isDeco(c.id)){title=D[c.id].n;items=B('decodel','Remove',c.id,canPlace(contOf(c.id))?'':'disabled title="'+placeWhy(contOf(c.id))+'"');}
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
@@ -219,9 +225,10 @@ function nav2Html(){
     /* Every collection is in nav2, so an open one is always in sight: favorites on top, the others below. A right click has the rest. */
     /* Open for now or kept open: kept open draws the line on the left. Lines and spaces set groups apart; all of it is
        sorted by dragging, and the browser keeps the order until the account does. */
-    const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}" data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
+    const sl=c=>isSel('n2',c.id)?' aria-selected="true"':'';
+    const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}"${sl(c)} data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
       :S.ren===c.id?`<div class="collrow ren">${ic(c.i||'grid')}<input class="renin" data-ren="${c.id}" value="${D[c.id].n}" aria-label="Name of the collection"></div>`
-      :`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}">${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}</div>`;
+      :`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}"${sl(c)}>${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}</div>`;
     return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(row).join('')}</div>`;
   }
   if(S.view==='search') return [['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+`<span class="favsep"></span>`+navItem('ai','ai','Also ask AI','ai',S.ai);
@@ -229,7 +236,7 @@ function nav2Html(){
   /* Lists that belong to the user can be sorted by dragging. Entries that act, such as import, sit apart below them. */
   const all=SECTIONS[S.view](),srt=!!SORT[S.view],items=all.filter(x=>!x[3]),acts=all.filter(x=>x[3]);
   const so=S.so[S.view],sp=S.spin[S.view]||{};
-  const one=x=>navItem('sec',x[0],x[1],x[2],so&&!x[3]?!!so[x[0]]:S.sec[S.view]===x[0],srt&&!x[3]&&!x[4]?`data-secid="${x[0]}"`:'');const one2=x=>{const h=one(x);return sp[x[0]]?h.replace('<button class="navitem"','<button class="navitem" data-pinned="1"'):h;};
+  const one=x=>navItem('sec',x[0],x[1],x[2],so&&!x[3]?!!so[x[0]]:S.sec[S.view]===x[0],srt&&!x[3]&&!x[4]?`data-secid="${x[0]}"${isSel('sec',x[0])?' aria-selected="true"':''}`:'');const one2=x=>{const h=one(x);return sp[x[0]]?h.replace('<button class="navitem"','<button class="navitem" data-pinned="1"'):h;};
   return items.map(one2).join('')+(acts.length?'<span class="favsep"></span>'+acts.map(one).join(''):'');
 }
 const SECTIONS={
@@ -467,7 +474,7 @@ function settingsHtml(sec){
   if(sec==='look') b=`<div class="shead">Appearance</div><div class="setrow"><span>Theme</span>${seg3('theme',[['system','System'],['light','Light'],['dark','Dark']],S.theme)}</div>
     <div class="setrow"><span class="withic">${ic('search')}Page scale</span><span class="stepper"><button class="ic" data-act="scale" data-id="-10" aria-label="Smaller">−</button><button class="chip" data-act="scale" data-id="0" title="Back to 100%">${S.scale}%</button><button class="ic" data-act="scale" data-id="10" aria-label="Larger">+</button></span></div>`;
   if(sec==='navi') b=`<div class="shead">Navigation</div>
-    <div class="slab">Clicks</div><p class="hint">A click opens only this. Ctrl and click adds it, or takes it away again, and leaves the rest: a document opens as a tab of its own, and a collection is kept open, or no longer, also with a double click. A click on a collection closes the others unless they are kept open. Anything with children also opens them in nav3, and a second click closes them.</p>
+    <div class="slab">Clicks</div><p class="hint">A click opens only this. Ctrl and click selects it too, Shift and click a range: dragging one moves them all, and on a window they open as tabs. A double click keeps a collection open, or no longer; a middle click opens a document as a tab of its own. A click on a collection closes the others unless they are kept open. Anything with children also opens them in nav3, and a second click closes them.</p>
     <div class="slab">Lists</div><label class="setrow" for="limit"><span>Open by themselves up to</span><span><input id="limit" type="number" min="0" max="50" value="${S.limit}"> children</span></label>
     <div class="slab">Width, or drag the right edge of each column</div>
     <div class="setrow"><span>Nav1</span>${seg3('s1',STAGENAMES,S.s1)}</div><div class="setrow"><span>Nav2</span>${seg3('s2',STAGENAMES,S.s2)}</div>
@@ -507,7 +514,7 @@ const SORT={todo:TL,cal:CALS,notes:BOARDS,bookmarks:BM};
 const PROFSET=[['acct','Account','user'],['look','Appearance','sun'],['navi','Navigation','panel'],['lang','Language','globe'],['notif','Notifications','mail']];
 const PROFADM=[['mods','Modules','grid'],['users','Users and groups','user'],['src','Sources','db'],['store','Storage and backup','hd'],['signin','Sign-in','lock'],['audit','Audit log','list']];
 const tickRow=(l,k,x)=>{const t=at(S.focus),id=`ti:${l.id}/${k}`;return `<li><div class="row${t&&t.d===id?' cur':''}"><button class="tick" data-act="tick" data-l="${l.id}" data-id="${k}" aria-pressed="${x.done}" aria-label="Done: ${esc(x.t)}">${x.done?ic('check'):'<span class="box"></span>'}</button><button class="name${x.done?' done':''}" data-act="open" data-id="${id}" title="${esc(x.t)}"><span>${esc(x.t)}</span></button>${x.due?`<span class="count">${x.due}</span>`:''}</div></li>`;};
-/* Private lists follow the rule of collections: a click opens one and closes what is not kept open, Ctrl and click or a double click keeps one open. */
+/* Private lists follow the rule of collections: a click opens one and closes what is not kept open, a double click keeps one open. */
 function privPart(v,sec){
   const pinned=(S.spin[v]||{})[sec],hd=(n,doc,add='')=>`<div class="cheadrow" data-sechead="${sec}"><button class="chead" data-act="open" data-id="${doc}" title="Open ${esc(n)}">${pinned?ic('pin'):''}${esc(n)}</button>${add}</div>`;
   if(v==='todo'){const l=TL.find(x=>x.id===sec);if(!l)return '';return hd(l.n,'tl:'+l.id,`<button class="addbtn" data-act="tadd" data-id="${l.id}" aria-label="Add a to-do" title="Add a to-do">${ic('plus')}</button>`)+`<ul class="t top">${l.items.map((x,k)=>tickRow(l,k,x)).join('')}</ul>`;}
@@ -649,18 +656,34 @@ function newColumn(i,k,pos){
   const t=take(S.wins[i],k),f={tabs:[newTab(null,true),t],a:1,hist:[]};
   S.wins.splice(pos,0,f);S.focus=pos;compact();S.focus=Math.max(0,S.wins.indexOf(f));
 }
-/* One rule everywhere: a click opens only this, Ctrl and click adds it or takes it away again, without touching the rest. */
+/* One rule everywhere: a click opens only this, a double click keeps it open, Ctrl and click selects. */
 function onlyThis(id){const o={};C.forEach(c=>{if(S.pin[c.id])o[c.id]=true;});o[id]=true;S.open=o;}
 function togglePin(id){if(S.pin[id]){S.pin[id]=false;S.open[id]=false;}else{S.pin[id]=true;S.open[id]=true;}}
 /* The second click of a double click comes with a click count of 2. The list is drawn anew after the first click, so the browser's dblclick event may never arrive. */
 /* New opens below its row: the head of nav2 or of the collection. */
 function openNew(id,anchor){const z=S.scale/100,r=anchor?anchor.getBoundingClientRect():{left:0,top:0,bottom:0};S.addIn=id;S.addQ='';S.addAt={x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2,up:Math.round(r.top/z)-2};}
-function collClick(id,e){if(e.ctrlKey||e.metaKey||e.detail===2)togglePin(id);else if(e.detail<2)onlyThis(id);}
+function collClick(id,e){if(e.detail===2)togglePin(id);else if(e.detail<2)onlyThis(id);}
+/* Ctrl and click adds an entry of nav2 or nav3 to a selection or takes it out, Shift and click takes the range from the
+   last one; a selection stays in one list. Keeping a collection open is a double click or the right click. */
+const SELECTABLE='.nav3 .row[data-row],#clist .collrow[data-favid],.nav2 [data-secid]';
+const zoneOfEl=n=>n.closest('.nav3')?'n3':n.matches('[data-secid]')?'sec':'n2';
+const idOfEl=n=>n.dataset.row||n.dataset.favid||n.dataset.secid;
+const isSel=(z,id)=>!!S.sel&&S.sel.z===z&&S.sel.ids.includes(id);
+function selectClick(el,e){
+  const z=zoneOfEl(el),id=idOfEl(el);if(!S.sel||S.sel.z!==z)S.sel={z,ids:[],anchor:null};
+  const all=[...document.querySelectorAll(SELECTABLE)].filter(n=>zoneOfEl(n)===z).map(idOfEl);
+  if(e.shiftKey&&S.sel.anchor&&all.includes(S.sel.anchor)){const a=all.indexOf(S.sel.anchor),b=all.indexOf(id);S.sel.ids=all.slice(Math.min(a,b),Math.max(a,b)+1);}
+  else{const k=S.sel.ids.indexOf(id);if(k<0)S.sel.ids.push(id);else S.sel.ids.splice(k,1);S.sel.anchor=id;}
+  if(!S.sel.ids.length)S.sel=null;
+}
 function openTab(id){const w0=S.wins[S.focus];let k=w0.tabs.findIndex((x,j)=>j>0&&x.d===id);if(k<0){w0.tabs.push(newTab(id));k=w0.tabs.length-1;}w0.a=k;}
 document.addEventListener('scroll',e=>{const x=e.target;if(!x.dataset)return;if(x.dataset.sc!==undefined){const t=at(+x.dataset.sc);if(t)t.top=x.scrollTop;}else if(x.id==='tree')S.treeTop=x.scrollTop;},true);
 document.addEventListener('click',e=>{
   if(noClick){noClick=false;e.stopPropagation();e.preventDefault();return;}
   if(e.target.closest('input,select,label'))return;
+  const pick=(e.ctrlKey||e.metaKey||e.shiftKey)&&!e.target.closest('.arrow,.pop')&&e.target.closest(SELECTABLE);
+  if(pick){e.preventDefault();selectClick(pick,e);S.ctx=null;render();return;}
+  if(S.sel&&!e.target.closest('.ctxpop'))S.sel=null;
   const b=e.target.closest('button[data-act]'),win=e.target.closest('[data-win]'),act=b&&b.dataset.act;
   if(e.target.closest('.pop')&&!b)return;
   let dirty=S.menu!==null||S.tmenu||S.hist!==null||S.tlist!==null||S.addIn!==null||S.ctx!==null||S.newAt!==null;
@@ -680,9 +703,9 @@ document.addEventListener('click',e=>{
       const ad={cal:{import:'cal:import'},time:{export:'time:export'},vac:{plan:'vac:new'},bookmarks:{import:'bm:import'},news:{sub:'news:sub'}}[v];if(ad&&ad[a.id]){openDoc(ad[a.id]);break;}
       if(v==='todo'&&a.id==='newlist'){const id='l'+(++S.newN);TL.push({id,n:'New list',i:'list',items:[]});todoDocs();S.sec.todo=id;S.so.todo[id]=true;break;}
       if(v==='notes'&&a.id==='newboard'){const id='b'+(++S.newN);D['nb:'+id]=boardDoc('New board',[]);BOARDS.push({id,n:'New board',i:'note',doc:'nb:'+id});S.sec.notes=id;S.so.notes[id]=true;break;}
-      /* Private lists open like collections: a click opens one and closes what is not kept open, Ctrl and click or a double click keeps it open or stops. */
+      /* Private lists open like collections: a click opens one and closes what is not kept open, a double click keeps it open or stops. */
       if(S.so[v]){const k=a.id,sp=S.spin[v]=S.spin[v]||{};
-        if(e.ctrlKey||e.metaKey||e.detail===2){if(sp[k]){sp[k]=false;S.so[v][k]=false;}else{sp[k]=true;S.so[v][k]=true;}}
+        if(e.detail===2){if(sp[k]){sp[k]=false;S.so[v][k]=false;}else{sp[k]=true;S.so[v][k]=true;}}
         else if(e.detail<2){const o={};for(const x in sp)if(sp[x])o[x]=true;o[k]=true;S.so[v]=o;}}
       S.sec[v]=a.id;break;}
     case 'tick':{const it=TL.find(l=>l.id===a.l).items[+a.id];it.done=!it.done;break;}
@@ -714,8 +737,6 @@ document.addEventListener('click',e=>{
     case 'focus':S.focus=+a.id;break;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
-      /* Ctrl and click adds without replacing: here a tab of its own, as in a browser. */
-      if(e.ctrlKey||e.metaKey){openTab(a.id);break;}
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
       if(e.detail===2){if(fold&&b.closest('.nav3 .row'))S.tog[a.id]=!kidsOpen(a.id);break;}
       openDoc(a.id);break;}
@@ -725,6 +746,9 @@ document.addEventListener('click',e=>{
     case 'linefirst':case 'spacefirst':addDivider(act.startsWith('line')?'line':'space',a.id,'');break;
     case 'lineafter':case 'spaceafter':addDivider(act.startsWith('line')?'line':'space',contOf(a.id),a.id);break;
     case 'decodel':removeDivider(a.id);break;
+    case 'selopen':if(S.sel){if(S.sel.z==='n2')S.sel.ids.forEach(x=>{if(!isDeco(x))S.open[x]=true;});else S.sel.ids.forEach(openAsTab);}S.sel=null;break;
+    case 'selpin':if(S.sel)S.sel.ids.forEach(x=>{if(!isDeco(x)){S.pin[x]=true;S.open[x]=true;}});S.sel=null;break;
+    case 'selclear':S.sel=null;break;
     case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
     case 'addmenu':if(hadAdd!==a.id)openNew(a.id,b.closest('.cheadrow,.n2head')||b);break;
     case 'lineend':case 'spaceend':{const k=D[a.id].kids;addDivider(act==='lineend'?'line':'space',a.id,k[k.length-1]||'');break;}
@@ -796,6 +820,7 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   if(tb){e.preventDefault();const i=+tb.dataset.dw,sc=tb.closest('.tabscroll');S.ctx=null;S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.focus=i;S.tmenu={w:i,t:+tb.dataset.dt,x:Math.max(4,tb.offsetLeft-sc.scrollLeft)};render();return;}
   const el=e.target.closest?e.target:null;if(!el)return;
   const z=S.scale/100,at0=(kind,id,more={})=>{e.preventDefault();S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.tmenu=null;S.ctx={kind,id,x:Math.round(Math.min(e.clientX/z,innerWidth/z-250)),y:Math.round(Math.min(e.clientY/z,innerHeight/z-240)),...more};render();};
+  const sl=S.sel&&S.sel.ids.length>1&&el.closest('[aria-selected="true"]');if(sl)return at0('sel',null);
   const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid,{n3:!!cl.closest('.nav3')});
   const dc=el.closest('[data-ctx="deco"]');if(dc)return at0('deco',dc.dataset.ctxid);
   const rw=el.closest('[data-row]');if(rw)return at0('row',rw.dataset.row);
@@ -819,6 +844,7 @@ document.addEventListener('keydown',e=>{
   if(x.dataset&&x.dataset.nfilter!==undefined&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){e.preventDefault();if(e.key==='Enter'){const n=document.querySelector('.cmdpop [role="menuitem"].active')||[...document.querySelectorAll('.cmdpop [role="menuitem"]')].find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(n)n.click();}else stepNew(e.key==='ArrowDown'?1:-1);return;}
   if(x.dataset&&x.dataset.ren!==undefined&&(e.key==='Enter'||e.key==='Escape')){e.preventDefault();if(e.key==='Escape')x.value=x.defaultValue;x.blur();return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
+  if(e.key==='Escape'&&S.sel&&!drag){S.sel=null;render();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
   if(e.key!=='Enter')return;
@@ -833,7 +859,7 @@ document.addEventListener('keydown',e=>{
 /* Dragging runs on pointer events: it starts anywhere on the item, also on its text, and the whole row counts as the target. */
 let drag=null,noClick=false;
 const clampW3=v=>Math.min(640,Math.max(180,Math.round(v)));
-const clearMarks=()=>document.querySelectorAll('.zone-left,.zone-right,.zone-mid').forEach(n=>n.classList.remove('zone-left','zone-right','zone-mid'));
+const clearMarks=()=>document.querySelectorAll('.zone-left,.zone-right,.zone-mid,.zone-open').forEach(n=>n.classList.remove('zone-left','zone-right','zone-mid','zone-open'));
 function startGrip(g,e){
   const n=g.dataset.grip,z=S.scale/100,x0=e.clientX,w0=n==='3'?S.w3:STAGES[S['s'+n]];
   const move=m=>{const want=w0+(m.clientX-x0)/z;
@@ -852,9 +878,13 @@ document.addEventListener('pointerdown',e=>{
   const tab=e.target.closest('.dtab:not(.blank)'),row=e.target.closest('[data-row]'),fav=e.target.closest('[data-favid]'),sec=e.target.closest('[data-secid]');
   if(row&&contAcc(row.dataset.row)==='read')return;
   if(tab)drag={kind:'tab',src:tab,w:+tab.dataset.dw,t:+tab.dataset.dt,label:tab.querySelector('.sel span').textContent};
-  else if(row)drag={kind:'row',id:row.dataset.row,label:D[row.dataset.row].n,el:row};
-  else if(fav)drag={kind:'fav',id:fav.dataset.favid,label:C.find(c=>c.id===fav.dataset.favid).n,el:fav};
-  else if(sec)drag={kind:'sec',view:S.view,id:sec.dataset.secid,label:esc(sec.textContent.trim()),el:sec};
+  else if(row||fav||sec){const kind=row?'row':fav?'fav':'sec',el=row||fav||sec,id=el.dataset.row||el.dataset.favid||el.dataset.secid;
+    /* An entry of a selection takes the others along, in the order of the list; in nav3 one below another selected one
+       goes with that one anyway, and what may only be read stays. */
+    const many=S.sel&&S.sel.z===selOf(kind)&&S.sel.ids.includes(id)?S.sel.ids.filter(x=>elOf(kind,x)&&(kind!=='row'||contAcc(x)!=='read')):[id];
+    const ids=kind==='row'?many.filter(x=>!many.some(y=>y!==x&&within(y,PARENT[x]))):many;
+    ids.sort((a,b)=>elOf(kind,a).compareDocumentPosition(elOf(kind,b))&Node.DOCUMENT_POSITION_FOLLOWING?-1:1);
+    drag={kind,id,ids,view:S.view,label:kind==='sec'?esc(el.textContent.trim()):kind==='fav'?C.find(c=>c.id===id).n:D[id].n,el};}
   if(drag){drag.x0=e.clientX;drag.y0=e.clientY;drag.on=false;drag.to=null;}
 });
 /* Tabs snap: the window comes from the pointer's x, the row has a tolerance around it, and the tab takes its place while dragging. */
@@ -889,102 +919,136 @@ const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return fal
    one may edit, and made-up content stays made up. */
 function dropCont(t){return t.type==='coll'?t.c:t.type==='into'?t.id:t.type==='nav2'?'':contOf(t.id);}
 function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
-/* Dragging an entry of nav2 or nav3 pulls it out of its list, and the others move apart where it would land, live. Up
-   and down picks the place; in nav3 the left edge of the dragged entry picks the depth, so moving it to the right puts
-   it below the entry above it, as in an outliner. The lists are measured once without the gap, so the gap moving does
-   not move the place under the pointer, and the middle of the dragged entry decides, not the pointer. */
-const liftOf=d=>d.kind==='row'?d.el.closest('li'):d.el;
+/* Dragging an entry of nav2 or nav3 pulls it out of its list, with the others selected along with it, and the rest move
+   apart where they would land, live. In nav3 the middle third of an entry puts them below it; above and below that the
+   place is before or after it, and the left edge of the ghost picks the depth: level with the entry above, beside it;
+   further right, below it; further left, out towards the top. The lists are measured once without the gap, so the gap
+   moving does not move the place under the pointer. Dropped on a window, entries open there as tabs. */
+const selOf=kind=>kind==='row'?'n3':kind==='fav'?'n2':'sec';
+const elOf=(kind,id)=>document.querySelector(kind==='row'?`.nav3 [data-row="${id}"]`:kind==='fav'?`#clist [data-favid="${id}"]`:`.nav2 [data-secid="${id}"]`);
+const hideOf=(kind,el)=>kind==='row'?el.closest('li'):el;
+const WATCH='#clist>.collrow,#tree .row,#tree .cheadrow,.nav2 [data-secid]';
 function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.parentElement)if(x.matches('ul.t'))k++;return k;}
 function measure(d){
-  const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null;
-  const rowsOf=(nodes,f)=>nodes.filter(shown).map(n=>{const r=n.getBoundingClientRect();return {el:n,top:r.top,bot:r.bottom,...f(n)};});
+  const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null,coll=d.ids.every(x=>D[x]&&D[x].t==='coll');
+  const rowsOf=(nodes,f)=>nodes.filter(shown).map(n=>{const r=n.getBoundingClientRect();return {el:n,top:r.top,bot:r.bottom,left:r.left,...f(n)};});
   const n2=document.querySelector('.nav2'),list=document.getElementById('clist');
-  if(list&&(d.kind==='fav'||(d.kind==='row'&&D[d.id].t==='coll')))zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.querySelectorAll(':scope>.collrow[data-favid]')],n=>({id:n.dataset.favid}))});
+  if(list&&(d.kind==='fav'||(d.kind==='row'&&coll)))zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.querySelectorAll(':scope>.collrow[data-favid]')],n=>({id:n.dataset.favid}))});
   if(d.kind==='sec'&&n2)zones.push({box:n2,sc:n2,s0:n2.scrollTop,flat:true,where:'sec',rows:rowsOf([...n2.querySelectorAll('[data-secid]')],n=>({id:n.dataset.secid}))});
   const tr=document.getElementById('tree'),top=tr&&tr.querySelector('ul.t.top');
-  if(top&&(d.kind==='row'||(d.kind==='fav'&&!isDeco(d.id)))){
+  if(top&&(d.kind==='row'||(d.kind==='fav'&&!d.ids.some(isDeco)))){
     const p=document.createElement('ul');p.className='t';top.append(p);const ind=parseFloat(getComputedStyle(p).paddingLeft)*z;p.remove();
-    zones.push({box:tr.closest('.nav3'),sc:tr,s0:tr.scrollTop,flat:false,where:'n3',base:top.getBoundingClientRect().left,ind,
+    zones.push({box:tr.closest('.nav3'),sc:tr,s0:tr.scrollTop,flat:false,where:'n3',base:top.getBoundingClientRect().left,ind,step:24*z,
       rows:rowsOf([...tr.querySelectorAll('.cheadrow,.row')],n=>n.classList.contains('cheadrow')?{id:n.dataset.cdrop,head:true,depth:-1,hold:true}:{id:n.dataset.row,depth:depthOf(n),hold:!isDeco(n.dataset.row)})});
   }
   return zones;
 }
-/* The place of slot k at a depth, if the entry may go there: the parent it goes into and the entry it follows. */
-function slotAt(z,k,dep){
+/* The place of slot k at a depth, if every dragged entry may go there: the parent they go into and the entry they follow. */
+function slotAt(z,k,dep,onto){
   const d=drag;
-  if(z.flat){if(z.where==='n2'&&d.kind==='row'&&!fits(d.id,{type:'nav2'}))return null;return {z,k,dep:0,after:k>0?z.rows[k-1].id:'',top:k>0?z.rows[k-1].bot:z.rows[0].top};}
+  if(z.flat){if(z.where==='n2'&&d.kind==='row'&&!d.ids.every(x=>fits(x,{type:'nav2'})))return null;return {z,k,dep:0,after:k>0?z.rows[k-1].id:'',top:k>0?z.rows[k-1].bot:z.rows[0].top};}
   k=Math.max(1,k);const prev=z.rows[k-1],next=z.rows[k];
   const hi=prev.head?0:prev.depth+(prev.hold?1:0),lo=next&&!next.head?Math.min(next.depth,hi):0;dep=Math.max(lo,Math.min(hi,dep));
   let par=null,after='';for(let j=k-1;j>=0;j--){const r=z.rows[j];if(r.depth<dep){par=r;break;}if(r.depth===dep&&!after)after=r.id;}
-  if(!par)return null;const c=par.id;
-  if(accOf(c)==='read'||!fits(d.id,par.head?{type:'coll',c}:{type:'into',id:c}))return null;
-  if(d.kind==='fav'&&(c===d.id||(COLL[c]&&COLL[c].id===d.id)))return null;
-  if(d.kind==='row'&&within(d.id,c))return null;
-  return {z,k,dep,p:c,after,top:prev.bot,prev};
+  if(!par)return null;const c=par.id,probe=par.head?{type:'coll',c}:{type:'into',id:c};
+  if(accOf(c)==='read')return null;
+  for(const x of d.ids){if(!fits(x,probe))return null;if(d.kind==='fav'&&(c===x||(COLL[c]&&COLL[c].id===x)))return null;if(d.kind==='row'&&within(x,c))return null;}
+  return {z,k,dep,p:c,after,top:prev.bot,prev,onto:onto&&onto.id===c?onto.el:null};
+}
+/* Onto an entry: they go below it, at the end. The gap stays where it was, so nothing moves under the pointer; the entry
+   is framed instead, as in Notion. */
+function ontoAt(z,r,g){
+  const d=drag,c=r.id,probe=r.head?{type:'coll',c}:{type:'into',id:c};
+  if(accOf(c)==='read')return null;
+  for(const x of d.ids){if(!fits(x,probe))return null;if(d.kind==='fav'&&(c===x||(COLL[c]&&COLL[c].id===x)))return null;if(d.kind==='row'&&within(x,c))return null;}
+  const kids=D[c].kids.filter(x=>!d.ids.includes(x));
+  return {z,keep:true,k:g?g.k:-1,top:g?g.top:-1e9,prev:g&&g.prev,dep:null,p:c,after:kids[kids.length-1]||'',onto:r.el};
 }
 function liveTarget(e){
-  const d=drag,cx=e.clientX-d.gx,cy=e.clientY-d.gy+d.h/2;
+  const d=drag,cy=e.clientY-d.gy+d.gh/2;
   const z=d.zones.find(z=>{const r=z.box.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<r.right&&e.clientY>=r.top&&e.clientY<r.bottom;});
-  if(!z||!z.rows.length)return null;
-  const y=cy+(z.sc.scrollTop-z.s0),g=d.to&&d.to.z===z?d.to:null;let k;
-  if(g&&y>=g.top&&y<g.top+d.h)k=g.k;
-  else{const ny=g&&y>=g.top+d.h?y-d.h:y;k=z.rows.findIndex(r=>ny<(r.top+r.bot)/2);if(k<0)k=z.rows.length;}
-  return slotAt(z,k,z.flat?0:Math.round((cx-z.base)/z.ind));
+  if(!z){if(d.kind==='sec'||d.ids.some(isDeco))return null;const w=document.elementFromPoint(e.clientX,e.clientY),win=w&&w.closest('[data-win]');return win?{win:+win.dataset.win,node:win}:null;}
+  if(!z.rows.length)return null;
+  const y=cy+(z.sc.scrollTop-z.s0),g=d.to&&d.to.z===z?d.to:null,inGap=g&&y>=g.top&&y<g.top+d.h,ny=g&&y>=g.top+d.h?y-d.h:y;
+  const mid=()=>{const k=z.rows.findIndex(r=>ny<(r.top+r.bot)/2);return k<0?z.rows.length:k;};
+  if(z.flat)return slotAt(z,inGap?g.k:mid(),0);
+  let k,onto=null;
+  if(inGap)k=g.k;
+  else{const j=z.rows.findIndex(r=>ny>=r.top&&ny<r.bot);
+    if(j<0)k=mid();
+    else{const r=z.rows[j],f=(ny-r.top)/(r.bot-r.top);
+      if(r.hold&&f>=.35&&f<=.65){k=j+1;onto=r;}else k=f<.5&&!(r.head&&j===0)?j:j+1;}}
+  if(onto)return ontoAt(z,onto,g);
+  const prev=z.rows[Math.max(1,k)-1],level=prev.head?0:prev.depth,off=e.clientX-d.gx-(z.base+level*z.ind);
+  return slotAt(z,k,level+Math.trunc(off/z.step),null);
 }
-/* The gap opens where the entry would land, and what moves for it slides there. */
-function showGap(t){
-  const d=drag,o=d.to;if(o===t||(o&&t&&o.z===t.z&&o.k===t.k&&o.dep===t.dep))return;
-  const z=S.scale/100,all=d.zones.flatMap(x=>x.rows.map(r=>r.el)),was=all.map(n=>n.getBoundingClientRect().top);
+/* The gap opens where the entries would land, and what moves for it slides there; was holds where they stood before. */
+function showGap(t,was0){
+  const d=drag,o=d.to;if(o===t||(o&&t&&o.z&&o.z===t.z&&o.k===t.k&&o.dep===t.dep&&o.onto===t.onto))return;
+  const z=S.scale/100,all=[...document.querySelectorAll(WATCH)].filter(n=>n.offsetParent),was=all.map(n=>was0&&was0.has(n)?was0.get(n):n.getBoundingClientRect().top);
+  document.querySelectorAll('.drop-into').forEach(n=>n.classList.remove('drop-into'));
+  const ghost=document.getElementById('ghost'),gp=document.querySelector('.dropgap');if(ghost)ghost.classList.toggle('over',!!(t&&t.keep));
+  if(t&&t.keep){t.onto.classList.add('drop-into');if(gp)gp.classList.add('idle');d.to=t;return;}
   document.querySelectorAll('.dropgap').forEach(n=>n.remove());
-  if(t){const gap=document.createElement(!t.z.flat&&t.prev.head?'li':'div');gap.className='dropgap';gap.style.height=d.h/z+'px';
+  if(t&&t.z){const gap=document.createElement(!t.z.flat&&t.prev.head?'li':'div');gap.className='dropgap';gap.style.height=d.h/z+'px';
     if(t.z.flat){const nx=t.z.rows[t.k];if(nx)nx.el.before(gap);else t.z.rows[t.k-1].el.after(gap);}
     else if(t.prev.head)t.prev.el.nextElementSibling.prepend(gap);
-    else{t.prev.el.after(gap);gap.style.marginLeft=(t.dep-t.prev.depth)*t.z.ind/z+'px';}}
+    else{t.prev.el.after(gap);gap.style.marginLeft=(t.dep-t.prev.depth)*t.z.ind/z+'px';}
+    if(t.onto)t.onto.classList.add('drop-into');}
   all.forEach((n,i)=>{const dy=was[i]-n.getBoundingClientRect().top;if(Math.abs(dy)>.5)n.animate([{transform:`translateY(${dy/z}px)`},{transform:'none'}],{duration:140,easing:'ease-out'});});
   d.to=t;
 }
-/* Lifting hides the entry and opens the gap in its place, so nothing jumps. After a render it lifts again. */
+/* Lifting hides the entries and opens the gap where the grabbed one was. Where everything stood is taken before, so
+   what does not move does not slide either. After a render it lifts again. */
 function lift(d,first){
-  if(!first){const sel=d.kind==='row'?`[data-row="${d.id}"]`:d.kind==='fav'?`[data-favid="${d.id}"]`:`[data-secid="${d.id}"]`;d.el=document.querySelector(sel);d.to=null;if(!d.el)return;}
-  const z=S.scale/100,r=d.el.getBoundingClientRect();d.h=r.height;
-  if(first){d.gx=d.x0-r.left;d.gy=d.y0-r.top;}
-  liftOf(d).style.display='none';d.zones=measure(d);
+  const els=d.ids.map(x=>elOf(d.kind,x)).filter(Boolean);d.el=elOf(d.kind,d.id);d.to=null;if(!d.el)return;
+  const r=d.el.getBoundingClientRect();d.h=els.reduce((a,n)=>a+n.getBoundingClientRect().height,0);
+  if(first){d.gx=d.x0-r.left;d.gy=d.y0-r.top;d.gh=r.height;}
+  const was=new Map([...document.querySelectorAll(WATCH)].map(n=>[n,n.getBoundingClientRect().top]));
+  els.forEach(n=>{hideOf(d.kind,n).style.display='none';});d.zones=measure(d);
   const home=d.zones.find(x=>x.where===(d.kind==='fav'?'n2':d.kind==='sec'?'sec':'n3'));
-  if(first&&home){let k=home.rows.findIndex(x=>x.top>=r.top-.5);if(k<0)k=home.rows.length;showGap(slotAt(home,k,d.kind==='row'?depthOf(d.el):0));}
+  if(first&&home){let k=home.rows.findIndex(x=>d.el.compareDocumentPosition(x.el)&Node.DOCUMENT_POSITION_FOLLOWING);if(k<0)k=home.rows.length;showGap(slotAt(home,k,d.kind==='row'?depthOf(d.el):0,null),was);}
 }
 addEventListener('pointermove',e=>{
   if(!drag)return;
   const z=S.scale/100;
   if(!drag.on){if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.on=true;document.body.classList.add('dragging');
     const g=document.createElement('div');g.id='ghost';
-    if(drag.el){const wd=drag.el.getBoundingClientRect().width;lift(drag,true);g.className='ghost lift';g.innerHTML=ic(drag.kind==='sec'?'grip':isDeco(drag.id)?(D[drag.id].t==='line'?'hr':'gap'):D[drag.id].i||TYPE[D[drag.id].t][0])+`<span>${drag.label}</span>`;g.style.width=wd/z+'px';}
+    if(drag.el){const wd=drag.el.getBoundingClientRect().width;lift(drag,true);g.className='ghost lift';g.innerHTML=ic(drag.kind==='sec'?'grip':isDeco(drag.id)?(D[drag.id].t==='line'?'hr':'gap'):D[drag.id].i||TYPE[D[drag.id].t][0])+`<span>${drag.label}</span>`+(drag.ids.length>1?`<span class="count">${drag.ids.length}</span>`:'');g.style.width=wd/z+'px';}
     else{g.className='ghost';g.textContent=drag.label;}
     document.body.append(g);if(drag.src&&!drag.src.classList.contains('general'))drag.src.style.display='none';}
   const g=document.getElementById('ghost');
-  if(drag.el){if(!drag.el.isConnected)lift(drag,false);g.style.left=(e.clientX-drag.gx)/z+'px';g.style.top=(e.clientY-drag.gy)/z+'px';showGap(liveTarget(e));return;}
+  if(drag.el){if(!drag.el.isConnected)lift(drag,false);g.style.left=(e.clientX-drag.gx)/z+'px';g.style.top=(e.clientY-drag.gy)/z+'px';
+    const t=liveTarget(e);clearMarks();if(t&&t.win!==undefined){showGap(null);drag.to=t;t.node.classList.add('zone-open');}else showGap(t);return;}
   g.style.left=(e.clientX/z+12)+'px';g.style.top=(e.clientY/z+12)+'px';
   drag.to=tabTarget(e);clearMarks();const t=drag.to;
   g.style.display=showSlot(t)?'none':'';
   if(t&&t.node)t.node.classList.add(t.cls);
 });
 function parentList(id){return PARENT[id]?D[PARENT[id]].kids:COLL[id]?COLL[id].top:C.find(c=>c.id===id)?[]:[];}
-/* A drop takes the entry to the gap. In the database the server moves it too, and if it refuses, the lists go back. */
+/* A drop takes the entries to the gap, in their order. In the database the server moves them too, one after the other,
+   and if it refuses, the lists go back. */
 function applyDrop(d){
   const t=d.to;if(!t)return;
   if(d.kind==='tab'){
     if(t.type==='row'){if(t.i!==d.w||t.idx!==d.t)placeTab(d.w,d.t,t.i,t.idx);else{S.wins[d.w].a=d.t;S.focus=d.w;}}
     else if(t.type==='new')newColumn(d.w,d.t,t.pos);
     else placeTab(d.w,d.t,t.i,Infinity);return;}
-  const id=d.id,w=t.z.where;
-  if(w==='sec'){const L=SORT[d.view],[m]=L.splice(L.findIndex(x=>x.id===id),1);L.splice(t.after?L.findIndex(x=>x.id===t.after)+1:0,0,m);return;}
-  const from=d.kind==='fav'?C:parentList(id),dest=w==='n2'?C:D[t.p].kids,snap=[...new Set([C,from,dest])].map(l=>[l,l.slice()]);
-  let m=null;if(d.kind==='fav')[m]=C.splice(C.findIndex(c=>c.id===id),1);else from.splice(from.indexOf(id),1);
-  if(w==='n2'){if(!m){m=asTop({id,i:D[id].i||'grid'});S.open[id]=true;}C.splice(t.after?C.findIndex(c=>c.id===t.after)+1:0,0,m);}
-  else{if(m){delete S.open[id];delete S.fav[id];delete S.pin[id];}dest.splice(t.after?dest.indexOf(t.after)+1:0,0,id);S.tog[t.p]=true;S.just=id;}
+  const ids=d.ids;
+  if(t.win!==undefined){S.focus=t.win;ids.forEach(openAsTab);return;}
+  const w=t.z.where;
+  if(w==='sec'){const L=SORT[d.view],ms=ids.map(id=>L.splice(L.findIndex(x=>x.id===id),1)[0]);L.splice(t.after?L.findIndex(x=>x.id===t.after)+1:0,0,...ms);return;}
+  const dest=w==='n2'?C:D[t.p].kids,froms=ids.map(id=>d.kind==='fav'?C:parentList(id)),snap=[...new Set([C,dest,...froms])].map(l=>[l,l.slice()]);
+  const ms=ids.map((id,i)=>{if(d.kind==='fav')return C.splice(C.findIndex(c=>c.id===id),1)[0];froms[i].splice(froms[i].indexOf(id),1);return null;});
+  if(w==='n2')C.splice(t.after?C.findIndex(c=>c.id===t.after)+1:0,0,...ids.map((id,i)=>{if(ms[i])return ms[i];S.open[id]=true;return asTop({id,i:D[id].i||'grid'});}));
+  else{ids.forEach((id,i)=>{if(ms[i]){delete S.open[id];delete S.fav[id];delete S.pin[id];}});dest.splice(t.after?dest.indexOf(t.after)+1:0,0,...ids);S.tog[t.p]=true;S.just=d.id;}
   rebuildPlaces();
   /* nav2 keeps its order in the browser; only a move into or out of a collection reaches the server. */
-  if(D[id].db&&!(d.kind==='fav'&&w==='n2'))moveObject(id,w==='n2'?'':t.p,w==='n2'?'':t.after,()=>{snap.forEach(([l,c])=>{l.length=0;l.push(...c);});rebuildPlaces();render();});
+  if(d.kind==='fav'&&w==='n2')return;
+  const moves=ids.filter(id=>D[id].db).map(id=>[id,w==='n2'?'':t.p,w==='n2'?'':(ids.indexOf(id)?ids[ids.indexOf(id)-1]:t.after)]);
+  moveAll(moves,()=>{snap.forEach(([l,c])=>{l.length=0;l.push(...c);});rebuildPlaces();render();});
 }
+function openAsTab(id){if(!D[id]||isDeco(id))return;openTab(id);if(D[id].real&&!D[id].loaded)loadDoc(id);}
 addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;
   if(!d.on)return;
@@ -1210,9 +1274,11 @@ async function removeDivider(id){
   if(k>=0)list.splice(k,1);rebuildPlaces();render();
 }
 async function moveObject(id,cont,after,undo){
-  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/move',{...same,method:'POST',body:JSON.stringify({parent:cont?D[cont].sid:'',after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));}
-  catch(e){undo();toast(e.message==='403'?'Others may not change this.':'It could not be moved there.');}
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/move',{...same,method:'POST',body:JSON.stringify({parent:cont?D[cont].sid:'',after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));return true;}
+  catch(e){undo();toast(e.message==='403'?'Others may not change this.':'It could not be moved there.');return false;}
 }
+/* Several entries move one after the other, each after the one before, so the server keeps their order. */
+async function moveAll(moves,undo){for(const [id,cont,after] of moves)if(!await moveObject(id,cont,after,undo))return;}
 /* The order of nav2 with its lines and spaces, as the browser keeps it. A collection it does not know yet keeps its place. */
 const n2Of=()=>C.map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.id);
 function applyN2(list){
