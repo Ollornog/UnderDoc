@@ -3,7 +3,7 @@ id: T-10
 type: Task
 title: Mock up the phone layout
 status: offen
-milestone: M-28
+milestone: M-14
 tags: [ui, mockup, phone]
 created: 2026-11-07
 ---
@@ -28,3 +28,6 @@ above as a layout of its own. In particular nav1 still takes a column of its own
 wraps onto two or three rows, the block bar scrolls sideways instead of fitting, dragging (sorting, moving into a
 collection, splitting off a tab) has no touch path yet, and a long press on iOS, which opens no menu of its own, is only
 covered by the handler of the app, not tested on a real device.
+
+**Moved on 2026-11-09 from M-28 to M-14:** M-28 closed with the phone kept in mind (nothing cut off, everything in reach);
+the layout of its own belongs to the workspace.
