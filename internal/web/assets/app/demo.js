@@ -1759,5 +1759,22 @@ async function boot(){
    leave it to the browser. */
 document.addEventListener('click',e=>{const l=e.target.closest&&e.target.closest('article.doc a[href^="/o/"]');if(!l||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;
   const id=SID[l.getAttribute('href').slice(3).split('#')[0].split('/').map(decodeURIComponent).join('/')];if(!id)return;e.preventDefault();e.stopPropagation();openDoc(id);render();},true);
+/* A long press on a touch screen is the right click (ADR-17): a finger held still for half a second opens the same menu
+   as the right mouse button, so what only the right click offers (Trash, Problems, Delete …) is in reach on a phone too.
+   Where the browser opens a menu of its own on a long press, its event comes first and this one stays away, or it comes
+   later and is dropped; the finger lifting after the menu opened clicks nothing (M-28, phone width). */
+const PRESS={ms:500,slack:10,timer:0,at:null,done:false};
+function longPress(){
+  const stop=()=>{clearTimeout(PRESS.timer);PRESS.at=null;};
+  document.addEventListener('pointerdown',e=>{PRESS.done=false;stop();if(e.pointerType!=='touch'||!e.isPrimary)return;PRESS.at={x:e.clientX,y:e.clientY,el:e.target};
+    PRESS.timer=setTimeout(()=>{const p=PRESS.at;PRESS.at=null;if(!p||!p.el.isConnected)return;PRESS.done=true;
+      p.el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:p.x,clientY:p.y,button:2,buttons:2}));},PRESS.ms);},true);
+  document.addEventListener('pointermove',e=>{if(e.pointerType==='touch'&&PRESS.at&&Math.hypot(e.clientX-PRESS.at.x,e.clientY-PRESS.at.y)>PRESS.slack)stop();},true);
+  ['pointerup','pointercancel'].forEach(k=>document.addEventListener(k,e=>{if(e.pointerType==='touch')stop();},true));
+  /* On the window, so it comes before the listeners of the document. */
+  addEventListener('contextmenu',e=>{if(!e.isTrusted)return;if(PRESS.done){e.preventDefault();e.stopImmediatePropagation();return;}stop();},true);
+  addEventListener('click',e=>{if(!PRESS.done)return;PRESS.done=false;e.preventDefault();e.stopImmediatePropagation();},true);
+}
+longPress();
 window.addEventListener('popstate',()=>{const id=idFromPath();if(id&&D[id]){const w=S.wins[S.focus];const k=w.tabs.findIndex(t=>t.d===id);if(k<0){w.tabs[0]=newTab(id,true);w.a=0;}else w.a=k;if(D[id].real&&!D[id].loaded)loadDoc(id);render();}});
 boot();

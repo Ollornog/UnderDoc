@@ -116,3 +116,9 @@ replies one level deep; the drawer of the head, the speech bubble beside a block
 the head and each block count the open ones. Rights as ADR-20 says: read sees them, comment adds, edit resolves those of
 others, each author changes and deletes their own. A deleted block keeps its comments as "a block that is gone". Pages of the
 folder source have no comments: they are read only and have no block IDs.
+
+**State on 2026-11-09 (phone width):** at 390×844 and 360×740 nothing is cut off and everything can be reached, before the
+phone has a layout of its own (T-10). nav3 takes its width again when nav2 and nav3 lie over the window, the handle, the
+plus and the speech bubble beside a block are in the window and in sight on a touch screen, and a long press is the right
+click. Browser tests walk the main states with touch input and fail for anything cut off, covered, hidden behind hover or
+scrolling sideways.
