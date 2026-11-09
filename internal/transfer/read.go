@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"path"
 	"regexp"
 	"slices"
@@ -297,6 +298,13 @@ func cleanAccess(access string) (string, bool) {
 type reader struct {
 	fsys     fs.FS
 	warnings []string
+	// pages are the pages read, by path, so links between them can point at the pages after the import.
+	pages []readPage
+}
+
+type readPage struct {
+	file string
+	node *db.Node
 }
 
 func (r *reader) warn(name, message string) {
@@ -314,7 +322,93 @@ func Read(fsys fs.FS) (*db.Node, []string, error) {
 		return nil, nil, err
 	}
 	root.Kind = db.KindCollection
+	r.relink()
 	return root, r.warnings, nil
+}
+
+var (
+	fileLink = regexp.MustCompile(`\]\(<?([^()\s<>]+?\.md|[^()<>]+?\.md)>?(#[^)\s]*)?\)`)
+	wikiLink = regexp.MustCompile(`\[\[([^\]|#]*)(#[^\]|]*)?(?:\|([^\]]*))?\]\]`)
+)
+
+// relink turns the links between the pages read into links to the objects they become: a relative link to a Markdown file
+// and a link [[page]] by ID, path, file name or title. Each page gets a key, which db.Import replaces with its new ID. A
+// link that finds no page, and anything in fenced code, stays as written; the list of problems names what stays broken.
+func (r *reader) relink() {
+	byPath, byID, byName := map[string]*readPage{}, map[string]*readPage{}, map[string][]*readPage{}
+	for i := range r.pages {
+		p := &r.pages[i]
+		p.node.Key = fmt.Sprintf("import-%d", i+1)
+		byPath[strings.ToLower(p.file)] = p
+		if p.node.ID != "" {
+			byID[p.node.ID] = p
+		}
+		base := strings.ToLower(strings.TrimSuffix(path.Base(p.file), path.Ext(p.file)))
+		byName[base] = append(byName[base], p)
+		if title := strings.ToLower(p.node.Title); title != base {
+			byName[title] = append(byName[title], p)
+		}
+	}
+	find := func(from, target string) *readPage {
+		target = strings.TrimSpace(target)
+		if p, ok := byID[target]; ok {
+			return p
+		}
+		for _, candidate := range []string{path.Join(path.Dir(from), target), path.Clean(strings.TrimPrefix(target, "/"))} {
+			for _, ext := range []string{"", ".md"} {
+				if p, ok := byPath[strings.ToLower(candidate+ext)]; ok {
+					return p
+				}
+			}
+		}
+		if ps := byName[strings.ToLower(target)]; len(ps) == 1 {
+			return ps[0]
+		}
+		return nil
+	}
+	for _, p := range r.pages {
+		for i, b := range p.node.Blocks {
+			var f fences
+			lines := strings.Split(b.Body, "\n")
+			for k, line := range lines {
+				if f.inside(line) {
+					continue
+				}
+				line = fileLink.ReplaceAllStringFunc(line, func(m string) string {
+					parts := fileLink.FindStringSubmatch(m)
+					target, err := url.PathUnescape(parts[1])
+					if err != nil || strings.Contains(target, "://") {
+						return m
+					}
+					if to := find(p.file, target); to != nil {
+						return "](/o/" + to.node.Key + parts[2] + ")"
+					}
+					return m
+				})
+				line = wikiLink.ReplaceAllStringFunc(line, func(m string) string {
+					parts := wikiLink.FindStringSubmatch(m)
+					if parts[1] == "" {
+						return m
+					}
+					to := find(p.file, parts[1])
+					if to == nil {
+						return m
+					}
+					label := strings.TrimSpace(parts[3])
+					if label == "" {
+						label = to.node.Title
+					}
+					anchor := ""
+					if parts[2] != "" {
+						anchor = "#" + markdown.Slug(parts[2][1:])
+					}
+					return "[" + label + "](/o/" + to.node.Key + anchor + ")"
+				})
+				lines[k] = line
+			}
+			p.node.Blocks[i].Body = strings.Join(lines, "\n")
+		}
+	}
 }
 
 func (r *reader) meta(dir string) dirMeta {
@@ -452,6 +546,7 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 		r.warn(file, w)
 	}
 	n := &db.Node{Object: db.Object{ID: p.Meta.ID, Kind: db.KindPage, Title: p.Title, Description: strings.TrimSpace(p.Meta.Description)}, Blocks: p.Blocks, NextBlock: p.Next}
+	r.pages = append(r.pages, readPage{file: file, node: n})
 	if access, ok := cleanAccess(p.Meta.Access); ok {
 		n.Access = access
 	} else {

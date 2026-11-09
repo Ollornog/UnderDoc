@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A link in a block of the database to another object of the database, `/o/<id>`, showed as broken, since only the folder
+  source was asked. It now stays a link, and the list of problems checks it against the database.
 - A new page made in a collection of the folder source or of the demo was a mock-up that could not be written. New, the
   right click ("New page below it") and New in the head now make pages only in collections of the database and say why
   elsewhere.
@@ -101,6 +103,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The list of problems (M-3), from the right click on the free part of nav2: embeddings and links in the pages one sees
+  that point at a page or block that is gone, never there or not to be seen, links of the Markdown that find nothing, and
+  what the folder source ran into, each with a way to its page (`GET /api/problems`).
+- Import keeps the links between the pages: relative links to Markdown files and `[[page]]` by ID, path, file name or title
+  become links to the pages they became, with their anchors; links and embeddings of objects that got a new ID follow.
 - In reading, every block of a page has a handle at its left, shown on hover (as Docmost has one, the idea only). Its menu
   copies the address to embed the block, opens the block for editing, comments on it and says where it is used. It
   replaces the address chip on tables of such pages.

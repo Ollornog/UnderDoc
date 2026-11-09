@@ -95,8 +95,11 @@ backup/
 - **IDs:** an object keeps its ID where it has the form of ADR-18 and nothing in the database has it yet, the trash
   included; otherwise it gets a new one, and the import names each. Nothing that exists is ever changed. So an export
   imported into an empty database comes back with every ID, and imported into the same database again it becomes a copy.
-  IDs of the folder source such as `network-plan` do not have that form and get new ones; links to them by ID do not
-  follow yet.
+  IDs of the folder source such as `network-plan` do not have that form and get new ones.
+- **Links follow the pages** (2026-11-09): a relative link to a Markdown file of the tree and a link `[[page]]` by ID,
+  path, file name or title become a link `/o/<id>` to the page it became, with its anchor; `/o/<id>` links and
+  embeddings of objects of the tree that got a new ID follow it too. A link that finds nothing, and anything in fenced
+  code, stays as written, and the list of problems names it.
 - **Blocks:** the markers give the blocks and their IDs. An ID is kept where it is valid and not used before in the same
   page; every other block gets the next number after the highest, and the next block of the page after that comes later
   still, never before `next_block`. A marker inside fenced code is text. A page without markers is split before each

@@ -248,7 +248,7 @@ Object.assign(I,{trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 1
 const CTXI={copen:'eye',cpin:'pin',collhead:'x',open:'eye',addmenu2:'plus',newcoll:'grid',n2line:'hr',n2space:'gap',linefirst:'hr',lineafter:'hr',lineend:'hr',spacefirst:'gap',spaceafter:'gap',spaceend:'gap',
   cgear:'gear',opengear:'gear',decodel:'trash',opentab:'layout',opencol:'split',addchild:'plus',copylink:'link',sec:'eye',secclose:'x',secup:'up',secdown:'down',none:'pencil',view:'eye',
   selopen:'layout',selpin:'pin',selclear:'x',dupl:'copy',sortaz:'sort',sortza:'sort',close:'x',closeothers:'x',closeright:'x',closeleft:'x',closeall:'x',keep:'pin',dup:'copy',copypath:'link',
-  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split',delobj:'trash',trash:'trash',export:'down'};
+  newwin:'split',move:'split',closewin:'x',aid:'ai',split:'split',delobj:'trash',trash:'trash',export:'down',problems:'info'};
 const mi=act=>ic(CTXI[act]||'more');
 /* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
 /* Duplicate, where one may add next to it, and sort the children of anything that holds two or more. */
@@ -844,6 +844,7 @@ document.addEventListener('click',e=>{
     case 'decodel':removeDivider(a.id);break;
     case 'delobj':if(!ctx0||!ctx0.ask){S.ctx={...ctx0,ask:true};break;}deleteObject(a.id);break;
     case 'trash':openDoc('trash:');loadTrash();break;
+    case 'problems':openDoc('problems:');loadProblems();break;
     case 'trrestore':restoreTrash(a.id);break;
     case 'trpurge':if(hadAsk!==a.id){S.trashAsk=a.id;break;}purgeTrash(a.id);break;
     case 'trempty':if(hadAsk!=='all'){S.trashAsk='all';break;}emptyTrash();break;
@@ -951,7 +952,7 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   const sc=el.closest('.nav2 [data-act="sec"]');if(sc)return at0('sec',sc.dataset.id,{label:sc.textContent.trim(),sort:!!sc.dataset.secid});
   const vw=el.closest('.strip [data-act="view"]');if(vw)return at0('view',vw.dataset.id,{label:vw.textContent.trim()});
   /* A right click on the free part of nav2 or nav3 offers what can be made there. */
-  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end'],...(S.canCreate?[['-'],['trash','Trash']]:[])]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
+  if(el.closest('.nav2')){const acts=S.view==='workspace'?[['newcoll','New collection'],['n2line','Line at the end'],['n2space','Space at the end'],...(S.canCreate?[['-'],['problems','Problems'],['trash','Trash']]:[['-'],['problems','Problems']])]:SECTIONS[S.view]?SECTIONS[S.view]().filter(x=>x[3]).map(x=>['sec:'+x[0],x[1]]):[];if(acts.length)return at0('free',null,{acts});}
   if(el.closest('.nav3')&&S.view==='workspace'){const acts=[...C.filter(c=>S.open[c.id]&&accOf(c.id)==='edit').map(c=>['addmenu2:'+c.id,'New in '+c.n]),['newcoll','New collection']];return at0('free',null,{acts});}
 });
 /* A middle click closes a tab, a double click on the empty part of the tab row opens New, as in code editors. */
@@ -1527,6 +1528,24 @@ D['trash:']=fill({t:'trash',n:'Trash',w:'wide',tool:true,path:'not a file, what 
       <p><button class="chip" data-act="trempty" aria-pressed="${S.trashAsk==='all'}">${ic('trash')}${S.trashAsk==='all'?'Empty the trash? Yes':'Empty the trash'}</button></p>
       <div class="tw"><table><tr><th>Name</th><th>Where it lay</th><th>Deleted</th><th>By</th><th></th></tr>${L.map(x=>`<tr data-trash="${x.id}"><td>${x.n}</td><td>${x.place||'Workspace'}${x.placeGone?' (in the trash)':''}</td><td>${x.at}</td><td>${x.who}</td>
         <td><button class="chip" data-act="trrestore" data-id="${x.id}"${x.placeGone?' title="First restore what it lay in"':''}>${ic('back')}Restore</button> <button class="chip" data-act="trpurge" data-id="${x.id}" aria-pressed="${S.trashAsk===x.id}">${ic('trash')}${S.trashAsk===x.id?'Delete for good? Yes':'Delete for good'}</button></td></tr>`).join('')}</table></div>`;}});
+/* The list of problems is a page of the window as well: what does not resolve in the pages one sees, and what the folder
+   source ran into (M-3). A broken reference is a visible error, never a silent gap. */
+TYPE.problems=['info','Problems'];
+D['problems:']=fill({t:'problems',n:'Problems',w:'wide',tool:true,path:'not a file, what does not resolve',place:'Workspace',by:'',ch:'',vis:'Only you: in what you may see',
+  get stat(){const P=S.problems;return P?(P.db.length+P.src.length)+' problems':'Loading…';},
+  get html(){const P=S.problems;if(!P)return '<p class="lab">Loading…</p>';
+    if(!P.db.length&&!P.src.length)return '<p class="lab">Nothing is broken.</p>';
+    const where=x=>SID[x.page]&&D[SID[x.page]]?`<button class="chip" data-act="open" data-id="${SID[x.page]}">${ic('page')}${x.title}</button>`:`<a href="/o/${x.page}">${x.title}</a>`;
+    return `<p class="hint">Embeddings and links that find nothing, in the pages you may see, and what the folder source ran into. Each stays visible in its page until it is fixed.</p>
+      ${P.db.length?`<h2>Pages</h2><div class="tw"><table><tr><th>Page</th><th>Block</th><th>Reference</th><th>Why</th></tr>${P.db.map(x=>`<tr data-problem="${x.page}#${x.block}"><td>${where(x)}</td><td>#${x.block}</td><td><code>${x.ref}</code></td><td>${x.why}</td></tr>`).join('')}</table></div>`:''}
+      ${P.src.length?`<h2>Folder source</h2><div class="tw"><table><tr><th>File</th><th>Problem</th></tr>${P.src.map(x=>`<tr><td>${x.source}</td><td>${x.message}</td></tr>`).join('')}</table></div>`:''}
+      ${P.more?'<p class="hint">There are more blocks than were read.</p>':''}`;}});
+async function loadProblems(){
+  try{const r=await fetch('/api/problems',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();S.problems={db:a.database.map(x=>({page:esc(x.page),title:esc(x.title),block:esc(x.block),ref:esc(x.ref),why:esc(x.why)})),src:a.source.map(x=>({source:esc(x.source),message:esc(x.message)})),more:!!a.more};}
+  catch(e){S.problems={db:[],src:[],more:false};toast('The problems could not be read.');return;}
+  render();
+}
 async function loadTrash(){
   try{const r=await fetch('/api/trash',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
     S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:when(x.at),who:esc(x.who)}));}

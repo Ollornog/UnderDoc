@@ -1241,3 +1241,42 @@ func TestTheHandleOfABlock(t *testing.T) {
 		t.Errorf("the menu for someone who may comment: %q", got)
 	}
 }
+
+// The right click on the free part of nav2 opens the list of problems: what does not resolve in the pages one sees, with a
+// way to the page, and what the folder source ran into.
+func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.made = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		const team = await post('/api/collections', {title: 'Team'});
+		const page = await post('/api/pages', {title: 'Rack', parent: team.id});
+		await post('/api/pages/' + page.id + '/blocks', {md: '::embed{ref="zzzzzzzzzz"}', after: ''});
+		window.made = page.id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page for the test was not made")
+	}
+	b.open(base + "/")
+	b.ready("")
+	n2 := b.rect(".nav2")
+	h := b.eval(`String(document.querySelector('.nav2').getBoundingClientRect().bottom)`)
+	y, _ := strconv.ParseFloat(h, 64)
+	for _, kind := range []string{"mousePressed", "mouseReleased"} {
+		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": y - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
+	}
+	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+		t.Fatal("no menu on the free part of nav2")
+	}
+	b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
+	if !b.waitFor(`document.querySelectorAll('tr[data-problem]').length === 1`) {
+		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(0, 300)`))
+	}
+	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.dtitle h1').textContent + ' | ' + [...document.querySelectorAll('article.doc table')].length + ':' + (document.querySelector('article.doc h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 2:Folder source" {
+		t.Errorf("the list: %q", got)
+	}
+	b.shot("problems")
+	b.clickOn(`tr[data-problem] [data-act="open"]`, 1)
+	b.ready("Rack")
+}
