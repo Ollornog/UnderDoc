@@ -121,8 +121,7 @@ func TestDividersInNav2(t *testing.T) {
 	}
 	// While dragging, the line leaves its place and a gap of its height opens below pro, drawn with a dashed border.
 	h := b.eval(`Math.round(document.querySelector('#clist .deco').getBoundingClientRect().height)`)
-	// Projects holds collections, so in nav2 it is a box with its children: below the box is below Projects.
-	b.dragTo(`#clist .deco`, `#clist .collgroup:has([data-favid="pro"])`, 0.97, func() {
+	b.dragTo(`#clist .deco`, `#clist [data-favid="pro"]`, 0.95, func() {
 		b.shot("nav2-gap")
 		if got := b.eval(gapAt); got != "pro "+h {
 			t.Errorf("the gap is not below pro: %q", got)
@@ -639,9 +638,9 @@ func TestOneWindowShowsNoTabs(t *testing.T) {
 	}
 }
 
-// A folder is made in a collection and named in place; a collection and a folder turn into each other; collections
-// inside a collection show in nav2 inside the box of their parent, three levels deep, and nothing inside a folder does.
-func TestFoldersAndChildrenInNav2(t *testing.T) {
+// A folder is made in a collection and named in place; a collection and a folder turn into each other. A collection inside
+// another shows in nav2 only when asked to, as an entry that points at it.
+func TestFoldersAndShowingInNav2(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
@@ -649,35 +648,58 @@ func TestFoldersAndChildrenInNav2(t *testing.T) {
 	b.eval(`window.done = false; (async () => {
 		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
 		let parent = '` + team + `';
-		for (const title of ['L1', 'L2', 'L3', 'L4']) parent = (await post('/api/collections', {title, parent})).id;
-		const f = await post('/api/folders', {title: 'Box', parent: '` + team + `'});
-		await post('/api/collections', {title: 'Hidden', parent: f.id});
+		for (const title of ['L1', 'L2']) { parent = (await post('/api/collections', {title, parent})).id; window[title] = parent; }
+		await post('/api/pages', {title: 'Deep page', parent});
 		window.done = true;
 	})()`)
 	if !b.waitFor(`window.done`) {
 		t.Fatal("the tree for the test was not made")
 	}
+	l2 := b.eval(`window.L2`)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	nested := func() string {
-		return b.eval(`[...(document.querySelector('#clist [data-favid="` + team + `"]')?.closest('.collgroup')?.querySelectorAll('.collrow.nest') || [])].map(n => n.textContent.trim()).join(', ')`)
+	inNav2 := func() string {
+		return b.eval(`[...document.querySelectorAll('#clist > .collrow:not(.deco)')].map(n => n.textContent.trim() + (n.dataset.alias ? '*' : '')).join(', ')`)
 	}
-	if got := nested(); got != "L1, L2, L3" {
-		t.Errorf("three levels in the box of Team, nothing from the folder: %q", got)
-	}
-	b.shot("nav2-children")
-	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('#clist .collgroup')); return s.borderTopStyle + ' ' + s.borderTopWidth; })()`); got != "solid 1px" {
-		t.Errorf("the box of a collection with its children is drawn: %q", got)
+	if got := inNav2(); strings.Contains(got, "L1") || strings.Contains(got, "L2") {
+		t.Errorf("collections inside others stay out of nav2 by themselves: %q", got)
 	}
 	if got := b.eval(`document.querySelectorAll('#clist [data-favid="` + team + `"] svg rect').length`); got != "4" {
 		t.Errorf("a collection of the database has the icon of a collection, not of a folder: %s rects", got)
 	}
-	// Dragged, a collection takes its box along.
-	b.dragTo(`#clist [data-favid="`+team+`"]`, probe(b, `.nav2 [data-act="coll"]`, "ops"), 0.9, func() {
-		if got := b.eval(`document.querySelector('#clist [data-favid="` + team + `"]').closest('.collgroup').offsetParent === null`); got != "true" {
-			t.Error("the box of Team stays while Team is dragged")
-		}
-	})
+	b.rightClickOn(rowNamed(b, "L2"))
+	b.clickOn(probe(b, `.ctxpop button`, "Show in nav2"), 1)
+	if !b.waitFor(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`) {
+		t.Fatalf("L2 is shown in nav2: %q", inNav2())
+	}
+	if got := b.eval(`getComputedStyle(document.querySelector('#clist [data-alias] .lbl')).fontStyle`); got != "italic" {
+		t.Errorf("the entry only points at L2: %q", got)
+	}
+	b.shot("nav2-shown")
+	b.clickOn(`#clist [data-alias] [data-act="coll"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 .cheadrow .chead')].map(n => n.textContent.trim()).join() === 'L2'`) {
+		t.Errorf("it opens in nav3 on its own: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	}
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'Deep page')`) {
+		t.Error("with its own entries")
+	}
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := b.eval(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`); got != "true" {
+		t.Errorf("the browser keeps it in nav2: %q", inNav2())
+	}
+	if got := b.eval(`(() => { const deep = Object.keys(D).find(k => D[k].n === 'Deep page'); return PARENT[deep] === SID['` + l2 + `'] && COLL[SID['` + l2 + `']]?.id === SID['` + team + `']; })()`); got != "true" {
+		t.Error("the entry in nav2 changed where the pages of L2 lie")
+	}
+	// It still lies in L1: the tree of Team holds it as before.
+	if got := b.eval(`(() => { const n = [...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === 'L2'); return !!n && !!n.closest('ul:not(.top)'); })()`); got != "true" {
+		t.Errorf("L2 left L1: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	}
+	b.rightClickOn(`#clist [data-alias]`)
+	b.clickOn(probe(b, `.ctxpop button`, "Remove from nav2"), 1)
+	if got := b.eval(`document.querySelectorAll('#clist [data-alias]').length`); got != "0" {
+		t.Errorf("removed from nav2: %q", inNav2())
+	}
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
 	b.typeText("folder")
 	b.press("Enter", "Enter", 13, 0)
@@ -686,9 +708,6 @@ func TestFoldersAndChildrenInNav2(t *testing.T) {
 	}
 	b.typeText("Drawings")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!!document.querySelector(` + strconv.Quote(`.nav3 .row`) + `) && [...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'Drawings')`) {
-		t.Fatal("no folder Drawings in nav3")
-	}
 	kind := func(title string) string {
 		b.eval(`window.kind = null; fetch('/api/state').then(r => r.json()).then(j => { const walk = l => l.forEach(n => { if (n.n === ` + strconv.Quote(title) + `) window.kind = n.t; walk(n.kids || []); }); walk(j.collections); })`)
 		b.waitFor(`window.kind !== null`)
@@ -698,29 +717,70 @@ func TestFoldersAndChildrenInNav2(t *testing.T) {
 	if got := kind("Drawings"); got != "folder" {
 		t.Errorf("the database has a folder: %q", got)
 	}
-	if got := nested(); got != "L1, L2, L3" {
-		t.Errorf("a folder stays out of nav2: %q", got)
-	}
 	b.rightClickOn(rowNamed(b, "Drawings"))
-	b.clickOn(probe(b, `.ctxpop button`, "Turn into a collection"), 1)
-	if !b.waitFor(`[...document.querySelectorAll('#clist .collrow.nest')].some(n => n.textContent.trim() === 'Drawings')`) {
-		t.Errorf("as a collection it shows in nav2: %q", nested())
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Show in nav2'))`); got != "false" {
+		t.Error("a folder offers to show in nav2")
 	}
+	b.clickOn(probe(b, `.ctxpop button`, "Turn into a collection"), 1)
+	time.Sleep(300 * time.Millisecond)
 	if got := kind("Drawings"); got != "collection" {
 		t.Errorf("the database has a collection: %q", got)
 	}
-	// A collection of nav2 opens in nav3 as its own heading.
-	b.clickOn(probe(b, `#clist .collrow.nest [data-act="coll"]`, "L2"), 1)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .cheadrow .chead')].some(n => n.textContent.trim() === 'L2')`) {
-		t.Errorf("L2 does not open in nav3: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\\s+/g, ' ')`))
+	b.rightClickOn(rowNamed(b, "Drawings"))
+	b.clickOn(probe(b, `.ctxpop button`, "Show in nav2"), 1)
+	if !b.waitFor(`[...document.querySelectorAll('#clist [data-alias]')].some(n => n.textContent.trim() === 'Drawings')`) {
+		t.Fatal("Drawings is not shown in nav2")
 	}
-	b.rightClickOn(probe(b, `#clist .collrow.nest [data-act="coll"]`, "Drawings"))
+	b.rightClickOn(rowNamed(b, "Drawings"))
 	b.clickOn(probe(b, `.ctxpop button`, "Turn into a folder"), 1)
-	if !b.waitFor(`![...document.querySelectorAll('#clist .collrow.nest')].some(n => n.textContent.trim() === 'Drawings')`) {
-		t.Errorf("as a folder it leaves nav2: %q", nested())
+	time.Sleep(300 * time.Millisecond)
+	if got := kind("Drawings"); got != "folder" {
+		t.Errorf("and back into a folder: %q", got)
+	}
+	if got := b.eval(`[...document.querySelectorAll('#clist [data-alias]')].some(n => n.textContent.trim() === 'Drawings')`); got != "false" {
+		t.Error("a folder stays shown in nav2")
 	}
 	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Turn into'))`); got != "false" {
-		t.Error("a collection at the top offers to become a folder")
+	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Turn into') || n.textContent.includes('Show in nav2'))`); got != "false" {
+		t.Error("a collection at the top offers to become a folder or to be shown in nav2")
+	}
+}
+
+// A right click menu stays inside the window, wherever the click is.
+func TestMenusStayInTheWindow(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	inside := `(() => { const r = document.querySelector('.ctxpop').getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; })()`
+	h := b.eval(`innerHeight`)
+	hf, _ := strconv.ParseFloat(h, 64)
+	n2 := b.rect(`.nav2`)
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": n2.X, "y": hf - 6}, nil)
+	for _, kind := range []string{"mousePressed", "mouseReleased"} {
+		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": hf - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
+	}
+	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+		t.Fatal("no menu on the free part of nav2")
+	}
+	if got := b.eval(inside); got != "true" {
+		t.Errorf("a menu opened at the bottom leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.ctxpop').getBoundingClientRect())`))
+	}
+	// A long one, in the corner: inside too, and it scrolls.
+	b.eval(`S.ctx = {kind: 'win', x: innerWidth - 10, y: innerHeight - 10}; render()`)
+	if got := b.eval(inside); got != "true" {
+		t.Errorf("a menu in the corner leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.ctxpop').getBoundingClientRect())`))
+	}
+	if got := b.eval(`getComputedStyle(document.querySelector('.ctxpop')).overflowY`); got != "auto" {
+		t.Errorf("a long menu scrolls: %q", got)
+	}
+	// New near the bottom opens above its place, inside the window.
+	b.eval(`S.ctx = null; S.addIn = 'n2'; S.addQ = ''; S.addAt = {x: 40, y: innerHeight - 20, up: innerHeight - 40}; render()`)
+	if got := b.eval(`(() => { const r = document.querySelector('.cmdpop').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; })()`); got != "true" {
+		t.Errorf("New leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.cmdpop').getBoundingClientRect())`))
+	}
+	// The menu of a tab at the right edge moves in.
+	b.eval(`S.addIn = null; const w = S.wins[0]; w.tabs.push(newTab(w.tabs[0].d)); S.tmenu = {w: 0, t: 1, x: innerWidth}; render()`)
+	if got := b.eval(`(() => { const r = document.querySelector('.tabctx').getBoundingClientRect(); return r.right <= innerWidth; })()`); got != "true" {
+		t.Errorf("the menu of a tab leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.tabctx').getBoundingClientRect())`))
 	}
 }

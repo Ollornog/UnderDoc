@@ -77,5 +77,5 @@ the general tab draws no tabs and has a window button beside New.
 which can be shown in nav2. Either turns into the other (ADR-16). Folders in the database come with this.
 
 **State on 2026-11-09 (folders):** folders are made in the database and named in place; collections and folders turn into
-each other by the right click. A folder may hold collections, and nav2 follows collections only. As a trial, nav2 shows the
-collections inside a collection in its box, three levels deep.
+each other by the right click. A folder may hold collections, and nav2 follows collections only. A collection inside another
+shows in nav2 when the right click asks for it, as an entry that points at it (the trial of a box the same day is gone).
