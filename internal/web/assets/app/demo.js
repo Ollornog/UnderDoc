@@ -60,7 +60,8 @@ function bodyHtml(w,i){
   return {h,hs};
 }
 Object.assign(I,{chat:'<path d="M4 5h16v11H9l-5 4z"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  /* The gear is Lucide's "settings" (ISC, licenses/Lucide-LICENSE.txt): the drawn one read as a sun (2026-11-09). */
+  gear:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   pin:'<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v6"/>', more:'<path d="M5 12h.01M12 12h.01M19 12h.01"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>',
   grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/>', star:'<path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.7l6.2-.9z"/>',
   code:'<path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/>', pulse:'<path d="M3 12h4l3-8 4 16 3-8h4"/>', flag:'<path d="M5 21V4h13l-3 4 3 4H5"/>',
