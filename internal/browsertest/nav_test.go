@@ -1240,6 +1240,10 @@ func TestTheHandleOfABlock(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
 		t.Errorf("the menu for someone who may comment: %q", got)
 	}
+	b.clickOn(`.bmenu [data-act="bcmt"]`, 1)
+	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0' && document.querySelector('.cfor em')?.textContent === '#b1'`) {
+		t.Errorf("Comment opens the comments of b1, ready to write: %s", b.eval(`document.querySelector('.cfor')?.textContent`))
+	}
 }
 
 // The right click on the free part of nav2 opens the list of problems: what does not resolve in the pages one sees, with a

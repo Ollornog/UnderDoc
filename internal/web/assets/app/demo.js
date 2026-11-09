@@ -903,6 +903,7 @@ document.addEventListener('click',e=>{
     case 'slashpick':pickSlash(+a.k);return;
     case 'blkadd':addBlock(t.d,a.id,true);return;
     case 'blkdel':deleteBlock(t.d,a.id);return;
+    case 'bcmt':commentOn(t.d,a.id);return;
     case 'bmenu':if(!(hadBm&&hadBm.w===i&&hadBm.id===a.id))S.bmenu={w:i,id:a.id};break;
     case 'blkedit':setEdit(t,true);t.src=false;S.focusNext={d:t.d,id:a.id,pos:0};break;
     case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
@@ -1360,11 +1361,11 @@ function formatIn(x,kind){
 /* In reading, every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies
    the address to embed the block, opens the block for editing, comments on it and says where it is used (2026-11-09). */
 function handleHtml(d,w,i,b){
-  const open=S.bmenu&&S.bmenu.w===i&&S.bmenu.id===b.id,may=d.canEdit,cmt=accOf(w.d)!=='read',used=b.usedIn||[];
+  const open=S.bmenu&&S.bmenu.w===i&&S.bmenu.id===b.id,may=d.canEdit,cmt=!!d.canComment,used=b.usedIn||[];
   const menu=open?`<div class="bmenu" role="menu" aria-label="Block ${b.id}">
     <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
     <button role="menuitem" data-act="blkedit" data-w="${i}" data-id="${b.id}"${may?'':` disabled title="${noEdit(w.d)}"`}>${ic('pencil')}<span>Edit this block</span></button>
-    <button role="menuitem" data-act="cblk" data-w="${i}" data-id="${b.id}" data-l="#${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span></button>
+    <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span></button>
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
   return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}" aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, editing, comments">${ic('grip')}</button>${menu}`;
 }
