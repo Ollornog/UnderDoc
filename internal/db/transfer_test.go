@@ -138,3 +138,20 @@ func TestImportKeepsFreeIDsAndTouchesNothing(t *testing.T) {
 		t.Error("a failed import leaves nothing behind")
 	}
 }
+
+// An imported page embeds what its blocks name, so the source knows where it is used.
+func TestImportKeepsTheReferences(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
+	tree := &Node{Object: Object{Kind: KindCollection}, Kids: []*Node{
+		{Object: Object{Kind: KindPage, Title: "Rack"}, Blocks: []Block{{ID: "b1", Body: "Ports:\n\n::embed{ref=\"" + plan.ID + "#b1\"}"}}},
+	}}
+	if _, err := db.Import(ctx, "anna", "Imported", tree); err != nil {
+		t.Fatal(err)
+	}
+	if refs, _ := db.UsedIn(ctx, plan.ID, anna.ID); len(refs) != 1 || refs[0].Title != "Rack" || refs[0].TargetBlock != "b1" {
+		t.Errorf("Plan is used in the imported page: %+v", refs)
+	}
+}

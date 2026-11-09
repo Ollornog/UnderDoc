@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The browser tests say why Chrome does not answer: whether it still runs, and the end of what it wrote to stderr. Once,
+  on the CI, Chrome gave no answer to its first tab, and the test could not say more.
 - Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was
   made, its versions, the trash. Before, the server wrote them in its own time, which showed UTC on the test system.
 - Private notes stay at the top: they no longer move into another collection, and dragging offers them no place there.

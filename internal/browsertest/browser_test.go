@@ -69,6 +69,32 @@ type browser struct {
 	waiting map[int]chan message
 	events  chan message
 	session string
+	// exited closes when Chrome ends; stderr keeps the end of what it wrote, so a silent Chrome can say why.
+	exited  chan struct{}
+	exitErr error
+	stderr  *tail
+}
+
+// tail keeps the last bytes written to it.
+type tail struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (w *tail) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	if len(w.buf) > 4096 {
+		w.buf = w.buf[len(w.buf)-4096:]
+	}
+	return len(p), nil
+}
+
+func (w *tail) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return string(w.buf)
 }
 
 func start(t *testing.T) *browser {
@@ -92,12 +118,19 @@ func start(t *testing.T) *browser {
 		"--user-data-dir="+profile, "--window-size=1280,900", "about:blank")
 	cmd.ExtraFiles = []*os.File{toChrome, chromeWrites} // Chrome reads fd 3 and writes fd 4
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	stderr := &tail{}
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	exited := make(chan struct{})
 	_ = toChrome.Close()
 	_ = chromeWrites.Close()
-	b := &browser{t: t, out: weWrite, waiting: map[int]chan message{}, events: make(chan message, 4096)}
+	b := &browser{t: t, out: weWrite, waiting: map[int]chan message{}, events: make(chan message, 4096), exited: exited, stderr: stderr}
+	go func() {
+		b.exitErr = cmd.Wait()
+		close(exited)
+	}()
 	go func() {
 		reader := bufio.NewReader(fromChrome)
 		for {
@@ -129,7 +162,7 @@ func start(t *testing.T) *browser {
 	t.Cleanup(func() {
 		_ = weWrite.Close()
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) // the whole group: renderer, GPU, crash handler
-		_, _ = cmd.Process.Wait()
+		<-exited
 		for range 20 {
 			if os.RemoveAll(profile) == nil {
 				return
@@ -155,7 +188,7 @@ func (b *browser) call(method string, params, result any) {
 	}
 	encoded, _ := json.Marshal(m)
 	if _, err := b.out.Write(append(encoded, 0)); err != nil {
-		b.t.Fatalf("%s: %v", method, err)
+		b.t.Fatalf("%s: %v; %s", method, err, b.why())
 	}
 	select {
 	case r := <-answer:
@@ -168,8 +201,19 @@ func (b *browser) call(method string, params, result any) {
 			}
 		}
 	case <-time.After(30 * time.Second):
-		b.t.Fatalf("%s: no answer", method)
+		b.t.Fatalf("%s: no answer; %s", method, b.why())
 	}
+}
+
+// why says whether Chrome still runs and what it wrote last, for a call it did not answer.
+func (b *browser) why() string {
+	state := "Chrome still runs"
+	select {
+	case <-b.exited:
+		state = fmt.Sprintf("Chrome has ended (%v)", b.exitErr)
+	default:
+	}
+	return state + "; the end of its stderr:\n" + b.stderr.String()
 }
 
 type findings struct {

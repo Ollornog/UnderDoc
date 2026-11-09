@@ -213,6 +213,9 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", made.ID, b.ID, i, b.Body); err != nil {
 					return Object{}, err
 				}
+				if err := syncRefs(ctx, tx, made.ID, b.ID, b.Body); err != nil {
+					return Object{}, err
+				}
 				if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", made.ID, b.ID, b.Body, owner); err != nil {
 					return Object{}, err
 				}
