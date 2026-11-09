@@ -72,3 +72,6 @@ picks the depth. New in a collection is in blocks.
 **State on 2026-11-09 (round 2):** dragging carries the entry through the list as it looks, waiting puts it below an entry,
 a collection of nav2 takes it; the right click duplicates (also Ctrl at a drop) and sorts children; a single window with only
 the general tab draws no tabs and has a window button beside New.
+
+**Settled on 2026-11-09, to build:** a folder is a collection that shows only in nav3; a collection can hold collections,
+which can be shown in nav2. Either turns into the other (ADR-16). Folders in the database come with this.

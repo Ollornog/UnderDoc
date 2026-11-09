@@ -752,6 +752,9 @@ func TestNewMenuFilters(t *testing.T) {
 		t.Errorf("New in a collection, in blocks: %q", got)
 	}
 	b.shot("new-menu-blocks")
+	if got := b.eval(`(() => { const m = document.querySelector('.cmdpop [role="menu"]'); return [getComputedStyle(m).scrollbarWidth, m.scrollHeight > m.clientHeight].join(' '); })()`); got != "thin true" {
+		t.Errorf("the long list of New shows its scrollbar: %q", got)
+	}
 	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="menuitem"]')].slice(0, 5).map(n => n.textContent.trim()).join(', ')`); got != "Page, Table, Excel file, Database, Database view" {
 		t.Errorf("what is needed most comes first: %q", got)
 	}

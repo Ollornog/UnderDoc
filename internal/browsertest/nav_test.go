@@ -42,7 +42,7 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 	for step := 1; step <= 8; step++ {
 		b.mouse("mouseMoved", a.X+(x-a.X)*float64(step)/8, a.Y+(y-a.Y)*float64(step)/8, 0, 0)
 	}
-	time.Sleep(250 * time.Millisecond) // the entries slide for 140 ms
+	time.Sleep(150 * time.Millisecond) // the entries slide for 140 ms
 	if check != nil {
 		check()
 	}
@@ -91,6 +91,10 @@ func TestNav2ShowsWhatIsKeptOpen(t *testing.T) {
 	b.shot("nav2-thin-and-thick")
 	if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .cheadrow .chead')).fontSize`); got != "13.5px" {
 		t.Errorf("the name of a collection in nav3 reads as a heading: %q", got)
+	}
+	// Each open collection begins with a band of its own, with space above the second.
+	if got := b.eval(`(() => { const h = [...document.querySelectorAll('.nav3 .cheadrow')]; if (h.length < 2) return 'only ' + h.length; const s = getComputedStyle(h[1]); return [s.backgroundColor !== 'rgba(0, 0, 0, 0)', parseFloat(s.marginTop) >= 16].join(' '); })()`); got != "true true" {
+		t.Errorf("collections in nav3 are not set apart: %q", got)
 	}
 	if got := b.eval(`document.querySelectorAll('.nav2 .star, .nav2 .pinmark, [data-act="star"]').length`); got != "0" {
 		t.Errorf("no star and no pin any more: %s", got)
@@ -361,7 +365,11 @@ func TestDropOntoAndAcross(t *testing.T) {
 		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
 			t.Errorf("at once, the middle of A is not yet onto it")
 		}
-		time.Sleep(600 * time.Millisecond)
+		// Nothing answers the pointer while it drags, so nothing lights up under it.
+		if got := b.eval(`getComputedStyle(document.querySelector(` + strconv.Quote(rowNamed(b, "A")) + `)).pointerEvents`); got != "none" {
+			t.Errorf("an entry answers the pointer while dragging: %q", got)
+		}
+		time.Sleep(350 * time.Millisecond)
 		b.shot("drop-onto")
 		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join() + ' ' + getComputedStyle(document.querySelector('.dropgap')).opacity`); got != "A 0.4" {
 			t.Errorf("after waiting, A is framed and C waits faint: %q", got)

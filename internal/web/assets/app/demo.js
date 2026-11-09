@@ -957,7 +957,7 @@ const selOf=kind=>kind==='row'?'n3':kind==='fav'?'n2':'sec';
 const elOf=(kind,id)=>document.querySelector(kind==='row'?`.nav3 [data-row="${id}"]`:kind==='fav'?`#clist [data-favid="${id}"]`:`.nav2 [data-secid="${id}"]`);
 const hideOf=(kind,el)=>kind==='row'?el.closest('li'):el;
 const WATCH=['#clist>.collrow','#tree .row','#tree .cheadrow','.nav2 [data-secid]'].map(x=>x+':not(.dropgap *)').join(',');
-const DWELL=500;
+const DWELL=300;
 function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.parentElement)if(x.matches('ul.t'))k++;return k;}
 function measure(d){
   const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null;
@@ -1003,7 +1003,7 @@ function dwelt(r){
 function liveTarget(e){
   const d=drag,cy=e.clientY-d.gy+d.gh/2;
   const z=d.zones.find(z=>{const r=z.box.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<r.right&&e.clientY>=r.top&&e.clientY<r.bottom;});
-  if(!z){d.dwell=null;if(d.kind==='sec'||d.ids.some(isDeco))return null;const w=document.elementFromPoint(e.clientX,e.clientY),win=w&&w.closest('[data-win]');return win?{win:+win.dataset.win,node:win,keep:true}:null;}
+  if(!z){d.dwell=null;if(d.kind==='sec'||d.ids.some(isDeco))return null;const win=winAt(e);return win?{win:+win.dataset.win,node:win,keep:true}:null;}
   if(!z.rows.length)return null;
   const y=cy+(z.sc.scrollTop-z.s0),g=d.gap&&d.gap.z===z?d.gap:null,inGap=g&&y>=g.top&&y<g.top+d.h,ny=g&&y>=g.top+d.h?y-d.h:y;
   const j=inGap?-1:z.rows.findIndex(r=>ny>=r.top&&ny<r.bot),r=j>=0?z.rows[j]:null,f=r?(ny-r.top)/(r.bot-r.top):0;
