@@ -5,7 +5,7 @@
 #
 #   scripts/check-js.sh
 #
-# Repeatable: node_modules is ignored by Git, the fresh build goes to a temporary directory that is removed.
+# Repeatable: install and build happen in a temporary copy that is removed; nothing stays in the working tree.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,13 +27,18 @@ for entry in "${packages[@]}"; do
     read -r dir bundle <<<"$entry"
     printf '\n▸ %s\n' "$dir"
     [[ -f "$dir/package-lock.json" ]] || fail "$dir has no lockfile"
+    # A copy of the package outside the working tree, without any node_modules of its own: the install leaves nothing
+    # behind in the tree (scripts/_residue_check.sh), and nothing installed earlier by hand takes part.
+    work="$fresh/work/$dir"
+    mkdir -p "$work"
+    tar -C "$dir" --exclude=./node_modules -cf - . | tar -C "$work" -xf -
     # --ignore-scripts: no install script of a package runs here; esbuild comes as a package for the platform.
-    npm ci --prefix "$dir" --ignore-scripts --no-audit --no-fund --loglevel=error || fail "$dir: npm ci"
-    if compgen -G "$dir/test/*.test.mjs" >/dev/null; then
-        node --test --test-reporter=spec "$dir"/test/*.test.mjs || fail "$dir: tests"
+    npm ci --prefix "$work" --ignore-scripts --no-audit --no-fund --loglevel=error || fail "$dir: npm ci"
+    if compgen -G "$work/test/*.test.mjs" >/dev/null; then
+        node --test --test-reporter=spec "$work"/test/*.test.mjs || fail "$dir: tests"
     fi
-    node "$dir/build.mjs" --out "$fresh/$dir" || fail "$dir: build"
-    diff -r "$fresh/$dir" "$bundle" >/dev/null ||
+    node "$work/build.mjs" --out "$fresh/out/$dir" || fail "$dir: build"
+    diff -r "$fresh/out/$dir" "$bundle" >/dev/null ||
         fail "$bundle is not what $dir builds from its lockfile: run 'npm ci --ignore-scripts && npm run build' in $dir and commit the result"
     printf '  the bundle comes exactly from the lockfile\n'
 done
