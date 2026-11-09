@@ -60,7 +60,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -249,4 +249,22 @@ func (h *handler) apiMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apiNode{ID: moved.ID, Title: moved.Title, Kind: moved.Kind, Kids: []apiNode{}})
+}
+
+// apiCopy duplicates an object with everything below it into a parent, after an entry or first, and answers with the
+// copy and its children, as the tree shows them.
+func (h *handler) apiCopy(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Parent string `json:"parent"`
+		After  string `json:"after"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	made, err := h.options.DB.Copy(r.Context(), r.PathValue("id"), user.ID, in.Parent, in.After)
+	if h.failed(w, err, "copy") {
+		return
+	}
+	writeJSON(w, http.StatusCreated, h.databaseNode(r, made, 0))
 }

@@ -722,6 +722,9 @@ func TestNewMenuFilters(t *testing.T) {
 	if got := b.eval(visible); got != "Collection, Line, Space, Import, Link" {
 		t.Errorf("what New in nav2 offers: %q", got)
 	}
+	if got := b.eval(`(() => { const s = getComputedStyle(document.activeElement); return document.activeElement.dataset.nfilter !== undefined && s.outlineStyle + ' ' + s.borderTopStyle; })()`); got != "none none" {
+		t.Errorf("the filter has no box of its own: %q", got)
+	}
 	b.typeText("spa")
 	if got := b.eval(visible); got != "Space" {
 		t.Errorf("typing filters: %q", got)
@@ -745,12 +748,12 @@ func TestNewMenuFilters(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Write, Data, Media, Organize, Set apart, Bring in" {
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Tables, Databases, Records, Boards and lists, Media, Organize, Set apart, Bring in" {
 		t.Errorf("New in a collection, in blocks: %q", got)
 	}
 	b.shot("new-menu-blocks")
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="group"]')].every(g => { const l = [...g.querySelectorAll('[role="menuitem"]')].map(n => n.textContent.trim()); return l.join() === [...l].sort((a, b) => a.localeCompare(b)).join() || g.querySelector('[role="heading"]').textContent === 'Bring in'; })`); got != "true" {
-		t.Errorf("each block sorted by name: %s", b.eval(`document.querySelector('.cmdpop [role="menu"]').innerText.replace(/\s+/g, ' ')`))
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="menuitem"]')].slice(0, 5).map(n => n.textContent.trim()).join(', ')`); got != "Page, Table, Excel file, Database, Database view" {
+		t.Errorf("what is needed most comes first: %q", got)
 	}
 	b.typeText("lin")
 	b.shot("new-menu-filtered")
