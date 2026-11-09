@@ -193,6 +193,9 @@ const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','t
 const later=(kind,id)=>S.first&&LATER[kind].includes(id);
 /* Why a document cannot be edited, for the greyed pencil: nothing that is not built or not allowed simply goes missing. */
 /* Whether a tab shows its document for editing: what was chosen for this document, else the setting "open for editing". */
+/* Pages and folders are made in collections of the database only; elsewhere New says why, instead of making a page that
+   cannot be written (2026-11-09). */
+const madeHere=id=>{const d=D[id];if(!d||d.db||id==='qn')return '';return d.real?'The folder source is read only. Pages are made in collections of the database':'Demo content. Pages are made in collections of the database';};
 const editing=t=>!!(t&&(t.editOf===t.d?t.edit:S.openEdit));
 const setEdit=(t,v)=>{t.edit=!!v;t.editOf=t.d;};
 const noEdit=id=>{const d=D[id];return d.blocks?'You may only '+(accOf(id)==='comment'?'comment on':'read')+' this page'
@@ -219,7 +222,7 @@ function addPop(){
   const grp=(h,items)=>`<div role="group">${h?`<span role="heading">${h}</span>`:''}${items}</div>`;
   const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
   const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
-    :[...NEWGROUPS.map(([h,ks])=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+off('add',k))]);
+    :[...NEWGROUPS.map(([h,ks])=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
         if(h==='Organize')items.push(['Collection',it('newcoll',S.addIn,'Collection','grid')]);
         return items.length?grp(h,items.map(x=>x[1]).join('')):'';}).filter(Boolean),
       grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
@@ -283,7 +286,7 @@ function ctxHtml(){
   if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
   if(c.kind==='win'){const w=S.wins[0],older=olderOf(w);title='Window';items=tabMenuHtml(0,w.a)+(older.length?'<hr>'+older.map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join(''):'')+(S.mods.ai?'<hr>'+B('aid','AI assistant','',off('tool','aid')):'');}
   if(c.kind==='sel'&&S.sel){const z=S.sel.z;title=S.sel.ids.length+' selected';items=(z==='n3'?B('selopen','Open as tabs'):z==='n2'?B('selopen','Open them in nav3')+B('selpin','Keep them open'):'')+'<hr>'+B('selclear','Clear the selection');}
-  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+B('opengear','Settings and metadata')+delItem(c.id);}
+  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,madeHere(c.id)?'disabled title="'+madeHere(c.id)+'"':accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+showItem(c.id)+dupSort(c.id)+kindItem(c.id)+B('opengear','Settings and metadata')+delItem(c.id);}
   if(c.kind==='row'&&isDeco(c.id)){title=D[c.id].n;items=B('decodel','Remove',c.id,canPlace(contOf(c.id))?'':'disabled title="'+placeWhy(contOf(c.id))+'"');}
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
   if(c.kind==='free'){title='New';items=c.acts.map(x=>{if(x[0]==='-')return '<hr>';const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
@@ -802,7 +805,7 @@ document.addEventListener('click',e=>{
     case 'tadd':{const l=TL.find(x=>x.id===a.id);l.items.push({t:'New to-do',done:false});todoDocs();openDoc(`ti:${l.id}/${l.items.length-1}`);break;}
     case 'priv':openDoc(a.id);break;
     case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
-    case 'newdoc':openDoc(createIn(S.into,a.id,''));break;
+    case 'newdoc':if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}openDoc(createIn(S.into,a.id,''));break;
     case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
     case 'addmenu2':{S.view='workspace';S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
     case 'opentab':openTab(a.id);break;
@@ -976,7 +979,7 @@ document.addEventListener('keydown',e=>{
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
   if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
   if(e.key!=='Enter')return;
-  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else openDoc(createIn(S.into,'page',v));render();return;}
+  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),d=D[at(+x.dataset.addtag).d];if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}

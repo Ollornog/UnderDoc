@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A new page made in a collection of the folder source or of the demo was a mock-up that could not be written. New, the
+  right click ("New page below it") and New in the head now make pages only in collections of the database and say why
+  elsewhere.
 - An entry could not be dropped onto an empty collection inside another: while the pointer waited on its middle, the held
   entry slid it away from under the pointer, and the waiting began anew. It now stays where it is while waiting.
 

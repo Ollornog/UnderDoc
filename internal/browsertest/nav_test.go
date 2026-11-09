@@ -1094,6 +1094,21 @@ func TestEditingIsFound(t *testing.T) {
 	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
+	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
+	if got := b.eval(`(() => { try { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); openNew(id); render();
+		const p = document.querySelector('.cmdpop [data-act="add"][data-id="page"]'); return id + ' ' + (p ? p.disabled + ' ' + p.title : 'none'); } catch (e) { return 'error ' + e.message; } })()`); !strings.HasSuffix(got, "true The folder source is read only. Pages are made in collections of the database") {
+		t.Errorf("Page in New of the folder source: %q", got)
+	}
+	b.eval(`S.addIn = null; render()`)
+	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'page'); S.ctx = {kind: 'row', id, x: 20, y: 20}; render();
+		const p = document.querySelector('[data-act="addchild"]'); return p ? p.disabled + ' ' + p.title : 'none'; })()`); got != "true The folder source is read only. Pages are made in collections of the database" {
+		t.Errorf("New page below it, in the folder source: %q", got)
+	}
+	b.eval(`(() => { S.ctx = null; S.into = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); S.newAt = 'bar'; render(); })()`)
+	b.clickOn(`[data-act="newdoc"][data-id="page"]`, 1)
+	if got := b.eval(`(document.querySelector('.toast')?.textContent || '') + ' | ' + (D[at(0).d]?.real ? 'kept' : 'made')`); got != "The folder source is read only. Pages are made in collections of the database. | kept" {
+		t.Errorf("New in the head makes nothing in the folder source: %q", got)
+	}
 	b.eval(`window.made = null; (async () => {
 		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
 		const team = await post('/api/collections', {title: 'Team'});
