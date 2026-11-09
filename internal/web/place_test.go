@@ -214,3 +214,21 @@ func TestAccessThroughTheAPI(t *testing.T) {
 		t.Errorf("no such level = %d", got)
 	}
 }
+
+func TestEmptyingTheTrashThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
+	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
+		t.Fatalf("delete = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash", "", map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+		t.Errorf("emptying from another site = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash", "", sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("empty = %d", got)
+	}
+	if got := s.get("/api/trash").Body.String(); strings.TrimSpace(got) != "[]" {
+		t.Errorf("the trash is empty: %s", got)
+	}
+}

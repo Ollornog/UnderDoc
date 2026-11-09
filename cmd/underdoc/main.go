@@ -99,6 +99,7 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		defer database.Close()
 		options.DB = database
 		healthy = func() bool { return store.Healthy() && database.Healthy(context.Background()) }
+		go database.KeepTrash(ctx, time.Hour, func(err error) { log.Error("emptying the trash failed", slog.String("error", err.Error())) })
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
 		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}

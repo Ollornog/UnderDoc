@@ -184,3 +184,50 @@ func (db *DB) Purge(ctx context.Context, objectID, viewer string) error {
 	}
 	return nil
 }
+
+// TrashDays is how long something stays in the trash before it goes for good by itself (2026-11-09).
+const TrashDays = 30
+
+// EmptyTrash takes away for good everything in the trash the viewer may purge: what they deleted or own. It returns how
+// many deletions went.
+func (db *DB) EmptyTrash(ctx context.Context, viewer string) (int, error) {
+	list, err := db.Trash(ctx, viewer)
+	if err != nil {
+		return 0, err
+	}
+	gone := 0
+	for _, t := range list {
+		if err := db.Purge(ctx, t.ID, viewer); err != nil && !errors.Is(err, ErrNotFound) {
+			return gone, err
+		}
+		gone++
+	}
+	return gone, nil
+}
+
+// ExpireTrash takes away for good what was deleted before the given moment, for every account. Something deleted on its
+// own before what lay above it is older still, so it goes in the same statement, and nothing is left without its parent.
+func (db *DB) ExpireTrash(ctx context.Context, before time.Time) (int64, error) {
+	tag, err := db.pool.Exec(ctx, "DELETE FROM objects WHERE deleted_at IS NOT NULL AND deleted_at < $1", before)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// KeepTrash empties the trash of what lies there longer than TrashDays, at once and then every so often, until ctx ends.
+// What fails is told to onError and tried again next time.
+func (db *DB) KeepTrash(ctx context.Context, every time.Duration, onError func(error)) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		if _, err := db.ExpireTrash(ctx, time.Now().Add(-TrashDays*24*time.Hour)); err != nil && ctx.Err() == nil {
+			onError(err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}

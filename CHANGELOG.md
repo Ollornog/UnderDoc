@@ -13,6 +13,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Moments go out of the API in UTC as RFC 3339 (`…Z`) and show in the time zone of the device: when a page changed and was
+  made, its versions, the trash. Before, the server wrote them in its own time, which showed UTC on the test system.
+- Private notes stay at the top: they no longer move into another collection, and dragging offers them no place there.
 - Dragging entries of nav2 and nav3 now comes from C22 (`app-workspace-drag.js`), as the maintainer approved it; UnderDoc
   only decides what may go where and what a drop does. A test now carries an entry somewhere else before Escape, to prove
   that Escape puts it back.
@@ -83,6 +86,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The trash empties as a whole ("Empty the trash", asking in place; `DELETE /api/trash`), and what lies there longer than
+  30 days goes for good by itself, checked at start and every hour.
 - What others may do is kept in the database (`POST /api/objects/{id}/access`, part of the tree in `/api/state`): the owner
   sets it in the overview of a collection or the settings of a document, below the top also "as above"; others see it
   greyed out. Before, it lasted only until a reload, and the lock of a collection of the database never showed.

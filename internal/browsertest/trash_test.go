@@ -123,3 +123,34 @@ func rowID(b *browser, name string) string {
 	b.t.Helper()
 	return b.eval(`[...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
 }
+
+// The trash is emptied as a whole, asking first in place.
+func TestEmptyTheTrash(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.eval(`window.gone = false; (async () => { const s = await (await fetch('/api/state')).json(); const t = s.collections.find(c => c.id === '` + team + `');
+		for (const k of t.kids.slice(0, 2)) await fetch('/api/objects/' + k.id, {method: 'DELETE'}); window.gone = true; })()`)
+	if !b.waitFor(`window.gone`) {
+		t.Fatal("nothing deleted")
+	}
+	h, _ := strconv.ParseFloat(b.eval(`innerHeight`), 64)
+	n2 := b.rect(`.nav2`)
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": n2.X, "y": h - 6}, nil)
+	for _, kind := range []string{"mousePressed", "mouseReleased"} {
+		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": h - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
+	}
+	b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
+	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 2`) {
+		t.Fatalf("two in the trash: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+	}
+	b.clickOn(`[data-act="trempty"]`, 1)
+	if got := b.eval(`[document.querySelector('[data-act="trempty"]').textContent.trim(), document.querySelectorAll('tr[data-trash]').length].join(' | ')`); got != "Empty the trash? Yes | 2" {
+		t.Errorf("it asks first: %q", got)
+	}
+	b.clickOn(`[data-act="trempty"]`, 1)
+	if !b.waitFor(`document.querySelector('article.doc')?.innerText.includes('The trash is empty.')`) {
+		t.Errorf("emptied: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+	}
+}

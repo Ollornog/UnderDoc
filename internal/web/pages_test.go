@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPagesThroughTheAPI(t *testing.T) {
@@ -56,6 +57,13 @@ func TestPagesThroughTheAPI(t *testing.T) {
 	versions := decode[[]apiVersion](t, s.get("/api/pages/"+plan.ID+"/versions"))
 	if len(versions) != 4 || !versions[0].Deleted || versions[0].Block != "b2" || versions[3].Block != "b1" || versions[3].Author != "Anna Berg" {
 		t.Errorf("versions, newest first: %+v", versions)
+	}
+	// Moments go out in UTC, RFC 3339; the browser shows them in its own time zone.
+	if at, err := time.Parse(time.RFC3339, versions[0].At); err != nil || !strings.HasSuffix(versions[0].At, "Z") || time.Since(at) > time.Minute {
+		t.Errorf("a version is stamped in UTC: %q %v", versions[0].At, err)
+	}
+	if doc := decode[apiDocument](t, s.get("/api/doc/"+plan.ID)); !strings.HasSuffix(doc.Changed, "Z") || !strings.HasSuffix(doc.Created, "Z") {
+		t.Errorf("changed and created in UTC: %q %q", doc.Changed, doc.Created)
 	}
 	if got := s.send(http.MethodPost, blocks, `{"md":"`+strings.Repeat("x", 100001)+`"}`, sameSite).Code; got != http.StatusBadRequest {
 		t.Errorf("a block too long = %d", got)
