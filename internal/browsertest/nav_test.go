@@ -888,3 +888,33 @@ func TestSettingsInTheOverview(t *testing.T) {
 		t.Error("a collection one may only read shows settings")
 	}
 }
+
+// The settings of the workspace belong to the account: in a browser that kept nothing, nav2 comes back as it was left.
+func TestSettingsFollowTheAccount(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	b.clickOn(`.nav2 [data-act="coll"][data-id="`+team+`"]`, 2) // kept open
+	b.eval(`S.s2 = 2; render()`)
+	state := func() string {
+		return b.eval(`[[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || (n.dataset.favid === '` + team + `' ? 'Team' : '')).filter(Boolean).join(' '), !!document.querySelector('.nav2 [data-id="` + team + `"][data-pinned]'), S.s2].join(' | ')`)
+	}
+	before := state()
+	if before != "Team line | true | 2" {
+		t.Fatalf("the setup: %q", before)
+	}
+	if !b.waitFor(`sentSettings !== null && sentSettings === localStorage.getItem('ud.workspace')`) {
+		t.Fatal("the settings did not go to the server")
+	}
+	b.eval(`localStorage.clear()`)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if got := state(); got != before {
+		t.Errorf("a browser that kept nothing gets them from the account: %q, want %q", got, before)
+	}
+}

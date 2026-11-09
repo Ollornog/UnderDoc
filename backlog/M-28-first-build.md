@@ -57,7 +57,7 @@ problems in the workspace, and the restore test.
 
 **State on 2026-11-08 (pages as blocks):** pages of the database are made in a collection (New, or New page below it) and
 edited block by block, each block a plain Markdown field with its ID from the start; every change is kept as a version and
-listed in the gear. Still to build here: access levels set in the web and comments, embedding by ID, settings on the account,
+listed in the gear. Still to build here: access levels set in the web and comments, embedding by ID,
 deleting objects, folders in the database, import and export, the list of problems in the workspace, and the restore test.
 
 **State on 2026-11-08 (New and dragging):** New in nav2 and in the head of a collection is one menu in groups (make, set
@@ -79,3 +79,6 @@ which can be shown in nav2. Either turns into the other (ADR-16). Folders in the
 **State on 2026-11-09 (folders):** folders are made in the database and named in place; collections and folders turn into
 each other by the right click. A folder may hold collections, and nav2 follows collections only. A collection inside another
 shows in nav2 when the right click asks for it, as an entry that points at it (the trial of a box the same day is gone).
+
+**State on 2026-11-09 (account settings):** the settings of the workspace belong to the account and follow it from browser to
+browser; the browser keeps a copy.
