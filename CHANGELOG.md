@@ -83,6 +83,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- What others may do is kept in the database (`POST /api/objects/{id}/access`, part of the tree in `/api/state`): the owner
+  sets it in the overview of a collection or the settings of a document, below the top also "as above"; others see it
+  greyed out. Before, it lasted only until a reload, and the lock of a collection of the database never showed.
 - The settings of the workspace belong to the account (`accounts.settings`, migration 004, `PUT /api/settings`, part of
   `/api/state`): the order of nav2 with its lines, spaces and shown collections, what is kept open, widths, zoom and theme
   follow it from browser to browser. A change goes to the server a moment later; the browser keeps a copy, and without the

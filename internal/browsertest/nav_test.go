@@ -918,3 +918,47 @@ func TestSettingsFollowTheAccount(t *testing.T) {
 		t.Errorf("a browser that kept nothing gets them from the account: %q, want %q", got, before)
 	}
 }
+
+// The owner sets what others may do, in the overview of a collection; the database keeps it, nav3 shows the lock, and
+// someone else then may change nothing there.
+func TestAccessSetByTheOwner(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`article.doc [data-act="cacc"][data-id="read"]`, 1)
+	time.Sleep(400 * time.Millisecond)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := b.eval(`[document.querySelector('article.doc [data-act="cacc"][aria-pressed="true"]')?.dataset.id, !!document.querySelector('.cheadrow[data-cdrop="` + team + `"] .acc')].join(' ')`); got != "read true" {
+		t.Errorf("the database keeps it, nav3 shows the lock: %q", got)
+	}
+	// Someone else.
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus')?.disabled].join(' ')`); got != "false true" {
+		t.Errorf("for someone else no settings, and New is off: %q", got)
+	}
+	// Back to edit: someone else may rename it, but not set what others may do.
+	b.signIn(true)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`article.doc [data-act="cacc"][data-id="edit"]`, 1)
+	time.Sleep(400 * time.Millisecond)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	if got := b.eval(`[!!document.getElementById('cname'), [...document.querySelectorAll('article.doc [data-act="cacc"]')].every(n => n.disabled)].join(' ')`); got != "true true" {
+		t.Errorf("someone who may edit renames, but sets no level: %q", got)
+	}
+	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
+	b.ready("A")
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	if got := b.eval(`(() => { const l = [...document.querySelectorAll('[data-act="setacc"]')]; return l.length > 0 && l.every(n => n.disabled); })()`); got != "true" {
+		t.Error("in the settings of a page, someone else sets no level either")
+	}
+	b.signIn(true)
+}

@@ -115,3 +115,20 @@ func TestSettingsThroughTheAPI(t *testing.T) {
 		}
 	}
 }
+
+func TestAccessThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	if got := s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+		t.Errorf("from another site = %d", got)
+	}
+	if got := decode[apiNode](t, s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)); got.Access != "read" {
+		t.Errorf("read only: %+v", got)
+	}
+	if got := node(t, decode[apiState](t, s.get("/api/state")).Collections, team.ID).Access; got != "read" {
+		t.Errorf("the state carries it: %q", got)
+	}
+	if got := s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"owner"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("no such level = %d", got)
+	}
+}

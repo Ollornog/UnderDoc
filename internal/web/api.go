@@ -35,13 +35,15 @@ type apiUser struct {
 
 // apiNode is one object in a list: a collection, folder or page, with what lies inside it.
 type apiNode struct {
-	ID      string    `json:"id"`
-	Title   string    `json:"n"`
-	Kind    string    `json:"t"`
-	Path    string    `json:"path,omitempty"`
-	Private bool      `json:"private,omitempty"`
-	Owner   string    `json:"owner,omitempty"`
-	Kids    []apiNode `json:"kids"`
+	ID      string `json:"id"`
+	Title   string `json:"n"`
+	Kind    string `json:"t"`
+	Path    string `json:"path,omitempty"`
+	Private bool   `json:"private,omitempty"`
+	Owner   string `json:"owner,omitempty"`
+	// Access is what all others may do, set on this object itself; empty when it comes from above (ADR-20).
+	Access string    `json:"access,omitempty"`
+	Kids   []apiNode `json:"kids"`
 }
 
 type apiState struct {
@@ -139,7 +141,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
-	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner), Kids: []apiNode{}}
+	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner), Access: o.Access, Kids: []apiNode{}}
 	if depth > 8 {
 		return node
 	}

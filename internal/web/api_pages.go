@@ -314,3 +314,19 @@ func (h *handler) apiSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// apiAccess sets what all others may do with an object; only its owner may.
+func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Access string `json:"access"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	o, err := h.options.DB.SetAccess(r.Context(), r.PathValue("id"), user.ID, in.Access)
+	if h.failed(w, err, "access") {
+		return
+	}
+	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Access: o.Access, Kids: []apiNode{}})
+}

@@ -116,11 +116,11 @@ function divItems(mode,id){const cont=mode==='first'?id:contOf(id),ok=canPlace(c
 function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tags:[],path:'not a file, a collection',by:'A. Keller',ch:'Oct 31',vis:'Group ops',...none,
   get stat(){return `${this.kids.length} entries`;},
   /* The overview holds the settings of the collection too, for whoever may change them (the maintainer, 2026-11-09). */
-  get html(){const ac=accOf(id),may=this.db?ac==='edit'||this.owner===esc(S.user.name):!this.real&&ac==='edit';
+  get html(){const ac=accOf(id),may=this.db?ac==='edit'||this.owner===esc(S.user.name):!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
     const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
     const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
-      <div class="slab">Others can</div><span class="seg" role="group">${[['edit','Edit'],['comment','Comment'],['read','Read']].map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||'edit')===x[0]}">${x[1]}</button>`).join('')}</span>
-      <p class="hint">Inherited by everything in it, unless something sets its own. The owner and administrators can always edit.</p>`:'';
+      <div class="slab">Others can</div><span class="seg" role="group">${(top?[]:[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?'edit':'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
+      <p class="hint">Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this.</p>`:'';
     return facts+set+(this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>');}};}
 /* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
 function asTop(c){Object.defineProperty(c,'n',{get(){return D[c.id].n;},set(v){D[c.id].n=v;},configurable:true,enumerable:true});Object.defineProperty(c,'top',{get(){return D[c.id].kids;},configurable:true,enumerable:true});return c;}
@@ -375,7 +375,7 @@ function gearHtml(t,i,hasSecs){
     ${hasSecs?`<div class="setrow"><span>Contents</span>${seg('settoc',['marker','side','hidden'],d.toc)}</div>`:''}
     <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
-    <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit')}</div>
+    <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload. In the product, saving from the web comes with editing (M-8).</p>
     <h3>Tags</h3><div class="tagrow">${d.tags.length?tagChips(d.tags,'tagsearch'):'<span class="lab">No tags yet.</span>'}</div>
     <input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag">
@@ -782,8 +782,9 @@ document.addEventListener('click',e=>{
     case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'',freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
       if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
       rebuildPlaces();S.view='workspace';S.rail=true;S.just=id;renameHere(id);return;}
-    case 'cacc':if(a.id==='edit')delete D[a.c].acc;else D[a.c].acc=a.id;break;
-    case 'setacc':if(a.id==='inherit')delete D[t.d].acc;else D[t.d].acc=a.id;break;
+    /* At the top, edit is what nothing set means; below, "as above" takes it from there. */
+    case 'cacc':setAccess(a.c,a.id==='inherit'||(a.id==='edit'&&C.some(c=>c.id===a.c&&!c.alias))?'':a.id);return;
+    case 'setacc':setAccess(t.d,a.id==='inherit'?'':a.id);return;
     case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt)t.gear=false;break;
     case 'cblk':t.cmt=true;t.gear=false;t.cb=a.id;t.cbl=a.l||a.id;render();{const f=document.querySelector(`[data-addcmt="${i}"]`);if(f)f.focus();}return;
     case 'blocklink':S.toast='Link copied: /o/'+a.id+'. Pasted into another page, the table shows there and stays in one place.';setTimeout(()=>{S.toast='';render();},2600);break;
@@ -1179,6 +1180,7 @@ function addNode(node){
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;
+  if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   return id;
 }
 
@@ -1198,6 +1200,15 @@ async function createFolder(parent,title){
   catch(e){toast(e.message==='403'?'Others may not add here.':'The folder could not be made.');}
 }
 /* A collection turns into a folder and back: the same object, shown in nav2 or only in nav3 (ADR-16). */
+/* What others may do (ADR-20): only the owner sets it, and the database keeps it; made-up content keeps it here. If the
+   server refuses, the level goes back. */
+const isOwner=id=>!D[id].db||D[id].owner===esc(S.user.name);
+async function setAccess(id,level){
+  const before=D[id].acc;if(level)D[id].acc=level;else delete D[id].acc;render();
+  if(!D[id].db)return;
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/access',{...same,method:'POST',body:JSON.stringify({access:level})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){if(before)D[id].acc=before;else delete D[id].acc;render();toast(e.message==='403'?'Only the owner sets what others may do.':'What others may do could not be saved.');}
+}
 async function convertKind(id,kind){
   if(D[id].db){try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/kind',{...same,method:'POST',body:JSON.stringify({kind})});if(!r.ok)throw new Error(String(r.status));}
     catch(e){toast(e.message==='403'?'Others may not change this.':'It could not be turned into a '+kind+'.');return;}}

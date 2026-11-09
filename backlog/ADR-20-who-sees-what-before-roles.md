@@ -31,6 +31,8 @@ The second option.
 - **Read only** means no change, no new child, no move in or out, and no comment. **Comment** adds comments to read only.
 - The level shows as a lock at the heading of a collection and as a note at the document, and what it forbids is greyed out
   (ADR-17).
+- **Only the owner sets the level (2026-11-09):** someone who may edit cannot shut the others out. It is set in the overview of a
+  collection and in the settings of a document, and the database keeps it; below the top "as above" takes it from there.
 
 ## Consequences
 
