@@ -77,6 +77,10 @@ type apiDocument struct {
 	CanEdit bool       `json:"canEdit,omitempty"`
 	Owner   string     `json:"owner,omitempty"`
 	Created string     `json:"created,omitempty"`
+	// Comments counts the open comments of a page of the database, on the whole page and on its blocks, also on blocks
+	// that are gone; CanComment tells whether the viewer may add some (ADR-20).
+	Comments   int  `json:"comments,omitempty"`
+	CanComment bool `json:"canComment,omitempty"`
 }
 
 type apiHit struct {

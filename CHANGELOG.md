@@ -111,6 +111,16 @@ All notable changes to this project are documented in this file. The format foll
 - In reading, every block of a page has a handle at its left, shown on hover (as Docmost has one, the idea only). Its menu
   copies the address to embed the block, opens the block for editing, comments on it and says where it is used. It
   replaces the address chip on tables of such pages.
+- Comments on pages of the database (ADR-18, ADR-20), on the whole page or on one block through its ID, with replies one
+  level deep (migration 007, table `comments`). The drawer of the head opens on the whole page; the speech bubble beside
+  a block in reading mode, the comment button in the bar of a block while editing, and `commentOn(docKey, blockId)` open
+  it on that block. A thread is resolved and opened again by its author or by whoever may edit the page; each author
+  changes and deletes their own comments, and a comment others have replied to stays (resolve it instead). The head and
+  each block count the open comments. Read only shows the comments without a field; the owner may always comment. A
+  deleted block keeps its comments, listed as "a block that is gone", still to be answered. The text is plain, at most
+  10000 characters. The made-up documents keep their made-up comments. New API: `GET` and `POST
+  /api/pages/{id}/comments`, `PATCH` and `DELETE /api/comments/{id}`; `/api/doc` carries `comments` and `canComment`, each
+  block its `comments`.
 - Embedding by ID (ADR-18): a block line `::embed{ref="<page id>#<block id>"}`, or without `#<block id>` for a whole
   page, shows that source live, framed, with a link back. "Copy address" in the bar of a block puts its address on the
   clipboard; pasted alone into an empty block, it becomes the embedding and is saved. The database keeps every reference
