@@ -47,6 +47,11 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - **Collection and folder (the maintainer, 2026-11-09):** the two are the same but for one thing: a collection can hold
   collections, and those can be shown in nav2; a folder shows only in nav3. Either can be turned into the other. Until
   2026-11-09 this was open, and a collection inside a collection was treated much like a folder (M-28).
+  - A folder may hold collections too. nav2 follows collections only and leaves everything else aside: a collection inside a
+    folder shows in nav3 alone. A collection at the top stays one, as only collections stand there.
+  - **Trial (2026-11-09):** the collections inside a collection show in nav2 inside the box of their parent, three levels
+    deep at most, and open in nav3 as headings of their own. The maintainer would rather show no children in nav2, so this
+    stays only if it proves itself.
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
   offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
   collection offers a new collection inside it. A new collection opens with its settings, ready to be named.

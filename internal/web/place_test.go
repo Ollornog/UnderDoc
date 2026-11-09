@@ -69,3 +69,28 @@ func TestCopyThroughTheAPI(t *testing.T) {
 		t.Errorf("a page to the top = %d", got)
 	}
 }
+
+func TestFoldersThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	rec := s.send(http.MethodPost, "/api/folders", `{"title":"Drawings","parent":"`+team.ID+`"}`, sameSite)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("folder = %d %s", rec.Code, rec.Body)
+	}
+	folder := decode[apiNode](t, rec)
+	if folder.Kind != "folder" {
+		t.Errorf("the kind: %+v", folder)
+	}
+	if got := s.send(http.MethodPost, "/api/folders", `{"title":"Loose","parent":""}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a folder at the top = %d", got)
+	}
+	if got := s.send(http.MethodPost, "/api/objects/"+folder.ID+"/kind", `{"kind":"collection"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+		t.Errorf("converting from another site = %d", got)
+	}
+	if got := decode[apiNode](t, s.send(http.MethodPost, "/api/objects/"+folder.ID+"/kind", `{"kind":"collection"}`, sameSite)); got.Kind != "collection" {
+		t.Errorf("turned into a collection: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/objects/"+team.ID+"/kind", `{"kind":"folder"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a collection at the top into a folder = %d", got)
+	}
+}

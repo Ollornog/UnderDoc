@@ -71,6 +71,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Folders in the database: New in a collection makes one, named in place (`POST /api/folders`), and the right click turns
+  a collection into a folder or back (`POST /api/objects/{id}/kind`). A folder shows only in nav3; a collection at the top
+  stays one. Collections of the database now have the icon of a collection, not of a folder.
+- As a trial, collections inside a collection show in nav2 inside the box of their parent, three levels deep, and open in
+  nav3 as headings of their own; whatever lies in a folder stays out of nav2. The demo has three such levels below Projects.
 - Duplicating: the right click copies an entry with everything below it, right after it, and Ctrl held at a drop copies
   instead of moving (`POST /api/objects/{id}/copy`, at most 500 objects at once). The copies belong to whoever copies, pages
   keep their blocks and block IDs, and each copy starts its own history.

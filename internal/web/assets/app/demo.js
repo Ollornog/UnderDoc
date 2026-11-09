@@ -122,6 +122,9 @@ C.forEach(c=>{const n=c.n,top=c.top;delete c.n;delete c.top;collDoc(c.id,n,top,c
 D.bud={t:'page',n:'Budget 2027',w:'slim',toc:'marker',tags:[],kids:[],path:'projects/planning-2027/budget.md',by:'J. Roth',ch:'Nov 02',vis:'Project team, inherited',...none,doc:P('First numbers for next year.',['Hardware','<p>Two switches and a spare antenna.</p>'],['Services','<p>The crane for one day.</p>'])};
 collDoc('plan27','Planning 2027',['bud'],'grid');D.plan27.desc='Ideas and numbers for next year. A collection inside Projects.';
 C.find(c=>c.id==='pro').top.push('plan27');
+/* Three levels of collections below Projects, for the trial of children in nav2 (2026-11-09). */
+collDoc('bud27','Budget lines',[],'grid');D.plan27.kids.push('bud27');collDoc('q127','Quarter 1',[],'grid');D.bud27.kids.push('q127');
+D.plan27.i='grid';
 D.ops.desc='Network, site logs and the on-call handbook.';D.arc.acc='read';D.hand.acc='comment';
 TYPE.coll[0]='grid';
 D.pro.desc='Builds and purchases.';
@@ -167,7 +170,7 @@ const later=(kind,id)=>S.first&&LATER[kind].includes(id);
 const off=(kind,id)=>later(kind,id)?' disabled data-later="1"':'';
 const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
-  const open=C.filter(c=>S.open[c.id]);
+  const open=openColls();
   if(!open.length) return '<p class="lab pad">No collection is open. Pick one in nav2.</p>';
   return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button><button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="${accOf(c.id)==='edit'?'New in '+c.n:ACC[accOf(c.id)]}"${accOf(c.id)==='edit'?'':' disabled'}>New ${ic('plus')}</button></div>
     <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
@@ -205,7 +208,7 @@ function stepNew(dir){
   const n=items[(k<0?(dir>0?0:items.length-1):k+dir+items.length)%items.length];n.classList.add('active');n.scrollIntoView({block:'nearest'});
 }
 /* A new collection gets the first free number, and its name is written in place. */
-function freeName(base){const used=new Set(Object.values(D).filter(d=>d.t==='coll').map(d=>plain(d.n)));let n=1;while(used.has(`${base} (${n})`))n++;return `${base} (${n})`;}
+function freeName(base){const used=new Set(Object.values(D).filter(d=>d.t==='coll'||d.t==='folder').map(d=>plain(d.n)));let n=1;while(used.has(`${base} (${n})`))n++;return `${base} (${n})`;}
 /* Every entry of a menu carries its icon (2026-11-09). */
 Object.assign(I,{trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   sort:'<path d="M7 4v16M4 17l3 3 3-3M14 6h6M14 12h4M14 18h2"/>',win:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>'});
@@ -216,6 +219,13 @@ const CTXI={copen:'eye',cpin:'pin',collhead:'x',open:'eye',addmenu2:'plus',newco
 const mi=act=>ic(CTXI[act]||'more');
 /* A right click opens the menu of what is under it, everywhere: tab, collection, list entry, section, view. */
 /* Duplicate, where one may add next to it, and sort the children of anything that holds two or more. */
+/* Turn a collection into a folder or back. A collection at the top, and the private notes, stay collections. */
+function kindItem(id){
+  const d=D[id];if(d.t!=='coll'&&d.t!=='folder')return '';if(d.real&&!d.db)return '';
+  if(d.t==='coll'&&(C.some(c=>c.id===id)||d.private))return '';
+  const may=d.db?accOf(id)==='edit':true,to=d.t==='coll'?'folder':'collection';
+  return `<button data-act="tokind" data-id="${id}" data-k="${to}"${may?'':' disabled'}>${ic(to==='folder'?'folder':'grid')}Turn into a ${to}</button>`;
+}
 function dupSort(id){
   const cont=contOf(id),may=cont?canPlace(cont):(D[id].db?S.canCreate:!D[id].real),kids=D[id].kids.filter(x=>!isDeco(x)).length,sorts=kids>1&&(D[id].db?accOf(id)==='edit':!D[id].real);
   return `<hr><button data-act="dupl" data-id="${id}"${may?'':' disabled'}>${mi('dupl')}Duplicate</button>`+(sorts?`<button data-act="sortaz" data-id="${id}">${mi('sortaz')}Sort its children A to Z</button><button data-act="sortza" data-id="${id}">${mi('sortza')}Sort its children Z to A</button>`:'');
@@ -223,11 +233,11 @@ function dupSort(id){
 function ctxHtml(){
   const c=S.ctx;if(!c)return '';
   const B=(act,label,id=c.id,extra='')=>`<button data-act="${act}" data-id="${id}" ${extra}>${mi(act)}${label}</button>`;let items='',title='';
-  if(c.kind==='coll'){const x=C.find(y=>y.id===c.id);title=x.n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+dupSort(c.id)+'<hr>'+B('cgear','Settings and name');}
+  if(c.kind==='coll'){title=D[c.id].n;items=B('copen','Open, close what is not kept open')+B('cpin',S.pin[c.id]?'Stop keeping it open':'Keep it open',c.id,'title="Also a double click"')+(S.open[c.id]?B('collhead','Close'):'')+B('open','Open its overview')+'<hr>'+B('addmenu2','New in it')+B('newcoll','New collection inside it')+(c.n3?divItems('first',c.id):c.nest?'':'<hr>'+B('n2line','Line below it')+B('n2space','Space below it'))+dupSort(c.id)+kindItem(c.id)+'<hr>'+B('cgear','Settings and name');}
   if(c.kind==='deco'){title=D[c.id].n;items=B('decodel','Remove');}
   if(c.kind==='win'){const w=S.wins[0],older=olderOf(w);title='Window';items=tabMenuHtml(0,w.a)+(older.length?'<hr>'+older.map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join(''):'')+(S.mods.ai?'<hr>'+B('aid','AI assistant','',off('tool','aid')):'');}
   if(c.kind==='sel'&&S.sel){const z=S.sel.z;title=S.sel.ids.length+' selected';items=(z==='n3'?B('selopen','Open as tabs'):z==='n2'?B('selopen','Open them in nav3')+B('selpin','Keep them open'):'')+'<hr>'+B('selclear','Clear the selection');}
-  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+dupSort(c.id)+B('opengear','Settings and metadata');}
+  if(c.kind==='row'){const d=D[c.id];title=d.n;items=B('open','Open')+B('opentab','Open as a tab of its own')+(S.wins.length<4?B('opencol','Open in a new column',c.id,off('tool','opencol')):'')+'<hr>'+(COLL[c.id]?B('addchild','New page below it',c.id,accOf(c.id)==='edit'?'':'disabled title="'+ACC[accOf(c.id)]+'"'):'')+divItems('after',c.id)+B('copylink','Copy link')+dupSort(c.id)+kindItem(c.id)+B('opengear','Settings and metadata');}
   if(c.kind==='row'&&isDeco(c.id)){title=D[c.id].n;items=B('decodel','Remove',c.id,canPlace(contOf(c.id))?'':'disabled title="'+placeWhy(contOf(c.id))+'"');}
   if(c.kind==='sec'){title=c.label;items=B('sec','Open')+(S.so[S.view]&&S.so[S.view][c.id]?B('secclose','Close'):'')+(c.sort?B('secup','Move up')+B('secdown','Move down'):'')+'<hr>'+B('none','Rename','','disabled title="Comes with editing"');}
   if(c.kind==='free'){title='New';items=c.acts.map(x=>{const [act,id]=x[0].split(':');return B(act,x[1],id||'');}).join('');}
@@ -235,6 +245,19 @@ function ctxHtml(){
   return `<div class="pop ctxpop" role="menu" data-style="left:${c.x}px;top:${c.y}px"><b>${title}</b>${items}</div>`;
 }
 function navItem(act,id,label,icon,pressed,extra='',no=false){const l=no||(act==='view'&&later('view',id))||(act==='sec'&&S.view==='profile'&&later('prof',id));return `<button class="navitem" data-act="${act}" data-id="${id}" aria-pressed="${pressed}" title="${label}${l?', not in the first build':''}" ${extra}${l?' disabled data-later="1"':''}>${ic(icon)}<span class="lbl">${label}</span></button>`;}
+/* A trial (the maintainer, 2026-11-09): collections inside a collection show in nav2 inside the box of their parent,
+   three levels deep at most. Only collections count; a folder, and whatever it holds, stays in nav3. */
+const collKids=id=>(D[id]&&D[id].kids||[]).filter(k=>D[k]&&D[k].t==='coll');
+function nestHtml(id,level){
+  const ks=collKids(id);if(!ks.length||level>3)return '';
+  return `<div class="collkids">${ks.map(k=>`<div class="collrow nest" data-ctx="coll" data-ctxid="${k}">${navItem('coll',k,D[k].n,D[k].i||'grid',!!S.open[k],S.pin[k]?'data-pinned="1"':'')}</div>${nestHtml(k,level+1)}`).join('')}</div>`;
+}
+/* What nav3 shows: the open collections in the order of nav2, those inside others after their parent. */
+function openColls(){
+  const out=[],walk=(id,level)=>{collKids(id).forEach(k=>{if(S.open[k])out.push({id:k,get n(){return D[k].n;},get top(){return D[k].kids;}});if(level<3)walk(k,level+1);});};
+  C.forEach(c=>{if(isDeco(c.id))return;if(S.open[c.id])out.push(c);walk(c.id,1);});
+  return out;
+}
 function nav2Html(){
   const s=phone()?1:S.s2;
   if(S.view==='workspace'){
@@ -245,7 +268,8 @@ function nav2Html(){
     const row=c=>isDeco(c.id)?`<div class="collrow deco" data-deco="${D[c.id].t}" data-favid="${c.id}"${sl(c)} data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it"></div>`
       :S.ren===c.id?`<div class="collrow ren">${ic(c.i||'grid')}<input class="renin" data-ren="${c.id}" value="${D[c.id].n}" aria-label="Name of the collection"></div>`
       :`<div class="collrow" data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}"${sl(c)}>${navItem('coll',c.id,c.n,c.i,!!S.open[c.id],S.pin[c.id]?'data-pinned="1"':'')}</div>`;
-    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(row).join('')}</div>`;
+    const group=c=>{const r=row(c);return !isDeco(c.id)&&S.ren!==c.id&&collKids(c.id).length?`<div class="collgroup">${r}${nestHtml(c.id,1)}</div>`:r;};
+    return `<div class="n2head"><span class="lbl">Collections</span><button class="addbtn newplus" data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"><span class="nt">New</span> ${ic('plus')}</button></div><div id="clist">${C.map(group).join('')}</div>`;
   }
   if(S.view==='search') return [['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+`<span class="favsep"></span>`+navItem('ai','ai','Also ask AI','ai',S.ai);
   if(S.view==='profile') return PROFSET.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+`<span class="favsep"></span><span class="n2lab">${ic('shield')}<span class="lbl">Administration</span></span>`+PROFADM.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('');
@@ -775,6 +799,7 @@ document.addEventListener('click',e=>{
     case 'decodel':removeDivider(a.id);break;
     case 'winmenu':{if(hadCtx==='win')break;const z=S.scale/100,r=b.getBoundingClientRect();S.ctx={kind:'win',x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2};break;}
     case 'dupl':copyTo([a.id],contOf(a.id)||'',a.id);break;
+    case 'tokind':convertKind(a.id,a.k);break;
     case 'sortaz':case 'sortza':sortKids(a.id,act==='sortaz'?1:-1);break;
     case 'selopen':if(S.sel){if(S.sel.z==='n2')S.sel.ids.forEach(x=>{if(!isDeco(x))S.open[x]=true;});else S.sel.ids.forEach(openAsTab);}S.sel=null;break;
     case 'selpin':if(S.sel)S.sel.ids.forEach(x=>{if(!isDeco(x)){S.pin[x]=true;S.open[x]=true;}});S.sel=null;break;
@@ -782,7 +807,8 @@ document.addEventListener('click',e=>{
     case 'cgear':S.cgear=S.cgear===a.id?null:a.id;break;
     case 'addmenu':if(hadAdd!==a.id)openNew(a.id,b.closest('.cheadrow,.n2head')||b);break;
     case 'lineend':case 'spaceend':{const k=D[a.id].kids;addDivider(act==='lineend'?'line':'space',a.id,k[k.length-1]||'');break;}
-    case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
+    case 'add':if(a.id==='page'&&D[a.c]&&D[a.c].db){S.addIn=null;createPage(a.c,'New page');break;}
+      if(a.id==='folder'&&D[a.c]&&D[a.c].db){S.addIn=null;createFolder(a.c,freeName('New folder'));break;}{const id='new'+(++S.newN),k=a.id;D[id]={t:k,n:'New '+TYPE[k][1].toLowerCase(),w:'slim',toc:'marker',tags:[],kids:[],path:'not saved, this is a mockup',by:'you',ch:'now',vis:'As its collection',...none,stat:'empty',html:'<p class="lab">Empty. Drag it in the list to where it belongs.</p>'};C.find(c=>c.id===a.c).top.push(id);rebuildPlaces();openDoc(id);S.just=id;break;}
     case 's1':S.s1=+a.id;break;
     case 's2':S.s2=+a.id;break;
     case 'w3reset':S.w3=W3;break;
@@ -851,7 +877,7 @@ document.addEventListener('contextmenu',e=>{const tb=e.target.closest&&e.target.
   const el=e.target.closest?e.target:null;if(!el)return;
   const z=S.scale/100,at0=(kind,id,more={})=>{e.preventDefault();S.menu=null;S.newAt=null;S.hist=null;S.tlist=null;S.tmenu=null;S.ctx={kind,id,x:Math.round(Math.min(e.clientX/z,innerWidth/z-250)),y:Math.round(Math.min(e.clientY/z,innerHeight/z-240)),...more};render();};
   const sl=S.sel&&!S.sel.soft&&S.sel.ids.length>1&&el.closest('[aria-selected="true"]');if(sl)return at0('sel',null);
-  const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid,{n3:!!cl.closest('.nav3')});
+  const cl=el.closest('[data-ctx="coll"]');if(cl)return at0('coll',cl.dataset.ctxid,{n3:!!cl.closest('.nav3'),nest:!!cl.closest('.collkids')});
   const dc=el.closest('[data-ctx="deco"]');if(dc)return at0('deco',dc.dataset.ctxid);
   const rw=el.closest('[data-row]');if(rw)return at0('row',rw.dataset.row);
   const op=el.closest('.nav3 .row [data-act="open"]');if(op&&D[op.dataset.id])return at0('row',op.dataset.id);
@@ -956,15 +982,17 @@ function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c]
    goes into that collection, on a window it opens there as tabs, and with Ctrl held at the drop it is copied. */
 const selOf=kind=>kind==='row'?'n3':kind==='fav'?'n2':'sec';
 const elOf=(kind,id)=>document.querySelector(kind==='row'?`.nav3 [data-row="${id}"]`:kind==='fav'?`#clist [data-favid="${id}"]`:`.nav2 [data-secid="${id}"]`);
-const hideOf=(kind,el)=>kind==='row'?el.closest('li'):el;
-const WATCH=['#clist>.collrow','#tree .row','#tree .cheadrow','.nav2 [data-secid]'].map(x=>x+':not(.dropgap *)').join(',');
+const hideOf=(kind,el)=>kind==='row'?el.closest('li'):el.closest('.collgroup')||el;
+const WATCH=['#clist .collrow','#tree .row','#tree .cheadrow','.nav2 [data-secid]'].map(x=>x+':not(.dropgap *)').join(',');
 const DWELL=300;
 function depthOf(n){let k=-1;for(let x=n.parentElement;x&&x.id!=='tree';x=x.parentElement)if(x.matches('ul.t'))k++;return k;}
 function measure(d){
   const z=S.scale/100,zones=[],shown=n=>n.offsetParent!==null;
   const rowsOf=(nodes,f)=>nodes.filter(shown).map(n=>{const r=n.getBoundingClientRect();return {el:n,top:r.top,bot:r.bottom,...f(n)};});
   const n2=document.querySelector('.nav2'),list=document.getElementById('clist');
-  if(list&&d.kind!=='sec')zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.querySelectorAll(':scope>.collrow[data-favid]')],n=>({id:n.dataset.favid,hold:!isDeco(n.dataset.favid)}))});
+  /* A collection with its children in nav2 counts as one entry: its box. */
+  const inner=n=>n.matches('.collgroup')?n.querySelector(':scope>.collrow'):n;
+  if(list&&d.kind!=='sec')zones.push({box:n2,sc:list,s0:list.scrollTop,flat:true,where:'n2',rows:rowsOf([...list.children].filter(n=>n.matches('.collgroup,.collrow[data-favid]')),n=>({id:inner(n).dataset.favid,hold:!isDeco(inner(n).dataset.favid),inner:inner(n)}))});
   if(d.kind==='sec'&&n2)zones.push({box:n2,sc:n2,s0:n2.scrollTop,flat:true,where:'sec',rows:rowsOf([...n2.querySelectorAll('[data-secid]')],n=>({id:n.dataset.secid}))});
   const tr=document.getElementById('tree'),top=tr&&tr.querySelector('ul.t.top');
   if(top&&(d.kind==='row'||(d.kind==='fav'&&!d.ids.some(isDeco)))){
@@ -992,7 +1020,7 @@ function ontoAt(z,r){
   if(accOf(c)==='read')return null;
   for(const x of d.ids){if(!fits(x,probe))return null;if(d.kind==='fav'&&(c===x||(COLL[c]&&COLL[c].id===x)))return null;if(d.kind==='row'&&within(x,c))return null;}
   const kids=D[c].kids.filter(x=>!d.ids.includes(x));
-  return {z,keep:true,p:c,after:kids[kids.length-1]||'',onto:r.el};
+  return {z,keep:true,p:c,after:kids[kids.length-1]||'',onto:r.inner||r.el};
 }
 /* Waiting on the middle of an entry: true once the pointer has stayed there long enough. Until then it asks to be asked
    again, as the pointer may not move. */
@@ -1200,8 +1228,8 @@ function addressOf(key){const sid=D[key].sid||key;return sid.startsWith('f:')?'/
 function addNode(node){
   const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
-  if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
-  else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'?'A folder of the folder source.':''});
+  if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
+  else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=D[id].tags||[];D[id].db=!!node.owner;
   return id;
 }
@@ -1215,11 +1243,23 @@ function idFromPath(){
 
 /* Collections of the database: made and renamed through the API (ADR-19). */
 const same={credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'}};
+/* A folder of the database: made in a collection or folder, named in place. */
+async function createFolder(parent,title){
+  try{const r=await fetch('/api/folders',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
+    const node=await r.json();node.owner=S.user.name;const id=addNode(node);D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();S.just=id;renameHere(id);}
+  catch(e){toast(e.message==='403'?'Others may not add here.':'The folder could not be made.');}
+}
+/* A collection turns into a folder and back: the same object, shown in nav2 or only in nav3 (ADR-16). */
+async function convertKind(id,kind){
+  if(D[id].db){try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/kind',{...same,method:'POST',body:JSON.stringify({kind})});if(!r.ok)throw new Error(String(r.status));}
+    catch(e){toast(e.message==='403'?'Others may not change this.':'It could not be turned into a '+kind+'.');return;}}
+  D[id].t=kind==='folder'?'folder':'coll';D[id].i=kind==='folder'?'folder':'grid';rebuildPlaces();render();
+}
 async function createCollection(parent,title){
   try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title,parent})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='collection';node.owner=S.user.name;const id=addNode(node);
     if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
-    else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'folder'}));rebuildPlaces();onlyThis(id);}
+    else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'grid'}));rebuildPlaces();onlyThis(id);}
     S.view='workspace';S.rail=true;S.just=id;renameHere(id);
   }catch(e){S.toast='The collection could not be made.';render();setTimeout(()=>{S.toast='';render();},2400);}
 }
@@ -1370,7 +1410,7 @@ async function boot(){
   if(st){
     S.user=st.user;S.canCreate=st.canCreate;
     const tops=st.collections.map(addNode);
-    tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].private?'lock':'folder'}));S.fav[id]=true;});
+    tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
   }
   const kept=loadSettings();

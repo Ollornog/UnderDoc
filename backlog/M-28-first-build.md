@@ -75,3 +75,7 @@ the general tab draws no tabs and has a window button beside New.
 
 **Settled on 2026-11-09, to build:** a folder is a collection that shows only in nav3; a collection can hold collections,
 which can be shown in nav2. Either turns into the other (ADR-16). Folders in the database come with this.
+
+**State on 2026-11-09 (folders):** folders are made in the database and named in place; collections and folders turn into
+each other by the right click. A folder may hold collections, and nav2 follows collections only. As a trial, nav2 shows the
+collections inside a collection in its box, three levels deep.

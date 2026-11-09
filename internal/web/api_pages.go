@@ -268,3 +268,36 @@ func (h *handler) apiCopy(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, h.databaseNode(r, made, 0))
 }
+
+// apiCreateFolder makes a folder in a parent; a folder never stands at the top.
+func (h *handler) apiCreateFolder(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Title  string `json:"title"`
+		Parent string `json:"parent"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	created, err := h.options.DB.CreateFolder(r.Context(), user, in.Title, in.Parent)
+	if h.failed(w, err, "folder") {
+		return
+	}
+	writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
+}
+
+// apiConvert turns a collection into a folder or back.
+func (h *handler) apiConvert(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Kind string `json:"kind"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	made, err := h.options.DB.Convert(r.Context(), r.PathValue("id"), user.ID, in.Kind)
+	if h.failed(w, err, "convert") {
+		return
+	}
+	writeJSON(w, http.StatusOK, apiNode{ID: made.ID, Title: made.Title, Kind: made.Kind, Kids: []apiNode{}})
+}
