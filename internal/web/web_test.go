@@ -455,13 +455,14 @@ func TestNothingFromThirdParties(t *testing.T) {
 func TestAssetsArrive(t *testing.T) {
 	s := newSite(t, Options{}, sample)
 	for target, contentType := range map[string]string{
-		"/assets/c22/css/c22-vega.css":       "text/css",
-		"/assets/c22/fonts/inter.woff2":      "font/woff2",
-		"/assets/app/demo.js":                "javascript",
-		"/assets/app/theme.js":               "javascript",
-		"/assets/logo.svg":                   "image/svg+xml",
-		"/favicon.ico":                       "image/",
-		"/assets/c22/licenses/Inter-OFL.txt": "text/plain",
+		"/assets/c22/css/c22-vega.css":            "text/css",
+		"/assets/c22/fonts/inter.woff2":           "font/woff2",
+		"/assets/app/demo.js":                     "javascript",
+		"/assets/app/theme.js":                    "javascript",
+		"/assets/logo.svg":                        "image/svg+xml",
+		"/favicon.ico":                            "image/",
+		"/assets/c22/licenses/Inter-OFL.txt":      "text/plain",
+		"/assets/app/licenses/Lucide-LICENSE.txt": "text/plain",
 	} {
 		recorder := s.get(target)
 		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Header().Get("Content-Type"), contentType) {

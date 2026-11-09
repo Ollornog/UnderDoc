@@ -44,7 +44,9 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - A collection is an object like a document (ADR-17). It opens its overview in the window, and it can sit inside another collection,
   where it shows in nav3 like a document with children. Dragging it from nav2 into nav3 puts it inside another, and dragging it
   back onto nav2 makes it stand on its own again.
-- A collection inside a collection is treated much like a folder for now. What sets the two apart is still open (M-28).
+- **Collection and folder (the maintainer, 2026-11-09):** the two are the same but for one thing: a collection can hold
+  collections, and those can be shown in nav2; a folder shows only in nav3. Either can be turned into the other. Until
+  2026-11-09 this was open, and a collection inside a collection was treated much like a folder (M-28).
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
   offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
   collection offers a new collection inside it. A new collection opens with its settings, ready to be named.

@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The gear of the settings is Lucide's, as the drawn one read as a sun; its licence ships in `assets/app/licenses`.
+- While dragging, nothing lights up under the pointer; waiting to put an entry below another takes 0.3 s instead of 0.5 s.
+- Each open collection in nav3 begins with a band of its own, set apart from the one before. New keeps its scrollbar.
+- ADR-16 settles what sets a folder apart from a collection: a collection can hold collections, which can be shown in nav2,
+  a folder shows only in nav3; either turns into the other.
 - A dragged entry moves through the list as it looks when held, instead of a picture floating over the rest. Up and down it
   always goes between entries; waiting a moment on the middle of an entry puts it below that entry, moving to the right does
   at once. An entry dropped on a collection of nav2 goes into that collection.
