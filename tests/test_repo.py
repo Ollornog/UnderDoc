@@ -23,6 +23,23 @@ def check(label, findings):
     r.check(label, not findings, " | ".join(findings[:3]))
 
 
+# The bundles of the web editor and its trial (ADR-21) are what esbuild builds from web/editor and web/editor-trial and
+# their lockfiles; scripts/check-js.sh proves that they come exactly from there, and the sources in web/ go through every
+# check here. Minified code of third parties reads to three checks as something it is not: `static:x:y` as the login of a
+# mail relay, `{token:"className.standard"` (a highlighting token) as a token assigned, `this.at` or `this.info` as a
+# host, the home page a library names in its code as an address. In these two directories only, those findings are
+# dropped below: the addresses, and of the secrets the kinds "Zuweisung" and "Mail-Relay". The secret check keeps the
+# formats of real credentials (ghp_, AKIA, PEM, sk-, ...) and its other kinds in the bundles, and every check sees every
+# other file as before.
+BUNDLES = ("internal/web/assets/app/editor/", "internal/web/assets/app/editor-trial/")
+
+
+def outside_bundles(findings, kinds=None):
+    """Findings without those in the generated bundles; with kinds, only findings of those kinds are dropped there."""
+    return [f for f in findings
+            if not (f.startswith(BUNDLES) and (kinds is None or any(f.endswith(": " + k) for k in kinds)))]
+
+
 check(f"tests/_kit unchanged (kit {manifest.version(str(ROOT))}; otherwise: repokit sync .)", manifest.pruefe(str(ROOT)))
 check("file list is complete", hygiene.pruefe_dateiliste_plausibel(FILES, root=str(ROOT)))
 
@@ -40,20 +57,20 @@ else:
 
 # ---- No map of the network, no secrets, no artifacts
 check("no private infrastructure", hygiene.pruefe_private_infrastruktur(str(ROOT), FILES, POLICY, PROJECTS))
-check("no secrets", hygiene.pruefe_geheimnisse(str(ROOT), FILES, POLICY))
+check("no secrets", outside_bundles(hygiene.pruefe_geheimnisse(str(ROOT), FILES, POLICY), kinds=("Zuweisung", "Mail-Relay")))
 check("no build artifacts", hygiene.pruefe_artefakte(FILES, POLICY))
-check("only neutral addresses", hygiene.pruefe_adressen(str(ROOT), FILES, POLICY, zusaetzliche_hosts=[
+check("only neutral addresses", outside_bundles(hygiene.pruefe_adressen(str(ROOT), FILES, POLICY, zusaetzliche_hosts=[
     r"keepachangelog\.com", r"semver\.org",
     r"tailwindcss\.com",  # the license comment in the compiled style pack
     r"scripts\.sil\.org",  # the license text of the font, which has to stay unchanged
-]))
+])))
 # Reviewed by hand, not generated: a list that follows along would wave the next real customer name through.
-check("no unknown bare hostnames", hygiene.pruefe_blanke_adressen(str(ROOT), FILES, POLICY, grundstock=[
+check("no unknown bare hostnames", outside_bundles(hygiene.pruefe_blanke_adressen(str(ROOT), FILES, POLICY, grundstock=[
     "golang.org", "honnef.co", "python.org", "devguide.python.org", "pkg.go.dev", "modernc.org",
     "vuln.go.dev",  # named in a comment of the kit's Go gate
     "gcr.io",   # the base image in the Dockerfile
     "ghcr.io",  # where .github/workflows/image.yml publishes the image
-    "draw.io"]))    # a product name in the concept and in M-10
+    "draw.io"])))    # a product name in the concept and in M-10
 check("nothing is loaded from third parties", hygiene.pruefe_keine_fremdressourcen(str(ROOT), FILES, POLICY))
 check("every page has a favicon", hygiene.pruefe_favicon(str(ROOT), FILES, POLICY))
 
@@ -70,7 +87,7 @@ check("Dependabot auto-merge follows the template", automerge.pruefe(str(ROOT)))
 
 # ---- Files
 check("scripts are executable", hygiene.pruefe_ausfuehrbar(str(ROOT), [
-    "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "tests/test_repo.py"]))
+    "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "scripts/check-js.sh", "tests/test_repo.py"]))
 check("required files present", hygiene.pruefe_pflichtdateien(str(ROOT), [
     "LICENSE", "README.md", "i18n/README.de.md", "CHANGELOG.md", "SECURITY.md", "i18n/SECURITY.de.md",
     "CODE_OF_CONDUCT.md", "i18n/CODE_OF_CONDUCT.de.md", "CONTRIBUTING.md", "i18n/CONTRIBUTING.de.md",

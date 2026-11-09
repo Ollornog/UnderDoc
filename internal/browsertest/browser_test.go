@@ -887,7 +887,9 @@ func (b *browser) typeText(text string) {
 	b.call("Input.insertText", map[string]any{"text": text}, nil)
 }
 
-func TestEditAPageBlockByBlock(t *testing.T) {
+// A new page opens in the editor, ready to write; what is written becomes blocks, one per paragraph, and reading shows
+// them with their handles (ADR-21).
+func TestANewPageOpensInTheEditor(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
@@ -901,51 +903,31 @@ func TestEditAPageBlockByBlock(t *testing.T) {
 
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
 	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b1'`) {
-		t.Fatalf("a new page opens with its first block ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('.cm-ud-bar')`) {
+		t.Fatalf("a new page opens in the editor, ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
 	page := b.eval(`location.pathname.slice(3)`)
-	b.typeText("## Switches\n\nTwo in the rack.")
-	b.press("Enter", "Enter", 13, 2) // Ctrl+Enter saves
-	if !b.waitFor(`document.querySelector('.btool em')?.textContent === 'Saved · #b1'`) {
-		t.Fatalf("the block was not saved: %q", b.eval(`document.querySelector('.btool')?.textContent`))
+	b.typeKeys("## Switches\n\nTwo in the rack.")
+	if !b.waitFor(`EDS[at(0).d]?.ed.text() === '<!-- block b1 -->\n## Switches\n\n<!-- block b2 -->\nTwo in the rack.' && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the page was not saved as two blocks: %q", b.eval(`EDS[at(0).d]?.ed.text()`))
 	}
-	b.clickOn(`.bplus[data-id="b1"]`, 1)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2' && !!document.querySelector('.bslash')`) {
-		t.Fatalf("the block below has the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
-	}
-	b.typeText("| Port | VLAN |\n|---|---|\n| 1 | 10 |")
-	b.shot("edit-blocks")
-	b.clickOn(`[data-act="edit"]`, 1) // leaving editing saves the block being written
-	if !b.waitFor(`!!document.querySelector('article.doc h2') && !!document.querySelector('article.doc table') && !document.querySelector('textarea[data-blk]')`) {
+	b.shot("edit-new-page")
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!!document.querySelector('article.doc h2') && !!document.querySelector('article.doc [data-b="b2"] p') && !document.querySelector('.cm-editor')`) {
 		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
 	}
-	b.shot("view-blocks")
 	if got := b.eval(`document.querySelector('article.doc [data-b="b2"] > .bhandle')?.title + ' ' + !document.querySelector('article.doc .blk')`); got != "Block #b2: address, editing, comments true" {
-		t.Errorf("a table has the handle of its block, to embed it by, and no chip of its own: %q", got)
+		t.Errorf("a block has its handle, to embed it by, and no chip of its own: %q", got)
 	}
-
 	b.open(base + "/o/" + page)
 	b.ready("New page")
-	if got := b.eval(`document.querySelector('article.doc h2')?.textContent + ' | ' + document.querySelectorAll('article.doc td').length`); got != "Switches | 2" {
+	if got := b.eval(`document.querySelector('article.doc h2')?.textContent + ' | ' + document.querySelector('article.doc [data-b="b2"]')?.textContent.trim()`); got != "Switches | Two in the rack." {
 		t.Errorf("both blocks are kept: %q", got)
 	}
 	b.clickOn(`[data-act="gear"]`, 1)
-	// Each block was made empty and then written: four versions, newest first.
-	if !b.waitFor(`[...document.querySelectorAll('.fdrawer li')].map(li => (li.textContent.match(/#b\d+ \S+/) || [''])[0]).join(', ') === '#b2 |, #b2 (empty), #b1 ##, #b1 (empty)'`) {
+	// Each block was made with its text: one version each, newest first.
+	if !b.waitFor(`[...document.querySelectorAll('.fdrawer li')].map(li => (li.textContent.match(/#b\d+ \S+/) || [''])[0]).join(', ') === '#b2 Two, #b1 ##'`) {
 		t.Errorf("the versions list both blocks: %s", b.eval(`document.querySelector('.fdrawer')?.innerText.replace(/\s+/g, ' ')`))
-	}
-	b.clickOn(`[data-act="gear"]`, 1)
-
-	b.clickOn(`[data-act="edit"]`, 1)
-	b.eval(`document.querySelector('textarea[data-blk="b1"]').focus()`)
-	b.clickOn(`.bedit:first-child .btool [data-act="blkdel"]`, 1)
-	if got := b.eval(`document.querySelectorAll('textarea[data-blk]').length + ' ' + document.querySelector('.bedit:first-child [data-act="blkdel"]').textContent`); got != "2 Delete?" {
-		t.Fatalf("a block with text asks first: %q", got)
-	}
-	b.clickOn(`.bedit:first-child .btool [data-act="blkdel"]`, 1)
-	if !b.waitFor(`document.querySelectorAll('textarea[data-blk]').length === 1 && document.querySelector('textarea[data-blk]').dataset.blk === 'b2'`) {
-		t.Errorf("the block is deleted: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
 	}
 }
 
@@ -966,10 +948,13 @@ func TestBlockTextStaysText(t *testing.T) {
 	b.open(base + "/o/" + b.eval(`window.made`))
 	b.ready("Tricky")
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('textarea[data-blk]')`) {
-		t.Fatal("no field to edit")
+	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-line')`) {
+		t.Fatal("no editor")
 	}
-	if got := b.eval(`(document.getElementById('escaped') ? 'markup ' : '') + document.querySelector('textarea[data-blk]').value`); got != `</textarea><b id="escaped">x</b> & <i>` {
-		t.Errorf("the Markdown of a block is its text in the field, never markup: %q", got)
+	if got := b.eval(`(document.getElementById('escaped') ? 'markup ' : '') + EDS[at(0).d].ed.text()`); got != `<!-- block b1 -->`+"\n"+`</textarea><b id="escaped">x</b> & <i>` {
+		t.Errorf("the Markdown of a block is its text in the editor, never markup: %q", got)
+	}
+	if got := b.eval(`[...document.querySelectorAll('.cm-editor .cm-line')].map(l => l.textContent).join('|')`); got != `</textarea><b id="escaped">x</b> & <i>` {
+		t.Errorf("the editor shows it as text: %q", got)
 	}
 }

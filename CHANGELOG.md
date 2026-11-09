@@ -25,6 +25,31 @@ All notable changes to this project are documented in this file. The format foll
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles
   (`--platform=$BUILDPLATFORM`, `GOARCH=$TARGETARCH`), so arm64 needs no emulation.
 
+### Added
+
+- The web editor of M-8, part one (ADR-21): a page of the database is written in one editor, CodeMirror 6 with a live
+  preview of UnderDoc's own. Markdown looks rendered away from the cursor and shows on the lines being written; headings,
+  emphasis, code, lists, to-dos, quotes, links, rules and tables convert as they are typed, and an embedding shows as a
+  box that names what it embeds, with a link. The blocks are joined with hidden marker lines, the same as in the export;
+  each block shows its handle there, whose menu copies the address, comments, moves the block and deletes it. A bar above
+  the page turns lines into another kind and formats the selection (also Ctrl+B, Ctrl+I, Ctrl+K); `/` at the start of an
+  empty line opens the kinds. Pasting an address alone on an empty line embeds it. See docs/editor.md.
+- Autosave about a second after typing stops and when the editor is left: changed blocks are written, a paragraph written
+  before or after a block becomes a block of its own with its ID and marker, a block whose marker is gone is deleted, one
+  used elsewhere only after a question in place, and a changed order is moved. Opening and leaving a page without typing
+  writes nothing. A page changed elsewhere meanwhile is never overwritten: it is loaded again with a notice.
+- The JavaScript part in the pipeline: `web/editor` is built with esbuild from its lockfile (exact versions, all MIT),
+  with the licence texts shipped next to the bundle; `scripts/check-js.sh`, in `scripts/check.sh` and the CI, installs
+  from the lockfile, runs the tests of the editor's plan of saving with Node and fails when the bundle in the repository
+  is not exactly what the lockfile builds. The same holds for the editor trial. Dependabot watches `web/editor`.
+- The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
+  `/dev/editor-trial`, with the dev switch or for administrators.
+
+### Removed
+
+- The block editing of M-28, one Markdown field per block with a bar floating above it and a plus beside it: the editor
+  carries all of it (ADR-21). Reading, the handles, their menus and comments stay.
+
 ### Fixed
 
 - The browser tests no longer fail under load: the workspace draws itself in the background, and tests that reached for an

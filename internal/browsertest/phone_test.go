@@ -224,10 +224,11 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.reach("block-menu")
 			b.clickOn(`.dtitle h1`, 1)
 			b.clickOn(`[data-act="edit"]`, 1)
-			b.waitFor(`!!document.querySelector('textarea[data-blk="b2"]')`)
-			b.tap(`textarea[data-blk="b2"]`)
+			b.waitFor(`!!document.querySelector('.cm-editor .cm-line')`)
+			b.tap(`.cm-editor .cm-line`)
 			b.reach("block-bar")
-			b.tap(`.bplus[data-id="b2"]`)
+			b.press("End", "End", 35, 2)
+			b.typeKeys("\n\n/")
 			b.waitFor(`!!document.querySelector('.bslash')`)
 			b.reach("kinds")
 		})
@@ -264,9 +265,9 @@ const inSight = `(sel => { const e = document.querySelector(sel), r = e.getBound
 	return o >= 0.3 && r.left >= w.left && r.right <= w.right && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(sel) === e; })`
 
 // On a touch screen there is no hover: the handle of a block and its speech bubble are in sight, and a tap on the handle
-// opens its menu; while editing, the plus beside each block is in sight, and a tap on it adds a block below with the
-// list of kinds.
-func TestTouchReachesTheHandleAndThePlus(t *testing.T) {
+// opens its menu; in the editor, the handles are in sight, and "/" on an empty line opens the list of kinds inside the
+// window.
+func TestTouchReachesTheHandleAndTheKinds(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.phone(390, 844)
 	b.open(base + "/o/plan")
@@ -282,17 +283,21 @@ func TestTouchReachesTheHandleAndThePlus(t *testing.T) {
 		t.Fatal("a tap on the handle opens the menu of the block")
 	}
 	b.tap(`.bmenu [data-act="blkedit"]`)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
-		t.Fatalf("Edit this block opens editing at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	if !b.waitFor(editorAt("b2")) {
+		t.Fatalf("Edit this block opens the editor at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
 	}
-	if got := b.eval(inSight + `('.bplus[data-id="b2"]') + ' ' + ` + inSight + `('.bplus[data-id="b1"]')`); got != "true true" {
-		t.Errorf("the plus of each block is in sight and inside the window: %q", got)
+	if got := b.eval(inSight + `('.cm-ud-marker[data-edb="b2"] .bhandle') + ' ' + ` + inSight + `('.cm-ud-marker[data-edb="b1"] .bhandle')`); got != "true true" {
+		t.Errorf("the handle of each block is in sight and inside the window: %q", got)
 	}
-	b.tap(`.bplus[data-id="b2"]`)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b3' && !!document.querySelector('.bslash')`) {
-		t.Fatalf("a tap on the plus adds a block below, ready to write, with the list of kinds: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	b.press("End", "End", 35, 2) // Ctrl+End: the end of the page
+	b.typeKeys("\n\n/")
+	if !b.waitFor(`!!document.querySelector('.bslash')`) {
+		t.Fatal("/ on an empty line opens the list of kinds")
 	}
-	b.shot("phone-touch-plus")
+	if got := b.eval(inSight + `('.bslash')`); got != "true" {
+		t.Errorf("the list of kinds is inside the window")
+	}
+	b.shot("phone-touch-kinds")
 }
 
 // A long press is the right click (ADR-17): it opens the menu of an entry, and lifting the finger opens nothing; on the

@@ -16,7 +16,8 @@ Code, keine Texte, Assets oder Übersetzungen von dort, vor allem nicht aus Proj
 ## Ablauf
 
 - Arbeite auf einem **Feature-Branch**, nicht auf `main`.
-- Fahre vor dem Push die volle Suite: `scripts/check.sh`. Sie muss **zweimal hintereinander** grün sein.
+- Fahre vor dem Push die volle Suite: `scripts/check.sh`. Sie muss **zweimal hintereinander** grün sein. Sie braucht
+  Go, Python, Node mit npm (für den Web-Editor, [docs/editor.md](../docs/editor.md)) und Chrome oder Chromium.
 - Doku und `CHANGELOG.md` gehören in **denselben Commit** wie die Änderung, die sie beschreiben.
 - Code, Kommentare, Commits und Doku sind Englisch. Deutsch gibt es nur als Übersetzung.
 - Beispiele nutzen `example.com` und erfundene Namen, nie echte Firmen, Hosts oder Daten.

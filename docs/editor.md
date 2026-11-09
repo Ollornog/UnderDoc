@@ -1,0 +1,81 @@
+# The web editor
+
+Pages of the database are written in one editor per page: CodeMirror 6 with a live preview of UnderDoc's own (ADR-21).
+The text stays Markdown. Away from the cursor it looks rendered; on the lines the selection touches, the Markdown shows.
+
+## How a page becomes one text
+
+A page is a list of blocks (ADR-19). The editor joins them into one text, each block after a marker line, the same marker
+as in the export ([export.md](export.md)), with a blank line between blocks:
+
+```markdown
+<!-- block b1 -->
+## Switches
+
+<!-- block b3 -->
+Two of them, in the tower.
+```
+
+The editor hides the markers and shows the handle of the block in their place; the cursor never enters a marker line.
+Only markers the editor keeps track of count: those it wrote when the page opened, those saving wrote, and a marker line
+that is typed, pasted or brought back by undo as a whole line. A line like a marker that stands in a block, in fenced
+code for example, stays text.
+
+## Saving
+
+About a second after typing stops, when the editor loses the focus and when it is left (back to reading, another page,
+the browser tab hidden), the editor compares its text with the stored blocks and calls the block API:
+
+| In the text | Call |
+|---|---|
+| The text of a block changed | `PUT /api/pages/{id}/blocks/{block}` |
+| Paragraphs written before or after the text of a block, a blank line apart, or before the first marker | `POST /api/pages/{id}/blocks` for each, after the block before it; then its marker goes into the text, without moving the cursor or the view |
+| A marker is gone (Backspace at the start of a block joins it to the one before, or the text was cut) | `DELETE /api/pages/{id}/blocks/{block}`; a block used elsewhere asks first, in place, and comes back when kept |
+| The order changed (Move up and Move down in the menu of the handle, or a cut and paste) | `POST /api/pages/{id}/blocks/{block}/move` |
+| Nothing changed | nothing: opening a page and leaving it writes nothing and makes no version |
+
+A block keeps its ID while its text changes, so embeddings, comments and versions stay with it. Text that a joined block
+brought along stays in the block it was joined to. A copied marker makes a new block; the original keeps its ID.
+
+Before it writes, the editor reads the page again. If someone changed it meanwhile, nothing is overwritten: the page is
+loaded again with a notice, which offers to copy what was written since the last save (M-10 brings editing together).
+
+## Writing
+
+- Markdown typed converts as it is typed: headings, emphasis, code, lists, to-dos (`[ ] ` becomes `- [ ] `), quotes,
+  links, rules, tables. `[[links]]` and directives such as `::embed{…}` stay as written; an embedding away from the
+  cursor shows as a box that names what it embeds, with a link.
+- The bar sits once above the page and stays in sight while it scrolls: Turn into (text, headings, lists, to-do, quote,
+  code) for the lines of the selection, and bold, italic, strikethrough, code and link for the selection. Ctrl+B, Ctrl+I
+  and Ctrl+K do the same. Every button writes plain Markdown, so the round trip stays whole.
+- `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
+- Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
+- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used.
+
+## The CSP stays strict
+
+CodeMirror writes its base styles with style-mod, which puts them into a `<style>` element in a document. The CSP of
+UnderDoc blocks that (`style-src 'self'`, no inline style, no nonce). The bundle gives style-mod a stand-in for the
+document that has the document's adopted style sheets but no `<head>`, so style-mod uses a constructed style sheet, as
+it does in a shadow root, and the CSP allows that (`web/editor/src/style-mod-adopted.js`). The editor lives in the page
+itself, so the styles of the workspace (C22) reach the bar, the handles and the slash menu. Pictures that are not of
+UnderDoc itself show as their alt text, never as a request elsewhere.
+
+## Build
+
+The editor is built from `web/editor` with esbuild into `internal/web/assets/app/editor/`: `editor.js`, `editor.css` and
+`LICENSES.txt`, the licence texts of every bundled package (all MIT). The built files are in the repository, so building
+UnderDoc needs only Go.
+
+```bash
+cd web/editor
+npm ci --ignore-scripts
+npm test             # the plan of saving, without a browser
+npm run build        # into internal/web/assets/app/editor/
+```
+
+The versions are exact, stable and were at least two weeks old when chosen (`npm install --save-exact
+--before=<date>`). `scripts/check.sh` (`scripts/check-js.sh`) and the CI install from the lockfile, run the tests, build
+into a temporary directory and fail when the bundle in the repository differs. The editor trial of M-8
+(`web/editor-trial`, `/dev/editor-trial` with the dev switch or for administrators) is checked the same way until M-8
+closes.

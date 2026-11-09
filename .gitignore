@@ -4,3 +4,4 @@
 *.out
 __pycache__/
 /web/editor-trial/node_modules/
+/web/editor/node_modules/

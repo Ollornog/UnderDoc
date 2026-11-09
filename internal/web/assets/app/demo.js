@@ -663,8 +663,8 @@ function nav3Html(){
 }
 function render(){
   if(S.booted)saveSettings();
-  /* A block being written keeps the focus through a render; a new block asks for it with S.focusNext. */
-  const ae=document.activeElement,ren=ae&&ae.dataset&&ae.dataset.ren!==undefined?{v:ae.value,a:ae.selectionStart,b:ae.selectionEnd}:null,want=S.focusNext||(ae&&ae.dataset&&ae.dataset.blk!==undefined?{d:ae.dataset.d,id:ae.dataset.blk,pos:ae.selectionStart}:null);S.focusNext=null;
+  /* The editor of a page keeps the focus through a render; S.focusNext asks for it, at a block if it names one. */
+  const ae=document.activeElement,ren=ae&&ae.dataset&&ae.dataset.ren!==undefined?{v:ae.value,a:ae.selectionStart,b:ae.selectionEnd}:null,want=S.focusNext,edFocus=Object.keys(EDS).find(k=>EDS[k].ed.hasFocus);S.focusNext=null;
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -686,8 +686,9 @@ function render(){
   const winbar=S.wins.length>1?`<div class="winbar">${S.wins.map((w,i)=>`<button class="chip" data-act="focus" data-id="${i}" aria-pressed="${i===S.focus}">${name(w)}</button>`).join('')}</div>`:'';
   const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
   rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}`;
+  mountEditors(edFocus,want);
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
-  rendering=false;refocusBlock(want);
+  rendering=false;
   /* A name being written keeps its text and the focus through a render. */
   const rn=ren&&document.querySelector('[data-ren]');if(rn){rn.value=ren.v;rn.focus();rn.setSelectionRange(ren.a,ren.b);}
   const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
@@ -922,16 +923,15 @@ document.addEventListener('click',e=>{
     case 'tablist':S.tlist=hadTl===i?null:i;break;
     case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
-    case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t)&&!D[t.d].blocks.length)addBlock(t.d,'');break;
-    case 'blkfmt':{const x=fieldOf(t.d,a.id);if(x)formatIn(x,a.k);return;}
-    case 'blkmove':moveBlock(t.d,a.id,a.k);return;
-    case 'blkdup':dupBlock(t.d,a.id);return;
-    case 'slashpick':pickSlash(+a.k);return;
-    case 'blkadd':addBlock(t.d,a.id,true);return;
-    case 'blkdel':deleteBlock(t.d,a.id);return;
+    case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
+    case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
+    case 'edmove':{const e=EDS[t.d];if(e)e.ed.moveBlock(a.id,a.k);break;}
+    case 'eddel':{const e=EDS[t.d];if(e)e.ed.deleteBlock(a.id);break;}
+    case 'edcopy':{const text=S.edNote&&S.edNote[t.d];if(text)(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast('What you wrote is on the clipboard.'),()=>toast('The clipboard could not be written.'));return;}
+    case 'ednote':if(S.edNote)delete S.edNote[t.d];break;
     case 'bcmt':commentOn(t.d,a.id);return;
     case 'bmenu':if(!(hadBm&&hadBm.w===i&&hadBm.id===a.id))S.bmenu={w:i,id:a.id};break;
-    case 'blkedit':setEdit(t,true);t.src=false;S.focusNext={d:t.d,id:a.id,pos:0};break;
+    case 'blkedit':setEdit(t,true);t.src=false;S.focusNext={d:t.d,id:a.id};break;
     case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
       (navigator.clipboard?navigator.clipboard.writeText(addr):Promise.reject()).then(()=>toast('Address copied. Paste it alone into a block to embed this one.'),()=>toast(addr));return;}
     case 'src':t.src=!t.src;t.top=0;if(t.src)setEdit(t,false);break;
@@ -951,10 +951,6 @@ function refreshHits(){const r=document.getElementById('sres');if(r)r.innerHTML=
 document.addEventListener('input',e=>{
   if(e.target.dataset&&e.target.dataset.nfilter!==undefined){S.addQ=e.target.value;filterNew(S.addQ);return;}
   const x=e.target;
-  if(x.dataset.blk!==undefined){const b=blockIn(x);if(b)b.draft=x.value;
-    const m=/^\/([\w -]{0,24})$/.exec(x.value),was=!!S.slash;
-    if(m)S.slash={d:x.dataset.d,blk:x.dataset.blk,q:m[1],cur:0};else if(S.slash&&!(S.slash.blk===x.dataset.blk&&!x.value))S.slash=null;
-    if(m||was!==!!S.slash)render();return;}
   if(x.id==='search'){S.sq=x.value;searchServer();if(S.view!=='search'){S.prev=S.view;S.view='search';S.rail=true;render();const f=document.getElementById('search');f.focus();f.setSelectionRange(f.value.length,f.value.length);}else refreshHits();}
   if(x.id==='cq'){S.cq=x.value;render();const f=document.getElementById('cq');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.q=x.value;t.cur=0;render();const f=document.querySelector(`[data-findq="${i}"]`);if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}}
@@ -963,7 +959,7 @@ let rendering=false;
 document.addEventListener('focusout',e=>{const x=e.target;if(!rendering&&x.dataset&&x.dataset.ren!==undefined)renameDone(x);});
 document.addEventListener('change',e=>{
   const x=e.target;
-  if(x.dataset.btype!==undefined){const f=fieldOf(x.dataset.d,x.dataset.btype);if(f){setField(f,turnInto(f.value,x.value),0);saveBlock(x.dataset.d,x.dataset.btype,f.value,f);}return;}
+  if(x.dataset.edtype!==undefined){const e=EDS[x.dataset.edtype];if(e)e.ed.turnInto(x.value);return;}
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
   if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=esc(v);if(D[cid].real)renameObject(cid,v);}render();}
@@ -989,30 +985,17 @@ document.addEventListener('auxclick',e=>{const op=e.button===1&&e.target.closest
   const tb=e.button===1&&e.target.closest&&e.target.closest('.dtab[data-dw]');if(!tb)return;e.preventDefault();const i=+tb.dataset.dw,k=+tb.dataset.dt,w=S.wins[i];
   if(w.tabs[k].general)popGeneral(w);else{w.tabs.splice(k,1);if(w.a>=k&&w.a>0)w.a--;}compact();render();});
 document.addEventListener('dblclick',e=>{const r=e.target.closest&&e.target.closest('.tabrow');if(!r||e.target.closest('.dtab,button'))return;const i=+r.closest('[data-win]').dataset.win;S.focus=i;S.newAt=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();});
-/* A block is saved when it is left, also after the bar changed it, which fires no change. A field that a redraw took away
-   is not left: its text lives on as the draft in the new one. */
-document.addEventListener('focusout',e=>{const x=e.target;if(rendering||!x.dataset||x.dataset.blk===undefined||!x.isConnected)return;
-  if(e.relatedTarget&&x.closest('.bedit')&&x.closest('.bedit').contains(e.relatedTarget))return;
-  const b=blockIn(x);if(b&&b.draft!==undefined&&b.draft!==b.raw)saveBlock(x.dataset.d,x.dataset.blk,b.draft,x);
-  if(S.slash&&S.slash.blk===x.dataset.blk&&!(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.bslash'))){S.slash=null;render();}});
-/* The buttons of the bar and of the menu of kinds keep the focus and the selection in the block. */
+/* The buttons of the bar and of the handles keep the focus and the selection in the editor. */
 document.addEventListener('mousedown',e=>{if(e.target.closest&&e.target.closest('.btool button,.bslash button,.bplus'))e.preventDefault();});
 document.addEventListener('keydown',e=>{
   const x=e.target;
   if(cmtKey(x,e))return;
   if(x.dataset&&x.dataset.grip&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const n=x.dataset.grip,dir=e.key==='ArrowLeft'?-1:1;if(n==='3')S.w3=clampW3(S.w3+dir*20);else{const k='s'+n;S[k]=Math.min(3,Math.max(0,S[k]+dir));}render();const g=document.querySelector(`[data-grip="${n}"]`);if(g)g.focus();e.preventDefault();return;}
-  if(e.key==='/'&&!x.closest('input,select,textarea')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
+  if(e.key==='/'&&!x.closest('input,select,textarea,[contenteditable]')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
   if(x.dataset&&x.dataset.nfilter!==undefined&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){e.preventDefault();if(e.key==='Enter'){const n=document.querySelector('.cmdpop [role="menuitem"].active')||[...document.querySelectorAll('.cmdpop [role="menuitem"]')].find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(n)n.click();}else stepNew(e.key==='ArrowDown'?1:-1);return;}
   if(x.dataset&&x.dataset.ren!==undefined&&(e.key==='Enter'||e.key==='Escape')){e.preventDefault();if(e.key==='Escape')x.value=x.defaultValue;x.blur();return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(e.key==='Escape'&&S.sel&&!S.sel.soft&&!drag){S.sel=null;render();return;}
-  if(x.dataset&&x.dataset.blk!==undefined&&S.slash&&S.slash.blk===x.dataset.blk){const n=slashItems().length;
-    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(n)S.slash.cur=(S.slash.cur+(e.key==='ArrowDown'?1:n-1))%n;render();return;}
-    if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();const it=slashItems()[S.slash.cur];if(it)pickSlash(SLASH.indexOf(it));return;}
-    if(e.key==='Escape'){e.preventDefault();S.slash=null;render();return;}}
-  if(x.dataset&&x.dataset.blk!==undefined&&(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&['b','i','k'].includes(e.key.toLowerCase())){e.preventDefault();formatIn(x,{b:'bold',i:'italic',k:'link'}[e.key.toLowerCase()]);return;}
-  if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();x.blur();return;}
-  if(x.dataset&&x.dataset.blk!==undefined&&e.key==='Escape'){const b=blockIn(x);if(b){x.value=b.raw;delete b.draft;}x.blur();return;}
   if(e.key!=='Enter')return;
   if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
@@ -1336,110 +1319,110 @@ async function renameObject(id,title){
   catch(e){S.toast='The new name could not be saved.';render();setTimeout(()=>{S.toast='';render();},2400);}
 }
 
-/* Pages of the database are blocks of Markdown (ADR-19). The view shows each block rendered by the server; Edit turns
-   every block into a plain Markdown field, saved when it loses the focus or on Ctrl+Enter, and Escape takes the change
-   back. A field keeps what was typed through a render: the draft stays with the block until it is saved. */
-/* Pasting the address of a block or page, alone, into an empty block embeds it: nobody types IDs (ADR-18). */
-const ADDRESS=/^\s*(?:https?:\/\/[^\/\s]+)?\/o\/([0-9a-hjkmnp-tv-z]{10})(?:\/[^#\s]*)?(?:#(b[1-9][0-9]{0,8}))?\s*$/;
-document.addEventListener('paste',e=>{
-  const x=e.target;if(!x||!x.dataset||x.dataset.blk===undefined||x.value.trim())return;
-  const m=ADDRESS.exec((e.clipboardData||window.clipboardData).getData('text')||'');if(!m)return;
-  /* Set from here, the field fires no change when it is left, so the block is saved right away. */
-  e.preventDefault();x.value=`::embed{ref="${m[1]}${m[2]?'#'+m[2]:''}"}`;x.dispatchEvent(new Event('input',{bubbles:true}));saveBlock(x.dataset.d,x.dataset.blk,x.value,x);
-});
+/* Pages of the database are blocks of Markdown (ADR-19). The view shows each block rendered by the server. Editing writes
+   the whole page in one editor (ADR-21, web/editor, editor.js): CodeMirror 6 with a live preview, the blocks joined with
+   a hidden marker line before each, where the handle of the block shows. The editor saves about a second after typing
+   stops and when it is left, block by block through the same API. */
 const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
-const blockIn=x=>{const d=D[x.dataset.d];return d&&d.blocks&&d.blocks.find(b=>b.id===x.dataset.blk);};
-/* Editing a block as Docmost shows it (only the idea is taken, no code): a bar above the block being written, to turn
-   it into another kind, to format the selection and for the block itself; a "+" at its left adds a block below and opens
-   the menu of kinds, which typing "/" in an empty block opens too (2026-11-09). */
+/* The bar sits once above the page (2026-11-09, ADR-21): a bar that follows the cursor jumps with every line and covers
+   the text above it, and M-8 asks for a bar above the page. It acts on the selection of the editor; "/" at the start of an
+   empty line opens the same kinds as a menu. */
 const KINDS=[['p','Text','text'],['h1','Heading 1','heading'],['h2','Heading 2','heading'],['h3','Heading 3','heading'],['ul','Bulleted list','list'],
   ['ol','Numbered list','olist'],['todo','To-do list','check'],['quote','Quote','quote'],['code','Code','code']];
 const SLASH=[...KINDS.map(k=>({k:k[0],n:k[1],i:k[2]})),{k:'hr',n:'Divider',i:'hr'},{k:'table',n:'Table',i:'table'},
   {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
 const FMT=[['bold','Bold (Ctrl+B)','bold'],['italic','Italic (Ctrl+I)','italic'],['strike','Strikethrough','strike'],['code','Inline code','code'],['link','Link (Ctrl+K)','link']];
-function kindOfMd(md){
-  if(/^```/.test(md))return 'code';const m=/^(#{1,3}) /.exec(md);if(m)return 'h'+m[1].length;
-  if(/^[-*+] \[[ xX]\] /.test(md))return 'todo';if(/^[-*+] /.test(md))return 'ul';if(/^\d+[.)] /.test(md))return 'ol';if(/^>/.test(md))return 'quote';return 'p';
-}
-function turnInto(md,kind){
-  let lines=md.split('\n');
-  if(/^```/.test(md)){lines=lines.slice(1);if(lines.length&&/^```\s*$/.test(lines[lines.length-1]))lines.pop();}
-  else lines=lines.map(l=>l.replace(/^(#{1,6} |[-*+] \[[ xX]\] |[-*+] |\d+[.)] |> ?)/,''));
-  const text=lines.join('\n'),each=f=>lines.map((l,n)=>l.trim()?f(l,n):l).join('\n');
-  switch(kind){
-    case 'h1':case 'h2':case 'h3':return '#'.repeat(+kind[1])+' '+lines.join(' ').trim();
-    case 'ul':return each(l=>'- '+l);case 'ol':{let n=0;return each(l=>(++n)+'. '+l);}
-    case 'todo':return each(l=>'- [ ] '+l);case 'quote':return lines.map(l=>'> '+l).join('\n');
-    case 'code':return '```\n'+text+'\n```';case 'hr':return '---';
-    case 'table':return '| Column | Column |\n|---|---|\n|  |  |';
-    default:return text;
-  }
-}
-const fieldOf=(id,blk)=>document.querySelector(`textarea[data-blk="${blk}"][data-d="${id}"]`);
-/* Set from here, a field fires no input, so the draft is kept by hand; leaving the block saves it. */
-function setField(x,value,a,b){x.value=value;x.setSelectionRange(a,b===undefined?a:b);const bl=blockIn(x);if(bl)bl.draft=value;x.focus();}
-function formatIn(x,kind){
-  const s0=x.selectionStart,e0=x.selectionEnd,v=x.value,sel=v.slice(s0,e0);
-  if(kind==='link'){const label=sel||'text',out=`[${label}](https://)`;setField(x,v.slice(0,s0)+out+v.slice(e0),s0+label.length+3,s0+out.length-1);return;}
-  const m={bold:'**',italic:'_',strike:'~~',code:'`'}[kind];if(!m)return;
-  if(v.slice(s0-m.length,s0)===m&&v.slice(e0,e0+m.length)===m){setField(x,v.slice(0,s0-m.length)+sel+v.slice(e0+m.length),s0-m.length,e0-m.length);return;}
-  setField(x,v.slice(0,s0)+m+sel+m+v.slice(e0),s0+m.length,e0+m.length);
-}
-/* In reading, every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies
-   the address to embed the block, opens the block for editing, comments on it and says where it is used (2026-11-09). */
-function handleHtml(d,w,i,b){
-  const open=S.bmenu&&S.bmenu.w===i&&S.bmenu.id===b.id,may=d.canEdit,cmt=!!d.canComment,used=b.usedIn||[];
+/* Every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies the address
+   to embed the block, comments on it and says where it is used. In reading it opens the block for editing; in the editor
+   it moves the block and deletes it (2026-11-09). */
+function handleHtml(d,w,i,b,inEditor){
+  const open=S.bmenu&&S.bmenu.w===i&&S.bmenu.id===b.id,may=d.canEdit,cmt=!!d.canComment,used=b.usedIn||[],k=d.blocks.findIndex(x=>x.id===b.id);
+  const edit=inEditor?`<button role="menuitem" data-act="edmove" data-w="${i}" data-id="${b.id}" data-k="up"${k>0?'':' disabled'}>${ic('up')}<span>Move up</span></button>
+    <button role="menuitem" data-act="edmove" data-w="${i}" data-id="${b.id}" data-k="down"${k>=0&&k<d.blocks.length-1?'':' disabled'}>${ic('down')}<span>Move down</span></button>
+    <button role="menuitem" data-act="eddel" data-w="${i}" data-id="${b.id}">${ic('trash')}<span>Delete</span></button>`
+    :`<button role="menuitem" data-act="blkedit" data-w="${i}" data-id="${b.id}"${may?'':` disabled title="${noEdit(w.d)}"`}>${ic('pencil')}<span>Edit this block</span></button>`;
   const menu=open?`<div class="bmenu" role="menu" aria-label="Block ${b.id}">
     <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
-    <button role="menuitem" data-act="blkedit" data-w="${i}" data-id="${b.id}"${may?'':` disabled title="${noEdit(w.d)}"`}>${ic('pencil')}<span>Edit this block</span></button>
-    <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span></button>
+    ${edit}
+    <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span>${b.cmts?`<small>${b.cmts}</small>`:''}</button>
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
-  return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}" aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, editing, comments">${ic('grip')}</button>${menu}`;
+  return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}" aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
   if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
-  if(!d.blocks.length)return `<p class="lab">Empty. <button class="chip" data-act="blkadd" data-w="${i}" data-id="">${ic('plus')}Add a block</button></p>`;
-  return d.blocks.map((b,n)=>{const raw=b.draft!==undefined?b.draft:b.raw,text=b.draft!==undefined?esc(b.draft):b.md,rows=Math.min(24,Math.max(2,raw.split('\n').length+1)),kind=kindOfMd(raw);
-    const B=(act,k,icon,label,extra='')=>`<button class="ic" data-act="${act}" data-w="${i}" data-id="${b.id}"${k?` data-k="${k}"`:''} title="${label}" aria-label="${label}"${extra}>${ic(icon)}</button>`;
-    const sl=S.slash&&S.slash.d===key&&S.slash.blk===b.id?slashHtml(i):'';
-    return `<div class="bedit${sl?' slashing':''}" data-bk="${b.id}">
-      <div class="btool" role="toolbar" aria-label="Block ${b.id}">
-        <select class="btype" data-btype="${b.id}" data-d="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===kind?' selected':''}>${k[1]}</option>`).join('')}</select>
-        <span class="bsep"></span>${FMT.map(f=>B('blkfmt',f[0],f[2],f[1])).join('')}
-        <span class="bsep"></span>${B('blkmove','up','up','Move up',n===0?' disabled':'')}${B('blkmove','down','down','Move down',n===d.blocks.length-1?' disabled':'')}${B('blkdup','','copy','Duplicate')}${B('blkaddr','','link','Copy the address: pasted alone into a block of another page, it embeds this one there')}
-        <button class="ic${b.ask?' asking':''}" data-act="blkdel" data-w="${i}" data-id="${b.id}" aria-pressed="${!!b.ask}" title="${b.ask?'Click again to delete':'Delete'}" aria-label="Delete">${ic('trash')}${b.ask?'<span>Delete?</span>':''}</button>
-        <button class="ic" data-act="cblk" data-w="${i}" data-id="${b.id}" data-l="${esc(blockLabel(b))}" title="${b.cmts?b.cmts+' open comments on this block':'Comment on this block'}" aria-label="Comment">${ic('chat')}${b.cmts?`<em class="cnum">${b.cmts}</em>`:''}</button>
-        <em>${b.usedIn&&b.usedIn.length?`<span title="${b.usedIn.join(', ')}">Used in ${b.usedIn.length} · </span>`:''}${b.saved?'Saved · ':''}#${b.id}</em></div>
-      <button class="bplus" data-act="blkadd" data-w="${i}" data-id="${b.id}" title="Add a block below" aria-label="Add a block below">${ic('plus')}</button>
-      <textarea data-blk="${b.id}" data-d="${key}" rows="${rows}" spellcheck="true" aria-label="Block ${b.id}, Markdown" placeholder="Write, or type / for a block">${text}</textarea>${sl}</div>`;}).join('');
+  return edHtml(d,i,key);
 }
-function slashItems(){const q=(S.slash&&S.slash.q||'').toLowerCase();return SLASH.filter(x=>!q||x.n.toLowerCase().includes(q)||x.k===q);}
-function slashHtml(i){
-  const items=slashItems();
-  return `<div class="bslash" role="listbox" aria-label="Add a block">${items.length?items.map((x,n)=>`<button role="option" data-act="slashpick" data-w="${i}" data-k="${SLASH.indexOf(x)}" aria-selected="${n===S.slash.cur}"${x.later?` disabled title="${x.later}"`:x.hint?` title="${x.hint}"`:''}>${ic(x.i)}<span>${x.n}</span>${x.later?'<small>later</small>':''}</button>`).join(''):'<div class="lab">Nothing fits.</div>'}</div>`;
+
+/* The editor of a page lives on through every render: render() draws an empty place for it, and mountEditors() puts the
+   same editor back there, with its text, selection and undo. An editor whose place is gone is saved and closed. */
+const EDS={};
+function edHtml(d,i,key){
+  const e=EDS[key],note=S.edNote&&S.edNote[key];
+  return `<div class="cm-ud-page" data-edpage="${key}">${note?`<div class="note" role="status" data-ednote="${key}">This page was changed elsewhere meanwhile, so it was loaded again; what you wrote since it was last saved is not in it. <button class="chip" data-act="edcopy" data-w="${i}">Copy what I wrote</button> <button class="chip" data-act="ednote" data-w="${i}">Close</button></div>`:''}
+    <div class="btool cm-ud-bar" role="toolbar" aria-label="Write">
+      <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
+      <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
+      <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>
+    <div class="cm-ud-host" data-cmhost="${key}" data-w="${i}"></div></div>`;
 }
-function pickSlash(k){
-  const sl=S.slash,x=sl&&fieldOf(sl.d,sl.blk),it=SLASH[k];S.slash=null;if(!x||!it||it.later){render();return;}
-  const v=it.k==='embed'?'':turnInto('',it.k),caret=it.k==='code'?4:it.k==='table'?2:v.length;
-  setField(x,v,caret,it.k==='table'?8:caret);
-  if(it.k==='embed')toast('Paste the address of a block or page here, as Copy address put it on the clipboard.');else render();
+const edAPI=key=>{
+  const call=async(url,init)=>{const r=await fetch(pageURL(key)+url,{...same,...init});if(!r.ok)throw new Error(String(r.status));return r.status===204?null:r.json();};
+  return {
+    load:async()=>{const r=await fetch('/api/doc/'+pathOf(D[key].sid),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return ((await r.json()).blocks||[]).map(b=>({id:b.id,md:b.md,usedIn:b.usedIn}));},
+    edit:(id,md)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({md})}),
+    remove:id=>call('/blocks/'+encodeURIComponent(id),{method:'DELETE'}),
+    move:(id,after)=>call('/blocks/'+encodeURIComponent(id)+'/move',{method:'POST',body:JSON.stringify({after})}),
+    add:(after,md)=>call('/blocks',{method:'POST',body:JSON.stringify({after,md})}),
+  };
+};
+/* What the editor saved, the page keeps for reading, as the server answered it. */
+function edSaved(key){
+  const d=D[key],done=()=>{syncBlocks(d);d.ch='now';if(gearOpen(key))loadVersions(key);};
+  return {
+    edited:b=>{const x=d.blocks.find(y=>y.id===b.id),n=blockOf(b);if(x){x.html=n.html;x.md=n.md;x.raw=n.raw;x.usedIn=n.usedIn;}done();},
+    added:(b,after)=>{const k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,blockOf(b));done();},
+    removed:id=>{d.blocks=d.blocks.filter(x=>x.id!==id);done();},
+    moved:(id,after)=>{const k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);done();},
+  };
 }
-async function moveBlock(id,blk,dir){
-  const d=D[id],k=d.blocks.findIndex(x=>x.id===blk),to=dir==='up'?k-1:k+1;if(k<0||to<0||to>=d.blocks.length)return;
-  const after=dir==='up'?(to>0?d.blocks[to-1].id:''):d.blocks[to].id;
-  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk)+'/move',{...same,method:'POST',body:JSON.stringify({after})});if(!r.ok)throw new Error(String(r.status));
-    const [b]=d.blocks.splice(k,1);d.blocks.splice(to,0,b);syncBlocks(d);S.focusNext={d:id,id:blk,pos:0};render();}
-  catch(e){toast('The block could not be moved.');}
+function makeEditor(key){
+  const d=D[key],e={key,w:S.focus,kind:'p',status:''};
+  const show=(sel,v,attr)=>{const n=document.querySelector(`[${sel}="${key}"]`);if(n)n[attr]=v;};
+  e.ed=window.UnderDocEditor.create({
+    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain)})),
+    label:'Page '+plain(d.n)+', Markdown',
+    api:edAPI(key),
+    handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
+    slash:SLASH.map(x=>({...x,icon:ic(x.i)})),
+    embed:ref=>{const [sid,blk]=ref.split('#'),k=Object.keys(D).find(x=>D[x].sid===sid);return {label:(k?plain(D[k].n):'Page '+sid)+(blk?' · #'+blk:''),href:'/o/'+sid+(blk?'#'+blk:'')};},
+    on:{
+      kind:k=>{e.kind=k;show('data-edtype',k,'value');},
+      status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
+      hint:t=>toast(t),
+      error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
+      conflict:text=>{S.edNote=S.edNote||{};S.edNote[key]=text;if(EDS[key]===e){delete EDS[key];e.ed.discard();}d.loaded=false;loadDoc(key);},
+      saved:edSaved(key),
+    },
+  });
+  return e;
 }
-async function dupBlock(id,blk){
-  const d=D[id],b=d.blocks.find(x=>x.id===blk);if(!b)return;
-  try{const r=await fetch(pageURL(id)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:blk,md:b.draft!==undefined?b.draft:b.raw})});if(!r.ok)throw new Error(String(r.status));
-    const n=blockOf(await r.json());d.blocks.splice(d.blocks.indexOf(b)+1,0,n);syncBlocks(d);S.focusNext={d:id,id:n.id,pos:0};if(gearOpen(id))loadVersions(id);render();}
-  catch(e){toast('The block could not be duplicated.');}
+function mountEditors(focusKey,want){
+  const seen=new Set();
+  document.querySelectorAll('[data-cmhost]').forEach(h=>{const key=h.dataset.cmhost;
+    if(seen.has(key)||!window.UnderDocEditor){h.innerHTML=`<p class="lab">${window.UnderDocEditor?'This page is being written in another window.':'The editor did not load.'}</p>`;return;}
+    seen.add(key);const e=EDS[key]||(EDS[key]=makeEditor(key));e.w=+h.dataset.w;h.append(e.ed.dom);e.ed.refresh();
+    const sel=document.querySelector(`[data-edtype="${key}"]`);if(sel)sel.value=e.kind;});
+  /* An editor whose page is no longer written is saved and closed; reading shows what it saved. */
+  Object.keys(EDS).filter(k=>!seen.has(k)).forEach(k=>{const e=EDS[k];delete EDS[k];Promise.resolve(e.ed.destroy()).finally(()=>render());});
+  if(want&&EDS[want.d]){if(want.id)EDS[want.d].ed.focusBlock(want.id);else EDS[want.d].ed.focus();}
+  else if(focusKey&&EDS[focusKey])EDS[focusKey].ed.focus();
 }
-function refocusBlock(f){if(!f)return;const x=document.querySelector(`textarea[data-blk="${f.id}"][data-d="${f.d}"]`);if(!x)return;x.focus();const p=Math.min(f.pos,x.value.length);x.setSelectionRange(p,p);}
+/* Leaving the page saves what is not saved yet. */
+const flushEditors=()=>Object.values(EDS).forEach(e=>e.ed.flush());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushEditors();});
+addEventListener('pagehide',flushEditors);
 function versionsHtml(d){
   if(!d.versions)return '<div class="lab">Loading…</div>';
   if(!d.versions.length)return '<div class="lab">No changes yet.</div>';
@@ -1454,41 +1437,14 @@ async function loadVersions(id){
   render();
 }
 const gearOpen=id=>S.wins.some(w=>w.tabs.some(t=>t.d===id&&t.gear));
-async function saveBlock(id,blk,value,field){
-  const d=D[id],b=d&&d.blocks&&d.blocks.find(x=>x.id===blk);if(!b)return;
-  if(value===b.raw){delete b.draft;return;}
-  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk),{...same,method:'PUT',body:JSON.stringify({md:value})});if(!r.ok)throw new Error(String(r.status));
-    const n=blockOf(await r.json());b.html=n.html;b.md=n.md;b.raw=n.raw;b.saved=true;if(b.draft===value)delete b.draft;syncBlocks(d);d.ch='now';
-    /* While the field is still there, only its bar says so, so the focus stays where the writer went; once the page
-       left editing, the view shows the new text. */
-    const bar=field&&field.isConnected&&field.parentElement.querySelector('.bbar em');if(bar)bar.textContent='Saved · #'+blk;else render();
-    if(gearOpen(id))loadVersions(id);}
-  catch(e){toast(e.message==='403'?'Others may not change this page.':'This block could not be saved. The text stays in the field.');}
-}
-async function addBlock(id,after,slash){
-  const d=D[id];
-  try{const r=await fetch(pageURL(id)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:after||'',md:''})});if(!r.ok)throw new Error(String(r.status));
-    const b=blockOf(await r.json()),k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,b);syncBlocks(d);S.focusNext={d:id,id:b.id,pos:0};
-    if(slash)S.slash={d:id,blk:b.id,q:'',cur:0};
-    if(gearOpen(id))loadVersions(id);render();}
-  catch(e){toast('The block could not be added.');}
-}
-async function deleteBlock(id,blk){
-  const d=D[id],b=d.blocks.find(x=>x.id===blk);if(!b)return;
-  /* A block with text asks first, in place: the first click turns the button into the question, the second deletes. */
-  if(((b.draft!==undefined?b.draft:b.raw).trim()||(b.usedIn||[]).length)&&!b.ask){d.blocks.forEach(x=>{delete x.ask;});b.ask=true;render();return;}
-  try{const r=await fetch(pageURL(id)+'/blocks/'+encodeURIComponent(blk),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));
-    d.blocks=d.blocks.filter(x=>x!==b);syncBlocks(d);if(gearOpen(id))loadVersions(id);render();}
-  catch(e){toast('The block could not be deleted.');}
-}
-/* A new page lands in the collection, folder or page it was made in, and opens with its first block ready to write. */
+/* A new page lands in the collection, folder or page it was made in, and opens in the editor, ready to write. */
 async function createPage(parent,title){
   try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;D[id].canComment=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
     const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)setEdit(t,true);
-    render();addBlock(id,'');}
+    S.focusNext={d:id};render();}
   catch(e){toast(e.message==='403'?'Others may not add pages here.':'The page could not be made.');}
 }
 

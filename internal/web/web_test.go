@@ -365,14 +365,25 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 	}
 }
 
+// The editor trial stays for comparison until M-8 closes (ADR-21): with the dev switch, or for an administrator.
 func TestEditorTrialIsADevPage(t *testing.T) {
-	if got := newSite(t, Options{}, sample).get("/dev/editor-trial").Code; got != http.StatusNotFound {
-		t.Errorf("/dev/editor-trial without the switch = %d", got)
+	plain := map[string]string{"Remote-User": "bea", "Remote-Groups": "ops"}
+	if got := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", plain).Code; got != http.StatusNotFound {
+		t.Errorf("/dev/editor-trial without the switch, not an administrator = %d", got)
 	}
-	got := newSite(t, Options{DevUI: true}, sample).body("/dev/editor-trial")
-	for _, editor := range []string{"milkdown", "tiptap", "codemirror"} {
-		if !strings.Contains(got, `data-editor="`+editor+`"`) || !strings.Contains(got, `/assets/app/editor-trial/`+editor+`.js?v=`) {
-			t.Errorf("the trial page lacks %s", editor)
+	if got := newSite(t, Options{}, sample).get("/dev/editor-trial").Code; got != http.StatusNotFound {
+		t.Errorf("/dev/editor-trial without the switch and without an administrators' group = %d", got)
+	}
+	admin := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", gateHeaders)
+	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", plain)
+	for name, answer := range map[string]*httptest.ResponseRecorder{"administrator": admin, "dev switch": dev} {
+		if answer.Code != http.StatusOK {
+			t.Errorf("%s: %d", name, answer.Code)
+		}
+		for _, editor := range []string{"milkdown", "tiptap", "codemirror"} {
+			if got := answer.Body.String(); !strings.Contains(got, `data-editor="`+editor+`"`) || !strings.Contains(got, `/assets/app/editor-trial/`+editor+`.js?v=`) {
+				t.Errorf("%s: the trial page lacks %s", name, editor)
+			}
 		}
 	}
 }

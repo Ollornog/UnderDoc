@@ -40,6 +40,20 @@ updates:
       minor:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+  # The web editor (ADR-21). The CI builds the bundle from the lockfile and compares it with the one in the repository, so
+  # an update has to bring its rebuilt bundle; the editor trial (web/editor-trial) is left out: it goes when M-8 closes.
+  - package-ecosystem: npm
+    directory: /web/editor
+    cooldown:
+      default-days: 14
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"
+    groups:
+      minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
   # The base images of the Dockerfile. scripts/check-image.sh in the CI accepts them.
   - package-ecosystem: docker
     directory: /

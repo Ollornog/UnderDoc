@@ -1,7 +1,8 @@
 # Editor trial (M-8)
 
-Three candidates for the web editor of M-8, side by side on `/dev/editor-trial` (on with `UNDERDOC_DEV_UI=1`, behind the
-gate like every page). Each starts with the same Markdown fixture (`src/fixture.js`), made of what UnderDoc pages hold.
+Three candidates for the web editor of M-8, side by side on `/dev/editor-trial` (with `UNDERDOC_DEV_UI=1` or for
+administrators, behind the gate like every page). CodeMirror won (ADR-21, built in `web/editor`); the trial stays for
+comparison until M-8 closes. Each starts with the same Markdown fixture (`src/fixture.js`), made of what UnderDoc pages hold.
 "Markdown out" shows what the editor gives back and a line diff against the fixture. This is a trial: after the choice,
 the chosen editor is built properly.
 
@@ -15,14 +16,15 @@ the chosen editor is built properly.
 
 ```sh
 cd web/editor-trial
-npm ci
+npm ci --ignore-scripts
 npm run build
 ```
 
 `build.mjs` bundles with esbuild into `internal/web/assets/app/editor-trial/` (ES modules, one build per entry; what an
 editor loads on demand lands in `<entry>-chunks/`). It also writes `meta.json`: the version and licence of every bundled
-package and the gzipped size of every bundle, which the page shows under each editor. The built files are committed on the
-trial branch, because the Go binary embeds them. Nothing is loaded from elsewhere.
+package and the gzipped size of every bundle, which the page shows under each editor. The built files are committed to the
+repository, because the Go binary embeds them, and `scripts/check-js.sh` builds them again from the lockfile and compares.
+Nothing is loaded from elsewhere.
 
 The versions are exact, stable, and were at least two weeks old when installed: `npm install --save-exact
 --before=2026-10-26` (the cutoff applies to the transitive packages too).
@@ -30,8 +32,8 @@ The versions are exact, stable, and were at least two weeks old when installed: 
 ## Licences
 
 All bundled packages are MIT, except `dompurify` (MPL-2.0 OR Apache-2.0, pulled in by Crepe). `esbuild` (build only) is
-MIT. The full list per bundle is in `meta.json`. The minified bundles drop the licence comments; a real build has to ship
-the licence texts of what it bundles.
+MIT. The full list per bundle is in `meta.json`, and `LICENSES.txt` next to the bundles has the licence text of every
+bundled package.
 
 ## The strict CSP
 

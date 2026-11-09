@@ -1046,16 +1046,15 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	b.open(base + "/o/" + rack)
 	b.ready("Rack")
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b1"]')`) {
-		t.Fatal("no field to write in")
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
+		t.Fatal("no editor to write in")
 	}
-	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); const dt = new DataTransfer(); dt.setData('text/plain', location.origin + '/o/` + plan + `#b2');
-		x.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); })()`)
-	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value`); got != `::embed{ref="`+plan+`#b2"}` {
+	b.eval(`(() => { const dt = new DataTransfer(); dt.setData('text/plain', location.origin + '/o/` + plan + `#b2');
+		document.querySelector('.cm-content').dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); })()`)
+	if got := b.eval(`EDS[at(0).d].ed.text()`); got != "<!-- block b1 -->\n::embed{ref=\""+plan+"#b2\"}" {
 		t.Fatalf("pasting the address alone makes it an embedding: %q", got)
 	}
-	b.press("Enter", "Enter", 13, 2) // Ctrl+Enter saves
-	b.clickOn(`[data-act="edit"]`, 1)
+	b.clickOn(`[data-act="edit"]`, 1) // leaving the editor saves it
 	if !b.waitFor(`!!document.querySelector('article.doc figure.embed td')`) {
 		t.Fatalf("the table of Plan shows in Rack: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
 	}
@@ -1069,24 +1068,26 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	if got := b.eval(`document.querySelector('.fdrawer')?.innerText.includes('Rack (block #b2)')`); got != "true" {
 		t.Errorf("Plan says where it is used: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
 	}
-	// In editing, a block says where it is used, and an empty one in use asks before it goes.
+	// In editing, the handle says where a block is used, and an empty one in use asks before it goes.
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('textarea[data-blk="b3"]')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .bhandle')`) {
 		t.Fatal("Plan is not in editing")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.btool em')].map(n => n.textContent.trim()).join(' | ')`); got != "#b1 | Used in 1 · #b2 | Used in 1 · #b3" {
-		t.Errorf("the bars: %q", got)
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
+	if got := b.eval(`document.querySelector('.bmenu .bused')?.textContent`); got != "Used in Rack" {
+		t.Errorf("the handle of b2: %q", got)
 	}
-	b.eval(`document.querySelector('textarea[data-blk="b3"]').focus()`)
-	b.clickOn(`[data-act="blkdel"][data-id="b3"]`, 1)
-	if got := b.eval(`[!!document.querySelector('textarea[data-blk="b3"]'), document.querySelector('[data-act="blkdel"][data-id="b3"]')?.textContent].join(' ')`); got != "true Delete?" {
-		t.Errorf("an empty block in use asks first: %q", got)
+	b.clickOn(`.dtitle h1`, 1) // closes the menu, which covers the handle below
+	b.clickOn(`.cm-ud-marker[data-edb="b3"] .bhandle`, 1)
+	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-ud-ask[data-ask="b3"]')`) {
+		t.Errorf("an empty block in use asks first: %q", b.eval(`EDS[at(0).d].ed.text()`))
 	}
 }
 
 // Editing is found: left of the title a large button says Reading or Editing and turns it, greyed with the reason where a
-// page cannot be edited; the setting "open documents for editing" opens pages that way. In editing, a bar above the block
-// being written turns it into another kind, formats the selection and moves the block; "/" in an empty block opens the kinds.
+// page cannot be edited; the setting "open documents for editing" opens pages that way. In editing, the page is one
+// editor with a bar above it (ADR-21).
 func TestEditingIsFound(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.getAttribute('aria-label') + ' | ' + p.title : 'none'; })()`
@@ -1141,48 +1142,13 @@ func TestEditingIsFound(t *testing.T) {
 		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
 	}
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if got := b.eval(status + ` + ' ' + document.querySelectorAll('textarea[data-blk]').length`); got != "false Editing | Editing. Click to read 2" {
-		t.Errorf("the button turns it to editing: %q", got)
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.doc .cm-editor').length + ' ' + document.querySelectorAll('article.doc .cm-ud-bar').length`); got != "false Editing | Editing. Click to read 1 1" {
+		t.Errorf("the button turns it to editing, one editor and one bar for the page: %q", got)
 	}
-	// The bar: turn the first block into a heading, make a word bold, move the second block up.
-	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(0, 5); })()`)
-	b.clickOn(`.btool [data-act="blkfmt"][data-id="b1"][data-k="bold"]`, 1)
-	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value + ' ' + (document.activeElement?.dataset?.blk || '')`); got != "**First** b1" {
-		t.Errorf("bold wraps the selection and the block keeps the focus: %q", got)
-	}
-	b.eval(`(() => { const s = document.querySelector('select[data-btype="b1"]'); s.value = 'h2'; s.dispatchEvent(new Event('change', {bubbles: true})); })()`)
-	if !b.waitFor(`document.querySelector('textarea[data-blk="b1"]').value === '## **First**'`) {
-		t.Errorf("turned into a heading: %q", b.eval(`document.querySelector('textarea[data-blk="b1"]').value`))
-	}
-	b.eval(`(() => { const x = document.querySelector('textarea[data-blk="b1"]'); x.focus(); x.setSelectionRange(5, 10); })()`)
-	b.press("i", "KeyI", 73, 2) // Ctrl+I
-	if got := b.eval(`document.querySelector('textarea[data-blk="b1"]').value`); got != "## **_First_**" {
-		t.Errorf("Ctrl+I makes it italic: %q", got)
-	}
-	b.eval(`document.querySelector('textarea[data-blk="b2"]').focus()`)
-	b.clickOn(`.btool [data-act="blkmove"][data-id="b2"][data-k="up"]`, 1)
-	if !b.waitFor(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ') === 'b2 b1'`) {
-		t.Errorf("b2 moved up: %s", b.eval(`[...document.querySelectorAll('textarea[data-blk]')].map(x => x.dataset.blk).join(' ')`))
-	}
-	// "/" in a new block opens the kinds; typing filters, Enter takes one.
-	b.clickOn(`.bplus[data-id="b1"]`, 1)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b3' && !!document.querySelector('.bslash')`) {
-		t.Fatalf("the plus adds a block and opens the kinds: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
-	}
-	b.typeText("/tab")
-	if got := b.eval(`[...document.querySelectorAll('.bslash [role=option]')].map(o => o.textContent).join(',')`); got != "Table" {
-		t.Errorf("typing filters the kinds: %q", got)
-	}
-	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`document.querySelector('textarea[data-blk="b3"]')?.value.startsWith('| Column | Column |') && !document.querySelector('.bslash')`) {
-		t.Errorf("Enter makes a table: %q", b.eval(`document.querySelector('textarea[data-blk="b3"]')?.value`))
-	}
-	b.shot("edit-bar")
-	b.clickOn(`[data-win="0"] .dstatus`, 1) // leaving the block saves it
-	b.open(base + "/o/" + notes)
-	b.ready("Notes")
-	if got := b.eval(`[...document.querySelectorAll('article.doc [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.doc h2')?.innerHTML + ' | ' + document.querySelectorAll('article.doc table').length`); got != "b2 b1 b3 | <strong><em>First</em></strong> | 1" {
-		t.Errorf("all of it is kept: %q", got)
+	// What the editor and its bar do is tested in editor_test.go.
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('.cm-editor').length`); got != "false Reading | Reading. Click to edit 0" {
+		t.Errorf("and back to reading: %q", got)
 	}
 	// The setting opens documents for editing.
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
@@ -1227,8 +1193,8 @@ func TestTheHandleOfABlock(t *testing.T) {
 		t.Errorf("the menu of b2: %q", got)
 	}
 	b.clickOn(`.bmenu [data-act="blkedit"]`, 1)
-	if !b.waitFor(`document.activeElement?.dataset?.blk === 'b2'`) {
-		t.Errorf("Edit this block opens editing at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
+	if !b.waitFor(editorAt("b2")) {
+		t.Errorf("Edit this block opens the editor at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
 	}
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
 	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)

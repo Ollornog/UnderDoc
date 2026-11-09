@@ -33,3 +33,10 @@ Pages can be written in the browser as quickly as in a notebook app.
 (writing inline with the bar and the slash menu, autosave, the round trip test, the JavaScript build in the pipeline), then
 the rest (Quick notes board, templates, aligning blocks). Pasting images waits for the content store (M-2). The editor is
 CodeMirror 6 with a live preview (ADR-21), after a trial of three candidates.
+
+**State 2026-11-09:** the core is built on the branch `editor-core`: one CodeMirror editor per page with the live preview,
+the hidden markers with the handles, the bar above the page with Ctrl+B/I/K, the slash menu, pasting addresses, autosave
+block by block with the question before deleting what is used elsewhere, a reload instead of overwriting a change made
+elsewhere, and the bundle built and compared in the pipeline (docs/editor.md). The round trip test proves that opening
+and leaving a page writes nothing. Still open in M-8: Quick notes, templates, aligning blocks, table tools, pasting
+images (with M-2), and the rest of the list above.
