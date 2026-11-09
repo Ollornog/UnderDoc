@@ -76,3 +76,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses
 * ☑ **[ADR-19](ADR-19-pages-in-the-database.md)** Pages live in the database, as blocks with IDs
 * ☑ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive
+* ☑ **[ADR-21](ADR-21-editor-codemirror.md)** The web editor is CodeMirror 6 with a live preview
