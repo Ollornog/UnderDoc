@@ -299,6 +299,224 @@ func TestDraggingABlockInTheEditor(t *testing.T) {
 	b.clean("drag in the editor")
 }
 
+// realPage makes a page as an imported file gives one: sections of a heading with paragraphs and a list, each a block of
+// several hundred pixels, between short paragraphs, a table and code. It returns the page.
+func realPage(b *browser, title string) string {
+	b.t.Helper()
+	words := "The first build makes pages in the web, and every block keeps its ID, so it can be embedded elsewhere and two writers do not collide on the whole file. "
+	var blocks []string
+	for k := 1; k <= 8; k++ {
+		n := strconv.Itoa(k)
+		blocks = append(blocks,
+			"## Section "+n+"\n\n"+strings.Repeat(words, 3)+"\n\n"+strings.Repeat(words, 2)+"\n\n- **Point one of "+n+":** "+words+"\n- **Point two:** "+words+"\n- Point three.",
+			"A short paragraph "+n+".")
+	}
+	blocks = append(blocks, "| Port | VLAN | Room |\n|---|---:|---|\n| 1 | 10 | Tower |\n| 2 | 20 | Hall |\n| 3 | 30 | Roof |", "```text\nrouter 192.0.2.1\nswitch 192.0.2.2\n```")
+	return makePage(b, title, blocks...)
+}
+
+// storedOrder is the order of the blocks on the server, each ID followed by a space.
+func storedOrder(b *browser, page string) string {
+	b.t.Helper()
+	b.eval(`window.got = null; fetch('/api/doc/` + page + `').then(r => r.json()).then(d => { window.got = d.blocks.map(x => x.id + ' ').join(''); })`)
+	if !b.waitFor(`window.got !== null`) {
+		b.t.Fatal("the page could not be read")
+	}
+	return b.eval(`window.got`)
+}
+
+// heldAt sends a mouse event with the left button held, as a real mouse does while dragging.
+func (b *browser) heldAt(kind string, x, y float64) {
+	b.t.Helper()
+	b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": x, "y": y, "button": "left", "buttons": 1, "clickCount": 1}, nil)
+}
+
+// grab moves a real mouse onto a handle's icon, presses there with the button held, and moves in steps to y, the button
+// held all the way, as a hand on a mouse does; then it waits there.
+func (b *browser) grab(handle string, y float64, wait time.Duration) {
+	b.t.Helper()
+	a := b.rect(handle + " svg")
+	at := b.heldAt
+	b.mouse("mouseMoved", a.X+120, a.Y+4, 0, 0)
+	b.mouse("mouseMoved", a.X+1, a.Y+1, 0, 0)
+	at("mousePressed", a.X, a.Y)
+	// A hand starts slowly: the first moves are a few pixels, below the threshold of the module, above the browser's.
+	for _, d := range []float64{1, 2, 4} {
+		at("mouseMoved", a.X+d/2, a.Y+d)
+		time.Sleep(8 * time.Millisecond)
+	}
+	for step := 1; step <= 24; step++ {
+		at("mouseMoved", a.X+float64(step%3), a.Y+(y-a.Y)*float64(step)/24)
+		time.Sleep(8 * time.Millisecond)
+	}
+	time.Sleep(wait)
+}
+
+// The maintainer's situation (2026-11-10): a long page whose blocks are whole sections, scrolled, text selected, a real
+// mouse. A held block makes a short gap, the page scrolls by itself at the bottom edge, so a block goes down past blocks
+// that were not in view, and a selection over the handle does not take the pointer away. In reading and in the editor.
+func TestDraggingLongBlocksOfARealPage(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := realPage(b, "Long blocks")
+	b.open(base + "/o/" + page)
+	b.ready("Long blocks")
+	b.watch()
+	sc := `document.querySelector('[data-win="0"] .scroll')`
+	b.eval(sc + `.scrollTop = 120`)
+	time.Sleep(100 * time.Millisecond)
+	if got := b.eval(`Math.round(document.querySelector('article.doc [data-b="b3"]').getBoundingClientRect().height) > 300`); got != "true" {
+		t.Fatalf("the sections are long blocks")
+	}
+	// Text selected over the handles, as after marking a passage.
+	b.eval(`(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('article.doc')); getSelection().removeAllRanges(); getSelection().addRange(r); })()`)
+	bottom := b.rect(`[data-win="0"] .scroll`).Bottom - 6
+	index := `(sel, gap) => [...document.querySelectorAll(sel)].filter(n => n.matches(gap) || !n.matches('[style*="none"]')).findIndex(n => n.matches(gap))`
+	// A short way down: once lifted, the next block, a short paragraph, stands right below the short gap, and the pointer
+	// on its lower half puts the long block after it.
+	b.grab(`article.doc [data-b="b3"] > .bhandle`, b.rect(`article.doc [data-b="b3"] > .bhandle`).Y+12, 50*time.Millisecond)
+	next := b.rect(`article.doc [data-b="b4"]`)
+	b.heldAt("mouseMoved", next.X, next.Bottom-3)
+	time.Sleep(50 * time.Millisecond)
+	if got := b.eval(`[...document.querySelectorAll('article.doc > [data-b], article.doc > .dropgap')].filter(n => !n.matches('[style*="none"]')).slice(0, 4).map(n => n.dataset.b || 'gap').join(' ')`); got != "b1 b2 b4 gap" {
+		t.Errorf("a short way down over the next block puts it after that block: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	b.mouse("mouseReleased", next.X, next.Bottom-3, 1, 0)
+	time.Sleep(100 * time.Millisecond)
+	b.grab(`article.doc [data-b="b3"] > .bhandle`, bottom, 1500*time.Millisecond)
+	got := b.eval(`(() => { const g = document.querySelector('article.doc .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.doc > [data-b], article.doc > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
+	if got != "true true true" {
+		t.Errorf("held at the bottom edge: a short gap, the page scrolled, and the gap went down past the blocks out of view: %q", got)
+	}
+	b.shot("block-drag-long-reading")
+	b.mouse("mouseReleased", b.rect(`[data-win="0"] .scroll`).X, bottom, 1, 0)
+	if !b.waitFor(`!document.querySelector('.dropgap') && ` + readOrder + `.split(' ').indexOf('b3') >= 6`) {
+		t.Errorf("the block went down: %q", b.eval(readOrder))
+	}
+	time.Sleep(300 * time.Millisecond)
+	if got := storedOrder(b, page); strings.Index(got, "b3 ") < strings.Index(got, "b8 ") {
+		t.Errorf("the server moved it: %q", got)
+	}
+	b.clean("long blocks in reading")
+
+	// In the editor.
+	b.openEditing(base, page, "Long blocks")
+	b.eval(`document.querySelector('.cm-ud-marker[data-edb="b5"]').scrollIntoView({block: 'start'}); ` + sc + `.scrollTop -= 120`)
+	time.Sleep(150 * time.Millisecond)
+	order := `[...` + edText + `.matchAll(/block (b\d+)/g)].map(m => m[1])`
+	// A short way down, over the short paragraph after it.
+	b.grab(`.cm-ud-marker[data-edb="b5"] .bhandle`, b.rect(`.cm-ud-marker[data-edb="b5"] .bhandle`).Y+12, 50*time.Millisecond)
+	edGaps := `[...document.querySelectorAll('.cm-content > .cm-ud-marker, .cm-content > .cm-ud-gap')].map(n => n.dataset.edb || 'gap').join(' ')`
+	// Up over the block before it, a short paragraph: on its lower half the gap stays, on its upper half it goes before it.
+	above, gapTop := b.rect(`.cm-ud-marker[data-edb="b4"]`), b.rect(`.cm-ud-gap`).Top
+	for _, c := range []struct {
+		at   float64
+		want string
+	}{{0.75, "b4 gap b6"}, {0.25, "gap b4 b6"}} {
+		b.heldAt("mouseMoved", above.X, above.Top+(gapTop-above.Top)*c.at)
+		time.Sleep(80 * time.Millisecond)
+		if got := b.eval(edGaps); !strings.Contains(got, c.want) {
+			t.Errorf("in the editor, at %.2f of the block before: %q, want %q", c.at, got, c.want)
+		}
+	}
+	next = b.rect(`.cm-ud-marker[data-edb="b7"]`)
+	b.heldAt("mouseMoved", next.X, next.Top-3)
+	time.Sleep(100 * time.Millisecond)
+	if got := b.eval(edGaps); !strings.Contains(got, "b6 gap b7") {
+		t.Errorf("in the editor a short way down over the next block puts it after that block: %q", got)
+	}
+	// Back on the lower half of that block, now before the gap, it stays.
+	six := b.rect(`.cm-ud-marker[data-edb="b6"]`)
+	b.heldAt("mouseMoved", six.X, six.Top+(b.rect(`.cm-ud-gap`).Top-six.Top)*0.75)
+	time.Sleep(80 * time.Millisecond)
+	if got := b.eval(edGaps); !strings.Contains(got, "b6 gap b7") {
+		t.Errorf("in the editor, on the lower half of the block before the gap, it stays: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	b.mouse("mouseReleased", next.X, next.Top-3, 1, 0)
+	time.Sleep(100 * time.Millisecond)
+	b.grab(`.cm-ud-marker[data-edb="b5"] .bhandle`, bottom, 1500*time.Millisecond)
+	got = b.eval(`(() => { const g = document.querySelector('.cm-editor .cm-ud-gap'); if (!g) return 'no gap'; const before = g.nextElementSibling?.dataset.edb; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', !!before && ` + order + `.indexOf(before) >= 6 || !before, ` + sc + `.scrollTop > 400].join(' '); })()`)
+	if got != "true true true" {
+		t.Errorf("in the editor, held at the bottom edge: a short gap, scrolled, gone down: %q", got)
+	}
+	b.shot("block-drag-long-editor")
+	b.mouse("mouseReleased", b.rect(`[data-win="0"] .scroll`).X, bottom, 1, 0)
+	if !b.waitFor(order + `.indexOf('b5') >= 8`) {
+		t.Errorf("in the editor the block went down: %q", b.eval(order+`.join(' ')`))
+	}
+	if !b.waitFor(`document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Errorf("saved")
+	}
+	if got := storedOrder(b, page); strings.Index(got, "b5 ") < strings.Index(got, "b10 ") {
+		t.Errorf("the server moved it: %q", got)
+	}
+	b.clean("long blocks in the editor")
+}
+
+// The menu of a handle is as compact as the right-click menus, in reading and in the editor (where CodeMirror's text
+// keeps white space): their width, item height and font, smaller icons; near the bottom of the window it opens above the
+// handle, inside the window.
+func TestTheMenuOfAHandleIsCompact(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := realPage(b, "Menu")
+	b.open(base + "/o/" + page)
+	b.ready("Menu")
+	// The right-click menu of the workspace, for comparison.
+	b.rightClickOn(`.nav3 [data-row]`)
+	if !b.waitFor(`!!document.querySelector('.ctxpop > button')`) {
+		t.Fatal("no right-click menu")
+	}
+	ctx := b.eval(`(() => { const x = document.querySelector('.ctxpop > button'), cs = getComputedStyle(x); return Math.round(x.getBoundingClientRect().height) + ' ' + cs.fontSize + ' ' + cs.borderTopLeftRadius; })()`)
+	// frame is how a menu is framed: padding, border, corners, background, shadow.
+	frame := `(m => { const cs = getComputedStyle(m); return [cs.padding, cs.borderTopWidth, cs.borderTopColor, cs.borderTopLeftRadius, cs.backgroundColor, cs.boxShadow].join(' / '); })`
+	ctxFrame := b.eval(frame + `(document.querySelector('.ctxpop'))`)
+	b.press("Escape", "Escape", 27, 0)
+	b.waitFor(`!document.querySelector('.ctxpop')`)
+	look := `(() => { const m = document.querySelector('.bmenu'); if (!m) return 'no menu'; const r = m.getBoundingClientRect(), items = [...m.querySelectorAll('[role=menuitem]')], cs = getComputedStyle(items[0]);
+		return [r.width >= 180 && r.width <= 200 && ` + frame + `(m) === ` + strconv.Quote(ctxFrame) + `, items.every(x => Math.round(x.getBoundingClientRect().height) + ' ' + getComputedStyle(x).fontSize + ' ' + getComputedStyle(x).borderTopLeftRadius === ` + strconv.Quote(ctx) + `),
+			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 14), r.height <= items.length * 30 + 50, r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
+	// open opens the menu of block id, its handle at the top of the window or near the bottom.
+	open := func(handle string, bottom bool) {
+		b.eval(`(() => { const s = document.querySelector('[data-win="0"] .scroll'), h = document.querySelector(` + strconv.Quote(handle) + `), r = s.getBoundingClientRect();
+			s.scrollTop += h.getBoundingClientRect().top - (` + strconv.FormatBool(bottom) + ` ? r.bottom - 50 : r.top + 40); })()`)
+		time.Sleep(100 * time.Millisecond)
+		b.clickOn(handle, 1)
+		if !b.waitFor(`!!document.querySelector('.bmenu')`) {
+			t.Fatalf("%s: no menu", handle)
+		}
+	}
+	open(`article.doc [data-b="b4"] > .bhandle`, false)
+	if got := b.eval(look); got != "true true true true true" {
+		t.Errorf("reading: as compact as the right-click menu (%s): %q", ctx, got)
+	}
+	b.clickOn(`.dtitle h1`, 1)
+	open(`article.doc [data-b="b6"] > .bhandle`, true)
+	if got := b.eval(look); got != "true true true true true" {
+		t.Errorf("reading, near the bottom: inside the window: %q", got)
+	}
+	b.shot("block-menu-reading")
+	b.clickOn(`.dtitle h1`, 1)
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b4"] .bhandle')`) {
+		t.Fatal("no editor")
+	}
+	open(`.cm-ud-marker[data-edb="b4"] .bhandle`, false)
+	if got := b.eval(look); got != "true true true true true" {
+		t.Errorf("editor: as compact as the right-click menu (%s): %q", ctx, got)
+	}
+	b.shot("block-menu-editor")
+	b.clickOn(`.dtitle h1`, 1)
+	open(`.cm-ud-marker[data-edb="b6"] .bhandle`, true)
+	if got := b.eval(look); got != "true true true true true" {
+		t.Errorf("editor, near the bottom: inside the window: %q", got)
+	}
+}
+
 // The bar of the editor is a row of the window, between the head and the content, outside what scrolls: it stays while
 // the page scrolls, is flat, and shows only while the page is written.
 func TestTheBarIsARowOfTheWindow(t *testing.T) {

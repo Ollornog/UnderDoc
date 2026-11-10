@@ -17,7 +17,15 @@
 .cm-editor.cm-ud .cm-scroller {
   overflow: visible;
   font-family: inherit;
-  line-height: 1.6;
+  /* As the paragraphs of the page when it is read (leading-relaxed). */
+  line-height: 1.625;
+}
+
+/* A blank line between paragraphs and blocks away from the cursor is as high as the space after a paragraph when the
+   page is read (C22's .doc p), so the editor keeps the rhythm of the page (2026-11-10). */
+.cm-editor.cm-ud .cm-line.cm-ud-sep {
+  height: calc(10 * var(--app-workspace-space, 1px));
+  line-height: calc(10 * var(--app-workspace-space, 1px));
 }
 
 .cm-editor.cm-ud .cm-content {
@@ -224,4 +232,37 @@
 /* The bar as a row of the window and dragging a block by its handle look as C22 has them (2026-11-10). */
 .cm-editor.cm-ud .cm-ud-gap {
   white-space: pre-wrap;
+}
+
+/* The menu of a handle is as compact as the right-click menus and looks like them (.pop, .ctxpop): their width, padding,
+   items, font and frame, smaller icons (2026-11-10; belongs to C22's .bmenu). In the editor it stands in CodeMirror's
+   text, which keeps white space and its own line height: the menu does not. */
+.c22-app-workspace .bmenu {
+  width: calc(190 * var(--app-workspace-space));
+  padding: calc(6 * var(--app-workspace-space));
+  border: 1px solid var(--ring);
+  border-radius: calc(9 * var(--app-workspace-radius));
+  background: var(--card);
+  box-shadow: var(--app-workspace-shadow-menu);
+  font-size: calc(13.5 * var(--app-workspace-text));
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.c22-app-workspace .bmenu button {
+  padding: calc(4 * var(--app-workspace-space)) calc(7 * var(--app-workspace-space));
+  border-radius: calc(5 * var(--app-workspace-radius));
+  font-size: inherit;
+}
+
+.c22-app-workspace .bmenu button svg {
+  width: calc(14 * var(--app-workspace-space));
+  height: calc(14 * var(--app-workspace-space));
+}
+
+/* A held block shows in its gap as its first lines, in reading and in the editor, so a long block (a whole section of an
+   imported file) makes a short gap and the places around it stay in reach (2026-11-10; belongs to C22's .dropgap). */
+.c22-app-workspace .doc .dropgap.held {
+  max-height: 6.5em;
+  overflow: hidden;
 }

@@ -8,8 +8,14 @@
 // for the lists (app-workspace-drag.js) does not fit here: it leaves touch to the long press, and it moves elements of
 // the list itself, while the editor draws its own lines, so the gap there has to be a widget of the editor.
 //
-// The places are measured once, when the block is lifted, as if it were not there, so the gap moving never moves the
-// place under the pointer. What a drop does is the app's:
+// Real pages have long blocks, a whole section of an imported file is one (2026-11-10): the gap shows only the first
+// lines of the held block (its height is capped by the CSS), so the places around it come within reach, and near the
+// top or bottom edge of what scrolls the page scrolls by itself, so a block goes to places that are not in view. The
+// press is the module's: it starts no selection of text and no drag of the browser, which would take the pointer away
+// when a selection covers the handle.
+//
+// The places are measured as if the held block were not there, so the gap moving never moves the place under the
+// pointer. What a drop does is the app's:
 //
 //   UnderDocBlockDrag.attach({
 //     pick(handle)          -> {id, ...} or null: the block of this handle, if it may be moved
@@ -20,7 +26,9 @@
 //   });
 (function () {
   'use strict';
-  var THRESHOLD = 6;
+  // EDGE: the band at the top and bottom of what scrolls in which the page scrolls by itself; SPEED: pixels per frame at
+  // its outer end.
+  var THRESHOLD = 6, EDGE = 56, SPEED = 22;
 
   function attach(app) {
     var press = null, drag = null;
@@ -30,31 +38,72 @@
       var handle = e.target.closest('.bhandle[data-drag]');
       var c = handle && app.pick(handle);
       press = c ? { c: c, pointer: e.pointerId, x0: e.clientX, y0: e.clientY } : null;
+      // Neither a selection of text nor the browser's own drag of a selection that covers the handle starts, which
+      // would cancel the pointer (pointercancel) before the block lifts.
+      if (c) e.preventDefault();
     }
 
     function lift() {
       var c = press.c, rows = app.rows(c), k = rows.findIndex(function (r) { return r.id === c.id; });
       if (k < 0 || rows.length < 2) { press = null; return; }
-      var h = rows[k].bot - rows[k].top;
-      var rest = rows.filter(function (_, j) { return j !== k; }).map(function (r, j) {
-        return j < k ? r : { id: r.id, top: r.top - h, bot: r.bot - h };
-      });
-      var scroller = app.scroller(c);
-      drag = { c: c, rows: rest, h: h, k: k, home: k, scroller: scroller, s0: scroller ? scroller.scrollTop : 0 };
+      drag = { c: c, h: rows[k].bot - rows[k].top, k: k, home: k, scroller: app.scroller(c), y: press.y0, raf: 0 };
       document.body.classList.add('ud-bdrag');
       // The held block hides its handle, so the click that ends the drag lands elsewhere and opens no menu.
       app.show(c, k);
+      // The gap is mostly lower than the block: its height is how far the next block now stands below where the held
+      // one began.
+      if (k + 1 < rows.length) {
+        var next = app.rows(c)[k + 1];
+        if (next && next.top > rows[k].top) drag.h = next.top - rows[k].top;
+      }
     }
 
-    // The slot under the pointer: within the gap it stays, below the gap the places are as if it were not there.
+    // The places of the other blocks as if the gap were not there: measured anew every time, since the page scrolls and
+    // the editor draws what comes into view, but with the gap taken out, so the gap moving never moves the place under
+    // the pointer.
+    function rest() {
+      var d = drag, j = 0;
+      return app.rows(d.c).filter(function (r) { return r.id !== d.c.id; }).map(function (r) {
+        return j++ < d.k ? r : { id: r.id, top: r.top - d.h, bot: r.bot - d.h };
+      });
+    }
+
+    // The slot under the pointer: within the gap it stays, elsewhere it is the place between the blocks nearest to it.
     function slot(y) {
-      var d = drag, n = d.rows.length;
-      var yy = y + (d.scroller ? d.scroller.scrollTop - d.s0 : 0);
-      var top = d.k < n ? d.rows[d.k].top : d.rows[n - 1].bot;
-      if (yy >= top && yy < top + d.h) return d.k;
-      var ny = yy >= top + d.h ? yy - d.h : yy, k = 0;
-      while (k < n && (d.rows[k].top + d.rows[k].bot) / 2 < ny) k++;
+      var d = drag, rows = rest(), n = rows.length;
+      var top = d.k < n ? rows[d.k].top : rows[n - 1].bot;
+      if (y >= top && y < top + d.h) return d.k;
+      var ny = y >= top + d.h ? y - d.h : y, k = 0;
+      while (k < n && (rows[k].top + rows[k].bot) / 2 < ny) k++;
       return k;
+    }
+
+    function place() {
+      var k = slot(drag.y);
+      if (k !== drag.k) { drag.k = k; app.show(drag.c, k); }
+    }
+
+    // How far the page scrolls in a frame: more the deeper the pointer is in the band at the edge, or beyond it.
+    function speed() {
+      var s = drag.scroller;
+      if (!s) return 0;
+      var r = s.getBoundingClientRect(), y = drag.y;
+      if (y < r.top + EDGE) return -Math.ceil(SPEED * Math.min(1, (r.top + EDGE - y) / EDGE));
+      if (y > r.bottom - EDGE) return Math.ceil(SPEED * Math.min(1, (y - r.bottom + EDGE) / EDGE));
+      return 0;
+    }
+
+    function roll() {
+      var d = drag;
+      if (!d) return;
+      d.raf = 0;
+      var v = speed();
+      if (!v) return;
+      var before = d.scroller.scrollTop;
+      d.scroller.scrollTop = before + v;
+      if (d.scroller.scrollTop === before) return;
+      place();
+      d.raf = requestAnimationFrame(roll);
     }
 
     function move(e) {
@@ -65,16 +114,18 @@
         if (!drag) return;
       }
       e.preventDefault();
-      var k = slot(e.clientY);
-      if (k !== drag.k) { drag.k = k; app.show(drag.c, k); }
+      drag.y = e.clientY;
+      place();
+      if (!drag.raf && speed()) drag.raf = requestAnimationFrame(roll);
     }
 
     function finish(dropped) {
-      var d = drag;
+      var d = drag, rows = rest();
       drag = null;
       press = null;
+      if (d.raf) cancelAnimationFrame(d.raf);
       document.body.classList.remove('ud-bdrag');
-      app.end(d.c, dropped && d.k !== d.home ? (d.k > 0 ? d.rows[d.k - 1].id : '') : null);
+      app.end(d.c, dropped && d.k !== d.home ? (d.k > 0 ? rows[d.k - 1].id : '') : null);
     }
 
     function up(e) {

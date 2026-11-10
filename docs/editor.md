@@ -17,6 +17,10 @@ Two of them, in the tower.
 ```
 
 The editor hides the markers and shows the handle of the block in their place; the cursor never enters a marker line.
+Away from the cursor a blank line between paragraphs, and so between blocks, is only as high as the space after a
+paragraph when the page is read, and the lines are as high as when read, so the editor keeps the rhythm of the page, as
+Typora and Obsidian do (2026-11-10: two paragraphs stood 48 px apart, now 34.4 px, as when read). On the cursor the blank
+line is a whole line again; blank lines in code stay lines.
 Only markers the editor keeps track of count: those it wrote when the page opened, those saving wrote, and a marker line
 that is typed, pasted or brought back by undo as a whole line. A line like a marker that stands in a block, in fenced
 code for example, stays text.
@@ -52,8 +56,9 @@ loaded again with a notice, which offers to copy what was written since the last
   the focus in the editor. Every button writes plain Markdown, so the round trip stays whole.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
-- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Dragged, it moves
-  the block (below).
+- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Its menu is as
+  compact as the right-click menus and looks like them; near the bottom of the window it opens above the handle. Dragged,
+  the handle moves the block (below).
 - A single newline is a line break, as in Obsidian or Notion: two lines of a quote, of a paragraph or of a list item read
   as two lines, in the editor as when the page is read (below).
 
@@ -73,6 +78,13 @@ Who may change the page drags a block by its handle, in reading and in the edito
 A click without moving still opens the menu of the handle, and Move up and Move down in that menu stay the way with the
 keyboard. Pointer events, so a finger drags the handle as a mouse does (the handle takes the touch instead of the page
 scrolling, and is faintly visible on touch screens). The handles of someone who may only read or comment do not drag.
+
+Real pages have long blocks: a whole section of an imported file is one. So the gap shows only the first lines of the
+held block, and the places around it stay in reach; held near the top or bottom edge of the page, the page scrolls by
+itself, and the block goes to places out of view. The places are measured anew as the page scrolls, as if the held block
+were not there. The press on a handle is the module's: it starts no selection of text and no drag of the browser. Before
+(2026-11-10), with text selected over the handle, the browser started its own drag of the selection and cancelled the
+pointer, and a long block could not be moved down past blocks out of view.
 
 - **Reading:** the drop calls `POST /api/pages/{id}/blocks/{block}/move {after}`; the view shows the new order at once and
   goes back with a notice if the server refuses.

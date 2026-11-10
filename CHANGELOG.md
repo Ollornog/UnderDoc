@@ -72,6 +72,15 @@ All notable changes to this project are documented in this file. The format foll
   account (`settingsSent`) instead of racing the 600 ms save.
 - Go toolchain 1.27.3 → 1.27.4 (`go.mod`, `.github/audit/go.mod`, build image `golang:1.27.4-alpine3.24` by digest):
   `net/http` in 1.27.3 carries GO-2026-6859, so the scheduled `audit` on `main` was red since 2026-11-11.
+- Dragging a block works on real pages (2026-11-10): the browser no longer takes the pointer away when text is selected
+  over the handle (it started its own drag of the selection and cancelled the pointer), a held block shows in its gap
+  with its first lines only, so the places around a long block (a whole section of an imported file) are in reach, and
+  the page scrolls by itself while a block is held at the top or bottom edge, so it goes to places out of view.
+- The menu of a block's handle is as compact as the right-click menus and looks like them; in the editor it no longer
+  shows blank lines between its items, and near the bottom of the window it opens above the handle.
+- The editor keeps the rhythm of the page as it is read: a blank line between paragraphs or blocks, away from the
+  cursor, is as high as the space after a paragraph (two paragraphs stood 48 px apart, now 34.4 px, as when read), and
+  its lines are as high as when read.
 - At phone width nothing is cut off and everything can be reached, before the phone has a layout of its own (M-28):
   nav3 had no width when nav2 and nav3 lay over the window, so its lists, the search and the profile were out of reach;
   the handle and the plus beside a block and its speech bubble stood outside the window and showed only to a hovering

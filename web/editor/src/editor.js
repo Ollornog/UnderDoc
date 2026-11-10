@@ -185,7 +185,8 @@ class GapWidget extends WidgetType {
     return gap;
   }
   get estimatedHeight() {
-    return this.drag.height;
+    // The CSS caps the gap at its first lines (6.5em).
+    return Math.min(this.drag.height, 104);
   }
   ignoreEvent() {
     return true;
@@ -419,11 +420,22 @@ function decorate(state) {
     add(pos, pos, Decoration.widget({ widget: new AskWidget(id, used), block: true, side: start ? -1 : 1 }));
   }
 
+  // A blank line between paragraphs, and so between blocks, is as high as the space between paragraphs when the page is
+  // read, not a whole line, as in Typora or Obsidian; on the cursor it is a line again. Blank lines in code stay.
+  const tree = syntaxTree(state);
+  const inCode = (pos) => {
+    for (let node = tree.resolveInner(pos, 1); node; node = node.parent) if (node.name === 'FencedCode' || node.name === 'CodeBlock') return true;
+    return false;
+  };
   const wiki = [];
   // Wiki links and directives are UnderDoc's own syntax, which the Markdown parser does not know.
   for (let n = 1; n <= doc.lines; n++) {
     if (markerLines.has(n)) continue;
     const l = doc.line(n);
+    if (l.length === 0) {
+      if (!isActive(l.from) && !inCode(l.from)) add(l.from, l.from, lineClass('cm-ud-sep'));
+      continue;
+    }
     const embed = EMBED.exec(l.text);
     if (embed) {
       add(l.from, l.from, lineClass('cm-lp-directive'));
@@ -1262,15 +1274,29 @@ class PageEditor {
 
   // ---- Dragging a block by its handle (the workspace's blockdrag.js follows the pointer).
 
-  /** blockRects tells where each block stands on the screen, its marker line to the next marker, in the order of the text. */
+  /** blockRects tells where each block stands on the screen, from its marker to the end of its last line, in the order of
+   * the text. A line that carries block widgets (the gap of a held block before a marker) is one line block made of
+   * parts: a block starts at the part of its marker, after such a gap, and ends before it. */
   blockRects() {
     const view = this.view;
     const list = view.state.field(markers).list;
     const top = view.documentTop;
+    const parts = (pos) => {
+      const b = view.lineBlockAt(pos);
+      return Array.isArray(b.type) ? b.type : [b];
+    };
+    const start = (pos) => {
+      const all = parts(pos);
+      return (all.find((p) => p.widget instanceof MarkerWidget) || all[0]).top;
+    };
+    const end = (pos) => {
+      const all = parts(pos).filter((p) => !(p.widget instanceof GapWidget));
+      return all.length ? all[all.length - 1].bottom : view.lineBlockAt(pos).bottom;
+    };
     return list.map((m, k) => ({
       id: m.id,
-      top: top + view.lineBlockAt(m.from).top,
-      bot: top + (k + 1 < list.length ? view.lineBlockAt(list[k + 1].from).top : view.lineBlockAt(view.state.doc.length).bottom),
+      top: top + start(m.from),
+      bot: top + end(k + 1 < list.length ? list[k + 1].from - 1 : view.state.doc.length),
     }));
   }
 

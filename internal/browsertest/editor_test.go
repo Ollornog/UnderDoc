@@ -502,3 +502,62 @@ func TestEditingLoadsTheEditorItself(t *testing.T) {
 		t.Errorf("asked three times while loading, it loads once: %s", got)
 	}
 }
+
+// The editor keeps the rhythm of the page as it is read (2026-11-10): a blank line between paragraphs, and so between
+// blocks with the hidden marker, is as high as the space after a paragraph when read, not a whole line, as in Typora or
+// Obsidian. On the cursor it is a whole line again, and blank lines in code stay lines. Measured from baseline to
+// baseline of consecutive lines; before, two paragraphs stood 48 px apart in the editor and 34.3 px when read.
+func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Rhythm", "Alpha one.", "Bravo two.", "Charlie three.\n\nDelta four.", "## Echo head", "Foxtrot five.", "- Golf item\n- Hotel item", "India six.", "```text\nJuliet\n\nKilo\n```")
+	b.open(base + "/o/" + page)
+	b.ready("Rhythm")
+	// The bottom of each word, line by line, as distances from the one before.
+	steps := `(root => { const at = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo"].map(w => { const walk = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT);
+		for (let n = walk.nextNode(); n; n = walk.nextNode()) { const k = n.data.indexOf(w); if (k < 0) continue; const r = document.createRange(); r.setStart(n, k); r.setEnd(n, k + w.length); return r.getBoundingClientRect().bottom; } return NaN; });
+		return JSON.stringify(at.slice(1).map((y, k) => Math.round((y - at[k]) * 10) / 10)); })`
+	var read, edit []float64
+	if err := json.Unmarshal([]byte(b.eval(steps+`('article.doc')`)), &read); err != nil || len(read) != 10 {
+		t.Fatalf("reading: %v %v", read, err)
+	}
+	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker .bhandle')`) {
+		t.Fatal("no editor")
+	}
+	// Away from the cursor: the editor loses the focus.
+	b.clickOn(`.dtitle h1`, 1)
+	time.Sleep(150 * time.Millisecond)
+	if err := json.Unmarshal([]byte(b.eval(steps+`('.cm-content')`)), &edit); err != nil || len(edit) != 10 {
+		t.Fatalf("editor: %v %v", edit, err)
+	}
+	t.Logf("baseline to baseline, reading %v, editor %v", read, edit)
+	// Paragraph to paragraph, between blocks and within one: as when read.
+	for _, k := range []int{0, 1, 2} {
+		if d := edit[k] - read[k]; d > 0.25 || d < -0.25 {
+			t.Errorf("paragraph %d to the next: %.1f px in the editor, %.1f px when read", k+1, edit[k], read[k])
+		}
+	}
+	// Headings and lists: close to it.
+	for _, k := range []int{3, 4, 5, 6, 7} {
+		if d := edit[k] - read[k]; d > 3 || d < -3 {
+			t.Errorf("line %d to the next: %.1f px in the editor, %.1f px when read", k+1, edit[k], read[k])
+		}
+	}
+	// In code a blank line is a line: two lines of code apart.
+	if got := b.eval(`(() => { const l = [...document.querySelectorAll('.cm-line.cm-lp-code')].find(x => !x.textContent), j = [...document.querySelectorAll('.cm-line.cm-lp-code')].find(x => x.textContent === 'Juliet');
+		return !!l && Math.abs(l.getBoundingClientRect().height - j.getBoundingClientRect().height) < 1; })()`); got != "true" {
+		t.Errorf("a blank line in code stays a line: %.1f px from Juliet to Kilo", edit[9])
+	}
+	// On the cursor the blank line is a whole line again.
+	b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), at0 = t.indexOf('Charlie three.\n') + 'Charlie three.\n'.length; v.focus(); v.dispatch({selection: {anchor: at0}}); })()`)
+	time.Sleep(150 * time.Millisecond)
+	if err := json.Unmarshal([]byte(b.eval(steps+`('.cm-content')`)), &edit); err != nil {
+		t.Fatal(err)
+	}
+	if line := edit[6]; edit[2] < 2*line-1 {
+		t.Errorf("with the cursor on the blank line it is a whole line: %.1f px, a line is %.1f px", edit[2], line)
+	}
+	b.shot("editor-rhythm")
+}

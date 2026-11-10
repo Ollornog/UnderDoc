@@ -700,6 +700,10 @@ function render(){
     if(r.bottom>innerHeight-4&&!isNaN(y)){y=up!==undefined?Math.max(4,up-r.height/z):Math.max(4,(innerHeight-4-r.height)/z);moved=true;}
     if(moved){el.dataset.style=(isNaN(x)?'':`left:${x}px;`)+(isNaN(y)?'':`top:${y}px`);el.style.cssText=el.dataset.style;}};
   stay(S.ctx&&document.querySelector('.ctxpop:not(.cmdpop)'));stay(document.querySelector('.tabctx'));
+  /* The menu of a handle opens below it, or above it where the window has no room below, so it stays inside the window
+     as the right-click menus do (2026-11-10). */
+  const bm=document.querySelector('.bmenu'),bh=bm&&bm.previousElementSibling;
+  if(bm&&bh){const r=bm.getBoundingClientRect();if(r.bottom>innerHeight-4&&bh.getBoundingClientRect().top-r.height-6>=0)bm.style.top=(bh.offsetTop-bm.offsetHeight-4)+'px';}
   /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
   const ap=document.querySelector('.cmdpop');if(ap){stay(ap,S.addAt.up);filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
