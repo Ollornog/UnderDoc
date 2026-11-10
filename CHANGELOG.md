@@ -46,6 +46,15 @@ All notable changes to this project are documented in this file. The format foll
 - The editor is loaded when it is needed, not with every page, and the browser keeps assets of a release for a year.
 - The look of the editor's bar, the handle on a block's marker line, the question before a used block goes, the box of an
   embedding and the slash menu comes from C22; the editor bundle keeps only what is its own.
+- A block is moved by dragging its handle, in reading and in the editor, with the mouse or a finger: the block lifts, a
+  gap opens between the blocks where it would land, the drop moves it (reading through the move API, editing in the text,
+  which saving moves on the server: same ID, same text, no new version), and Escape gives up. A click still opens the
+  menu of the handle, whose Move up and Move down stay the way with the keyboard. Only who may change the page drags.
+- In blocks of the database a single newline is a line break, as in Obsidian or Notion: two quote lines, or two lines of
+  a paragraph, no longer run together when read. The Markdown does not change; pages of the folder source keep standard
+  Markdown.
+- The bar of the editor is a row of the window while a page is written, between the head and the page, full width and
+  flat, and stays in place while the page scrolls.
 - The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
   `/dev/editor-trial`, with the dev switch or for administrators.
 

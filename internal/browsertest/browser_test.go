@@ -903,7 +903,7 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
 	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
-	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('.cm-ud-bar')`) {
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('.edbar')`) {
 		t.Fatalf("a new page opens in the editor, ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
 	page := b.eval(`location.pathname.slice(3)`)

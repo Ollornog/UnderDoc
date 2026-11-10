@@ -31,7 +31,7 @@ the browser tab hidden), the editor compares its text with the stored blocks and
 | The text of a block changed | `PUT /api/pages/{id}/blocks/{block}` |
 | Paragraphs written before or after the text of a block, a blank line apart, or before the first marker | `POST /api/pages/{id}/blocks` for each, after the block before it; then its marker goes into the text, without moving the cursor or the view |
 | A marker is gone (Backspace at the start of a block joins it to the one before, or the text was cut) | `DELETE /api/pages/{id}/blocks/{block}`; a block used elsewhere asks first, in place, and comes back when kept |
-| The order changed (Move up and Move down in the menu of the handle, or a cut and paste) | `POST /api/pages/{id}/blocks/{block}/move` |
+| The order changed (a block dragged by its handle, Move up and Move down in the menu of the handle, or a cut and paste) | `POST /api/pages/{id}/blocks/{block}/move` |
 | Nothing changed | nothing: opening a page and leaving it writes nothing and makes no version |
 
 A block keeps its ID while its text changes, so embeddings, comments and versions stay with it. Text that a joined block
@@ -45,12 +45,43 @@ loaded again with a notice, which offers to copy what was written since the last
 - Markdown typed converts as it is typed: headings, emphasis, code, lists, to-dos (`[ ] ` becomes `- [ ] `), quotes,
   links, rules, tables. `[[links]]` and directives such as `::embed{…}` stay as written; an embedding away from the
   cursor shows as a box that names what it embeds, with a link.
-- The bar sits once above the page and stays in sight while it scrolls: Turn into (text, headings, lists, to-do, quote,
-  code) for the lines of the selection, and bold, italic, strikethrough, code and link for the selection. Ctrl+B, Ctrl+I
-  and Ctrl+K do the same. Every button writes plain Markdown, so the round trip stays whole.
+- The bar is a row of the window while its page is written, between the head of the window (reading or editing, path,
+  title) and the page, over the full width and outside what scrolls, so it stays in place (2026-11-10): Turn into (text,
+  headings, lists, to-do, quote, code) for the lines of the selection, and bold, italic, strikethrough, code and link for
+  the selection, and whether the page is saved. Ctrl+B, Ctrl+I and Ctrl+K do the same. Its buttons keep the selection and
+  the focus in the editor. Every button writes plain Markdown, so the round trip stays whole.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
-- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used.
+- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Dragged, it moves
+  the block (below).
+- A single newline is a line break, as in Obsidian or Notion: two lines of a quote, of a paragraph or of a list item read
+  as two lines, in the editor as when the page is read (below).
+
+## Line breaks
+
+In CommonMark a single newline inside a paragraph is a soft break and shows as a space, so two quote lines `> a` and
+`> b` run together. In blocks of the database it is a line break: the server renders them with hard wraps
+(`Library.RenderMarkdown`, `markdown.Page.BreakLines`). The Markdown itself does not change, so the round trip stays
+identical, and the export writes it as it is. Pages of the folder source keep standard Markdown, since their files are
+wrapped by hand. Code keeps its lines; inline code shows a newline as a space, as before.
+
+## Moving a block by dragging
+
+Who may change the page drags a block by its handle, in reading and in the editor (`internal/web/assets/app/blockdrag.js`,
+2026-11-10). Pressing the handle and moving it lifts the block: it is hidden, and a gap with the block in it (C22's
+`.dropgap`) opens where it would land, always between blocks, never inside one. Letting go moves it; Escape gives up.
+A click without moving still opens the menu of the handle, and Move up and Move down in that menu stay the way with the
+keyboard. Pointer events, so a finger drags the handle as a mouse does (the handle takes the touch instead of the page
+scrolling, and is faintly visible on touch screens). The handles of someone who may only read or comment do not drag.
+
+- **Reading:** the drop calls `POST /api/pages/{id}/blocks/{block}/move {after}`; the view shows the new order at once and
+  goes back with a notice if the server refuses.
+- **Editing:** the editor hides the block's lines and draws the gap as a widget of its own; the drop moves the block's text
+  with its marker in the text, and saving moves it on the server. Same ID, same text, no new version; the cursor stays
+  where it was in its block, and the view does not jump.
+
+C22's module for dragging the lists (`app-workspace-drag.js`) does not fit blocks: it leaves touch to the long press, and
+it moves elements of the list itself, while the editor draws its own lines, so the gap there has to be the editor's.
 
 ## The CSP stays strict
 

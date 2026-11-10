@@ -167,6 +167,31 @@ class AskWidget extends WidgetType {
   }
 }
 
+// The place where a dragged block would land: C22's .dropgap with the block in it as it looks (blockdrag.js in the
+// workspace moves the pointer; the editor shows the gap and hides the block while it is held).
+class GapWidget extends WidgetType {
+  constructor(drag) {
+    super();
+    this.drag = drag;
+  }
+  eq(other) {
+    return other.drag.id === this.drag.id && other.drag.look === this.drag.look;
+  }
+  toDOM() {
+    const gap = document.createElement('div');
+    gap.className = 'dropgap held cm-ud-gap';
+    gap.dataset.gap = this.drag.id;
+    for (const line of this.drag.look) gap.append(line.cloneNode(true));
+    return gap;
+  }
+  get estimatedHeight() {
+    return this.drag.height;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 class BulletWidget extends WidgetType {
   eq() {
     return true;
@@ -542,7 +567,46 @@ function decorate(state) {
       }
     },
   });
-  return Decoration.set(out, true);
+  return Decoration.set(held(state, out), true);
+}
+
+// ---- Dragging a block: while it is held, its lines (with the blank line that parts it from the next) are hidden, and
+// the gap stands before the block it would land before, or at the end.
+const setDrag = StateEffect.define();
+const dragging = StateField.define({
+  create: () => null,
+  update(value, tr) {
+    for (const e of tr.effects) if (e.is(setDrag)) value = e.value;
+    return value;
+  },
+});
+
+/** heldRange is where the held block stands in the text, [from, to] over whole lines, or null. */
+function heldRange(state, id) {
+  const list = state.field(markers).list;
+  const k = list.findIndex((m) => m.id === id);
+  if (k < 0) return null;
+  const doc = state.doc;
+  if (k + 1 < list.length) return [list[k].from, list[k + 1].from - 1];
+  // The last block takes the blank line before it along instead.
+  const from = list[k].from;
+  return [from > 0 && doc.lineAt(from - 1).text === '' ? from - 1 : from, doc.length];
+}
+
+function held(state, out) {
+  const drag = state.field(dragging);
+  if (!drag) return out;
+  const range = heldRange(state, drag.id);
+  if (!range) return out;
+  const [from, to] = range;
+  const kept = out.filter((r) => r.to < from || r.from > to);
+  kept.push(Decoration.replace({ block: true }).range(from, to));
+  const before = drag.before && state.field(markers).list.find((m) => m.id === drag.before);
+  // At the end: after the text, or, when the held block is the last one, where it was.
+  const end = !before && to < state.doc.length;
+  const at = before ? before.from : end ? state.doc.length : from;
+  kept.push(Decoration.widget({ widget: new GapWidget(drag), block: true, side: end ? 1 : -1 }).range(at));
+  return kept;
 }
 
 const asking = StateField.define({
@@ -564,7 +628,7 @@ const hovered = StateField.define({
 const livePreview = StateField.define({
   create: (state) => decorate(state),
   update(value, tr) {
-    const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refresh) || e.is(setHover) || e.is(setAsks));
+    const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refresh) || e.is(setHover) || e.is(setAsks) || e.is(setDrag));
     if (tr.docChanged || tr.selection || effects || syntaxTree(tr.state) !== syntaxTree(tr.startState)) return decorate(tr.state);
     return value;
   },
@@ -924,6 +988,7 @@ class PageEditor {
           markers.init(() => ({ list, lost: new Map() })),
           asking,
           hovered,
+          dragging,
           focused,
           trackFocus,
           history(),
@@ -1141,29 +1206,107 @@ class PageEditor {
     this.view.focus();
   }
 
-  /** moveBlock swaps a block with the one above or below it, in the text; saving moves it. */
+  /** moveBlock swaps a block with the one above or below it, in the text; saving moves it. The cursor goes along. */
   moveBlock(id, dir) {
+    const segs = segments(this.view.state).filter((s) => s.id);
+    const k = segs.findIndex((s) => s.id === id);
+    if (k < 0 || (dir === 'up' ? k < 1 : k + 1 >= segs.length)) return;
+    const after = dir === 'up' ? (k > 1 ? segs[k - 2].id : '') : segs[k + 1].id;
+    this.moveBlockTo(id, after, { follow: true });
+  }
+
+  /**
+   * moveBlockTo puts a block's text with its marker after another block ('' for first), in the text; saving moves it,
+   * with the same ID and the same text. The selection stays where it was in the text of its block; with follow, a cursor
+   * outside the moved block goes to its start, and the view follows.
+   */
+  moveBlockTo(id, after, { follow = false } = {}) {
     const state = this.view.state;
     const segs = segments(state).filter((s) => s.id);
     const k = segs.findIndex((s) => s.id === id);
-    const j = dir === 'up' ? k - 1 : k + 1;
-    if (k < 0 || j < 0 || j >= segs.length) return;
-    const [a, b] = j < k ? [segs[j], segs[k]] : [segs[k], segs[j]];
+    if (k < 0 || after === id || (after && !segs.some((s) => s.id === after))) return false;
+    const order = segs.filter((s) => s.id !== id);
+    order.splice(after ? order.findIndex((s) => s.id === after) + 1 : 0, 0, segs[k]);
+    let lo = 0;
+    while (lo < segs.length && order[lo] === segs[lo]) lo++;
+    if (lo === segs.length) return false;
+    let hi = segs.length - 1;
+    while (order[hi] === segs[hi]) hi--;
+    // Only the blocks from the first to the last that change places are written again, each as marker and text.
     const body = (s) => state.sliceDoc(s.body[0], s.body[1]).replace(/\s+$/, '');
-    const head = state.selection.main.head;
-    const bText = markerLine(b.id) + '\n' + body(b);
-    const aText = markerLine(a.id) + '\n' + body(a);
-    const from = a.line[0];
-    const to = b.body[0] + body(b).length;
-    const moving = segs[k];
-    let anchor = from + markerLine(id).length + 1;
-    if (head >= moving.body[0] && head <= moving.body[1]) {
-      const offset = Math.min(head - moving.body[0], body(moving).length);
-      anchor = (moving === b ? from : from + bText.length + 2) + markerLine(id).length + 1 + offset;
-    } else if (moving === a) anchor = from + bText.length + 2 + markerLine(id).length + 1;
-    this.view.dispatch({ changes: { from, to, insert: bText + '\n\n' + aText }, selection: { anchor }, scrollIntoView: true, userEvent: 'move' });
-    this.view.focus();
+    const from = segs[lo].line[0];
+    const to = segs[hi].body[0] + body(segs[hi]).length;
+    const start = new Map();
+    let insert = '';
+    for (let n = lo; n <= hi; n++) {
+      if (n > lo) insert += '\n\n';
+      start.set(order[n], from + insert.length + markerLine(order[n].id).length + 1);
+      insert += markerLine(order[n].id) + '\n' + body(order[n]);
+    }
+    const changes = state.changes({ from, to, insert });
+    const map = (pos) => {
+      for (let n = lo; n <= hi; n++) {
+        const s = segs[n];
+        if (pos >= s.line[0] && pos <= Math.min(s.body[1], to)) return start.get(s) + Math.min(Math.max(0, pos - s.body[0]), body(s).length);
+      }
+      return changes.mapPos(pos);
+    };
+    const sel = state.selection.main;
+    const inside = sel.head >= segs[k].line[0] && sel.head <= segs[k].body[1];
+    const selection = follow && !inside ? { anchor: start.get(segs[k]) } : { anchor: map(sel.anchor), head: map(sel.head) };
+    this.view.dispatch({ changes, selection, scrollIntoView: follow, userEvent: 'move' });
+    if (follow) this.view.focus();
     this.save();
+    return true;
+  }
+
+  // ---- Dragging a block by its handle (the workspace's blockdrag.js follows the pointer).
+
+  /** blockRects tells where each block stands on the screen, its marker line to the next marker, in the order of the text. */
+  blockRects() {
+    const view = this.view;
+    const list = view.state.field(markers).list;
+    const top = view.documentTop;
+    return list.map((m, k) => ({
+      id: m.id,
+      top: top + view.lineBlockAt(m.from).top,
+      bot: top + (k + 1 < list.length ? view.lineBlockAt(list[k + 1].from).top : view.lineBlockAt(view.state.doc.length).bottom),
+    }));
+  }
+
+  /** dragShow holds block id and opens the gap before the k-th of the other blocks (at the end for k past them). */
+  dragShow(id, k) {
+    const state = this.view.state;
+    const others = state.field(markers).list.filter((m) => m.id !== id);
+    const before = k < others.length ? others[k].id : null;
+    const now = state.field(dragging);
+    if (now && now.id === id && now.before === before) return;
+    const drag = now && now.id === id ? { ...now, before } : { id, before, look: this.lookOf(id), height: this.heightOf(id) };
+    this.view.dispatch({ effects: setDrag.of(drag) });
+  }
+
+  /** dragEnd lets go: with after (an ID, or '' for first) the block moves there, otherwise it goes back. */
+  dragEnd(after) {
+    const drag = this.view.state.field(dragging);
+    if (!drag) return;
+    this.view.dispatch({ effects: setDrag.of(null) });
+    if (after !== null && after !== undefined) this.moveBlockTo(drag.id, after);
+  }
+
+  /** lookOf copies the lines of a block as the editor shows them, for the gap. */
+  lookOf(id) {
+    const out = [];
+    const marker = this.view.contentDOM.querySelector(`.cm-ud-marker[data-edb="${id}"]`);
+    for (let n = marker && marker.nextElementSibling; n && !n.classList.contains('cm-ud-marker'); n = n.nextElementSibling) {
+      if (n.classList.contains('cm-line')) out.push(n.cloneNode(true));
+    }
+    while (out.length > 1 && !out[out.length - 1].textContent.trim()) out.pop();
+    return out;
+  }
+
+  heightOf(id) {
+    const r = this.blockRects().find((x) => x.id === id);
+    return r ? r.bot - r.top : 0;
   }
 
   /** deleteBlock takes a block out of the text; saving deletes it, after asking when it is used elsewhere. */

@@ -232,8 +232,8 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	b.ready("Network plan")
 	page := makePage(b, "Bar", "First words", "Second")
 	b.openEditing(base, page, "Bar")
-	if got := b.eval(`(() => { const bar = document.querySelector('.cm-ud-bar'); const s = getComputedStyle(bar); return [s.visibility, s.position, [...bar.querySelectorAll('[data-act="edfmt"]')].map(x => x.dataset.k).join(',')].join(' '); })()`); got != "visible sticky bold,italic,strike,code,link" {
-		t.Errorf("the bar sits above the page: %q", got)
+	if got := b.eval(`(() => { const bar = document.querySelector('[data-win="0"] > .edbar'); const s = getComputedStyle(bar); return [s.visibility, [...bar.querySelectorAll('[data-act="edfmt"]')].map(x => x.dataset.k).join(',')].join(' '); })()`); got != "visible bold,italic,strike,code,link" {
+		t.Errorf("the bar is a row of the window: %q", got)
 	}
 	b.lineWith("First words")
 	b.press("ArrowLeft", "ArrowLeft", 37, 8) // Shift+Left x5: "words"
@@ -248,7 +248,7 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	if !b.edWait(`t.includes('First **_words_**')`) {
 		t.Errorf("Ctrl+I: %q", b.eval(edText))
 	}
-	b.clickOn(`.cm-ud-bar [data-act="edfmt"][data-k="italic"]`, 1)
+	b.clickOn(`.edbar [data-act="edfmt"][data-k="italic"]`, 1)
 	if !b.edWait(`t.includes('First **words**')`) {
 		t.Errorf("the bar takes italic away again: %q", b.eval(edText))
 	}

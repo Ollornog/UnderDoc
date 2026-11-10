@@ -481,7 +481,7 @@ function winHtml(w,i){
     <button class="ic" data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More">${ic('more')}</button>${S.menu===i?menuHtml(i):''}${dhead}</div>`;
   const inner=t.src?`<div class="src">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="doc ${d.w}">${h}</article>`;
   const toc=hs.length&&mode==='side'&&!t.src?`<nav class="toc"><b>Contents</b>${links}</nav>`:'';
-  return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}${tools}
+  return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}${tools}${ed&&!t.src?edBarHtml(t.d,i):''}
     <div class="wbody">${toc}<div class="scroll" data-sc="${i}"><div data-art="${i}">${inner}</div></div>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&cmtShown(t.d)?cmtHtml(t,i):''}</div>${statusHtml(d)}</section>`;
 }
 function menuHtml(i){return `<div class="tabmenu" role="menu">${tabMenuHtml(i,S.wins[i].a)}</div>`;}
@@ -1347,7 +1347,7 @@ function handleHtml(d,w,i,b,inEditor){
     ${edit}
     <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span>${b.cmts?`<small>${b.cmts}</small>`:''}</button>
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
-  return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}" aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
+  return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}"${may?' data-drag':''} aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
@@ -1359,13 +1359,18 @@ function blocksHtml(d,w,i){
    same editor back there, with its text, selection and undo. An editor whose place is gone is saved and closed. */
 const EDS={};
 function edHtml(d,i,key){
-  const e=EDS[key],note=S.edNote&&S.edNote[key];
+  const note=S.edNote&&S.edNote[key];
   return `<div class="cm-ud-page" data-edpage="${key}">${note?`<div class="note" role="status" data-ednote="${key}">This page was changed elsewhere meanwhile, so it was loaded again; what you wrote since it was last saved is not in it. <button class="chip" data-act="edcopy" data-w="${i}">Copy what I wrote</button> <button class="chip" data-act="ednote" data-w="${i}">Close</button></div>`:''}
-    <div class="btool cm-ud-bar" role="toolbar" aria-label="Write">
+    <div class="cm-ud-host" data-cmhost="${key}" data-w="${i}"></div></div>`;
+}
+/* The bar is a row of the window while its page is written, between the head and the content, outside what scrolls, so
+   it stays in place (2026-11-10). It drives the editor of the page; its buttons keep the selection in the editor. */
+function edBarHtml(key,i){
+  const e=EDS[key];
+  return `<div class="btool edbar" role="toolbar" aria-label="Write" data-edbar="${key}">
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
       <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
-      <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>
-    <div class="cm-ud-host" data-cmhost="${key}" data-w="${i}"></div></div>`;
+      <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
   const call=async(url,init)=>{const r=await fetch(pageURL(key)+url,{...same,...init});if(!r.ok)throw new Error(String(r.status));return r.status===204?null:r.json();};
@@ -1443,6 +1448,36 @@ function mountEditors(focusKey,want){
   Object.keys(EDS).filter(k=>!seen.has(k)).forEach(k=>{const e=EDS[k];delete EDS[k];Promise.resolve(e.ed.destroy()).finally(()=>render());});
   if(want&&EDS[want.d]){if(want.id)EDS[want.d].ed.focusBlock(want.id);else EDS[want.d].ed.focus();}
   else if(focusKey&&EDS[focusKey])EDS[focusKey].ed.focus();
+}
+/* A block is dragged by its handle (blockdrag.js), by who may change the page (only their handles carry data-drag). In reading the block itself is hidden and
+   a gap with a copy of it (C22's .dropgap) moves between the blocks; a drop moves it through the API, and the view shows
+   the new order at once and goes back if the server refuses. In the editor the editor hides it and draws the gap, and a
+   drop moves its text with its marker, which saving then moves on the server (2026-11-10). */
+const BDRAG={
+  pick(h){const i=+h.dataset.w,t=at(i),d=t&&D[t.d];if(!d||!d.blocks)return null;
+    if(h.closest('[data-cmhost]')){const e=EDS[t.d];return e?{id:h.dataset.id,key:t.d,ed:e.ed}:null;}
+    const el=h.closest('[data-b]');return el?{id:h.dataset.id,key:t.d,el}:null;},
+  rows(c){if(c.ed)return c.ed.blockRects();
+    return [...c.el.parentElement.querySelectorAll(':scope>[data-b]')].map(n=>{const r=n.getBoundingClientRect();return {id:n.dataset.b,top:r.top,bot:r.bottom};});},
+  scroller:c=>(c.ed?c.ed.dom:c.el).closest('.scroll'),
+  show(c,k){
+    if(c.ed){c.ed.dragShow(c.id,k);return;}
+    if(!c.el.isConnected)return;
+    if(!c.gap){c.gap=document.createElement('div');c.gap.className='dropgap held';const copy=c.el.cloneNode(true);
+      ['id','data-b'].forEach(a=>copy.removeAttribute(a));copy.querySelectorAll('[data-act],.bmenu').forEach(x=>x.matches('.bmenu')?x.remove():x.removeAttribute('data-act'));
+      c.gap.append(copy);c.el.style.display='none';}
+    const others=[...c.el.parentElement.querySelectorAll(':scope>[data-b]')].filter(n=>n!==c.el);
+    if(k<others.length)others[k].before(c.gap);else others[others.length-1].after(c.gap);},
+  end(c,after){
+    if(c.ed){c.ed.dragEnd(after);return;}
+    if(c.gap)c.gap.remove();c.el.style.display='';
+    if(after!==null)moveBlockTo(c.key,c.id,after);}
+};
+async function moveBlockTo(key,id,after){
+  const d=D[key],before=d.blocks.slice(),k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;
+  const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);syncBlocks(d);render();
+  try{const r=await fetch(pageURL(key)+'/blocks/'+encodeURIComponent(id)+'/move',{...same,method:'POST',body:JSON.stringify({after})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){d.blocks=before;syncBlocks(d);render();toast(e.message==='403'?'Others may not change this page.':'The block could not be moved.');}
 }
 /* Leaving the page saves what is not saved yet. */
 const flushEditors=()=>Object.values(EDS).forEach(e=>e.ed.flush());
@@ -1744,6 +1779,7 @@ function loadSettings(server){
 }
 async function boot(){
   if(window.C22AppWorkspaceDrag)C22AppWorkspaceDrag.attach(DRAG);
+  if(window.UnderDocBlockDrag)UnderDocBlockDrag.attach(BDRAG);
   let st=null;
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}

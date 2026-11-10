@@ -1142,7 +1142,7 @@ func TestEditingIsFound(t *testing.T) {
 		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
 	}
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.doc .cm-editor').length + ' ' + document.querySelectorAll('article.doc .cm-ud-bar').length`); got != "false Editing | Editing. Click to read 1 1" {
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.doc .cm-editor').length + ' ' + document.querySelectorAll('[data-win="0"] > .edbar').length`); got != "false Editing | Editing. Click to read 1 1" {
 		t.Errorf("the button turns it to editing, one editor and one bar for the page: %q", got)
 	}
 	// What the editor and its bar do is tested in editor_test.go.

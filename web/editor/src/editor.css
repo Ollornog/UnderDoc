@@ -220,3 +220,39 @@
 
 /* The look of the bar, the handle on the marker line, the question in place, the box of an embedding and the slash menu
    comes from the design system C22 (.c22-app-workspace, 2026-11-09); here stays what is the editor's own. */
+
+/* Until the design system has them (listed for C22, 2026-11-10):
+   The bar as a row of the window while its page is written: between the head (.tools) and the content, full width,
+   flat, with a line below as the head has, outside what scrolls. It keeps C22's .btool for its parts and drops the box
+   of the floating bar. */
+.c22-app-workspace .win > .btool.edbar {
+  position: static;
+  flex: none;
+  visibility: visible;
+  opacity: 1;
+  max-width: none;
+  padding: calc(3 * var(--app-workspace-space)) calc(10 * var(--app-workspace-space));
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--background);
+  color: inherit;
+  box-shadow: none;
+}
+
+/* Dragging a block by its handle (blockdrag.js), in reading and in the editor: the handle takes a finger without the
+   page scrolling, and while a block is held nothing gets selected. The gap is C22's .dropgap. */
+.c22-app-workspace .bhandle[data-drag] {
+  touch-action: none;
+  cursor: grab;
+}
+
+body.ud-bdrag,
+body.ud-bdrag * {
+  user-select: none;
+  cursor: grabbing !important;
+}
+
+.cm-editor.cm-ud .cm-ud-gap {
+  white-space: pre-wrap;
+}

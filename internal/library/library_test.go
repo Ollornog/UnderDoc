@@ -383,3 +383,30 @@ func TestBlocksLinkToTheDatabase(t *testing.T) {
 		t.Errorf("a page of the folder source does not link into the database unchecked: %+v", lib.Problems())
 	}
 }
+
+// In a block of the database a single newline is a line break, as in Obsidian or Notion: two lines of a quote, a paragraph
+// or an item read as two lines. Code keeps its newlines. A page of the folder source keeps standard Markdown, where such
+// a newline is a soft break, since its files are wrapped by hand.
+func TestBlocksBreakLinesTheFolderSourceDoesNot(t *testing.T) {
+	text := "> a\n> b\n\none\ntwo\n\n- item\n  more\n\n*it\nalic* and `co\nde`\n\n```\nx\ny\n```"
+	lib := Build(Input{Pages: []Page{page("wrapped.md", "---\nid: wrapped\n---\n"+text+"\n")}})
+	block, err := lib.RenderMarkdown(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<p class=\"leading-relaxed\">a<br>\nb</p>", "one<br>\ntwo</p>", "item<br>\nmore</li>",
+		"<em>it<br>\nalic</em>", "<code class=\"code-inline\">co de</code>", "<code>x\ny\n</code>"} {
+		if !strings.Contains(block.HTML, want) {
+			t.Errorf("block: %q is missing in\n%s", want, block.HTML)
+		}
+	}
+	folder := mustDoc(t, lib, "wrapped").HTML
+	if strings.Contains(folder, "<br>") {
+		t.Errorf("the folder source turned a soft break into a line break:\n%s", folder)
+	}
+	for _, want := range []string{"a\nb</p>", "one\ntwo</p>", "item\nmore</li>"} {
+		if !strings.Contains(folder, want) {
+			t.Errorf("folder source: %q is missing in\n%s", want, folder)
+		}
+	}
+}

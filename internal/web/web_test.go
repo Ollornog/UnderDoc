@@ -492,6 +492,7 @@ func TestAssetsArrive(t *testing.T) {
 		"/assets/c22/css/c22-vega.css":            "text/css",
 		"/assets/c22/fonts/inter.woff2":           "font/woff2",
 		"/assets/app/demo.js":                     "javascript",
+		"/assets/app/blockdrag.js":                "javascript",
 		"/assets/c22/js/app-workspace-drag.js":    "javascript",
 		"/assets/app/theme.js":                    "javascript",
 		"/assets/logo.svg":                        "image/svg+xml",
@@ -517,8 +518,8 @@ func TestAssetsOfThisReleaseAreKept(t *testing.T) {
 	}
 	for target, want := range map[string]string{
 		"/assets/app/editor/editor.js?v=" + m[1]: "public, max-age=31536000, immutable",
-		"/assets/app/editor/editor.js":            "public, max-age=86400",
-		"/assets/app/editor/editor.js?v=old":      "public, max-age=86400",
+		"/assets/app/editor/editor.js":           "public, max-age=86400",
+		"/assets/app/editor/editor.js?v=old":     "public, max-age=86400",
 	} {
 		if got := s.get(target).Header().Get("Cache-Control"); got != want {
 			t.Errorf("%s: %q, want %q", target, got, want)
