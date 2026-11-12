@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- Go toolchain 1.27.3 → 1.27.4 (`go.mod`, `.github/audit/go.mod`, build image `golang:1.27.4-alpine3.24` by digest):
+  `net/http` in 1.27.3 carries GO-2026-6859, so the scheduled `audit` on `main` was red since 2026-11-11.
 - At phone width nothing is cut off and everything can be reached, before the phone has a layout of its own (M-28):
   nav3 had no width when nav2 and nav3 lay over the window, so its lists, the search and the profile were out of reach;
   the handle and the plus beside a block and its speech bubble stood outside the window and showed only to a hovering
