@@ -410,6 +410,7 @@ jobs:
           gh pr merge "$PR" --repo "$REPO" --squash --delete-branch --match-head-commit "$HEAD_SHA"
           gh workflow run audit.yml --repo "$REPO" --ref "$STANDARD"
           gh workflow run ci.yml --repo "$REPO" --ref "$STANDARD"
+          gh workflow run image.yml --repo "$REPO" --ref "$STANDARD"
       - name: Begründen, warum von Hand
         if: needs.entscheiden.outputs.aktion == 'kommentieren'
         env:

@@ -52,6 +52,7 @@ check("no unknown bare hostnames", hygiene.pruefe_blanke_adressen(str(ROOT), FIL
     "golang.org", "honnef.co", "python.org", "devguide.python.org", "pkg.go.dev", "modernc.org",
     "vuln.go.dev",  # named in a comment of the kit's Go gate
     "gcr.io",   # the base image in the Dockerfile
+    "ghcr.io",  # where .github/workflows/image.yml publishes the image
     "draw.io"]))    # a product name in the concept and in M-10
 check("nothing is loaded from third parties", hygiene.pruefe_keine_fremdressourcen(str(ROOT), FILES, POLICY))
 check("every page has a favicon", hygiene.pruefe_favicon(str(ROOT), FILES, POLICY))
