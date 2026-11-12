@@ -1,5 +1,7 @@
 # One static binary in an image without a shell. Both base images are pinned by digest, and Dependabot moves them.
-FROM golang:1.27.4-alpine3.24@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS build
+# The build stage runs on the build platform and cross-compiles for the target (GOARCH), so an arm64 image needs no
+# emulation (.github/workflows/image.yml builds amd64 and arm64).
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine3.24@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -8,7 +10,9 @@ COPY internal ./internal
 COPY docs/embed.go docs/logo.svg docs/favicon.ico ./docs/
 # Reproducible: no cgo, no paths in the binary, no toolchain download.
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath GOTOOLCHAIN=local
-RUN go build -ldflags "-s -w" -o /out/underdoc ./cmd/underdoc
+ARG TARGETOS=linux
+ARG TARGETARCH
+RUN GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -ldflags "-s -w" -o /out/underdoc ./cmd/underdoc
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 LABEL org.opencontainers.image.title="UnderDoc" \

@@ -34,7 +34,9 @@ Everything starts read-only: you edit at the source, and the web editor comes la
 
 ## Install
 
-There are no releases yet. Build it from source with Go or Docker, as shown below.
+There are no releases yet. Every state on `main` is published as a container image for amd64 and arm64,
+`ghcr.io/ollornog/underdoc:main-<first 12 hex of the commit>`; pin it by tag and digest. Or build it from source with Go
+or Docker, as shown below.
 
 ## Try it
 

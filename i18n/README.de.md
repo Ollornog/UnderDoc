@@ -34,7 +34,9 @@ Alles beginnt lesend: Bearbeitet wird an der Quelle, der Web-Editor kommt späte
 
 ## Installation
 
-Releases gibt es noch nicht. Gebaut wird aus dem Quelltext mit Go oder Docker, wie unten gezeigt.
+Releases gibt es noch nicht. Jeder Stand auf `main` erscheint als Container-Abbild für amd64 und arm64,
+`ghcr.io/ollornog/underdoc:main-<erste 12 Hex-Zeichen des Commits>`; festhalten mit Tag und Digest. Oder aus dem
+Quelltext mit Go oder Docker bauen, wie unten gezeigt.
 
 ## Ausprobieren
 
