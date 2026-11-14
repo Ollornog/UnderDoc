@@ -167,6 +167,10 @@ jobs:
           AUTO_OEKO: "github_actions gomod docker"
           # Die Workflows, deren Jobs die Abnahme sind. Jeder läuft auf `pull_request` ohne Pfadfilter.
           PFLICHT_WORKFLOWS: "ci.yml audit.yml"
+          # Accepted after the merge (2026-11-14): the image actions run only in image.yml on main. Its follow-up run
+          # builds both platforms and publishes main-<sha>; if it fails, no new image appears, the pinned one stays, and
+          # ci-wache reports the red run. #50 (login-action 4.8.0) sat because nothing accepted it on the PR.
+          NACH_MERGE_ABGENOMMEN: "docker/setup-buildx-action docker/login-action docker/build-push-action"
           # --- je Repo: Ende
         run: |
           set -euo pipefail
