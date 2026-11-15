@@ -73,6 +73,8 @@ type browser struct {
 	exited  chan struct{}
 	exitErr error
 	stderr  *tail
+	// marked is the last probe: the workspace redraws its lists and drops the mark, so it is put back when it is asked for.
+	marked struct{ selector, text string }
 }
 
 // tail keeps the last bytes written to it.
@@ -288,20 +290,48 @@ func (b *browser) open(address string) findings {
 	return b.collect()
 }
 
-// eval runs an expression in the page and returns its value as a string.
+// eval runs an expression in the page and returns its value as a string. The workspace draws itself in the background,
+// so an expression that reaches for an element which is not there yet (a read of a property of null) is tried again until
+// the element comes, within the same time as waitFor gives; any other exception fails at once.
 func (b *browser) eval(expression string) string {
 	b.t.Helper()
-	var result struct {
-		Result struct {
-			Value any
+	deadline := time.Now().Add(evalPatience)
+	for {
+		var result struct {
+			Result struct {
+				Value any
+			}
+			ExceptionDetails *struct {
+				Text      string
+				Exception struct{ Description string }
+			}
 		}
-		ExceptionDetails *struct{ Text string }
+		b.call("Runtime.evaluate", map[string]any{"expression": expression, "returnByValue": true}, &result)
+		if result.ExceptionDetails == nil {
+			return fmt.Sprint(result.Result.Value)
+		}
+		d := result.ExceptionDetails.Exception.Description
+		if !notThereYet(d) || time.Now().After(deadline) {
+			b.t.Fatalf("%s: %s %s", expression, result.ExceptionDetails.Text, d)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	b.call("Runtime.evaluate", map[string]any{"expression": expression, "returnByValue": true}, &result)
-	if result.ExceptionDetails != nil {
-		b.t.Fatalf("%s: %s", expression, result.ExceptionDetails.Text)
-	}
-	return fmt.Sprint(result.Result.Value)
+}
+
+// evalPatience is how long the workspace may take to draw what a test reaches for, also under the load of other runs.
+const evalPatience = 5 * time.Second
+
+// notThereYet tells the exception of reaching into an element that is not on the page yet from any other one.
+func notThereYet(description string) bool {
+	return strings.HasPrefix(description, "TypeError: Cannot read properties of null") ||
+		strings.HasPrefix(description, "TypeError: Cannot set properties of null") ||
+		strings.Contains(description, "is not a function") && strings.Contains(description, "null")
+}
+
+// exists tells whether a selector matches an element, waiting for it as eval does.
+func (b *browser) exists(selector string) bool {
+	b.t.Helper()
+	return b.waitFor(b.found(selector))
 }
 
 func (b *browser) press(key, code string, keyCode, modifiers int) {
@@ -416,6 +446,7 @@ type box struct{ X, Y, Left, Right, Top, Bottom, Width float64 }
 // rect returns where an element is on the screen, for real pointer input.
 func (b *browser) rect(selector string) box {
 	b.t.Helper()
+	b.exists(selector)
 	raw := b.eval(`JSON.stringify((() => { const r = document.querySelector(` + strconv.Quote(selector) + `).getBoundingClientRect();
 		return {X: r.left + r.width / 2, Y: r.top + r.height / 2, Left: r.left, Right: r.right, Top: r.top, Bottom: r.bottom, Width: r.width}; })())`)
 	var r box
@@ -441,12 +472,21 @@ func (b *browser) mouse(kind string, x, y float64, clicks int, modifiers int) {
 // waitFor polls an expression until it is true, since a swap of the window loads in the background.
 func (b *browser) waitFor(expression string) bool {
 	b.t.Helper()
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(evalPatience); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if b.eval(expression) == "true" {
 			return true
 		}
 	}
 	return false
+}
+
+// settingsSent waits until the workspace has sent its settings to the account, which it does a moment after a change. A test
+// that leaves the page before has the next page start from the older settings.
+func (b *browser) settingsSent() {
+	b.t.Helper()
+	if !b.waitFor(`sentSettings !== null && sentSettings === localStorage.getItem('ud.workspace')`) {
+		b.t.Fatal("the settings did not go to the server")
+	}
 }
 
 // ready waits until the workspace has drawn itself and, on the address of a page, has loaded that page.
@@ -461,17 +501,33 @@ func (b *browser) ready(title string) {
 	}
 }
 
-// probe marks the first element of a selector with exactly this text, so a test needs no ID of the workspace.
+// probe marks the first element of a selector with exactly this text, so a test needs no ID of the workspace. The
+// workspace may redraw the element after that and drop the mark; rect and exists mark it again.
 func probe(b *browser, selector, text string) string {
 	b.t.Helper()
-	b.eval(`document.querySelectorAll('[data-probe]').forEach(n => n.removeAttribute('data-probe')); [...document.querySelectorAll(` + strconv.Quote(selector) + `)].find(n => n.textContent.trim() === ` + strconv.Quote(text) + `)?.setAttribute('data-probe', '')`)
+	b.marked.selector, b.marked.text = selector, text
+	b.waitFor(`[...document.querySelectorAll(` + strconv.Quote(selector) + `)].some(n => n.textContent.trim() === ` + strconv.Quote(text) + `)`)
+	b.eval(b.mark())
 	return selector + "[data-probe]"
+}
+
+// mark is the script that puts the mark of the last probe on its element.
+func (b *browser) mark() string {
+	return `document.querySelectorAll('[data-probe]').forEach(n => n.removeAttribute('data-probe')); [...document.querySelectorAll(` + strconv.Quote(b.marked.selector) + `)].find(n => n.textContent.trim() === ` + strconv.Quote(b.marked.text) + `)?.setAttribute('data-probe', '')`
+}
+
+// found tells whether a selector matches an element now; of the last probe it first puts the mark back.
+func (b *browser) found(selector string) string {
+	if b.marked.selector != "" && selector == b.marked.selector+"[data-probe]" {
+		return `(() => { if (!document.querySelector(` + strconv.Quote(selector) + `)) { ` + b.mark() + ` } return !!document.querySelector(` + strconv.Quote(selector) + `); })()`
+	}
+	return `!!document.querySelector(` + strconv.Quote(selector) + `)`
 }
 
 // clickOn clicks the middle of an element with the real mouse.
 func (b *browser) clickOn(selector string, clicks int) {
 	b.t.Helper()
-	if b.eval(`!!document.querySelector(`+strconv.Quote(selector)+`)`) != "true" {
+	if !b.exists(selector) {
 		b.t.Fatalf("%s is not on the page; nav2: %s; nav3: %s", selector, b.eval(`document.querySelector('.nav2')?.innerText.replace(/\s+/g, ' ')`), b.eval(`[...document.querySelectorAll('.nav3 [data-id]')].map(n => n.dataset.id).join(' ')`))
 	}
 	r := b.rect(selector)
