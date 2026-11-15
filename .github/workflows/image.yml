@@ -75,3 +75,39 @@ jobs:
             grep -q "Platform: *$platform\$" "$RUNNER_TEMP/image.txt" || { echo "::error::$platform is missing"; exit 1; }
           done
           printf '### Image\n\n%s:%s@%s (amd64, arm64)\n' "$image" "$TAG" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+  # Pin PR in the fleet repo (vars.PIN_REPO; release automation, kit 0.47.2, PO 2026-11-15): the new main-<sha> with its
+  # digest goes into every compose file there that pins the image. There the start probe accepts it, the auto-merge merges
+  # it, and the converge rolls it out after a migration check against a copy of the database.
+  fc-pin:
+    needs: image
+    if: github.ref == 'refs/heads/main' && vars.PIN_REPO != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: App token (fleet repo only)
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
+        with:
+          client-id: ${{ vars.AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.PIN_REPO }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pin PR
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TARGET: ${{ github.repository_owner }}/${{ vars.PIN_REPO }}
+        run: scripts/_release_automatik.py fc-pin --tag "main-${GITHUB_SHA:0:12}" --target "$TARGET"
