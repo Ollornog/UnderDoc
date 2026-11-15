@@ -1,0 +1,6 @@
+{
+  "schema": "semver",
+  "versionsdateien": [{"datei": "internal/version/version.go", "muster": "^const Version = \"(?P<v>[^\"]+)\"$"}],
+  "changelog": {"datei": "CHANGELOG.md", "form": "keepachangelog", "sprache": "en"},
+  "abbilder": ["ghcr.io/ollornog/underdoc"]
+}

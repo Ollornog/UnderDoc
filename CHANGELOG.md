@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Every image published from main now also opens the pin PR in the fleet repo (job `fc-pin` in `image.yml`, kit script
+  `scripts/_release_automatik.py`, target from the variable `PIN_REPO`): the new `main-<sha>` with its digest replaces the
+  pin there; the fleet repo's start probe and auto-merge take it from there.
+
+### Changed
+
 - Dependabot updates of `docker/setup-buildx-action`, `docker/login-action` and `docker/build-push-action` merge by
   themselves: they run only in `image.yml` on `main`, which now accepts them after the merge
   (`NACH_MERGE_ABGENOMMEN`). If that run fails, no new image is published. #50 had been waiting for a manual merge.
