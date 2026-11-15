@@ -136,6 +136,7 @@ func TestDividersInNav2(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
 		t.Errorf("the line moved below pro: %q", got)
 	}
+	b.settingsSent()
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
@@ -197,6 +198,7 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 // rowNamed is the selector of the entry of nav3 with this name, by its ID, so two of them can be used at once.
 func rowNamed(b *browser, name string) string {
 	b.t.Helper()
+	b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === ` + strconv.Quote(name) + `)`)
 	id := b.eval(`[...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
 	return `.nav3 .row[data-row="` + id + `"]`
 }
@@ -690,9 +692,10 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'Deep page')`) {
 		t.Error("with its own entries")
 	}
+	b.settingsSent()
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`); got != "true" {
+	if !b.waitFor(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`) {
 		t.Errorf("the browser keeps it in nav2: %q", inNav2())
 	}
 	if got := b.eval(`(() => { const deep = Object.keys(D).find(k => D[k].n === 'Deep page'); return PARENT[deep] === SID['` + l2 + `'] && COLL[SID['` + l2 + `']]?.id === SID['` + team + `']; })()`); got != "true" {
@@ -908,9 +911,7 @@ func TestSettingsFollowTheAccount(t *testing.T) {
 	if before != "Team line | true | 2" {
 		t.Fatalf("the setup: %q", before)
 	}
-	if !b.waitFor(`sentSettings !== null && sentSettings === localStorage.getItem('ud.workspace')`) {
-		t.Fatal("the settings did not go to the server")
-	}
+	b.settingsSent()
 	b.eval(`localStorage.clear()`)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
@@ -1187,6 +1188,7 @@ func TestEditingIsFound(t *testing.T) {
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
 	b.clickOn(`[data-act="sec"][data-id="docs"]`, 1)
 	b.clickOn(`[data-act="openedit"][data-id="true"]`, 1)
+	b.settingsSent()
 	b.open(base + "/o/" + other)
 	b.ready("Other")
 	if got := b.eval(status); got != "false Editing | Editing. Click to read" {

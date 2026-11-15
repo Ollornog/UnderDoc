@@ -27,6 +27,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- The browser tests no longer fail under load: the workspace draws itself in the background, and tests that reached for an
+  element at once got `null` ("Uncaught") when the machine was busy. `eval` now tries again, within the same 5 s as
+  `waitFor`, while the only problem is an element that is not there yet; `rect`, `clickOn`, `probe` and `rowNamed` wait for
+  their element, and tests that reload the page after a change of the settings wait until the settings reached the
+  account (`settingsSent`) instead of racing the 600 ms save.
 - Go toolchain 1.27.3 → 1.27.4 (`go.mod`, `.github/audit/go.mod`, build image `golang:1.27.4-alpine3.24` by digest):
   `net/http` in 1.27.3 carries GO-2026-6859, so the scheduled `audit` on `main` was red since 2026-11-11.
 - At phone width nothing is cut off and everything can be reached, before the phone has a layout of its own (M-28):
