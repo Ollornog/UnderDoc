@@ -2,7 +2,7 @@
 id: M-8
 type: Milestone
 title: Web editor
-status: offen
+status: erledigt
 tags: [editor]
 created: 2026-11-06
 ---
@@ -43,3 +43,10 @@ images (with M-2), and the rest of the list above.
 
 **Added on 2026-11-16 (ADR-22):** a block used elsewhere shows its boundary and "used in N places" while the cursor is in
 it, so whoever writes there knows that other pages change too.
+
+**State 2026-11-17:** part one is merged (#56). Part two adds the rest: Quick notes as a board of cards in the private
+notes, New landing in Quick notes or a chosen collection with the last choice kept, templates (UnderDoc's own and pages
+offered from their gear), blocks aligned left, center or right, contents and width saved from the gear, the table tools,
+and the boundary of a block used elsewhere (ADR-22). Every point above is met except pasting images, which waits for the
+content store and goes on with M-2; dragging in the workspace came with M-28. Still to do as a follow-up of closing M-8:
+the editor trial (`/dev/editor-trial`) goes, as ADR-21 keeps it only until M-8 closes.

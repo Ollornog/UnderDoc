@@ -14,7 +14,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
-* ☐ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
+* ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
 * ☐ **[M-9](M-9-inline-editing.md)** Inline editing — noch keine Aufgaben
 * ☐ **[M-10](M-10-realtime.md)** Working together — noch keine Aufgaben
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
