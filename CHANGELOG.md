@@ -11,9 +11,6 @@ All notable changes to this project are documented in this file. The format foll
 - Every image published from main now also opens the pin PR in the fleet repo (job `fc-pin` in `image.yml`, kit script
   `scripts/_release_automatik.py`, target from the variable `PIN_REPO`): the new `main-<sha>` with its digest replaces the
   pin there; the fleet repo's start probe and auto-merge take it from there.
-
-### Changed
-
 - Dependabot updates of `docker/setup-buildx-action`, `docker/login-action` and `docker/build-push-action` merge by
   themselves: they run only in `image.yml` on `main`, which now accepts them after the merge
   (`NACH_MERGE_ABGENOMMEN`). If that run fails, no new image is published. #50 had been waiting for a manual merge.
@@ -23,10 +20,8 @@ All notable changes to this project are documented in this file. The format foll
 - Every state on `main` is published as a container image, `ghcr.io/ollornog/underdoc:main-<commit>`, for amd64 and
   arm64 (`.github/workflows/image.yml`; after a Dependabot auto-merge the merge job starts it, too). The same check as in the CI (`scripts/check-image.sh`) runs first; a manual run
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles
-  (`--platform=$BUILDPLATFORM`, `GOARCH=$TARGETARCH`), so arm64 needs no emulation.
-
-### Added
-
+  (`--platform=$BUILDPLATFORM`, `GOARCH=$TARGETARCH`), so arm64 needs no emulation. The JavaScript stage runs on the
+  build platform, too.
 - The web editor of M-8, part one (ADR-21): a page of the database is written in one editor, CodeMirror 6 with a live
   preview of UnderDoc's own. Markdown looks rendered away from the cursor and shows on the lines being written; headings,
   emphasis, code, lists, to-dos, quotes, links, rules and tables convert as they are typed, and an embedding shows as a
