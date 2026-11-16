@@ -81,7 +81,7 @@ All notable changes to this project are documented in this file. The format foll
   the handle and the plus beside a block and its speech bubble stood outside the window and showed only to a hovering
   pointer; the menu of a block started off the screen; the windows of commented pages scrolled sideways; and the label
   Administration in nav2 was cut off. A touch screen now shows the handle, the plus and the bubble faintly (C22 block
-  `.c22-app-workspace`, vendored from a branch until it is merged there).
+  `.c22-app-workspace`, vendored from its main, 9f331aa).
 - A long press on a touch screen is the right click (ADR-17): it opens the same menu, so the trash, the problems and the
   menus of entries and tabs are in reach on a phone; where the browser opens a menu of its own, only one opens, and the
   lifting finger clicks nothing. Browser tests at 390×844 and 360×740 walk the main states with real touch input and fail
