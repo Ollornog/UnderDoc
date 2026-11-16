@@ -27,6 +27,8 @@ type apiBlock struct {
 	Markdown string `json:"md"`
 	// UsedIn names the pages that embed this block.
 	UsedIn []string `json:"usedIn"`
+	// Align is center or right, absent for the left (ADR-16).
+	Align string `json:"align,omitempty"`
 	// Comments counts the comments on this block in threads not resolved.
 	Comments int `json:"comments,omitempty"`
 }
@@ -65,7 +67,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrHasReplies):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -82,7 +84,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 
 // block renders a block for the workspace. Raw HTML in it is dropped, as in every page (TestUserTextStaysText).
 func (h *handler) block(r *http.Request, page string, b db.Block, used []db.Ref) apiBlock {
-	out := apiBlock{ID: b.ID, Markdown: b.Body, HTML: h.render(r, b.Body, []string{page, page + "#" + b.ID}), UsedIn: []string{}}
+	out := apiBlock{ID: b.ID, Markdown: b.Body, HTML: h.render(r, b.Body, []string{page, page + "#" + b.ID}), UsedIn: []string{}, Align: b.Align}
 	for _, u := range used {
 		if u.TargetBlock == b.ID && !slices.Contains(out.UsedIn, u.Title) {
 			out.UsedIn = append(out.UsedIn, u.Title)
@@ -296,6 +298,21 @@ func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	used, _ := h.options.DB.UsedIn(r.Context(), r.PathValue("id"), user.ID)
 	writeJSON(w, http.StatusOK, h.block(r, r.PathValue("id"), b, used))
+}
+
+// apiAlignBlock aligns a block left, center or right (ADR-16); its text stays as it is.
+func (h *handler) apiAlignBlock(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Align string `json:"align"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.AlignBlock(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Align), "align") {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // apiDeleteBlock takes a block out of its page.

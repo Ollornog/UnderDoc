@@ -24,6 +24,8 @@ var ErrBlock = errors.New("a block has at most 100000 characters")
 type Block struct {
 	ID   string
 	Body string
+	// Align is center or right, or empty for the left (ADR-16).
+	Align string
 }
 
 // Version is one change of a block: its new text, or its deletion.
@@ -68,13 +70,13 @@ func (db *DB) Blocks(ctx context.Context, pageID, viewer string) ([]Block, error
 	if _, err := db.page(ctx, pageID, viewer); err != nil {
 		return nil, err
 	}
-	rows, err := db.pool.Query(ctx, "SELECT id, body FROM blocks WHERE page = $1 ORDER BY position", pageID)
+	rows, err := db.pool.Query(ctx, "SELECT id, body, coalesce(align, '') FROM blocks WHERE page = $1 ORDER BY position", pageID)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Block, error) {
 		var b Block
-		err := row.Scan(&b.ID, &b.Body)
+		err := row.Scan(&b.ID, &b.Body, &b.Align)
 		return b, err
 	})
 }

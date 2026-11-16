@@ -86,7 +86,7 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 }
 
 func (db *DB) fillBlocks(ctx context.Context, byID map[string]*Node) error {
-	rows, err := db.pool.Query(ctx, "SELECT page, id, body FROM blocks ORDER BY page, position")
+	rows, err := db.pool.Query(ctx, "SELECT page, id, body, coalesce(align, '') FROM blocks ORDER BY page, position")
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (db *DB) fillBlocks(ctx context.Context, byID map[string]*Node) error {
 	for rows.Next() {
 		var page string
 		var b Block
-		if err := rows.Scan(&page, &b.ID, &b.Body); err != nil {
+		if err := rows.Scan(&page, &b.ID, &b.Body, &b.Align); err != nil {
 			return err
 		}
 		if n := byID[page]; n != nil {
@@ -252,7 +252,10 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 				}
 				number, _ := strconv.Atoi(b.ID[1:])
 				next = max(next, number+1)
-				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", a.id, b.ID, i, body); err != nil {
+				if !ValidAlign(b.Align) {
+					return errors.New("block " + b.ID + ": alignment " + strconv.Quote(b.Align) + " is not center or right")
+				}
+				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body, align) VALUES ($1, $2, $3, $4, nullif($5, ''))", a.id, b.ID, i, body, b.Align); err != nil {
 					return err
 				}
 				if err := syncRefs(ctx, tx, a.id, b.ID, body); err != nil {

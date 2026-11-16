@@ -108,7 +108,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			if _, err := tx.Exec(ctx, "UPDATE objects SET next_block = (SELECT next_block FROM objects WHERE id = $2) WHERE id = $1", made.ID, n.o.ID); err != nil {
 				return Object{}, err
 			}
-			if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) SELECT $1, id, position, body FROM blocks WHERE page = $2", made.ID, n.o.ID); err != nil {
+			if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body, align) SELECT $1, id, position, body, align FROM blocks WHERE page = $2", made.ID, n.o.ID); err != nil {
 				return Object{}, err
 			}
 			if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) SELECT page, id, body, $2 FROM blocks WHERE page = $1 ORDER BY position", made.ID, viewer); err != nil {

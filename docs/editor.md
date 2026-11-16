@@ -64,7 +64,9 @@ loaded again with a notice, which offers to copy what was written since the last
   column stay: a table needs them, and the workspace says so.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
-- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Its menu is as
+- The handle of a block: Copy address, Move up, Move down, Delete, Comment, the alignment of the block (left, center,
+  right; ADR-16), and where the block is used. The alignment is kept with the block, not in its Markdown, through
+  `PUT /api/pages/{id}/blocks/{block}/align`; it makes no version, and the editor shows it on the block's lines. Its menu is as
   compact as the right-click menus and looks like them; near the bottom of the window it opens above the handle. Dragged,
   the handle moves the block (below).
 - A single newline is a line break, as in Obsidian or Notion: two lines of a quote, of a paragraph or of a list item read

@@ -17,6 +17,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Blocks of a page are aligned left, center or right from the menu of their handle, in reading and in the editor (ADR-16,
+  M-8). The alignment is kept with the block, not in its Markdown (`PUT /api/pages/{id}/blocks/{block}/align`), makes no
+  version, goes along with a copy, and the export writes it into the block's marker (`<!-- block b3 align=center -->`),
+  which an import reads back.
 - The gear of a document of the database keeps its width (slim, wide, full) and where its contents show (marker, side,
   hidden) for everyone who opens it (ADR-16, M-8): `PUT /api/objects/{id}/view`, kept in the database, carried to the
   workspace with the tree, kept by a copy and written into the front matter of the export (`width`, `contents`), which

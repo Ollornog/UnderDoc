@@ -431,6 +431,14 @@ function decorate(state) {
     const html = cfg.handle ? cfg.handle(m.id) : '';
     add(line.from, line.to, Decoration.replace({ widget: new MarkerWidget(m.id, html, m.id === current || m.id === hover), block: true }));
   }
+  // A block aligned center or right shows so on its lines (ADR-16), with C22's text-center and text-right.
+  marks.forEach((m, k) => {
+    const align = cfg.align && cfg.align(m.id);
+    if (!align) return;
+    const first = doc.lineAt(m.from).number + 1;
+    const last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
+    for (let n = first; n <= last; n++) add(doc.line(n).from, doc.line(n).from, lineClass(`text-${align}`));
+  });
   // A block used elsewhere shows its boundary and where it is used while the cursor is in it, so whoever writes there
   // knows that other pages change too (ADR-22).
   const usedCount = current && cfg.usedCount ? cfg.usedCount(current) : 0;
@@ -1038,6 +1046,8 @@ class PageEditor {
   constructor(options) {
     this.options = options;
     this.stored = options.blocks.map((b) => ({ id: b.id, md: normalize(b.md), usedIn: b.usedIn || [] }));
+    // The alignment of each block: not part of its Markdown, the workspace sets it through the API (setAlign).
+    this.aligns = new Map(options.blocks.filter((b) => b.align).map((b) => [b.id, b.align]));
     this.confirmed = new Set();
     this.saving = null;
     this.again = false;
@@ -1058,6 +1068,7 @@ class PageEditor {
         const b = this.stored.find((x) => x.id === id);
         return b && b.usedIn.length ? b.usedIn.join(', ') : '';
       },
+      align: (id) => this.aligns.get(id) || '',
       usedCount: (id) => {
         const b = this.stored.find((x) => x.id === id);
         return b ? b.usedIn.length : 0;
@@ -1264,6 +1275,13 @@ class PageEditor {
 
   get hasFocus() {
     return this.view.hasFocus;
+  }
+
+  /** setAlign shows a block aligned center or right, or left with ''. */
+  setAlign(id, align) {
+    if (align) this.aligns.set(id, align);
+    else this.aligns.delete(id);
+    this.refresh();
   }
 
   /** refresh draws the handles again, after the workspace changed what they show. */

@@ -941,6 +941,7 @@ document.addEventListener('click',e=>{
     case 'edtable':{const e=EDS[t.d];if(e&&!e.ed.table(a.k))toast(a.k==='rowDelete'?'The header row stays: a table needs one.':a.k==='colDelete'?'The last column stays: a table needs one.':'The cursor is not in a table.');return;}
     case 'edmove':{const e=EDS[t.d];if(e)e.ed.moveBlock(a.id,a.k);break;}
     case 'eddel':{const e=EDS[t.d];if(e)e.ed.deleteBlock(a.id);break;}
+    case 'balign':alignBlock(t.d,a.id,a.k);break;
     case 'edcopy':{const text=S.edNote&&S.edNote[t.d];if(text)(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast('What you wrote is on the clipboard.'),()=>toast('The clipboard could not be written.'));return;}
     case 'ednote':if(S.edNote)delete S.edNote[t.d];break;
     case 'bcmt':commentOn(t.d,a.id);return;
@@ -1338,7 +1339,8 @@ async function renameObject(id,title){
    the whole page in one editor (ADR-21, web/editor, editor.js): CodeMirror 6 with a live preview, the blocks joined with
    a hidden marker line before each, where the handle of the block shows. The editor saves about a second after typing
    stops and when it is left, block by block through the same API. */
-const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0});
+const ALIGNS=['center','right'];
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0,align:ALIGNS.includes(b.align)?b.align:''});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 /* The bar sits once above the page (2026-11-09, ADR-21): a bar that follows the cursor jumps with every line and covers
    the text above it, and M-8 asks for a bar above the page. It acts on the selection of the editor; "/" at the start of an
@@ -1368,12 +1370,13 @@ function handleHtml(d,w,i,b,inEditor){
     <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
     ${edit}
     <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span>${b.cmts?`<small>${b.cmts}</small>`:''}</button>
+    ${may?`<span class="seg" role="group" aria-label="Align the block">${[['left','alleft','Align left'],['center','alcenter','Center'],['right','alright','Align right']].map(x=>`<button data-act="balign" data-w="${i}" data-id="${b.id}" data-k="${x[0]}" aria-pressed="${(b.align||'left')===x[0]}" aria-label="${x[2]}" title="${x[2]}">${ic(x[1])}</button>`).join('')}</span>`:''}
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
   return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}"${may?' data-drag':''} aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}"${b.align?` class="text-${b.align}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
   return edHtml(d,i,key);
 }
 
@@ -1419,7 +1422,7 @@ function makeEditor(key){
   const d=D[key],e={key,w:S.focus,kind:'p',status:''};
   const show=(sel,v,attr)=>{const n=document.querySelector(`[${sel}="${key}"]`);if(n)n[attr]=v;};
   e.ed=window.UnderDocEditor.create({
-    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain)})),
+    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain),align:b.align})),
     label:'Page '+plain(d.n)+', Markdown',
     api:edAPI(key),
     handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
@@ -1497,6 +1500,15 @@ const BDRAG={
     if(c.gap)c.gap.remove();c.el.style.display='';
     if(after!==null)moveBlockTo(c.key,c.id,after);}
 };
+/* A block is aligned left, center or right from the menu of its handle (ADR-16, M-8): the alignment belongs to the block,
+   not to its Markdown, so the text stays as written. The view changes at once and goes back if the server refuses. */
+async function alignBlock(key,id,align){
+  const d=D[key],b=d.blocks.find(x=>x.id===id);if(!b)return;const before=b.align,to=align==='left'?'':align;
+  const show=a=>{b.align=a;if(EDS[key])EDS[key].ed.setAlign(id,a);render();};
+  show(to);
+  try{const r=await fetch(pageURL(key)+'/blocks/'+encodeURIComponent(id)+'/align',{...same,method:'PUT',body:JSON.stringify({align:to})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){show(before);toast(e.message==='403'?'Others may not change this page.':'The block could not be aligned.');}
+}
 async function moveBlockTo(key,id,after){
   const d=D[key],before=d.blocks.slice(),k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;
   const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);syncBlocks(d);render();

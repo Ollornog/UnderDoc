@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Widths and places of the contents a document can have (ADR-16); empty is the default of the workspace.
@@ -46,4 +48,31 @@ func (db *DB) SetView(ctx context.Context, objectID, viewer string, width, place
 	}
 	return scan(db.pool.QueryRow(ctx, "UPDATE objects SET width = nullif($2, ''), contents = nullif($3, '') WHERE id = $1 RETURNING "+columns,
 		objectID, o.Width, o.Contents))
+}
+
+// ErrAlign is an alignment of a block other than left, center or right.
+var ErrAlign = errors.New("a block is aligned left, center or right")
+
+// ValidAlign tells whether a block can be aligned so; empty is the left.
+func ValidAlign(align string) bool { return align == "" || align == "center" || align == "right" }
+
+// AlignBlock aligns a block of a page left, center or right (ADR-16). The text and its versions stay as they are, so it
+// makes no version; the page counts as changed.
+func (db *DB) AlignBlock(ctx context.Context, pageID, blockID, viewer, align string) error {
+	if align == "left" {
+		align = ""
+	}
+	if !ValidAlign(align) {
+		return ErrAlign
+	}
+	return db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, "UPDATE blocks SET align = nullif($3, '') WHERE page = $1 AND id = $2", pageID, blockID, align)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }

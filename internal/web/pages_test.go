@@ -340,3 +340,22 @@ func TestViewThroughTheAPI(t *testing.T) {
 		t.Errorf("bob may only read = %d", got)
 	}
 }
+
+func TestAlignThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	b := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"Title","after":""}`, sameSite))
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/"+b.ID+"/align", `{"align":"center"}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("align = %d", got)
+	}
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks[0]; got.Align != "center" || got.Markdown != "Title" {
+		t.Errorf("the page tells the alignment: %+v", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/"+b.ID+"/align", `{"align":"justify"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("justify = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/b9/align", `{"align":"right"}`, sameSite).Code; got != http.StatusNotFound {
+		t.Errorf("no such block = %d", got)
+	}
+}
