@@ -24,3 +24,5 @@ order: this can move forward as soon as there is enough content to search.
 - Tags from the front matter and in the text can be searched and listed.
 - Text inside images can be found, if measuring shows that OCR is worth its cost.
 - PostgreSQL full-text search has been measured against real content before any separate search service is added.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** A search service, Meilisearch by default and OpenSearch as a choice (ADR-24). It comes right after M-8. Error codes are a hard gate, ranking weighs title and headings above the text.

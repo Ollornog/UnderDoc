@@ -13,3 +13,5 @@ Sketches and mind maps live next to the text.
 
 - Mind maps through Mermaid.
 - Excalidraw and draw.io drawings are embedded as files from the folder.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Both: Excalidraw bundled and loaded on demand, and the draw.io web app hosted by UnderDoc itself, nothing from third parties.

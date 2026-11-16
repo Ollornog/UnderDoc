@@ -34,3 +34,5 @@ Documents open in tabs, and tabs split off into windows, so documents can be rea
 - A phone shows one window at a time.
 - **Acceptance: a browser test with real pointer input opens four windows, one document twice, sorts tabs by dragging, drags a general tab
   into another window, and each window scrolls and navigates on its own.**
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Rests during the sprint of 2026-11-16 (the maintainer chose orientation at page level only).

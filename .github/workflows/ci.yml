@@ -29,11 +29,19 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      # The web editor is built from its lockfile into the assets the binary embeds (scripts/build-js.sh, in check.sh).
+      # No package cache either, for the same reason.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 26.12.1
+          package-manager-cache: false
       - name: Prove that nothing gets skipped silently
         run: |
           set -e
           go version
           python3 --version
+          node --version
+          npm --version
           command -v google-chrome || command -v chromium
       - name: check.sh
         run: scripts/check.sh

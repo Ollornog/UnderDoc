@@ -184,9 +184,12 @@ func (lib *Library) render(doc *document.Document, parsed map[document.ID]*markd
 
 // RenderMarkdown renders Markdown that does not live in the folder source, such as a block of a page in the database
 // (ADR-19). Links resolve as from a page at the root of the folder source. A leading line of dashes stays a rule: a block
-// has no front matter.
+// has no front matter. A single newline is a line break, as in Obsidian or Notion; the folder source keeps standard
+// Markdown, since its files are wrapped by hand.
 func (lib *Library) RenderMarkdown(source string) (markdown.Rendered, error) {
-	return safeRender(markdown.Parse([]byte("\n"+source)), &resolver{lib: lib, doc: &document.Document{Source: "block.md"}, database: true})
+	page := markdown.Parse([]byte("\n" + source))
+	page.BreakLines()
+	return safeRender(page, &resolver{lib: lib, doc: &document.Document{Source: "block.md"}, database: true})
 }
 
 func safeRender(page *markdown.Page, res markdown.Resolver) (result markdown.Rendered, err error) {

@@ -148,6 +148,19 @@ func (p *Page) Render(resolver Resolver) (Rendered, error) {
 	return result, nil
 }
 
+// BreakLines makes every single newline inside a paragraph a line break, as blocks of the database read (Obsidian and
+// Notion read them so too): in CommonMark such a newline is a soft break and shows as a space. Inline code writes its
+// text itself, so a newline in it stays a space, and code blocks keep their lines. The Markdown itself does not change.
+// Call it before Render.
+func (p *Page) BreakLines() {
+	_ = ast.Walk(p.root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if text, ok := n.(*ast.Text); ok && entering && text.SoftLineBreak() {
+			text.SetHardLineBreak(true)
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
 func headingClass(level int) string {
 	switch level {
 	case 1:

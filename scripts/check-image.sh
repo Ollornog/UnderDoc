@@ -39,6 +39,10 @@ head="$(curl -fsSI "${gate[@]}" "$url")" || fail "the workspace does not answer"
 grep -qi '^content-security-policy:' <<<"$head" || fail "the page has no CSP"
 doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" || fail "the page does not answer"
 [[ "$doc" == *'First version'* ]] || fail "the page does not show"
+# The editor is built inside the image from its lockfile (ADR-21): its bundle and its licences are there.
+editor="$(curl -fsS "${gate[@]}" "$base/assets/app/editor/editor.js")" || fail "the editor bundle is not in the image"
+[[ "$editor" == *'UnderDocEditor'* ]] || fail "the editor bundle in the image is not the editor"
+curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/editor/LICENSES.txt" || fail "the licences of the editor are not in the image"
 
 printf -- '---\nid: first\n---\n# Second, longer version\n' >"$notes/page.md"
 for _ in $(seq 1 40); do

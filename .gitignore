@@ -3,3 +3,8 @@
 *.test
 *.out
 __pycache__/
+/web/editor-trial/node_modules/
+/web/editor/node_modules/
+# Built from web/* by scripts/build-js.sh (ADR-21), never committed.
+/internal/web/assets/app/editor/
+/internal/web/assets/app/editor-trial/

@@ -19,3 +19,5 @@ Questions over the company's own documents. Optional and off by default.
 - Passwords never reach a model, and public shares offer no AI.
 - Other AI tools can read through the same permissions, for example over MCP.
 - Every use is logged.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** An OpenAI-compatible interface, proven in CI against a test model; the test instance has no model until the maintainer names one. AI OCR (ADR-24) is set by hoster, tenant and user.

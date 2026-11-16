@@ -365,6 +365,29 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 	}
 }
 
+// The editor trial stays for comparison until M-8 closes (ADR-21): with the dev switch, or for an administrator.
+func TestEditorTrialIsADevPage(t *testing.T) {
+	plain := map[string]string{"Remote-User": "bea", "Remote-Groups": "ops"}
+	if got := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", plain).Code; got != http.StatusNotFound {
+		t.Errorf("/dev/editor-trial without the switch, not an administrator = %d", got)
+	}
+	if got := newSite(t, Options{}, sample).get("/dev/editor-trial").Code; got != http.StatusNotFound {
+		t.Errorf("/dev/editor-trial without the switch and without an administrators' group = %d", got)
+	}
+	admin := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", gateHeaders)
+	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", plain)
+	for name, answer := range map[string]*httptest.ResponseRecorder{"administrator": admin, "dev switch": dev} {
+		if answer.Code != http.StatusOK {
+			t.Errorf("%s: %d", name, answer.Code)
+		}
+		for _, editor := range []string{"milkdown", "tiptap", "codemirror"} {
+			if got := answer.Body.String(); !strings.Contains(got, `data-editor="`+editor+`"`) || !strings.Contains(got, `/assets/app/editor-trial/`+editor+`.js?v=`) {
+				t.Errorf("%s: the trial page lacks %s", name, editor)
+			}
+		}
+	}
+}
+
 // The design system only compiles classes it uses itself, and a missing class does nothing without any error. So every class
 // in the templates and in rendered pages has to exist in the vendored stylesheet.
 func TestEveryClassExistsInTheStylesheet(t *testing.T) {
@@ -383,6 +406,14 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		if known[control] {
 			t.Fatalf("control class %q found, the check itself is broken", control)
 		}
+	}
+	// The editor trial of M-8 brings its own small stylesheet for its frame.
+	trial, err := assetFiles.ReadFile("assets/app/editor-trial/trial.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, match := range regexp.MustCompile(`\.([\w-]+)`).FindAllStringSubmatch(string(trial), -1) {
+		known[match[1]] = true
 	}
 	used := map[string]string{}
 	for _, class := range markdown.Classes() {
@@ -461,6 +492,7 @@ func TestAssetsArrive(t *testing.T) {
 		"/assets/c22/css/c22-vega.css":            "text/css",
 		"/assets/c22/fonts/inter.woff2":           "font/woff2",
 		"/assets/app/demo.js":                     "javascript",
+		"/assets/app/blockdrag.js":                "javascript",
 		"/assets/c22/js/app-workspace-drag.js":    "javascript",
 		"/assets/app/theme.js":                    "javascript",
 		"/assets/logo.svg":                        "image/svg+xml",
@@ -472,6 +504,29 @@ func TestAssetsArrive(t *testing.T) {
 		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Header().Get("Content-Type"), contentType) {
 			t.Errorf("%s: %d %s", target, recorder.Code, recorder.Header().Get("Content-Type"))
 		}
+	}
+}
+
+// An asset named with the version of this release is kept for a year, so the editor is fetched once per release; without
+// that version, or with an old one, a day.
+func TestAssetsOfThisReleaseAreKept(t *testing.T) {
+	s := newSite(t, Options{}, sample)
+	page := s.body("/")
+	m := regexp.MustCompile(`/assets/app/demo\.js\?v=([0-9a-f]+)`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("the page names no version: %.300s", page)
+	}
+	for target, want := range map[string]string{
+		"/assets/app/editor/editor.js?v=" + m[1]: "public, max-age=31536000, immutable",
+		"/assets/app/editor/editor.js":           "public, max-age=86400",
+		"/assets/app/editor/editor.js?v=old":     "public, max-age=86400",
+	} {
+		if got := s.get(target).Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: %q, want %q", target, got, want)
+		}
+	}
+	if strings.Contains(page, "/assets/app/editor/editor.js") {
+		t.Errorf("the editor is not loaded with every page")
 	}
 }
 

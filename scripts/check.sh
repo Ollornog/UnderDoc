@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# The gate before every push and merge: repository hygiene, then the Go part (gofmt, tidy, vet, staticcheck,
-# govulncheck, tests with the race detector).
+# The gate before every push and merge: repository hygiene, the JavaScript part (the web editor built from its lockfile
+# and compared with the bundle, its tests), then the Go part (gofmt, tidy, vet, staticcheck, govulncheck, tests with the
+# race detector) and the browser test.
 #
 #   scripts/check.sh            everything
 #   scripts/check.sh --fast     without govulncheck and the race detector (short loop while building)
@@ -34,6 +35,10 @@ if command -v shellcheck >/dev/null; then
     step "shellcheck"
     shellcheck scripts/*.sh || fail "shellcheck"
 fi
+
+# Before the Go part: the binary embeds the bundles, and the browser test runs them.
+step "JavaScript: the bundles come from the lockfiles"
+scripts/build-js.sh || fail "JavaScript"
 
 # The browser test sits behind a tag, so it also has to pass vet and staticcheck explicitly.
 export GO_PRUEF_TAGS="browser"

@@ -26,7 +26,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
 * ☐ **[M-18](M-18-calendar.md)** Calendar — noch keine Aufgaben
 * ☐ **[M-19](M-19-forms.md)** Forms and simple surveys — noch keine Aufgaben
-* ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 0/1 erledigt
+* ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 1/1 erledigt
 * ☐ **[M-21](M-21-websites.md)** Websites: build and publish — 0/1 erledigt
 * ☐ **[M-22](M-22-mail.md)** Mail in the workspace — noch keine Aufgaben
 * ☐ **[M-23](M-23-network-module.md)** IP addresses and devices — noch keine Aufgaben
@@ -45,7 +45,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-4](T-4-versions-and-audit.md)** Store versions and record who changed what · M-2
 * ☐ **[T-5](T-5-workspace-mockups.md)** Build workspace mockups in several variants and choose · M-14
 * ☐ **[T-6](T-6-window-loading.md)** Choose how windows load their documents · M-15
-* ☐ **[T-7](T-7-review-model.md)** Decide how reviews work, with which forge · M-20
+* ☑ **[T-7](T-7-review-model.md)** Decide how reviews work, with which forge · M-20
 * ☐ **[T-8](T-8-website-kinds.md)** Settle what the site builder covers · M-21
 * ☐ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
 * ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
@@ -60,11 +60,11 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-2](ADR-2-go-and-postgres.md)** Go and PostgreSQL
 * ✗ **[ADR-3](ADR-3-files-as-truth.md)** Files in folders are the source of truth · abgelöst durch ADR-13
 * ☑ **[ADR-4](ADR-4-read-only-first.md)** Read-only first
-* ☑ **[ADR-5](ADR-5-one-instance-per-customer.md)** One instance per customer
+* ✗ **[ADR-5](ADR-5-one-instance-per-customer.md)** One instance per customer · abgelöst durch ADR-23
 * ☑ **[ADR-6](ADR-6-mit-license.md)** MIT license
 * ☑ **[ADR-7](ADR-7-passwords-outside-markdown.md)** Passwords never enter Markdown
 * ☑ **[ADR-8](ADR-8-one-source-per-list.md)** Every list has exactly one source
-* ☑ **[ADR-9](ADR-9-sign-in-gate.md)** TinySesam as the sign-in gate
+* ✗ **[ADR-9](ADR-9-sign-in-gate.md)** TinySesam as the sign-in gate · abgelöst durch ADR-23
 * ☑ **[ADR-10](ADR-10-file-access-doors.md)** Ways to reach the files: SMB, WebDAV, browser
 * ☑ **[ADR-11](ADR-11-versions-and-audit.md)** Versions and audit are built in, Seafile is not the base
 * ☑ **[ADR-12](ADR-12-markdown-first.md)** Start with Markdown only
@@ -76,3 +76,11 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses
 * ☑ **[ADR-19](ADR-19-pages-in-the-database.md)** Pages live in the database, as blocks with IDs
 * ☑ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive
+* ☑ **[ADR-21](ADR-21-editor-codemirror.md)** The web editor is CodeMirror 6 with a live preview
+* ☑ **[ADR-22](ADR-22-parts-and-their-life.md)** Reused parts belong to their document, and their end is chosen
+* ☑ **[ADR-23](ADR-23-tenants-and-sign-in.md)** One or many tenants, and sign-in built in next to the gate
+* ☑ **[ADR-24](ADR-24-search.md)** Search through a search service, Meilisearch by default and OpenSearch as a choice
+* ☑ **[ADR-25](ADR-25-modules-and-profiles.md)** Every module can be switched, by the administrator and by each user
+* ☑ **[ADR-26](ADR-26-realtime-with-yjs.md)** Editing together with Yjs and a small Node companion
+* ☑ **[ADR-27](ADR-27-database-tables.md)** Native tables are rows in JSONB with field definitions, and Markdown tables convert by a button
+* ☑ **[ADR-28](ADR-28-file-storage.md)** Files: the content store keeps the versions, the disk holds the working copy for the share

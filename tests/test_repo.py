@@ -70,7 +70,7 @@ check("Dependabot auto-merge follows the template", automerge.pruefe(str(ROOT)))
 
 # ---- Files
 check("scripts are executable", hygiene.pruefe_ausfuehrbar(str(ROOT), [
-    "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "tests/test_repo.py"]))
+    "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "scripts/build-js.sh", "tests/test_repo.py"]))
 check("required files present", hygiene.pruefe_pflichtdateien(str(ROOT), [
     "LICENSE", "README.md", "i18n/README.de.md", "CHANGELOG.md", "SECURITY.md", "i18n/SECURITY.de.md",
     "CODE_OF_CONDUCT.md", "i18n/CODE_OF_CONDUCT.de.md", "CONTRIBUTING.md", "i18n/CONTRIBUTING.de.md",

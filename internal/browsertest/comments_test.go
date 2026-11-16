@@ -136,20 +136,24 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 		t.Errorf("after a reload: %q", got)
 	}
 
-	// While editing, the bar of a block opens its comments; commentOn does it from elsewhere.
+	// While editing, the handle of a block opens its comments; commentOn does it from elsewhere.
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if !b.waitFor(`!!document.querySelector('.btool [data-act="cblk"][data-id="b1"]:not([disabled])')`) {
-		t.Fatalf("the comment button in the bar is on: %s", b.eval(`document.querySelector('.btool')?.innerHTML.slice(0, 200)`))
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b1"] .bhandle')`) {
+		t.Fatal("no handle in the editor")
 	}
-	b.eval(`document.querySelector('textarea[data-blk="b1"]').focus()`)
-	b.clickOn(`.btool [data-act="cblk"][data-id="b1"]`, 1)
+	b.clickOn(`.cm-ud-marker[data-edb="b1"] .bhandle`, 1)
+	if !b.waitFor(`!!document.querySelector('.bmenu [data-act="bcmt"]:not([disabled])')`) {
+		t.Fatalf("Comment in the menu of the handle is on: %s", b.eval(`document.querySelector('.bmenu')?.innerHTML.slice(0, 200)`))
+	}
+	b.clickOn(`.bmenu [data-act="bcmt"]`, 1)
 	if !b.waitFor(`document.querySelector('.fdrawer .cfor em')?.textContent === '#b1' && document.activeElement?.dataset?.addcmt === '0'`) {
-		t.Fatalf("the bar opens the comments on its block: %s %s", b.eval(drawer), b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+		t.Fatalf("the handle opens the comments on its block: %s %s", b.eval(drawer), b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 	}
 	b.typeText("Is this the right heading?")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`document.querySelector('.btool [data-act="cblk"][data-id="b1"] .cnum')?.textContent === '1'`) {
-		t.Errorf("the bar counts it: %s", b.eval(drawer))
+	b.clickOn(`.cm-ud-marker[data-edb="b1"] .bhandle`, 1)
+	if !b.waitFor(`document.querySelector('.bmenu [data-act="bcmt"] small')?.textContent === '1'`) {
+		t.Errorf("the menu counts it: %s", b.eval(`document.querySelector('.bmenu')?.textContent`))
 	}
 	b.clickOn(`[data-win="0"] .dstatus`, 1)
 	b.eval(`commentOn(at(S.focus).d, 'b2')`)

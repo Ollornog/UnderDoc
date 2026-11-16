@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +55,8 @@ var imageTypes = map[string]string{
 
 // Options configures the handler.
 type Options struct {
-	// DevUI turns on /dev/ui, the workspace with only the made-up content of the mockup, every component in use.
+	// DevUI turns on /dev/ui, the workspace with only the made-up content of the mockup, every component in use, and
+	// /dev/editor-trial, the editor candidates of M-8 side by side, which administrators see without it.
 	DevUI bool
 	// DevUser stands in for the gate when the application runs on its own, for development only.
 	DevUser *account.User
@@ -130,12 +132,13 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("GET /files/{path...}", h.file)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(http.FileServerFS(assets))))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(h.assetVersion, http.FileServerFS(assets))))
 	mux.HandleFunc("GET /assets/logo.svg", serveBytes("image/svg+xml", docs.Logo))
 	mux.HandleFunc("GET /favicon.ico", serveBytes("image/vnd.microsoft.icon", docs.Favicon))
 	if options.DevUI {
 		mux.HandleFunc("GET /dev/ui", h.app)
 	}
+	mux.HandleFunc("GET /dev/editor-trial", h.editorTrial)
 	mux.HandleFunc("GET /", h.notFound)
 	return accessLog(log, secure(h.signedIn(mux))), nil
 }
@@ -214,9 +217,16 @@ func hashAssets() (string, error) {
 	return hex.EncodeToString(hash.Sum(nil))[:12], err
 }
 
-func staticAssets(next http.Handler) http.Handler {
+// staticAssets lets the browser keep an asset for a year when its URL names the version of this release (?v=…): the URL
+// changes with every release, so nothing stale is kept, and the editor, once loaded, comes from the cache (2026-11-09).
+// Without the current version a day.
+func staticAssets(version string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=86400") // URLs carry a version
+		if version != "" && r.URL.Query().Get("v") == version {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -253,6 +263,31 @@ func (h *handler) app(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(out.Bytes())
+}
+
+// editorTrial shows the three editor candidates of M-8 side by side, for comparison until M-8 closes (ADR-21). It is a
+// trial page: the bundles come from web/editor-trial and are not part of the workspace. Only with the dev switch on or
+// for an administrator; anyone else finds nothing here.
+func (h *handler) editorTrial(w http.ResponseWriter, r *http.Request) {
+	if !h.options.DevUI && !h.isAdmin(r) {
+		h.notFound(w, r)
+		return
+	}
+	var out bytes.Buffer
+	if err := h.pages.ExecuteTemplate(&out, "editortrial", appView{Version: h.assetVersion}); err != nil {
+		h.log.Error("template failed", slog.String("template", "editortrial"), slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(out.Bytes())
+}
+
+// isAdmin tells whether the viewer is in the administrators' group of the gate.
+func (h *handler) isAdmin(r *http.Request) bool {
+	user, _ := account.From(r.Context())
+	return h.options.AdminGroup != "" && slices.Contains(user.Groups, h.options.AdminGroup)
 }
 
 // exists tells whether the address of the workspace names something the viewer may see, so an unknown address is a 404

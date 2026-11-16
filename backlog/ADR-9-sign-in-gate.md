@@ -2,9 +2,10 @@
 id: ADR-9
 type: Decision
 title: TinySesam as the sign-in gate
-status: erledigt
+status: verworfen
 tags: [auth]
 created: 2026-11-06
+superseded_by: ADR-23
 ---
 
 ## Context
@@ -25,3 +26,5 @@ TinySesam as a gate in front of the app, passing user and groups through trusted
 - The app must only be reachable through the gate.
 - Public share paths stay open at the gate and are protected by their own token.
 - File access cannot use this sign-in, see ADR-10.
+
+**Replaced on 2026-11-16 by ADR-23:** the gate stays one way to sign in, next to local accounts with passkey, password and TOTP, and OIDC, chosen per tenant.

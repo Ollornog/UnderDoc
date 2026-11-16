@@ -28,3 +28,18 @@ Pages can be written in the browser as quickly as in a notebook app.
   cursor is (the maintainer, 2026-11-08). Until then a block is a plain Markdown field (M-28).
 - A bar above the page offers bold, italic, headings, links, lists, code and the like, after Notion and similar editors.
   Every button writes plain Markdown, so the round trip stays whole (ADR-19).
+
+**Settled on 2026-11-09 (talk with the maintainer):** M-8 comes before M-14 and M-15. It is cut in two: first the core
+(writing inline with the bar and the slash menu, autosave, the round trip test, the JavaScript build in the pipeline), then
+the rest (Quick notes board, templates, aligning blocks). Pasting images waits for the content store (M-2). The editor is
+CodeMirror 6 with a live preview (ADR-21), after a trial of three candidates.
+
+**State 2026-11-09:** the core is built on the branch `editor-core`: one CodeMirror editor per page with the live preview,
+the hidden markers with the handles, the bar above the page with Ctrl+B/I/K, the slash menu, pasting addresses, autosave
+block by block with the question before deleting what is used elsewhere, a reload instead of overwriting a change made
+elsewhere, and the bundle built and compared in the pipeline (docs/editor.md). The round trip test proves that opening
+and leaving a page writes nothing. Still open in M-8: Quick notes, templates, aligning blocks, table tools, pasting
+images (with M-2), and the rest of the list above.
+
+**Added on 2026-11-16 (ADR-22):** a block used elsewhere shows its boundary and "used in N places" while the cursor is in
+it, so whoever writes there knows that other pages change too.

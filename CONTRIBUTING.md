@@ -16,7 +16,8 @@ assets or translations from them, in particular not from projects under a source
 ## Workflow
 
 - Work on a **feature branch**, not on `main`.
-- Run the full suite before you push: `scripts/check.sh`. It must be green **twice in a row**.
+- Run the full suite before you push: `scripts/check.sh`. It must be green **twice in a row**. It needs Go, Python,
+  Node with npm (for the web editor, [docs/editor.md](docs/editor.md)) and Chrome or Chromium.
 - Documentation and `CHANGELOG.md` travel in the **same commit** as the change they describe.
 - Code, comments, commits and docs are in English. German exists as a translation only.
 - Examples use `example.com` and made-up names, never real companies, hosts or data.

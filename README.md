@@ -71,6 +71,11 @@ Markdown files with front matter, and a hidden comment before each block that ke
 <dir> <title>` reads such a tree, or any folder of Markdown files, into a new collection. The layout and the rules are in
 [docs/export.md](docs/export.md).
 
+**The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
+from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
+`web/editor`, and the built bundle is in the repository, so building UnderDoc needs only Go. How it works and how to
+build it: [docs/editor.md](docs/editor.md).
+
 **Writing pages:**
 
 - A page is a `.md` file, written in any text editor. Hidden files and symbolic links are skipped.

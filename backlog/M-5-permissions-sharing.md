@@ -27,3 +27,5 @@ Permissions are good enough for company data.
 - Samba can optionally join a domain.
 - Passwords in text work as described in ADR-7, and an attack round has looked at them.
 - Access and changes are logged.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Sign-in and tenants follow ADR-23. Public shares are proven in tests; on the test instance the gate at the edge stays closed, and the gate on the host lets the share path through for the mesh only. Samba users come with the Samba part at the end.

@@ -63,6 +63,11 @@ normale Dateien: Ordner, Markdown-Dateien mit Kopfbereich und vor jedem Block ei
 `underdoc import --owner <login> <ordner> <titel>` liest so einen Baum, oder jeden Ordner mit Markdown-Dateien, in eine neue
 Sammlung ein. Aufbau und Regeln stehen (englisch) in [docs/export.md](../docs/export.md).
 
+**Der Web-Editor** schreibt eine Seite der Datenbank in einem Editor mit Live-Vorschau: Markdown, das abseits des Cursors
+gerendert aussieht, eine Leiste über der Seite, `/` für die Arten von Blöcken und Speichern beim Tippen. Er wird mit
+Node aus `web/editor` gebaut, und das gebaute Paket liegt im Repository, also braucht der Bau von UnderDoc nur Go. Wie
+er arbeitet und wie man ihn baut: [docs/editor.md](../docs/editor.md).
+
 **Seiten schreiben:**
 
 - Eine Seite ist eine `.md`-Datei, geschrieben in einem beliebigen Texteditor. Versteckte Dateien und symbolische Links werden übersprungen.

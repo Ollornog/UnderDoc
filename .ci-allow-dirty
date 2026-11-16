@@ -1,0 +1,5 @@
+# What a run of scripts/check.sh may leave in the tree (residue check).
+# The bundles of the web editor and its trial: scripts/build-js.sh builds them from the lockfiles into the assets the
+# binary embeds, on purpose and ignored by git (ADR-21). The next run builds them again from scratch.
+internal/web/assets/app/editor/
+internal/web/assets/app/editor-trial/

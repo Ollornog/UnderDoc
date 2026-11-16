@@ -186,8 +186,9 @@ jobs:
           APP_LOGIN: "ollornog-auto-merge[bot]"
           # --- je Repo: Anfang
           # Ökosysteme, die die Pflicht-Checks dieses Repos abnehmen (Branch `dependabot/<ökosystem>/…`).
-          # Je Ökosystem gehört hierher, WELCHER Job es abnimmt.
-          AUTO_OEKO: "github_actions gomod docker"
+          # Je Ökosystem gehört hierher, WELCHER Job es abnimmt: ci.yml/check.sh nimmt Go (go_modules), den Editor (npm_and_yarn:
+          # build-js.sh baut aus dem Lockfile, Node-Tests und Browser-Tests) und das Abbild (docker: check-image.sh) ab.
+          AUTO_OEKO: "github_actions go_modules npm_and_yarn docker"
           # Die Workflows, deren Jobs die Abnahme sind. Jeder läuft auf `pull_request` ohne Pfadfilter.
           PFLICHT_WORKFLOWS: "ci.yml audit.yml"
           # Accepted after the merge (2026-11-14): the image actions run only in image.yml on main. Its follow-up run

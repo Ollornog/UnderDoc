@@ -59,3 +59,5 @@ this milestone completes it.
 - The phone has its own layout, as T-10 settles it, with the same objects, addresses and meaning of each action (ADR-17).
 - **Acceptance: the chosen variant runs on real content, and a browser test with real pointer input covers dragging the columns on
   the desktop and the phone layout.**
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** For the sprint, only what works matters (module interface, metadata, settings); the look of the shell waits for the maintainer's pass. Pages follow Docmost and Confluence.

@@ -20,3 +20,5 @@ Customers, contacts and the like live in native lists instead of Excel.
   document uses.
 - A list can also be a to-do list with check boxes or a kanban board with cards to drag. Both are document types and views of the
   same data, so one can switch to the other.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** The table editor follows ADR-27: rows in JSONB with field definitions, views grid, kanban, calendar, gallery and form, Markdown tables convert by a button.

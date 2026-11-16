@@ -24,3 +24,5 @@ milestone (ADR-14) settles the scope.
 - A recipe is a document type, not a view of its own: it sits in collections like any document, with an ID, and opens in a tab
   (ADR-16, ADR-18).
 - Its ingredients and steps are kept as structure, and Markdown stays the way in and out (ADR-19).
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint: servings scale the amounts, metric units convert.

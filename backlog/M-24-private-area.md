@@ -30,3 +30,5 @@ milestone (ADR-14) settles the scope.
   one open (ADR-16).
 - A user can export and delete all of their private data.
 - Switched off, the module leaves no entry behind, and no data is touched.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** All parts may be built. Time and leave work purely privately, or with the full company function (approval, overview for managers) that a company switches on itself; a legal review comes first, and the interface says that a company may need an agreement with employee representatives.

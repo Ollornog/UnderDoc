@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -109,7 +108,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 	lib := h.store.Library()
 	state := apiState{
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
-			Admin: h.options.AdminGroup != "" && slices.Contains(user.Groups, h.options.AdminGroup)},
+			Admin: h.isAdmin(r)},
 		CanCreate: h.options.DB != nil,
 		Problems:  len(lib.Problems()),
 	}

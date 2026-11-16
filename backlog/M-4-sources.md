@@ -17,3 +17,5 @@ Data from other systems appears as native tables.
 - Cached data is searchable.
 - Adds the document types database and database view. Sources and connections appear in the Resources tab, and the facts panel
   adds the databases and views a document uses.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Credentials are entered in the interface and stored encrypted (ADR-23). Views show the cached state first and refresh after loading, adjustable per source and view (ADR-27).

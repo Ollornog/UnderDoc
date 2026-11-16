@@ -11,9 +11,6 @@ All notable changes to this project are documented in this file. The format foll
 - Every image published from main now also opens the pin PR in the fleet repo (job `fc-pin` in `image.yml`, kit script
   `scripts/_release_automatik.py`, target from the variable `PIN_REPO`): the new `main-<sha>` with its digest replaces the
   pin there; the fleet repo's start probe and auto-merge take it from there.
-
-### Changed
-
 - Dependabot updates of `docker/setup-buildx-action`, `docker/login-action` and `docker/build-push-action` merge by
   themselves: they run only in `image.yml` on `main`, which now accepts them after the merge
   (`NACH_MERGE_ABGENOMMEN`). If that run fails, no new image is published. #50 had been waiting for a manual merge.
@@ -23,7 +20,43 @@ All notable changes to this project are documented in this file. The format foll
 - Every state on `main` is published as a container image, `ghcr.io/ollornog/underdoc:main-<commit>`, for amd64 and
   arm64 (`.github/workflows/image.yml`; after a Dependabot auto-merge the merge job starts it, too). The same check as in the CI (`scripts/check-image.sh`) runs first; a manual run
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles
-  (`--platform=$BUILDPLATFORM`, `GOARCH=$TARGETARCH`), so arm64 needs no emulation.
+  (`--platform=$BUILDPLATFORM`, `GOARCH=$TARGETARCH`), so arm64 needs no emulation. The JavaScript stage runs on the
+  build platform, too.
+- The web editor of M-8, part one (ADR-21): a page of the database is written in one editor, CodeMirror 6 with a live
+  preview of UnderDoc's own. Markdown looks rendered away from the cursor and shows on the lines being written; headings,
+  emphasis, code, lists, to-dos, quotes, links, rules and tables convert as they are typed, and an embedding shows as a
+  box that names what it embeds, with a link. The blocks are joined with hidden marker lines, the same as in the export;
+  each block shows its handle there, whose menu copies the address, comments, moves the block and deletes it. A bar above
+  the page turns lines into another kind and formats the selection (also Ctrl+B, Ctrl+I, Ctrl+K); `/` at the start of an
+  empty line opens the kinds. Pasting an address alone on an empty line embeds it. See docs/editor.md.
+- Autosave about a second after typing stops and when the editor is left: changed blocks are written, a paragraph written
+  before or after a block becomes a block of its own with its ID and marker, a block whose marker is gone is deleted, one
+  used elsewhere only after a question in place, and a changed order is moved. Opening and leaving a page without typing
+  writes nothing. A page changed elsewhere meanwhile is never overwritten: it is loaded again with a notice.
+- The JavaScript part in the pipeline: `web/editor` is built with esbuild from its lockfile (exact versions, all MIT),
+  with the licence texts shipped next to the bundle. The bundles are not committed: `scripts/build-js.sh`, in
+  `scripts/check.sh` and the CI, and a stage of the Dockerfile install from the lockfile, run the tests of the editor's
+  plan of saving with Node and build them. Dependabot watches `web/editor`, and its updates merge by themselves when the
+  checks are green, as Go modules now do too (the auto-merge named the ecosystem `gomod` instead of `go_modules`).
+- The editor is loaded when it is needed, not with every page, and the browser keeps assets of a release for a year.
+- The look of the editor's bar, the handle on a block's marker line, the question before a used block goes, the box of an
+  embedding and the slash menu comes from C22; the editor bundle keeps only what is its own.
+- A block is moved by dragging its handle, in reading and in the editor, with the mouse or a finger: the block lifts, a
+  gap opens between the blocks where it would land, the drop moves it (reading through the move API, editing in the text,
+  which saving moves on the server: same ID, same text, no new version), and Escape gives up. A click still opens the
+  menu of the handle, whose Move up and Move down stay the way with the keyboard. Only who may change the page drags.
+- In blocks of the database a single newline is a line break, as in Obsidian or Notion: two quote lines, or two lines of
+  a paragraph, no longer run together when read. The Markdown does not change; pages of the folder source keep standard
+  Markdown.
+- The bar of the editor is a row of the window while a page is written, between the head and the page, full width and
+  flat, and stays in place while the page scrolls.
+- The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
+  `/dev/editor-trial`, with the dev switch or for administrators.
+
+### Removed
+
+- The block editing of M-28, one Markdown field per block with a bar floating above it and a plus beside it: the editor
+  carries all of it (ADR-21). Reading, the handles, their menus and comments stay.
 
 ### Fixed
 
@@ -34,12 +67,21 @@ All notable changes to this project are documented in this file. The format foll
   account (`settingsSent`) instead of racing the 600 ms save.
 - Go toolchain 1.27.3 → 1.27.4 (`go.mod`, `.github/audit/go.mod`, build image `golang:1.27.4-alpine3.24` by digest):
   `net/http` in 1.27.3 carries GO-2026-6859, so the scheduled `audit` on `main` was red since 2026-11-11.
+- Dragging a block works on real pages (2026-11-10): the browser no longer takes the pointer away when text is selected
+  over the handle (it started its own drag of the selection and cancelled the pointer), a held block shows in its gap
+  with its first lines only, so the places around a long block (a whole section of an imported file) are in reach, and
+  the page scrolls by itself while a block is held at the top or bottom edge, so it goes to places out of view.
+- The menu of a block's handle is as compact as the right-click menus and looks like them; in the editor it no longer
+  shows blank lines between its items, and near the bottom of the window it opens above the handle.
+- The editor keeps the rhythm of the page as it is read: a blank line between paragraphs or blocks, away from the
+  cursor, is as high as the space after a paragraph (two paragraphs stood 48 px apart, now 34.4 px, as when read), and
+  its lines are as high as when read.
 - At phone width nothing is cut off and everything can be reached, before the phone has a layout of its own (M-28):
   nav3 had no width when nav2 and nav3 lay over the window, so its lists, the search and the profile were out of reach;
   the handle and the plus beside a block and its speech bubble stood outside the window and showed only to a hovering
   pointer; the menu of a block started off the screen; the windows of commented pages scrolled sideways; and the label
   Administration in nav2 was cut off. A touch screen now shows the handle, the plus and the bubble faintly (C22 block
-  `.c22-app-workspace`, vendored from a branch until it is merged there).
+  `.c22-app-workspace`, vendored from its main, 9f331aa).
 - A long press on a touch screen is the right click (ADR-17): it opens the same menu, so the trash, the problems and the
   menus of entries and tabs are in reach on a phone; where the browser opens a menu of its own, only one opens, and the
   lifting finger clicks nothing. Browser tests at 390×844 and 360×740 walk the main states with real touch input and fail

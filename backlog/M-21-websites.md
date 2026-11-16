@@ -19,3 +19,5 @@ the details.
 - Published pages show frozen data, with all embedded objects listed for release, like public shares (M-5).
 - Nothing on a published site loads from third parties.
 - A site can be exported as static files.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint.

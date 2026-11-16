@@ -19,3 +19,5 @@ Only an idea so far. Check again whether it is needed before building it.
 - Forms work for signed-in users or, with a token, publicly. Public forms have limits against abuse.
 - Forms on external databases only where writing back is enabled for that source (M-9).
 - Personal data in answers can be deleted, and how long it is kept is configurable.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint.
