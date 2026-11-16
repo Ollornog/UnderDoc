@@ -54,6 +54,11 @@ loaded again with a notice, which offers to copy what was written since the last
   headings, lists, to-do, quote, code) for the lines of the selection, and bold, italic, strikethrough, code and link for
   the selection, and whether the page is saved. Ctrl+B, Ctrl+I and Ctrl+K do the same. Its buttons keep the selection and
   the focus in the editor. Every button writes plain Markdown, so the round trip stays whole.
+- **Table tools** (`web/editor/src/tables.js`): while the cursor stands in a table, the bar shows Row above, Row below,
+  Column left, Column right, Delete row, Delete column and the alignment of the column (left, center, right, written in
+  the row of dashes). Each writes the whole table again as plain Markdown, `| a | b |` with one row per line, and the
+  cursor goes to the cell the tool names; a table no tool touched stays as it was typed. The header row and the last
+  column stay: a table needs them, and the workspace says so.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
 - The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Its menu is as

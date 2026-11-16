@@ -929,6 +929,7 @@ document.addEventListener('click',e=>{
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
     case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
     case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
+    case 'edtable':{const e=EDS[t.d];if(e&&!e.ed.table(a.k))toast(a.k==='rowDelete'?'The header row stays: a table needs one.':a.k==='colDelete'?'The last column stays: a table needs one.':'The cursor is not in a table.');return;}
     case 'edmove':{const e=EDS[t.d];if(e)e.ed.moveBlock(a.id,a.k);break;}
     case 'eddel':{const e=EDS[t.d];if(e)e.ed.deleteBlock(a.id);break;}
     case 'edcopy':{const text=S.edNote&&S.edNote[t.d];if(text)(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast('What you wrote is on the clipboard.'),()=>toast('The clipboard could not be written.'));return;}
@@ -1336,6 +1337,13 @@ const KINDS=[['p','Text','text'],['h1','Heading 1','heading'],['h2','Heading 2',
   ['ol','Numbered list','olist'],['todo','To-do list','check'],['quote','Quote','quote'],['code','Code','code']];
 const SLASH=[...KINDS.map(k=>({k:k[0],n:k[1],i:k[2]})),{k:'hr',n:'Divider',i:'hr'},{k:'table',n:'Table',i:'table'},
   {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
+/* The table tools of the bar (M-8): shown while the cursor stands in a table; each writes the table again as Markdown. */
+Object.assign(I,{rowup:'<rect x="3" y="11" width="18" height="9" rx="1"/><path d="M12 3v6M9 6h6"/>',rowdown:'<rect x="3" y="4" width="18" height="9" rx="1"/><path d="M12 15v6M9 18h6"/>',
+  colleft:'<rect x="11" y="3" width="9" height="18" rx="1"/><path d="M3 12h6M6 9v6"/>',colright:'<rect x="4" y="3" width="9" height="18" rx="1"/><path d="M15 12h6M18 9v6"/>',
+  rowdel:'<rect x="3" y="7" width="18" height="10" rx="1"/><path d="m9 10 6 4M15 10l-6 4"/>',coldel:'<rect x="7" y="3" width="10" height="18" rx="1"/><path d="m10 9 4 6M14 9l-4 6"/>',
+  alleft:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',alcenter:'<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',alright:'<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'});
+const TABLE=[['rowAbove','Row above','rowup'],['rowBelow','Row below','rowdown'],['colLeft','Column left','colleft'],['colRight','Column right','colright'],
+  ['rowDelete','Delete row','rowdel'],['colDelete','Delete column','coldel'],['alignLeft','Align column left','alleft'],['alignCenter','Center column','alcenter'],['alignRight','Align column right','alright']];
 const FMT=[['bold','Bold (Ctrl+B)','bold'],['italic','Italic (Ctrl+I)','italic'],['strike','Strikethrough','strike'],['code','Inline code','code'],['link','Link (Ctrl+K)','link']];
 /* Every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies the address
    to embed the block, comments on it and says where it is used. In reading it opens the block for editing; in the editor
@@ -1374,6 +1382,7 @@ function edBarHtml(key,i){
   return `<div class="btool edbar" role="toolbar" aria-label="Write" data-edbar="${key}">
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
       <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
+      <span data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
@@ -1408,6 +1417,7 @@ function makeEditor(key){
     embed:ref=>{const [sid,blk]=ref.split('#'),k=Object.keys(D).find(x=>D[x].sid===sid);return {label:(k?plain(D[k].n):'Page '+sid)+(blk?' · #'+blk:''),href:'/o/'+sid+(blk?'#'+blk:'')};},
     on:{
       kind:k=>{e.kind=k;show('data-edtype',k,'value');},
+      table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),

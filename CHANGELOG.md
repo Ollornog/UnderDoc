@@ -17,6 +17,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
+  left or right of it, a row or a column goes, and a column is aligned left, center or right. Each tool writes the table
+  again as plain Markdown, and the cursor goes to the cell it names. See docs/editor.md.
 - Every state on `main` is published as a container image, `ghcr.io/ollornog/underdoc:main-<commit>`, for amd64 and
   arm64 (`.github/workflows/image.yml`; after a Dependabot auto-merge the merge job starts it, too). The same check as in the CI (`scripts/check-image.sh`) runs first; a manual run
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles

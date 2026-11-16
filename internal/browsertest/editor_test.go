@@ -561,3 +561,63 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 	}
 	b.shot("editor-rhythm")
 }
+
+// The table tools of the bar (M-8): shown while the cursor stands in a table, each writes the table again as plain
+// Markdown, and the cursor goes to the cell the tool names.
+func TestTheTableTools(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
+	b.openEditing(base, page, "Tables")
+	if got := b.eval(`document.querySelector('[data-edtable]').hidden`); got != "true" {
+		t.Errorf("the table tools hide while the cursor is in no table: %q", got)
+	}
+	b.clickOn(`.cm-editor .cm-lp-table-widget td`, 1)
+	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
+		t.Fatalf("the table tools did not show in the table: %s", b.eval(edText))
+	}
+	b.shot("editor-table-tools")
+	b.lineWith("| 1 | 10 |")
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowBelow"]`, 1)
+	if !b.edWait(`t.includes('| 1 | 10 |\n|  |  |')`) {
+		t.Fatalf("Row below: %q", b.eval(edText))
+	}
+	b.typeKeys("x")
+	if !b.edWait(`t.includes('| 1 | 10 |\n|  | x |')`) {
+		t.Errorf("the cursor stands in the new row, in the column it was in: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="colLeft"]`, 1)
+	b.typeKeys("y")
+	if !b.edWait(`t.includes('| Port |  | VLAN |\n|---|---|---:|\n| 1 |  | 10 |\n|  | y | x |')`) {
+		t.Errorf("Column left: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="alignCenter"]`, 1)
+	if !b.edWait(`t.includes('|---|:---:|---:|')`) {
+		t.Errorf("Center column: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowAbove"]`, 1)
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
+	b.clickOn(`.edbar [data-act="edtable"][data-k="colDelete"]`, 1)
+	want := "| Port | VLAN |\n|---|---:|\n| 1 | 10 |\n|  | x |"
+	if !b.edWait(`t.includes(` + strconv.Quote(want) + `)`) {
+		t.Errorf("Row above, then Delete row and Delete column: %q", b.eval(edText))
+	}
+	b.lineWith("| Port | VLAN |")
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
+	if !b.waitFor(`/header row stays/.test(document.body.textContent)`) {
+		t.Errorf("the header row does not go, and the workspace says why")
+	}
+	if !b.edWait(`t.includes(` + strconv.Quote(want) + `)`) {
+		t.Errorf("the header row stays: %q", b.eval(edText))
+	}
+	b.lineWith("Before")
+	if !b.waitFor(`document.querySelector('[data-edtable]').hidden`) {
+		t.Errorf("the table tools hide again outside the table")
+	}
+	time.Sleep(1500 * time.Millisecond)
+	if got := b.stored(page); got != "b1:Before | b2:"+want {
+		t.Errorf("the server has: %q", got)
+	}
+	b.clean("table tools")
+}

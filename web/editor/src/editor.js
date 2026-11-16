@@ -15,6 +15,7 @@ import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/lan
 import { classHighlighter } from '@lezer/highlight';
 import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, EMBED } from './blocks.js';
 import { run, Conflict } from './save.js';
+import * as tables from './tables.js';
 import './editor.css';
 
 /** How long typing has to rest before the page is saved. */
@@ -918,6 +919,32 @@ function linesOf(state) {
   return { from, to, code: false };
 }
 
+/** tableAt returns the table around the cursor, {from, to}, or null. */
+function tableAt(state) {
+  const tree = syntaxTree(state);
+  const head = state.selection.main.head;
+  for (const side of [1, -1]) {
+    for (let node = tree.resolveInner(head, side); node; node = node.parent) if (node.name === 'Table') return { from: node.from, to: node.to };
+  }
+  return null;
+}
+
+/** tableTool uses a tool of the bar on the table at the cursor; the cursor goes to the cell the tool names. */
+function tableTool(view, tool) {
+  const at = tableAt(view.state);
+  if (!at) return false;
+  const text = view.state.sliceDoc(at.from, at.to);
+  const done = tables.apply(text, tables.cellAt(text, view.state.selection.main.head - at.from), tool);
+  if (!done) return false;
+  view.dispatch({
+    changes: { from: at.from, to: at.to, insert: done.text },
+    selection: { anchor: at.from + tables.cellStart(done.text, done.row, done.col) },
+    userEvent: 'input',
+    scrollIntoView: true,
+  });
+  return true;
+}
+
 function kindAt(state) {
   const { from, code } = linesOf(state);
   return kindOf(state.doc.lineAt(from).text, code);
@@ -1041,6 +1068,7 @@ class PageEditor {
       if (b) this.answer(b.closest('[data-ask]').dataset.ask, b.dataset.answer === 'delete');
     });
     this.lastKind = null;
+    this.lastTable = false;
   }
 
   get dom() {
@@ -1061,6 +1089,11 @@ class PageEditor {
       if (kind !== this.lastKind) {
         this.lastKind = kind;
         this.emit('kind', kind);
+      }
+      const inTable = !!tableAt(u.state);
+      if (inTable !== this.lastTable) {
+        this.lastTable = inTable;
+        this.emit('table', inTable);
       }
     }
     if (u.focusChanged && !u.view.hasFocus) this.schedule(0);
@@ -1206,6 +1239,18 @@ class PageEditor {
 
   kind() {
     return kindAt(this.view.state);
+  }
+
+  /** table uses a table tool (tables.TOOLS) at the cursor; false when the cursor is in no table or the tool does not apply. */
+  table(tool) {
+    const done = tableTool(this.view, tool);
+    this.view.focus();
+    return done;
+  }
+
+  /** inTable tells whether the cursor stands in a table. */
+  get inTable() {
+    return !!tableAt(this.view.state);
   }
 
   /** focusBlock puts the cursor at the start of a block's text. */
