@@ -136,6 +136,28 @@ class MarkerWidget extends WidgetType {
   }
 }
 
+// The label of a block used elsewhere, at the end of its first line while the cursor is in it (ADR-22).
+class UsedWidget extends WidgetType {
+  constructor(count, where) {
+    super();
+    this.count = count;
+    this.where = where;
+  }
+  eq(other) {
+    return other.count === this.count && other.where === this.where;
+  }
+  toDOM() {
+    const label = document.createElement('span');
+    label.className = 'cm-ud-usedlabel lab';
+    label.textContent = `Used in ${this.count} ${this.count === 1 ? 'place' : 'places'}`;
+    label.title = `Changes here show there too: ${this.where}`;
+    return label;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 class AskWidget extends WidgetType {
   constructor(id, used) {
     super();
@@ -408,6 +430,25 @@ function decorate(state) {
     const line = doc.lineAt(m.from);
     const html = cfg.handle ? cfg.handle(m.id) : '';
     add(line.from, line.to, Decoration.replace({ widget: new MarkerWidget(m.id, html, m.id === current || m.id === hover), block: true }));
+  }
+  // A block used elsewhere shows its boundary and where it is used while the cursor is in it, so whoever writes there
+  // knows that other pages change too (ADR-22).
+  const usedCount = current && cfg.usedCount ? cfg.usedCount(current) : 0;
+  if (usedCount) {
+    const k = marks.findIndex((m) => m.id === current);
+    const first = doc.lineAt(marks[k].from).number + 1;
+    let last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
+    while (last >= first && !doc.line(last).text.trim()) last--;
+    for (let n = first; n <= last; n++) {
+      const l = doc.line(n);
+      add(l.from, l.from, lineClass('cm-ud-used'));
+      if (n === first) add(l.from, l.from, lineClass('cm-ud-used-first'));
+      if (n === last) add(l.from, l.from, lineClass('cm-ud-used-last'));
+    }
+    if (last >= first) {
+      const l = doc.line(first);
+      add(l.to, l.to, Decoration.widget({ widget: new UsedWidget(usedCount, cfg.usedIn(current)), side: 1 }));
+    }
   }
   // A block used elsewhere whose marker is gone asks here first.
   for (const id of asks) {
@@ -1016,6 +1057,10 @@ class PageEditor {
       usedIn: (id) => {
         const b = this.stored.find((x) => x.id === id);
         return b && b.usedIn.length ? b.usedIn.join(', ') : '';
+      },
+      usedCount: (id) => {
+        const b = this.stored.find((x) => x.id === id);
+        return b ? b.usedIn.length : 0;
       },
     };
     this.view = new EditorView({

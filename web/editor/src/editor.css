@@ -235,3 +235,26 @@
 }
 
 /* The compact menu of a handle and the short gap of a held long block look as C22 has them (2026-11-10). */
+
+/* A block used elsewhere, while the cursor is in it: a light outline round its lines and, at the end of its first line,
+   where it is used (ADR-22). The label is C22's .lab; the outline waits for a rule of its own there. */
+.cm-editor.cm-ud .cm-line.cm-ud-used {
+  box-shadow: inset 1px 0 0 var(--ring), inset -1px 0 0 var(--ring);
+}
+
+.cm-editor.cm-ud .cm-line.cm-ud-used.cm-ud-used-first {
+  box-shadow: inset 1px 0 0 var(--ring), inset -1px 0 0 var(--ring), inset 0 1px 0 var(--ring);
+}
+
+.cm-editor.cm-ud .cm-line.cm-ud-used.cm-ud-used-last {
+  box-shadow: inset 1px 0 0 var(--ring), inset -1px 0 0 var(--ring), inset 0 -1px 0 var(--ring);
+}
+
+.cm-editor.cm-ud .cm-line.cm-ud-used.cm-ud-used-first.cm-ud-used-last {
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.cm-editor.cm-ud .cm-ud-usedlabel {
+  float: right;
+  margin-left: 1em;
+}

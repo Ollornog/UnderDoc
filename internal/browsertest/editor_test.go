@@ -621,3 +621,39 @@ func TestTheTableTools(t *testing.T) {
 	}
 	b.clean("table tools")
 }
+
+// A block used elsewhere shows its boundary and where it is used while the cursor is in it (ADR-22), so whoever writes
+// there knows that other pages change too; other blocks show nothing of the kind.
+func TestAUsedBlockShowsItsBoundary(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Used", "One", "Two\nand more", "Three")
+	makePage(b, "Uses it", "::embed{ref=\""+page+"#b2\"}")
+	makePage(b, "Uses it too", "::embed{ref=\""+page+"#b2\"}")
+	b.openEditing(base, page, "Used")
+	b.lineWith("One")
+	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel').length`); got != "0" {
+		t.Errorf("a block used nowhere shows no boundary: %q", got)
+	}
+	b.lineWith("and more")
+	if !b.waitFor(`document.querySelectorAll('.cm-editor .cm-line.cm-ud-used').length === 2`) {
+		t.Fatalf("the lines of the used block are outlined: %q", b.eval(`[...document.querySelectorAll('.cm-editor .cm-ud-used')].map(l => l.textContent).join(' / ')`))
+	}
+	if got := b.eval(`(() => { const f = document.querySelector('.cm-ud-used-first'), l = document.querySelector('.cm-ud-used-last'), x = f.querySelector('.cm-ud-usedlabel');
+		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, getComputedStyle(f).boxShadow !== 'none', x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
+		t.Errorf("the boundary and its label: %q", got)
+	}
+	b.shot("editor-used-block")
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	if !b.waitFor(`!document.querySelector('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel')`) {
+		t.Errorf("leaving the block takes the boundary away: %s", b.eval(edText))
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if got := b.eval(`window.writes.join(', ')`); got != "" {
+		t.Errorf("showing the boundary wrote: %s", got)
+	}
+	b.clean("used block")
+}

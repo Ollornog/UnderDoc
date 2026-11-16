@@ -17,6 +17,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- A block used elsewhere shows its boundary and "Used in N places" while the cursor is in it in the editor (ADR-22), so
+  whoever writes there knows that other pages change too.
 - Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
   left or right of it, a row or a column goes, and a column is aligned left, center or right. Each tool writes the table
   again as plain Markdown, and the cursor goes to the cell it names. See docs/editor.md.

@@ -54,6 +54,9 @@ loaded again with a notice, which offers to copy what was written since the last
   headings, lists, to-do, quote, code) for the lines of the selection, and bold, italic, strikethrough, code and link for
   the selection, and whether the page is saved. Ctrl+B, Ctrl+I and Ctrl+K do the same. Its buttons keep the selection and
   the focus in the editor. Every button writes plain Markdown, so the round trip stays whole.
+- **A block used elsewhere** (embedded in other pages, ADR-22) shows its boundary while the cursor is in it: a light
+  outline round its lines and, at the end of its first line, "Used in N places", with the places in its title. So whoever
+  writes there knows that other pages change too. Away from the block, or in a block used nowhere, nothing shows.
 - **Table tools** (`web/editor/src/tables.js`): while the cursor stands in a table, the bar shows Row above, Row below,
   Column left, Column right, Delete row, Delete column and the alignment of the column (left, center, right, written in
   the row of dashes). Each writes the whole table again as plain Markdown, `| a | b |` with one row per line, and the
