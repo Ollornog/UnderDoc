@@ -1,0 +1,209 @@
+//go:build browser
+
+// SPDX-License-Identifier: MIT
+
+package browsertest
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
+	"github.com/Ollornog/UnderDoc/internal/web"
+)
+
+// setupWithFiles starts the handler with a database and a content store; anna is an administrator.
+func setupWithFiles(t *testing.T) (*browser, string, *db.DB, *store.Store) {
+	t.Helper()
+	database, err := db.Open(context.Background(), pgtest.URL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(database.Close)
+	s, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops"}, nil)
+	return b, base, database, s
+}
+
+// waitEvent reads the events of the browser until one of this method comes, and returns its parameters.
+func (b *browser) waitEvent(method string) json.RawMessage {
+	b.t.Helper()
+	deadline := time.After(evalPatience)
+	for {
+		select {
+		case m, open := <-b.events:
+			if !open {
+				b.t.Fatal("Chrome has ended")
+			}
+			if m.Method == method && m.SessionID == b.session {
+				return m.Params
+			}
+		case <-deadline:
+			b.t.Fatalf("no %s", method)
+		}
+	}
+}
+
+// choose clicks a button that opens the file chooser, as a hand would, and picks files in it.
+func (b *browser) choose(selector string, files ...string) {
+	b.t.Helper()
+	b.call("Page.setInterceptFileChooserDialog", map[string]any{"enabled": true}, nil)
+	b.clickOn(selector, 1)
+	var opened struct{ BackendNodeID int }
+	if err := json.Unmarshal(b.waitEvent("Page.fileChooserOpened"), &opened); err != nil {
+		b.t.Fatal(err)
+	}
+	b.call("DOM.setFileInputFiles", map[string]any{"files": files, "backendNodeId": opened.BackendNodeID}, nil)
+	b.call("Page.setInterceptFileChooserDialog", map[string]any{"enabled": false}, nil)
+}
+
+func writeTemp(t *testing.T, name string, content []byte) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+const fileRows = `[...document.querySelectorAll('.nav3 [data-act="fopen"], .nav3 [data-act="fdir"].name')].map(n => n.textContent.trim()).join(', ')`
+
+// The view Files with the real mouse: a root in nav2, an upload through the file chooser, the file in the window with its
+// preview, a new version, a restore, files dropped from the desktop, and a new folder.
+func TestFilesByHand(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+	if !b.waitFor(`!!document.querySelector('.nav3 [data-act="fup"]')`) {
+		t.Fatalf("no upload in my files: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	}
+	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ')`); got != "Company, My files, New collection, Add a source" {
+		t.Errorf("the roots in nav2: %q", got)
+	}
+	picture, _ := base64.StdEncoding.DecodeString(pixel)
+	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "photo.png", picture))
+	if !b.waitFor(fileRows + ` === 'photo.png'`) {
+		t.Fatalf("the upload is not listed: %q", b.eval(fileRows))
+	}
+	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "photo.png"), 1)
+	b.ready("photo.png")
+	if !b.waitFor(`(() => { const i = document.querySelector('article.doc img'); return !!i && i.complete && i.naturalWidth === 1; })()`) {
+		t.Fatalf("no preview of the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	}
+	b.shot("file-in-window")
+	// A new version through its button, then the first one back.
+	b.choose(probe(b, `article.doc button.chip`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
+	versions := `document.querySelectorAll('article.doc table tr').length - 1`
+	if !b.waitFor(versions + ` === 2`) {
+		t.Fatalf("versions: %s", b.eval(versions))
+	}
+	b.clickOn(probe(b, `article.doc [data-act="frestore"]`, "Restore"), 1)
+	if !b.waitFor(versions + ` === 3`) {
+		t.Fatalf("after the restore: %s", b.eval(versions))
+	}
+	// Files dropped from the desktop onto the list land in the folder shown.
+	notes := writeTemp(t, "notes.txt", []byte("hello"))
+	list := b.rect(`.nav3 #tree`)
+	for _, kind := range []string{"dragEnter", "dragOver", "drop"} {
+		b.call("Input.dispatchDragEvent", map[string]any{"type": kind, "x": list.X, "y": list.Y,
+			"data": map[string]any{"items": []any{}, "files": []string{notes}, "dragOperationsMask": 1}}, nil)
+	}
+	if !b.waitFor(fileRows + ` === 'notes.txt, photo.png'`) {
+		t.Fatalf("the dropped file is not listed: %q", b.eval(fileRows))
+	}
+	// A new folder is named in place and opens with its path.
+	b.clickOn(`.nav3 [data-act="fnewdir"]`, 1)
+	b.clickOn(`.nav3 form[data-fform="dir"] input`, 3)
+	b.typeText("Scans")
+	b.clickOn(`.nav3 form[data-fform="dir"] button`, 1)
+	if !b.waitFor(fileRows + ` === 'Scans, notes.txt, photo.png'`) {
+		t.Fatalf("the new folder: %q", b.eval(fileRows))
+	}
+	b.clickOn(probe(b, `.nav3 .name[data-act="fdir"]`, "Scans"), 1)
+	if !b.waitFor(`document.querySelector('.nav3 .hint')?.textContent.startsWith('My files › Scans')`) {
+		t.Fatalf("the path: %q", b.eval(`document.querySelector('.nav3 .hint')?.textContent`))
+	}
+	b.shot("files-folder")
+}
+
+// A chunk that breaks on the way is sent again, and the server takes the upload from where it stands: the file that
+// arrives is the file that was chosen.
+func TestUploadResumesAfterABreak(t *testing.T) {
+	b, base, database, s := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+	big := make([]byte, 2*web.MaxChunk+12345)
+	_, _ = rand.Read(big)
+	sum := sha256.Sum256(big)
+	path := writeTemp(t, "big.bin", big)
+	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/api/uploads/*", "requestStage": "Request"}}}, nil)
+	b.choose(`.nav3 [data-act="fup"]`, path)
+	patches, broken, finished := 0, false, false
+	for deadline := time.Now().Add(60 * time.Second); !finished; {
+		if time.Now().After(deadline) {
+			t.Fatalf("the upload did not finish: %d chunks sent", patches)
+		}
+		var paused struct {
+			RequestID string
+			Request   struct{ URL, Method string }
+		}
+		if err := json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &paused); err != nil {
+			t.Fatal(err)
+		}
+		if paused.Request.Method == "PATCH" {
+			patches++
+		}
+		if paused.Request.Method == "PATCH" && patches == 2 && !broken {
+			broken = true
+			b.call("Fetch.failRequest", map[string]any{"requestId": paused.RequestID, "errorReason": "ConnectionReset"}, nil)
+			continue
+		}
+		finished = strings.HasSuffix(paused.Request.URL, "/finish")
+		b.call("Fetch.continueRequest", map[string]any{"requestId": paused.RequestID}, nil)
+	}
+	b.call("Fetch.disable", map[string]any{}, nil)
+	if !b.waitFor(fileRows + ` === 'big.bin'`) {
+		t.Fatalf("the upload is not listed: %q", b.eval(fileRows))
+	}
+	if patches != 4 {
+		t.Errorf("%d chunks sent for three, one of them broken", patches)
+	}
+	roots, _ := database.FileRoots(tenant.With(context.Background(), tenant.Main), "anna")
+	list, _ := database.FilesIn(tenant.With(context.Background(), tenant.Main), roots[1].ID, "anna")
+	if len(list) != 1 || list[0].Blob != hex.EncodeToString(sum[:]) {
+		t.Fatalf("the stored file is not the chosen one: %+v", list)
+	}
+	f, err := s.Open(store.DefaultTenant, list[0].Blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	got, _ := io.ReadAll(f)
+	if !bytes.Equal(got, big) {
+		t.Fatal("the content differs")
+	}
+	if left := b.eval(`Object.keys(localStorage).filter(k => k.startsWith('ud-upload:')).length`); left != "0" {
+		t.Errorf("%s uploads are still kept for resuming", left)
+	}
+}

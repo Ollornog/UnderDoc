@@ -46,7 +46,7 @@ var ErrNoAccount = errors.New("no such account: it is made at the first sign-in"
 // export: the shared ones in their order, and the private ones of every account with its login (ADR-20 keeps those from
 // administrators in the web, not from whoever runs the server).
 func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, err error) {
-	rows, err := db.pool.Query(ctx, `SELECT `+columns+`, next_block FROM objects o WHERE `+alive+` ORDER BY position, created, id`)
+	rows, err := db.pool.Query(ctx, `SELECT `+columns+`, next_block FROM objects o WHERE `+alive+` AND area = 'docs' ORDER BY position, created, id`)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -127,6 +127,9 @@ func (db *DB) Subtree(ctx context.Context, objectID, viewer string) (*Node, erro
 	o, err := db.Object(ctx, objectID, viewer)
 	if err != nil {
 		return nil, err
+	}
+	if o.Area != AreaDocs {
+		return nil, ErrPlace
 	}
 	count := 0
 	var read func(o Object) (*Node, error)
@@ -307,11 +310,12 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, template)
-			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''), $13)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, template, area)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''), $13,
+				coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $14))
 			ON CONFLICT (tenant, id) DO NOTHING
 			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o),
-			o.Width, o.Contents, o.Template && o.Kind == KindPage))
+			o.Width, o.Contents, o.Template && o.Kind == KindPage, areaOf(o)))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}

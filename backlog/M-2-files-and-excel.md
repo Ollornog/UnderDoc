@@ -26,3 +26,9 @@ here, so T-1 can run before M-1 is finished.
 - **Acceptance: saving in real Excel and in LibreOffice over Samba changes what the web shows.**
 
 **Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Files follow ADR-28 (hybrid store). The content store, uploads, attachments, previews and the text of files for search (ADR-24) come early; Samba, the watcher and T-1 come last in the sprint, with saving from real Excel as the maintainer's acceptance.
+
+**Built on 2026-11-17 (without Samba):** the content store with versions, dedup and a backup that takes it along, the
+roots of the view Files (ADR-28 addendum), uploads in chunks that resume, quotas, the thinning of versions, the trash for
+files, attachments of pages and "move to the files", and the link from a space to its files ([docs/files.md](../docs/files.md)).
+Open in M-2: previews of PDF and Office, the text of files for the search, pasting images in the editor, Excel as native
+tables, Samba and the watcher (T-1).

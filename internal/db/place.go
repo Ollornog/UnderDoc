@@ -107,6 +107,15 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if parent == "" && o.Kind != KindCollection {
 		return Object{}, ErrPlace
 	}
+	// The roots of the view Files stand at the top, and nothing else of that area does: a collection there without a
+	// root would show nowhere.
+	isRoot, err := isFileRoot(ctx, db.pool, objectID)
+	if err != nil {
+		return Object{}, err
+	}
+	if o.Area == AreaFiles && (parent == "") != isRoot {
+		return Object{}, ErrPlace
+	}
 	// Private notes stand at the top: inside another collection they would be an odd private island in a shared tree.
 	if o.Private && parent != "" {
 		return Object{}, ErrPlace
@@ -119,7 +128,7 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		if err := db.mayEdit(ctx, p, viewer); err != nil {
 			return Object{}, err
 		}
-		if IsDivider(p.Kind) {
+		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {
 			return Object{}, ErrPlace
 		}
 		top := p

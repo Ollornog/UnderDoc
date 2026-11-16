@@ -63,6 +63,11 @@ normale Dateien: Ordner, Markdown-Dateien mit Kopfbereich und vor jedem Block ei
 `underdoc import --owner <login> <ordner> <titel>` liest so einen Baum, oder jeden Ordner mit Markdown-Dateien, in eine neue
 Sammlung ein. Aufbau und Regeln stehen (englisch) in [docs/export.md](../docs/export.md).
 
+**Dateien** brauchen die Datenbank und `UNDERDOC_STORE_DIR`: die Ansicht Dateien hat den Ordner der Firma, einen Ordner
+je Nutzer und Sammlungen, mit Uploads, die nach einem Abbruch weiterlaufen, Versionen, Kontingenten und einem Papierkorb.
+Jede Version liegt einmal in einem Inhaltsspeicher, benannt nach ihrem Hash, und ein Export nimmt die Dateien mit. Wie
+das arbeitet, steht (englisch) in [docs/files.md](../docs/files.md).
+
 **Der Web-Editor** schreibt eine Seite der Datenbank in einem Editor mit Live-Vorschau: Markdown, das abseits des Cursors
 gerendert aussieht, eine Leiste über der Seite, `/` für die Arten von Blöcken und Speichern beim Tippen. Er wird mit
 Node aus `web/editor` gebaut, und das gebaute Paket liegt im Repository, also braucht der Bau von UnderDoc nur Go. Wie

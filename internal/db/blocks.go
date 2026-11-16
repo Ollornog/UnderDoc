@@ -38,7 +38,8 @@ type Version struct {
 	At      time.Time
 }
 
-// mayEdit tells whether the viewer may change an object: its owner always, anyone else while others may edit (ADR-20).
+// mayEdit tells whether the viewer may change an object: its owner always, anyone else while others may edit (ADR-20),
+// and in the view Files also the group that writes in the root above it, as in the folder of the tenant (ADR-28).
 func (db *DB) mayEdit(ctx context.Context, o Object, viewer string) error {
 	if o.Owner == viewer {
 		return nil
@@ -47,10 +48,15 @@ func (db *DB) mayEdit(ctx context.Context, o Object, viewer string) error {
 	if err != nil {
 		return err
 	}
-	if access != "edit" {
-		return ErrNotAllowed
+	if access == "edit" {
+		return nil
 	}
-	return nil
+	if o.Area == AreaFiles {
+		if ok, err := db.mayWriteAsGroup(ctx, o.ID, viewer); err != nil || ok {
+			return err
+		}
+	}
+	return ErrNotAllowed
 }
 
 // CreatePage makes an empty page inside parent, which the owner must see and may change.

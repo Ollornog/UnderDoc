@@ -30,6 +30,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
+	"github.com/Ollornog/UnderDoc/internal/store"
 )
 
 //go:embed templates/*.html
@@ -68,6 +69,8 @@ type Options struct {
 	Tenants string
 	// TenantDomain is the domain of the hoster in the mode many tenants: acme.<domain> leads to the tenant acme.
 	TenantDomain string
+	// Store is the content store of the files (ADR-28). Without it, or without DB, there are no files.
+	Store *store.Store
 }
 
 type handler struct {
@@ -81,6 +84,8 @@ type handler struct {
 	seen   map[string]time.Time
 	// noFolder is the empty library that tenants other than Main see in place of the folder source.
 	noFolder *library.Library
+	// uploads are the uploads a request is writing right now.
+	uploads uploadBusy
 }
 
 // New returns the complete handler with logging and security headers.
@@ -149,6 +154,25 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("POST /api/trash/{id}/restore", h.apiRestore)
 	mux.HandleFunc("DELETE /api/trash/{id}", h.apiPurge)
 	mux.HandleFunc("DELETE /api/trash", h.apiEmptyTrash)
+	// The view Files (ADR-28).
+	mux.HandleFunc("GET /api/files", h.apiFileRoots)
+	mux.HandleFunc("POST /api/files/collections", h.apiCreateFileCollection)
+	mux.HandleFunc("PUT /api/files/roots/{id}/quota", h.apiSetQuota)
+	mux.HandleFunc("PUT /api/files/writers", h.apiSetWriters)
+	mux.HandleFunc("GET /api/files/{id}/list", h.apiFileList)
+	mux.HandleFunc("GET /api/files/{id}", h.apiFile)
+	mux.HandleFunc("GET /api/files/{id}/content", h.apiFileContent)
+	mux.HandleFunc("POST /api/files/{id}/versions/{n}/restore", h.apiRestoreFileVersion)
+	mux.HandleFunc("POST /api/uploads", h.apiStartUpload)
+	mux.HandleFunc("GET /api/uploads/{id}", h.apiUploadState)
+	mux.HandleFunc("PATCH /api/uploads/{id}", h.apiUploadChunk)
+	mux.HandleFunc("POST /api/uploads/{id}/finish", h.apiFinishUpload)
+	mux.HandleFunc("DELETE /api/uploads/{id}", h.apiCancelUpload)
+	mux.HandleFunc("GET /api/pages/{id}/attachments", h.apiAttachments)
+	mux.HandleFunc("GET /api/pages/{id}/attachments/{attachment}", h.apiAttachmentContent)
+	mux.HandleFunc("POST /api/pages/{id}/attachments/{attachment}/move", h.apiMoveAttachment)
+	mux.HandleFunc("GET /api/spaces/{id}/files", h.apiSpaceFiles)
+	mux.HandleFunc("PUT /api/spaces/{id}/files", h.apiLinkSpaceFiles)
 	// Links from before the object addresses of ADR-18 keep working.
 	mux.HandleFunc("GET /d/{id...}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
