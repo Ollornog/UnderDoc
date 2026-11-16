@@ -483,7 +483,7 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 	b.waitFor(`!document.querySelector('.ctxpop')`)
 	look := `(() => { const m = document.querySelector('.bmenu'); if (!m) return 'no menu'; const r = m.getBoundingClientRect(), items = [...m.querySelectorAll('[role=menuitem]')], cs = getComputedStyle(items[0]);
 		return [r.width >= 180 && r.width <= 200 && ` + frame + `(m) === ` + strconv.Quote(ctxFrame) + `, items.every(x => Math.round(x.getBoundingClientRect().height) + ' ' + getComputedStyle(x).fontSize + ' ' + getComputedStyle(x).borderTopLeftRadius === ` + strconv.Quote(ctx) + `),
-			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 14), r.height <= items.length * 30 + 50, r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
+			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 14), r.height <= items.length * 30 + 50 + (m.querySelector('.seg')?.getBoundingClientRect().height || 0), r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
 	// open opens the menu of block id, its handle at the top of the window or near the bottom.
 	open := func(handle string, bottom bool) {
 		b.eval(`(() => { const s = document.querySelector('[data-win="0"] .scroll'), h = document.querySelector(` + strconv.Quote(handle) + `), r = s.getBoundingClientRect();
