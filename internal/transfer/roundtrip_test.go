@@ -119,6 +119,8 @@ func TestRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	full, side := "full", "side"
+	must[db.Object](t)(first.SetView(ctx, plan.ID, anna.ID, &full, &side))
 	kid := must[db.Object](t)(first.CreatePage(ctx, anna, "Plan", plan.ID))
 	must[db.Block](t)(first.AddBlock(ctx, kid.ID, anna.ID, "", "Below the plan."))
 	must[db.Object](t)(first.CreatePage(ctx, bob, "Grandchild", kid.ID))
@@ -179,6 +181,9 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if !maps.Equal(restored, subtree(exported, "private/anna/My notes")) {
 		t.Errorf("the private notes after the round trip: %q", restored)
+	}
+	if o := must[db.Object](t)(second.Object(ctx, plan.ID, anna.ID)); o.Width != "full" || o.Contents != "side" {
+		t.Errorf("the view of the plan after the round trip: %q %q", o.Width, o.Contents)
 	}
 	// What the files say is what the database has: the next block of the plan does not reuse the deleted b5.
 	if b := must[db.Block](t)(second.AddBlock(ctx, plan.ID, anna.ID, "", "new")); b.ID != "b6" {

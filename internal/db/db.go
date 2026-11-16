@@ -171,13 +171,23 @@ type Object struct {
 	Changed time.Time
 	// Tags are kept lower case, each once, in the order given (CleanTags).
 	Tags []string
+	// Width and Contents say how the document is shown (ADR-16); empty means the default of the workspace.
+	Width    string
+	Contents string
 }
 
-const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags`
+const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags,
+	coalesce(width, ''), coalesce(contents, '')`
+
+// fields are the places columns scans into, in their order.
+func fields(o *Object) []any {
+	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags,
+		&o.Width, &o.Contents}
+}
 
 func scan(row pgx.Row) (Object, error) {
 	var o Object
-	err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags)
+	err := row.Scan(fields(&o)...)
 	return o, err
 }
 
@@ -202,11 +212,11 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''),
 				(SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NOT DISTINCT FROM nullif($6, '')),
-				nullif($7, ''), $8, $9)
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o)))
+				nullif($7, ''), $8, $9, nullif($10, ''), nullif($11, ''))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o), o.Width, o.Contents))
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "objects_pkey" && attempt < 5 {
 			continue

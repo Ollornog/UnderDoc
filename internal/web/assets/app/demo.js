@@ -48,16 +48,17 @@ const D = {
 for (let i=0;i<11;i++) D['log'+i]={t:'page',n:'Log week '+(30+i),w:'slim',kids:[],path:`operations/site-logs/week-${30+i}.md`,by:'J. Roth',ch:'Oct',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('Weekly site log.',['Work','<p>Routine checks.</p>'],['Notes','<p>Nothing unusual.</p>'])};
 const C = [{id:'ops',n:'Operations',top:['net','logs','hand']},{id:'pro',n:'Projects',top:['tower','inv']},{id:'me',n:'My notes',top:['n1']}];
 function bodyHtml(w,i){
-  const d=D[w.d]; const hs=d.doc?d.doc.secs.map(s=>s[0]):[]; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
+  const d=D[w.d]; let hs=d.doc?d.doc.secs.map(s=>s[0]):[],to=null; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
   let h='';
-  if(d.blocks) h+=blocksHtml(d,w,i);
+  /* The contents of a page of the database are its blocks that begin with a heading (M-8), each a jump to its block. */
+  if(d.blocks){h+=blocksHtml(d,w,i);const heads=d.blocks.filter(b=>/^#{1,3} \S/.test(b.raw||''));hs=heads.map(b=>esc((b.raw||'').split('\n')[0].replace(/^#+ /,'')));to=heads.map(b=>`w${i}${b.id}`);}
   else if(d.doc) h+=(d.real?d.doc.intro:`<p>${d.doc.intro}</p>`)+d.doc.secs.map((s,j)=>`<h2 id="w${i}h${j}">${s[0]}</h2>${s[1]}`).join('');
   if(d.tab) h+=`<div class="note">${d.tab.note}</div><div class="tw"><table><tr>${d.tab.head.map(x=>`<th>${x}</th>`).join('')}</tr>${d.tab.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div>`;
   if(d.t==='images'){const tones=[['oklch(45% .06 240)','Base, north'],['oklch(50% .05 150)','Foundation'],['oklch(42% .04 40)','Segment 2'],['oklch(38% .05 280)','Crane'],['oklch(48% .03 200)','Antenna'],['oklch(36% .02 100)','Gatehouse']];h+=`<div class="note">These images lie in a folder on the disk. This collection only shows them.</div><div class="imgs">${tones.map(t=>`<div data-style="background:${t[0]}">${t[1]}</div>`).join('')}</div>`;}
   if(d.t==='folder') h+=`<p>${d.why}</p>`;
   if(d.kids.length) h+=`${d.t==='folder'||d.t==='coll'?'':'<h2>Below this document</h2>'}<div class="kids">${d.kids.filter(shown).map(k=>`<button data-act="open" data-id="${k}">${ic(D[k].i||TYPE[D[k].t][0])}<span>${D[k].n}</span><em>${TYPE[D[k].t][1]}</em></button>`).join('')}</div>`;
   if(d.html) h=d.t==='coll'?d.html+h:h+d.html;
-  return {h,hs};
+  return {h,hs,to};
 }
 /* Lucide (ISC, licenses/Lucide-LICENSE.txt): book-open, bold, italic, strikethrough, heading, list-ordered, type. */
 Object.assign(I,{book:'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
@@ -411,14 +412,14 @@ function cmtHtml(t,i){
     ${here}${rest?`<h3>${sel?'Elsewhere on this page':'On this page'}</h3>${rest}`:''}</aside>`;
 }
 function gearHtml(t,i,hasSecs){
-  const d=D[t.d],seg=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-w="${i}" data-id="${x}" aria-pressed="${cur===x}">${x}</button>`).join('')}</span>`;
+  const d=D[t.d],no=d.db&&!mayTag(t.d)?` disabled title="Only who may change this sets it"`:'',seg=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-w="${i}" data-id="${x}" aria-pressed="${cur===x}"${act==='setacc'?'':no}>${x}</button>`).join('')}</span>`;
   return `<aside class="fdrawer" aria-label="Document settings"><div class="fhead">Document settings<button class="ic" data-act="gear" data-w="${i}" aria-label="Close settings">${ic('x')}</button></div>
     <h3>View</h3>
     ${hasSecs?`<div class="setrow"><span>Contents</span>${seg('settoc',['marker','side','hidden'],d.toc)}</div>`:''}
     <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
-    <p class="hint">Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload. In the product, saving from the web comes with editing (M-8).</p>
+    <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
 }
@@ -430,6 +431,14 @@ function tagsHtml(id,i){
   const add=may||!d.db&&!d.real?`<input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag" maxlength="40">`
     :d.db?'<p class="hint">Only who may change this adds tags.</p>':'<p class="hint">Tags of the folder source come from the front matter of the file.</p>';
   return `<h3>Tags</h3><div class="tagrow">${chips||'<span class="lab">No tags yet.</span>'}</div>${add}`;
+}
+/* Width and contents of a document of the database are kept with it (ADR-16, M-8); made-up content keeps them until
+   reload. If the server refuses, the view goes back. */
+async function saveView(id,key,field,value){
+  const d=D[id],before=d[key];d[key]=value;render();
+  if(!d.db)return;
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/view',{...same,method:'PUT',body:JSON.stringify({[field]:value})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){d[key]=before;render();toast(e.message==='403'?'Only who may change this sets it.':'The view could not be saved.');}
 }
 async function saveTags(id,tags){
   const d=D[id];
@@ -460,8 +469,8 @@ function winHtml(w,i){
     +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
     +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+D[x.d].n:'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
   if(!has) return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}<div class="empty"><p>Empty.<br>What a list opens lands here, in the active window.</p></div></section>`;
-  const d=D[t.d],{h,hs}=bodyHtml(t,i),mode=d.toc;
-  const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="w${i}h${j}">${x}</button>`).join('');
+  const d=D[t.d],{h,hs,to}=bodyHtml(t,i),mode=d.toc;
+  const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="${to?to[j]:`w${i}h${j}`}">${x}</button>`).join('');
   const marker=hs.length&&mode==='marker'&&!t.src?`<span class="marker"><button class="chip" data-act="fly" data-w="${i}" aria-expanded="${t.fly}" aria-pressed="${t.fly}">${ic('list')}${hs.length} sections ▾</button>${t.fly?`<div class="fly"><b>In this document</b>${links}</div>`:''}</span>`:'';
   const find=t.find?`<span class="findin"><input data-findq="${i}" type="search" value="${esc(t.q)}" placeholder="Find on this page" aria-label="Find on this page"><span class="lab" data-findc="${i}"></span><button class="ic" data-act="findnav" data-w="${i}" data-id="-1" aria-label="Previous hit" title="Previous hit">${ic('up')}</button><button class="ic" data-act="findnav" data-w="${i}" data-id="1" aria-label="Next hit" title="Next hit">${ic('down')}</button></span>`:'';
   /* The heading is not content. The title sits below the breadcrumbs in the same bar, the tags to the right of the breadcrumbs. Created, changed and the rest are metadata. */
@@ -944,8 +953,8 @@ document.addEventListener('click',e=>{
     case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
     case 'fly':t.fly=!t.fly;break;
     case 'jump':t.fly=false;render();{const x=document.getElementById(a.id);if(x)x.scrollIntoView({block:'start'});}return;
-    case 'settoc':D[t.d].toc=a.id;break;
-    case 'setw':D[t.d].w=a.id;break;
+    case 'settoc':saveView(t.d,'toc','contents',a.id);break;
+    case 'setw':saveView(t.d,'w','width',a.id);break;
     case 'todo':{const it=D[t.d].items[+a.id];it.done=!it.done;break;}
     case 'slide':D[t.d].cur=+a.id;break;
     case 'clock':S.clock=!S.clock;break;
@@ -1273,6 +1282,7 @@ function addNode(node){
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
+  if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;
   return id;
 }
 

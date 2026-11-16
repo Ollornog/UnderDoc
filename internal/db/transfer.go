@@ -53,7 +53,7 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 	nodes, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*Node, error) {
 		n := &Node{}
 		o := &n.Object
-		err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags, &n.NextBlock)
+		err := row.Scan(append(fields(o), &n.NextBlock)...)
 		return n, err
 	})
 	if err != nil {
@@ -304,10 +304,11 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags)
-			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''))
 			ON CONFLICT (id) DO NOTHING
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o)))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o),
+			o.Width, o.Contents))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}

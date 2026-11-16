@@ -305,3 +305,38 @@ func TestTagsThroughTheAPI(t *testing.T) {
 		t.Errorf("bob may only read = %d", got)
 	}
 }
+
+func TestViewThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"width":"full"}`, sameSite)
+	if res.Code != http.StatusOK || res.Body.String() != `{"contents":"","width":"full"}`+"\n" {
+		t.Fatalf("width: %d %q", res.Code, res.Body.String())
+	}
+	if res = s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"contents":"side"}`, sameSite); !strings.Contains(res.Body.String(), `"contents":"side","width":"full"`) {
+		t.Errorf("contents keep the width: %q", res.Body.String())
+	}
+	var found apiNode
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		for _, k := range c.Kids {
+			if k.ID == p.ID {
+				found = k
+			}
+		}
+	}
+	if found.Width != "full" || found.Contents != "side" {
+		t.Errorf("the tree carries the view to the workspace: %+v", found)
+	}
+	for _, bad := range []string{`{"width":"huge"}`, `{"contents":"top"}`} {
+		if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", bad, sameSite).Code; got != http.StatusBadRequest {
+			t.Errorf("%s = %d", bad, got)
+		}
+	}
+	asBob := merged(bob)
+	asBob["Sec-Fetch-Site"] = "same-origin"
+	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"width":"slim"}`, asBob).Code; got != http.StatusForbidden && got != http.StatusNotFound {
+		t.Errorf("bob may only read = %d", got)
+	}
+}

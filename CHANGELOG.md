@@ -17,6 +17,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The gear of a document of the database keeps its width (slim, wide, full) and where its contents show (marker, side,
+  hidden) for everyone who opens it (ADR-16, M-8): `PUT /api/objects/{id}/view`, kept in the database, carried to the
+  workspace with the tree, kept by a copy and written into the front matter of the export (`width`, `contents`), which
+  an import reads back. The contents of such a page are its blocks that start with a heading. Who may only read or
+  comment sees the choices greyed.
 - A block used elsewhere shows its boundary and "Used in N places" while the cursor is in it in the editor (ADR-22), so
   whoever writes there knows that other pages change too.
 - Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
