@@ -81,8 +81,12 @@ func TestTwoLinesOfABlockReadAsTwoLines(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('article.doc .cm-editor .cm-content')`) {
 		t.Fatal("no editor")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.cm-editor .cm-line')].filter(l => l.textContent.trim()).map(l => l.textContent.trim() + (l.classList.contains('cm-lp-quote') ? '(q)' : '')).join(' / ')`); got != "a(q) / b(q) / one / two / • item / more" {
-		t.Errorf("the editor shows the lines as lines: %q", got)
+	// Away from the cursor, as every line looks once the editor has no focus: the focus comes when the editor has loaded,
+	// and the line with the cursor shows its Markdown (on a busy machine the focus came before the check, 2026-11-17).
+	b.eval(`document.activeElement?.blur()`)
+	shown := `[...document.querySelectorAll('.cm-editor .cm-line')].filter(l => l.textContent.trim()).map(l => l.textContent.trim() + (l.classList.contains('cm-lp-quote') ? '(q)' : '')).join(' / ')`
+	if !b.waitFor(shown + ` === "a(q) / b(q) / one / two / • item / more"`) {
+		t.Errorf("the editor shows the lines as lines: %q", b.eval(shown))
 	}
 	if got := b.stored(page); got != "b1:> a\n> b | b2:one\ntwo | b3:- item\n  more" {
 		t.Errorf("the Markdown stays as written: %q", got)
