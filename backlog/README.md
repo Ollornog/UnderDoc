@@ -77,3 +77,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-19](ADR-19-pages-in-the-database.md)** Pages live in the database, as blocks with IDs
 * ☑ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive
 * ☑ **[ADR-21](ADR-21-editor-codemirror.md)** The web editor is CodeMirror 6 with a live preview
+* ☑ **[ADR-22](ADR-22-parts-and-their-life.md)** Reused parts belong to their document, and their end is chosen

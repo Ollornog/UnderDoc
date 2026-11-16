@@ -40,3 +40,6 @@ block by block with the question before deleting what is used elsewhere, a reloa
 elsewhere, and the bundle built and compared in the pipeline (docs/editor.md). The round trip test proves that opening
 and leaving a page writes nothing. Still open in M-8: Quick notes, templates, aligning blocks, table tools, pasting
 images (with M-2), and the rest of the list above.
+
+**Added on 2026-11-16 (ADR-22):** a block used elsewhere shows its boundary and "used in N places" while the cursor is in
+it, so whoever writes there knows that other pages change too.
