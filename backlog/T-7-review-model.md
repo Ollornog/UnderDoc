@@ -2,7 +2,7 @@
 id: T-7
 type: Task
 title: Decide how reviews work, with which forge
-status: offen
+status: erledigt
 milestone: M-20
 tags: [review, git]
 created: 2026-11-06
@@ -19,3 +19,5 @@ M-20 needs (branches, pull requests, review, issues), how sign-in is shared, how
 stays their source, like a folder source) and how they fit real-time editing (M-10). Excel files show no useful diff in any option.
 
 **Done when:** the choice is recorded in a decision, and M-20 is updated to match.
+
+**Settled on 2026-11-16 (the maintainer):** Forgejo, optional, through its API, proven in CI against a Forgejo container. Proposals for pages and accepting them block by block are built in UnderDoc itself, without a forge (ADR-22).

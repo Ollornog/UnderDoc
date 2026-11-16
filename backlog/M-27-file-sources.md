@@ -22,3 +22,5 @@ settles the scope.
 - A source appears as a root in nav2 of the Files view, next to the own folder and the share (ADR-16).
 - Every user sees only the sources they may use.
 - A source that cannot be reached says so.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** Credentials encrypted (ADR-23); roots appear as in ADR-28.

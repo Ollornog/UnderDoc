@@ -22,3 +22,5 @@ the talk before this milestone (ADR-14) settles the scope.
 - Pages embed a range or a device, and a value (M-3) can come from an address, so a changed address shows everywhere.
 - It documents what should be. It does not scan the network.
 - Switched off, the types disappear, and no data is touched.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint: a small module of its own, and NetBox can be read as a source (M-4).

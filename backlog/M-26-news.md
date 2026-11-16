@@ -23,3 +23,5 @@ milestone (ADR-14) settles the scope.
 - Every user has their own subscriptions.
 - The server fetches the feeds, so the browser loads nothing from a third party.
 - Switched off, the module leaves no entry behind, and no data is touched.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint: RSS and Atom, fetched by the server.

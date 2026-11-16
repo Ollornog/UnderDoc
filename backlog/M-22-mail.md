@@ -22,3 +22,5 @@ this milestone (ADR-14) settles the scope.
 - Nav1 shows Mail, nav3 lists the mail, and a mail opens in a tab like a document.
 - A user only ever sees their own mail, and mail never reaches search or an AI without being asked to.
 - Switched off, the module leaves no entry behind.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** A full client: one or more accounts per user over IMAP and SMTP, folders, drafts, rules and shared mailboxes, credentials encrypted (ADR-23). A mail can be stored as a document. Mail tests run against Mailpit; the test instance is linked to Mailpit, and test mails may go to the maintainer's address through the noreply account.

@@ -25,3 +25,5 @@ this milestone (ADR-14) settles the scope.
 - Nothing is loaded from a linked site to show a bookmark, no preview and no icon (ADR-16).
 - Bookmarks export to the same HTML format.
 - Switched off, the document type disappears, and no data is touched.
+
+**Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** May be built in the sprint: per user and shared in collections.
