@@ -49,7 +49,7 @@ backup/
       - space: 9x4c1m2k7q
   ```
 
-- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access`, `tags`, `width` and `contents` where set. Its blocks
+- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access`, `tags`, `width`, `contents` and `template` where set. Its blocks
   follow in order, each after a marker that keeps its ID:
 
   ```markdown

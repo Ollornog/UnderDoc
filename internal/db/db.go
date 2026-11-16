@@ -174,15 +174,17 @@ type Object struct {
 	// Width and Contents say how the document is shown (ADR-16); empty means the default of the workspace.
 	Width    string
 	Contents string
+	// Template tells that a page is offered as a template for new pages (M-8).
+	Template bool
 }
 
 const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags,
-	coalesce(width, ''), coalesce(contents, '')`
+	coalesce(width, ''), coalesce(contents, ''), template`
 
 // fields are the places columns scans into, in their order.
 func fields(o *Object) []any {
 	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags,
-		&o.Width, &o.Contents}
+		&o.Width, &o.Contents, &o.Template}
 }
 
 func scan(row pgx.Row) (Object, error) {

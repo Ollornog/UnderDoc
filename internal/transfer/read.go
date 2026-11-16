@@ -563,6 +563,7 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 	} else {
 		r.warn(file, fmt.Sprintf("access %q is not edit, comment or read, it was left out", p.Meta.Access))
 	}
+	n.Template = p.Meta.Template
 	if db.ValidView(p.Meta.Width, p.Meta.Contents) {
 		n.Width, n.Contents = p.Meta.Width, p.Meta.Contents
 	} else {

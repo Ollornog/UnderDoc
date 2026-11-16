@@ -103,6 +103,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("PATCH /api/objects/{id}", h.apiRename)
 	mux.HandleFunc("PUT /api/objects/{id}/tags", h.apiTags)
 	mux.HandleFunc("PUT /api/objects/{id}/view", h.apiView)
+	mux.HandleFunc("PUT /api/objects/{id}/template", h.apiTemplate)
+	mux.HandleFunc("GET /api/templates", h.apiTemplates)
 	mux.HandleFunc("GET /api/objects/{id}/uses", h.apiUses)
 	mux.HandleFunc("POST /api/pages", h.apiCreatePage)
 	mux.HandleFunc("POST /api/folders", h.apiCreateFolder)

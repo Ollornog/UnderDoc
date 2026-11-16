@@ -17,6 +17,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Templates start new pages (M-8): New at a collection and New in the top bar offer UnderDoc's own (Meeting notes, How-to,
+  Runbook, Decision) and every page offered as a template from its gear; the page starts with the template's blocks and
+  opens in the editor. A template of one's own stays where it was written, with its owner and access. See docs/editor.md.
 - Blocks of a page are aligned left, center or right from the menu of their handle, in reading and in the editor (ADR-16,
   M-8). The alignment is kept with the block, not in its Markdown (`PUT /api/pages/{id}/blocks/{block}/align`), makes no
   version, goes along with a copy, and the export writes it into the block's marker (`<!-- block b3 align=center -->`),

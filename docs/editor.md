@@ -72,6 +72,20 @@ loaded again with a notice, which offers to copy what was written since the last
 - A single newline is a line break, as in Obsidian or Notion: two lines of a quote, of a paragraph or of a list item read
   as two lines, in the editor as when the page is read (below).
 
+## Templates
+
+A new page can start from a template (M-8), after Confluence and Docmost: New at a collection lists them right after
+Page, and New in the top bar, with a collection chosen, under "From a template"; there the title typed in the field names
+the page, otherwise the template does. The page starts with the template's blocks, numbered from b1, each with a version
+by whoever made the page, and opens in the editor.
+
+- **UnderDoc's own:** Meeting notes, How-to, Runbook and Decision (`internal/db/templates.go`).
+- **Your own:** any page of the database is offered as a template from its gear (Template: off, offered), by whoever may
+  change it; it stays where it was written, and whoever sees it can start from it, so a private page offers itself only to
+  its owner. A page made from it is a page of its own, not a template, and keeps no tie to it.
+- API: `GET /api/templates`, `PUT /api/objects/{id}/template {"template": true}`, `POST /api/pages {"template": id}`. The
+  export writes `template: true` into the front matter, and an import reads it back.
+
 ## Line breaks
 
 In CommonMark a single newline inside a paragraph is a soft break and shows as a space, so two quote lines `> a` and

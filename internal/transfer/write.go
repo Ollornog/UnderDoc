@@ -65,6 +65,8 @@ type pageMeta struct {
 	// Width and Contents say how the page is shown (ADR-16), where they are set.
 	Width    string `yaml:"width,omitempty"`
 	Contents string `yaml:"contents,omitempty"`
+	// Template tells that the page is offered as a template for new pages (M-8).
+	Template bool `yaml:"template,omitempty"`
 	// NextBlock is written only when it is higher than the block after the highest, so that an ID deleted at the end is
 	// not given out again after an import.
 	NextBlock int `yaml:"next_block,omitempty"`
@@ -195,7 +197,7 @@ func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents}
+	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

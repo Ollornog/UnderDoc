@@ -359,3 +359,35 @@ func TestAlignThroughTheAPI(t *testing.T) {
 		t.Errorf("no such block = %d", got)
 	}
 }
+
+func TestTemplatesThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	list := decode[[]apiTemplate](t, s.get("/api/templates"))
+	if len(list) < 2 || list[0].ID != "builtin:meeting" || len(list[0].Blocks) == 0 {
+		t.Fatalf("UnderDoc's own templates: %+v", list)
+	}
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Monday","parent":"`+team.ID+`","template":"builtin:meeting"}`, sameSite))
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks; len(got) != len(list[0].Blocks) || got[1].Markdown != list[0].Blocks[1] {
+		t.Errorf("the page starts with the template: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/pages", `{"title":"x","parent":"`+team.ID+`","template":"`+p.ID+`"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a page not offered as a template = %d", got)
+	}
+	if res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/template", `{"template":true}`, sameSite); res.Body.String() != `{"template":true}`+"\n" {
+		t.Errorf("offer: %d %s", res.Code, res.Body.String())
+	}
+	if list = decode[[]apiTemplate](t, s.get("/api/templates")); list[len(list)-1].ID != p.ID || list[len(list)-1].Place != "Team" {
+		t.Errorf("the page is offered: %+v", list[len(list)-1])
+	}
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		for _, k := range c.Kids {
+			if k.ID == p.ID && !k.Template {
+				t.Errorf("the tree tells the workspace it is a template")
+			}
+		}
+	}
+	if got := s.send(http.MethodPost, "/api/pages", `{"title":"Tuesday","parent":"`+team.ID+`","template":"`+p.ID+`"}`, sameSite).Code; got != http.StatusCreated {
+		t.Errorf("from the page = %d", got)
+	}
+}

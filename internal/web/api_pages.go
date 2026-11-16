@@ -67,7 +67,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrHasReplies):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -234,17 +234,18 @@ func (h *handler) place(r *http.Request, o db.Object) string {
 	return strings.Join(names, " › ")
 }
 
-// apiCreatePage makes an empty page inside a collection, folder or page.
+// apiCreatePage makes a page inside a collection, folder or page: empty, or with the blocks of a template (M-8).
 func (h *handler) apiCreatePage(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Title  string `json:"title"`
-		Parent string `json:"parent"`
+		Title    string `json:"title"`
+		Parent   string `json:"parent"`
+		Template string `json:"template"`
 	}
 	user, ok := h.change(w, r, 8<<10, &in)
 	if !ok {
 		return
 	}
-	created, err := h.options.DB.CreatePage(r.Context(), user, in.Title, in.Parent)
+	created, err := h.options.DB.CreatePageFrom(r.Context(), user, in.Title, in.Parent, in.Template)
 	if h.failed(w, err, "page") {
 		return
 	}
@@ -298,6 +299,49 @@ func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	used, _ := h.options.DB.UsedIn(r.Context(), r.PathValue("id"), user.ID)
 	writeJSON(w, http.StatusOK, h.block(r, r.PathValue("id"), b, used))
+}
+
+type apiTemplate struct {
+	ID          string `json:"id"`
+	Title       string `json:"n"`
+	Description string `json:"desc,omitempty"`
+	Place       string `json:"place,omitempty"`
+	// Blocks are the Markdown of UnderDoc's own templates, for a preview.
+	Blocks []string `json:"blocks,omitempty"`
+}
+
+// apiTemplates lists what a new page can start from: UnderDoc's own templates, then the pages offered as one.
+func (h *handler) apiTemplates(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusOK, []apiTemplate{})
+		return
+	}
+	user, _ := account.From(r.Context())
+	list, err := h.options.DB.Templates(r.Context(), user.ID)
+	if h.failed(w, err, "templates") {
+		return
+	}
+	out := []apiTemplate{}
+	for _, t := range list {
+		out = append(out, apiTemplate{ID: t.ID, Title: t.Title, Description: t.Description, Place: t.Place, Blocks: t.Blocks})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// apiTemplate offers a page as a template for new pages, or stops offering it.
+func (h *handler) apiTemplate(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Template bool `json:"template"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	o, err := h.options.DB.SetTemplate(r.Context(), r.PathValue("id"), user.ID, in.Template)
+	if h.failed(w, err, "template") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"template": o.Template})
 }
 
 // apiAlignBlock aligns a block left, center or right (ADR-16); its text stays as it is.

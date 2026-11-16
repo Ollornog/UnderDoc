@@ -162,7 +162,7 @@ const W3=300;
 const newTab=(d,general=false)=>({d,general,top:0,fly:false,gear:false,cmt:false,find:false,q:'',cur:0,src:false});
 const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',addIn:null,just:null,prof:false,filters:false,newN:0,
   focus:0,rail:!phone(),limit:8,tog:{},treeTop:0,s1:0,s2:3,w3:W3,theme:'system',scale:100,first:false,clock:false,
-  ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',
+  ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',tpls:[],
   fav:{ops:true,pro:true,me:true,arc:false},open:{ops:true,pro:true},pin:{ops:true},so:{todo:{mine:true},cal:{all:true},time:{week:true},vac:{y26:true},notes:{quick:true}},spin:{},mods:{mail:true,private:true,bookmarks:true,news:true,ai:true,network:true,lists:true,video:true,slides:true,notes:true},menu:null,
   sq:'',strat:'full',ai:false,ftype:'',ftags:[],
   wins:[{tabs:[newTab('plan',true)],a:0,hist:['plan']}]};
@@ -215,7 +215,8 @@ function treeHtml(){
 Object.assign(I,{link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',hr:'<path d="M4 12h16"/>',gap:'<path d="M4 5h16M4 19h16M12 9v6"/>'});
 const SOON=' disabled data-later="1" title="Comes later"';
 /* New in a collection: what is needed most comes first, a page, then tables, databases, single records, and boards and
-   lists (the maintainer, 2026-11-09); within a block the same order of need. */
+   lists (the maintainer, 2026-11-09); within a block the same order of need. Right after the page come the templates a
+   page can start from (M-8). */
 const NEWGROUPS=[['',['page']],['Tables',['table','excel']],['Databases',['db','view']],['Records',['ipnet','devices','bookmark']],['Boards and lists',['kanban','todo','notes']],['Media',['images','slides','video']],['Organize',['folder','search']]];
 function addPop(){
   if(!S.addIn)return '';
@@ -224,9 +225,9 @@ function addPop(){
   const grp=(h,items)=>`<div role="group">${h?`<span role="heading">${h}</span>`:''}${items}</div>`;
   const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
   const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
-    :[...NEWGROUPS.map(([h,ks])=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
+    :[...NEWGROUPS.flatMap(([h,ks],k)=>[k===1&&c.db&&S.tpls.length?grp('From a template',S.tpls.map(x=>it('addtpl',x.id,x.n,'page',`data-c="${S.addIn}" title="${x.desc||x.place}"`+(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:''))).join('')):'',(()=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
         if(h==='Organize')items.push(['Collection',it('newcoll',S.addIn,'Collection','grid')]);
-        return items.length?grp(h,items.map(x=>x[1]).join('')):'';}).filter(Boolean),
+        return items.length?grp(h,items.map(x=>x[1]).join('')):'';})()]).filter(Boolean),
       grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
       grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON)+(S.mods.bookmarks?it('open','bm:import','Import bookmarks','down',off('add','bookmark')):''))];
   return `<div class="pop ctxpop cmdpop" data-style="left:${S.addAt.x}px;top:${S.addAt.y}px"><div class="command" aria-label="New ${n2?'in nav2':'in '+c.n}"><header>${ic('search')}<input data-nfilter value="${esc(S.addQ)}" placeholder="Type to filter" aria-label="Filter" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true"></header><div role="menu" data-empty="Nothing matches.">${groups.join('<hr role="separator">')}</div></div></div>`;
@@ -418,6 +419,7 @@ function gearHtml(t,i,hasSecs){
     ${hasSecs?`<div class="setrow"><span>Contents</span>${seg('settoc',['marker','side','hidden'],d.toc)}</div>`:''}
     <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
+    ${d.db&&d.blocks?`<div class="setrow"><span>Template</span>${seg('settpl',['off','offered'],d.tpl?'offered':'off')}</div>`:''}
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
     ${tagsHtml(t.d,i)}
@@ -439,6 +441,17 @@ async function saveView(id,key,field,value){
   if(!d.db)return;
   try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/view',{...same,method:'PUT',body:JSON.stringify({[field]:value})});if(!r.ok)throw new Error(String(r.status));}
   catch(e){d[key]=before;render();toast(e.message==='403'?'Only who may change this sets it.':'The view could not be saved.');}
+}
+/* Templates (M-8): UnderDoc's own and the pages offered as one, for New. A page is offered from its gear. */
+async function loadTemplates(){
+  try{const r=await fetch('/api/templates',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    S.tpls=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),desc:esc(x.desc||''),place:esc(x.place||'')}));render();}
+  catch(e){S.tpls=[];}
+}
+async function saveTemplate(id,on){
+  const d=D[id],before=!!d.tpl;d.tpl=on;render();
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/template',{...same,method:'PUT',body:JSON.stringify({template:on})});if(!r.ok)throw new Error(String(r.status));loadTemplates();}
+  catch(e){d.tpl=before;render();toast(e.message==='403'?'Only who may change this page offers it.':'The template could not be saved.');}
 }
 async function saveTags(id,tags){
   const d=D[id];
@@ -517,6 +530,7 @@ function newMenuHtml(where){
   return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.filter(c=>!isDeco(c.id)).map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
     <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
     <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+C.find(c=>c.id===into).n+'. Drag it to its place.'}</p>
+    ${!q&&D[into]&&D[into].db&&S.tpls.length?`<b>From a template</b><div class="newtypes">${S.tpls.map(x=>`<button data-act="newtpl" data-id="${x.id}" title="${x.desc||x.place}">${ic('page')}${x.n}</button>`).join('')}</div>`:''}
     ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
 }
 function createIn(cid,k,text){
@@ -847,6 +861,10 @@ document.addEventListener('click',e=>{
     case 'tadd':{const l=TL.find(x=>x.id===a.id);l.items.push({t:'New to-do',done:false});todoDocs();openDoc(`ti:${l.id}/${l.items.length-1}`);break;}
     case 'priv':openDoc(a.id);break;
     case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
+    case 'newtpl':{const f=document.querySelector('[data-quick]'),v=f&&f.value.trim().split('\n')[0].slice(0,200),x=S.tpls.find(y=>y.id===a.id);
+      if(D[S.into]&&D[S.into].db&&x)createPage(S.into,v||unesc(x.n),x.id);break;}
+    case 'addtpl':{const x=S.tpls.find(y=>y.id===a.id);if(x&&D[a.c]&&D[a.c].db)createPage(a.c,unesc(x.n),x.id);break;}
+    case 'settpl':saveTemplate(t.d,a.id==='offered');break;
     case 'newdoc':if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}openDoc(createIn(S.into,a.id,''));break;
     case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
     case 'addmenu2':{S.view='workspace';S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
@@ -1283,7 +1301,7 @@ function addNode(node){
   else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
-  if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;
+  if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;D[id].tpl=!!node.template;
   return id;
 }
 
@@ -1534,10 +1552,12 @@ async function loadVersions(id){
 }
 const gearOpen=id=>S.wins.some(w=>w.tabs.some(t=>t.d===id&&t.gear));
 /* A new page lands in the collection, folder or page it was made in, and opens in the editor, ready to write. */
-async function createPage(parent,title){
-  try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
+async function createPage(parent,title,template){
+  try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid,template:template||''})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;D[id].canComment=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
+    /* A page from a template has blocks already: they are read from the server before it is written. */
+    if(template){D[id].loaded=false;delete D[id].blocks;await loadDoc(id);}
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
     const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)setEdit(t,true);
     S.focusNext={d:id};render();}
@@ -1820,7 +1840,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.canCreate=st.canCreate;
+    S.user=st.user;S.canCreate=st.canCreate;loadTemplates();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

@@ -47,8 +47,10 @@ type apiNode struct {
 	Mine bool     `json:"mine,omitempty"`
 	Tags []string `json:"tags,omitempty"`
 	// Width and Contents say how a document of the database is shown, where they are set (ADR-16).
-	Width    string    `json:"width,omitempty"`
-	Contents string    `json:"contents,omitempty"`
+	Width    string `json:"width,omitempty"`
+	Contents string `json:"contents,omitempty"`
+	// Template tells that a page is offered as a template for new pages (M-8).
+	Template bool      `json:"template,omitempty"`
 	Kids     []apiNode `json:"kids"`
 }
 
@@ -152,7 +154,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
 	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
-		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Kids: []apiNode{}}
+		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template, Kids: []apiNode{}}
 	if depth > 8 {
 		return node
 	}
