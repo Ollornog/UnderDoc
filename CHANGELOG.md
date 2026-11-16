@@ -17,6 +17,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Quick notes are a document type (ADR-16, M-8): a board of small cards in the private notes, newest first, with a field
+  on top to add one; each card is a block of the board. New with Quick notes chosen puts a card there without choosing a
+  place first, New with a collection makes a page there, and the last choice stays with the account. See docs/editor.md.
 - Templates start new pages (M-8): New at a collection and New in the top bar offer UnderDoc's own (Meeting notes, How-to,
   Runbook, Decision) and every page offered as a template from its gear; the page starts with the template's blocks and
   opens in the editor. A template of one's own stays where it was written, with its owner and access. See docs/editor.md.

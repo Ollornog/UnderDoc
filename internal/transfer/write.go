@@ -57,7 +57,9 @@ type entry struct {
 }
 
 type pageMeta struct {
-	ID          string        `yaml:"id,omitempty"`
+	ID string `yaml:"id,omitempty"`
+	// Kind is written only for a board of quick notes; a page has none.
+	Kind        string        `yaml:"kind,omitempty"`
 	Title       string        `yaml:"title,omitempty"`
 	Description string        `yaml:"description,omitempty"`
 	Access      string        `yaml:"access,omitempty"`
@@ -157,7 +159,7 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 		return entry{Line: n.ID}, nil
 	case db.KindSpace:
 		return entry{Space: n.ID}, nil
-	case db.KindPage:
+	case db.KindPage, db.KindNotes:
 		stem := names.take(n.Title)
 		file := path.Join(dir, stem+".md")
 		text, err := pageText(n)
@@ -191,13 +193,21 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 	}
 }
 
+// kindOfPage is the kind a page file names: only a board of quick notes says so.
+func kindOfPage(kind string) string {
+	if kind == db.KindNotes {
+		return kind
+	}
+	return ""
+}
+
 // trimBody takes the blank lines off both ends of a block: they mean nothing in Markdown, and the file needs one blank
 // line between blocks.
 func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
+	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Kind), Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

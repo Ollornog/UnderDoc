@@ -74,6 +74,9 @@ func (db *DB) placeOf(ctx context.Context, o Object, viewer string) string {
 // SetTemplate offers a page as a template, or stops offering it. Whoever may change the page decides (ADR-20).
 func (db *DB) SetTemplate(ctx context.Context, pageID, viewer string, on bool) (Object, error) {
 	o, err := db.page(ctx, pageID, viewer)
+	if err == nil && o.Kind != KindPage {
+		err = ErrNotFound
+	}
 	if err != nil {
 		return Object{}, err
 	}
@@ -102,7 +105,7 @@ func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, par
 		}
 	} else {
 		from, err := db.page(ctx, template, owner.ID)
-		if errors.Is(err, ErrNotFound) || err == nil && !from.Template {
+		if errors.Is(err, ErrNotFound) || err == nil && (!from.Template || from.Kind != KindPage) {
 			return Object{}, ErrTemplate
 		}
 		if err != nil {

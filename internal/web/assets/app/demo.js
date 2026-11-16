@@ -1030,13 +1030,14 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(e.key==='Escape'&&S.sel&&!S.sel.soft&&!drag){S.sel=null;render();return;}
   if(e.key!=='Enter')return;
-  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
+  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'&&S.canCreate){quickNote(v);render();return;}else if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),id=at(+x.dataset.addtag).d,d=D[id];
     if(d.db){if(v&&!d.tags.includes(esc(v)))saveTags(id,[...d.tags.map(unesc),v]);return;}
     if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
   if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
+  if(x.dataset.addnote!==undefined&&D[at(S.focus).d].blocks){const v=x.value.trim();if(v){x.value='';addCard(at(S.focus).d,v);}return;}
   if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.cur++;render();const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();}
 });
@@ -1272,7 +1273,7 @@ C.forEach(c=>{D[c.id].n=D[c.id].n+' (demo)';S.fav[c.id]=false;});
 S.open={};S.pin={};
 
 async function loadDoc(id){
-  const d=D[id];if(!d||d.loading||d.t!=='page')return;d.loading=true;d.html='<p class="lab">Loading…</p>';
+  const d=D[id];if(!d||d.loading||(d.t!=='page'&&!(d.t==='notes'&&d.real)))return;d.loading=true;d.html='<p class="lab">Loading…</p>';
   try{
     const r=await fetch('/api/doc/'+pathOf(d.sid||id),{credentials:'same-origin',headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error(String(r.status));
@@ -1298,7 +1299,7 @@ function addNode(node){
   const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
-  else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
+  else D[id]=fill({t:node.t==='folder'?'folder':node.t==='notes'?'notes':'page',n,w:node.t==='notes'?'full':'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;D[id].tpl=!!node.template;
@@ -1394,10 +1395,31 @@ function handleHtml(d,w,i,b,inEditor){
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
+  if(d.t==='notes'&&!(editing(w)&&d.canEdit))return notesHtml(d,w,i);
   if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}"${b.align?` class="text-${b.align}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
   return edHtml(d,i,key);
 }
 
+/* Quick notes of the database (M-8): a board of small cards, newest first, with a field on top to add one. Each card is a
+   block of the board, so it has its handle, comments and versions; editing the board writes its cards as a page. */
+function notesHtml(d,w,i){
+  const add=d.canEdit?`<input class="noteadd" data-addnote placeholder="Take a note, then Enter" aria-label="Take a note">`:'';
+  return `${add}<div class="keep">${d.blocks.map(b=>`<div class="kard${b.align?' text-'+b.align:''}" id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join('')||'<p class="lab">No notes yet.</p>'}</div>`;
+}
+async function addCard(key,md){
+  const d=D[key];
+  try{const r=await fetch(pageURL(key)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:'',md})});if(!r.ok)throw new Error(String(r.status));
+    d.blocks.unshift(blockOf(await r.json()));syncBlocks(d);d.ch='now';render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
+  catch(e){toast(e.message==='403'?'Others may not change this.':'The note could not be kept.');}
+}
+/* New with Quick notes chosen: the card goes on top of the account's board, made in the private notes the first time. */
+async function quickNote(md){
+  try{const r=await fetch('/api/notes',{...same,method:'POST',body:JSON.stringify({md})});if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();let key=SID[a.board.id];
+    if(!key||!D[key]){a.board.t='notes';key=addNode(a.board);const parent=SID[a.in];if(parent&&D[parent]&&!D[parent].kids.includes(key))D[parent].kids.unshift(key);rebuildPlaces();}
+    D[key].loaded=false;delete D[key].blocks;await loadDoc(key);openDoc(key);render();}
+  catch(e){toast('The note could not be kept.');}
+}
 /* The editor of a page lives on through every render: render() draws an empty place for it, and mountEditors() puts the
    same editor back there, with its text, selection and undo. An editor whose place is gone is saved and closed. */
 const EDS={};
@@ -1815,7 +1837,8 @@ function applyN2(list){
 }
 
 /* The settings of the workspace: widths, the order of nav2, what is kept open, zoom and theme. */
-const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme','openEdit'];
+/* into is where New lands, Quick notes or a collection: the last choice stays (ADR-16, M-8). */
+const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme','openEdit','into'];
 /* With the database the account keeps them, so they follow it from browser to browser (M-28); a change goes to the
    server a moment later, once, and the browser keeps a copy for the next start and for the workspace without database. */
 let sentSettings=null,settingsTimer=0;
@@ -1850,6 +1873,7 @@ async function boot(){
   if(kept){Object.keys(kept.fav||{}).forEach(k=>{if(D[k])S.fav[k]=kept.fav[k];});Object.keys(kept.pin||{}).forEach(k=>{if(D[k]){S.pin[k]=kept.pin[k];if(kept.pin[k])S.open[k]=true;}});}
   if(window.udTheme)S.theme=window.udTheme();
   rebuildPlaces();
+  if(S.into!=='qn'&&!C.some(c=>c.id===S.into&&!isDeco(c.id)))S.into='qn';
   const start=idFromPath();
   const first=C.find(c=>D[c.id].real);
   if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}

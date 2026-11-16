@@ -81,10 +81,13 @@ func (db *DB) Blocks(ctx context.Context, pageID, viewer string) ([]Block, error
 	})
 }
 
-// page returns an object only if it is a page the viewer may see.
+// HasBlocks tells whether an object of this kind is a list of blocks: a page, or a board of quick notes.
+func HasBlocks(kind string) bool { return kind == KindPage || kind == KindNotes }
+
+// page returns an object only if it is a list of blocks the viewer may see: a page, or a board of quick notes.
 func (db *DB) page(ctx context.Context, pageID, viewer string) (Object, error) {
 	o, err := db.Object(ctx, pageID, viewer)
-	if err == nil && o.Kind != KindPage {
+	if err == nil && !HasBlocks(o.Kind) {
 		err = ErrNotFound
 	}
 	return o, err

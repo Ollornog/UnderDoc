@@ -135,7 +135,7 @@ func (db *DB) Subtree(ctx context.Context, objectID, viewer string) (*Node, erro
 			return nil, ErrTooMany
 		}
 		n := &Node{Object: o}
-		if o.Kind == KindPage {
+		if HasBlocks(o.Kind) {
 			if err := db.pool.QueryRow(ctx, "SELECT next_block FROM objects WHERE id = $1", o.ID).Scan(&n.NextBlock); err != nil {
 				return nil, err
 			}

@@ -86,6 +86,18 @@ by whoever made the page, and opens in the editor.
 - API: `GET /api/templates`, `PUT /api/objects/{id}/template {"template": true}`, `POST /api/pages {"template": id}`. The
   export writes `template: true` into the front matter, and an import reads it back.
 
+## Quick notes
+
+Quick notes are a document type of their own (ADR-16, M-8): a board of small cards, newest first, with a field on top to
+add one. Each account has its board in its private notes, made the first time a note is taken; each card is a block of
+the board (kind `notes`), so it keeps its ID, versions and comments, and editing the board writes its cards as a page.
+
+- **New** lands in Quick notes or in a chosen collection, and the last choice stays with the account. With Quick notes,
+  typing and Enter puts a card on the board without choosing a place first (`POST /api/notes {"md": …}`); with a
+  collection, it makes a page there.
+- The field on top of the board adds the next card (`POST /api/pages/{board}/blocks`).
+- The export writes the board as a page file with `kind: notes` in its front matter, and an import makes it a board again.
+
 ## Line breaks
 
 In CommonMark a single newline inside a paragraph is a soft break and shows as a space, so two quote lines `> a` and

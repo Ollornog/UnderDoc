@@ -153,6 +153,8 @@ const (
 	KindCollection = "collection"
 	KindFolder     = "folder"
 	KindPage       = "page"
+	// KindNotes is a board of quick notes: its cards are its blocks (M-8).
+	KindNotes = "notes"
 )
 
 // Object is a collection, folder or page, without its content.

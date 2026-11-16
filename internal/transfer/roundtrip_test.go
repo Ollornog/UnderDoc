@@ -145,6 +145,10 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	notes := must[[]db.Object](t)(first.Collections(ctx, anna.ID))[0]
+	board, _, err := first.AddNote(ctx, anna, "A card")
+	if err != nil {
+		t.Fatal(err)
+	}
 	must[db.Object](t)(first.CreatePage(ctx, anna, "Secret", notes.ID))
 
 	exported := exportAll(t, first)
@@ -188,6 +192,9 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if b := must[[]db.Block](t)(second.Blocks(ctx, plan.ID, anna.ID)); b[0].ID != b1.ID || b[0].Align != "center" || b[1].Align != "" {
 		t.Errorf("the alignment of the blocks after the round trip: %+v", b)
+	}
+	if o := must[db.Object](t)(second.Object(ctx, board.ID, anna.ID)); o.Kind != db.KindNotes {
+		t.Errorf("the board of quick notes after the round trip: %+v", o)
 	}
 	if o := must[db.Object](t)(second.Object(ctx, plan.ID, anna.ID)); o.Width != "full" || o.Contents != "side" || !o.Template {
 		t.Errorf("the view of the plan after the round trip: %q %q", o.Width, o.Contents)

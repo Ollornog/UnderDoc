@@ -344,6 +344,36 @@ func (h *handler) apiTemplate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"template": o.Template})
 }
 
+// apiAddNote puts a card on top of the viewer's quick notes, made in the private notes the first time (M-8). It answers
+// the board, so the workspace can show it, and the card.
+func (h *handler) apiAddNote(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Body string `json:"md"`
+	}
+	user, ok := h.change(w, r, 1<<20, &in)
+	if !ok {
+		return
+	}
+	if strings.TrimSpace(in.Body) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a note needs some text"})
+		return
+	}
+	board, card, err := h.options.DB.AddNote(r.Context(), user, in.Body)
+	if h.failed(w, err, "note") {
+		return
+	}
+	notes, err := h.options.DB.Object(r.Context(), board.Parent, user.ID)
+	if h.failed(w, err, "note") {
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"board": apiNode{ID: board.ID, Title: board.Title, Kind: board.Kind, Owner: h.options.DB.AccountName(r.Context(), board.Owner), Mine: true,
+			Kids: []apiNode{}, Path: route.Object(board.ID)},
+		"in":    notes.ID,
+		"block": h.block(r, board.ID, card, nil),
+	})
+}
+
 // apiAlignBlock aligns a block left, center or right (ADR-16); its text stays as it is.
 func (h *handler) apiAlignBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {

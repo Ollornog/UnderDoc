@@ -391,3 +391,32 @@ func TestTemplatesThroughTheAPI(t *testing.T) {
 		t.Errorf("from the page = %d", got)
 	}
 }
+
+func TestQuickNotesThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	s.get("/api/state") // the first visit makes the account with its private notes
+	res := s.send(http.MethodPost, "/api/notes", `{"md":"Call the crane company"}`, sameSite)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("note: %d %s", res.Code, res.Body.String())
+	}
+	got := decode[struct {
+		Board apiNode  `json:"board"`
+		In    string   `json:"in"`
+		Block apiBlock `json:"block"`
+	}](t, res)
+	if got.Board.Kind != "notes" || got.Board.Title != "Quick notes" || got.Block.ID != "b1" || !strings.Contains(got.Block.HTML, "crane") {
+		t.Errorf("the board and the card: %+v", got)
+	}
+	s.send(http.MethodPost, "/api/notes", `{"md":"Second"}`, sameSite)
+	doc := decode[apiDocument](t, s.get("/api/doc/"+got.Board.ID))
+	if doc.Kind != "notes" || len(doc.Blocks) != 2 || doc.Blocks[0].Markdown != "Second" || !doc.CanEdit {
+		t.Errorf("the board reads as a list of cards, newest first: %+v", doc)
+	}
+	state := decode[apiState](t, s.get("/api/state"))
+	if notes := state.Collections[0]; notes.ID != got.In || !notes.Private || len(notes.Kids) != 1 || notes.Kids[0].Kind != "notes" {
+		t.Errorf("the board lies in the private notes: %+v", notes)
+	}
+	if got := s.send(http.MethodPost, "/api/notes", `{"md":"  "}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("an empty note = %d", got)
+	}
+}

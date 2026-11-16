@@ -221,7 +221,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 	objectID := r.PathValue("id")
 	if h.options.DB != nil && id.Valid(objectID) {
 		o, err := h.options.DB.Object(ctx, objectID, user.ID)
-		if err == nil && o.Kind == db.KindPage {
+		if err == nil && db.HasBlocks(o.Kind) {
 			h.pageDocument(w, r, o)
 			return
 		}

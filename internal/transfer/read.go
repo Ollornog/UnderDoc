@@ -564,6 +564,13 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 		r.warn(file, fmt.Sprintf("access %q is not edit, comment or read, it was left out", p.Meta.Access))
 	}
 	n.Template = p.Meta.Template
+	switch p.Meta.Kind {
+	case "", db.KindPage:
+	case db.KindNotes:
+		n.Kind, n.Template = db.KindNotes, false
+	default:
+		r.warn(file, fmt.Sprintf("kind %q is not a page or quick notes, it was read as a page", p.Meta.Kind))
+	}
 	if db.ValidView(p.Meta.Width, p.Meta.Contents) {
 		n.Width, n.Contents = p.Meta.Width, p.Meta.Contents
 	} else {
