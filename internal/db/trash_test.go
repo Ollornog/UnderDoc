@@ -12,7 +12,7 @@ import (
 
 func TestDeleteHidesTheTree(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
@@ -79,7 +79,7 @@ func TestDeleteHidesTheTree(t *testing.T) {
 
 func TestDeleteFollowsAccess(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	inner, _ := db.CreateCollection(ctx, anna, "Inner", team.ID)
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
@@ -139,7 +139,7 @@ func TestDeleteFollowsAccess(t *testing.T) {
 
 func TestRestore(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	if _, err := db.CreatePage(ctx, anna, "B", team.ID); err != nil {
@@ -217,7 +217,7 @@ func TestRestore(t *testing.T) {
 
 func TestPurge(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
@@ -264,7 +264,7 @@ func TestPurge(t *testing.T) {
 
 func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)

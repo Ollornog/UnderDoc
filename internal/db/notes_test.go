@@ -3,14 +3,13 @@
 package db
 
 import (
-	"context"
 	"sync"
 	"testing"
 )
 
 func TestQuickNotes(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if err := db.SeeAccount(ctx, anna); err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,9 +16,12 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
+
+func inMain() context.Context { return tenant.With(context.Background(), tenant.Main) }
 
 func runCommand(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
@@ -28,7 +32,8 @@ func runCommand(t *testing.T, args ...string) (int, string, string) {
 
 func TestTransferUsage(t *testing.T) {
 	for _, args := range [][]string{{"export"}, {"export", "a", "b"}, {"import"}, {"import", "--owner", "anna", "dir"},
-		{"import", "dir", "title"}, {"import", "--owner"}, {"import", "--bogus", "x", "dir", "title"}, {"import", "--owner", "anna", "a", "b", "c"}} {
+		{"import", "dir", "title"}, {"import", "--owner"}, {"import", "--bogus", "x", "dir", "title"}, {"import", "--owner", "anna", "a", "b", "c"},
+		{"export", "--tenant"}, {"export", "--tenant", "Bad", "dir"}, {"import", "--tenant", "-x", "--owner", "anna", "d", "t"}, {"tenant", "add", "x"}} {
 		if code, _, errOut := runCommand(t, args...); code != 2 || !strings.Contains(errOut, "usage:") {
 			t.Errorf("%v: exit %d, stderr %q", args, code, errOut)
 		}
@@ -77,12 +82,12 @@ func files(t *testing.T, dir string) map[string]string {
 func database(t *testing.T) (*db.DB, string) {
 	t.Helper()
 	url := pgtest.URL(t)
-	database, err := db.Open(context.Background(), url)
+	database, err := db.Open(inMain(), url)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	if err := database.SeeAccount(context.Background(), account.User{ID: "u-anna", Login: "anna", Name: "Anna"}); err != nil {
+	if err := database.SeeAccount(inMain(), account.User{ID: "u-anna", Login: "anna", Name: "Anna"}); err != nil {
 		t.Fatal(err)
 	}
 	return database, url
@@ -90,7 +95,7 @@ func database(t *testing.T) (*db.DB, string) {
 
 // The command line round trip: export, import into another database, export again, and the collection is the same.
 func TestExportAndImport(t *testing.T) {
-	ctx := context.Background()
+	ctx := inMain()
 	first, url := database(t)
 	anna := account.User{ID: "u-anna", Login: "anna"}
 	team, _ := first.CreateCollection(ctx, anna, "Team", "")
@@ -144,7 +149,7 @@ func TestExportAndImport(t *testing.T) {
 // file name or title; what finds nothing, and what stands in fenced code, stays as written. An embedding of an imported
 // page follows it to its new ID.
 func TestImportedLinksFollowThePages(t *testing.T) {
-	ctx := context.Background()
+	ctx := inMain()
 	store, url := database(t)
 	dir := t.TempDir()
 	write := func(name, content string) {
@@ -204,7 +209,7 @@ func TestImportedLinksFollowThePages(t *testing.T) {
 // Tags come in with the import, from a list or a line with commas, are kept as the database keeps them, and go out again
 // with the export; tags it cannot keep are named in the warnings.
 func TestTagsComeAndGo(t *testing.T) {
-	ctx := context.Background()
+	ctx := inMain()
 	store, url := database(t)
 	dir := t.TempDir()
 	for name, content := range map[string]string{
@@ -250,5 +255,57 @@ func TestTagsComeAndGo(t *testing.T) {
 	}
 	if strings.Contains(exported["Tagged/Three.md"], "tags") {
 		t.Errorf("no tags, no line:\n%s", exported["Tagged/Three.md"])
+	}
+}
+
+// TestTransferPerTenant: export and import work on the tenant named by --tenant and nothing else, and tenant add makes
+// a tenant to import into.
+func TestTransferPerTenant(t *testing.T) {
+	first, url := database(t)
+	t.Setenv("UNDERDOC_DATABASE_URL", url)
+	if code, stdout, errOut := runCommand(t, "tenant", "add", "acme", "Acme Ltd"); code != 0 || !strings.Contains(stdout, "tenant acme") {
+		t.Fatalf("tenant add: %d %q %q", code, stdout, errOut)
+	}
+	if code, _, errOut := runCommand(t, "tenant", "add", "acme", "Again"); code != 1 || !strings.Contains(errOut, "taken") {
+		t.Errorf("tenant add twice: %d %q", code, errOut)
+	}
+	anna := account.User{ID: "u-anna", Login: "anna"}
+	acme := tenant.With(context.Background(), "acme")
+	if err := first.SeeAccount(acme, anna); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.CreateCollection(inMain(), anna, "Main only", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.CreateCollection(acme, anna, "Acme only", ""); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "acme")
+	if code, _, errOut := runCommand(t, "export", "--tenant", "acme", out); code != 0 {
+		t.Fatalf("export acme: %q", errOut)
+	}
+	exported := files(t, out)
+	if _, ok := exported["Acme only/.underdoc.yaml"]; !ok {
+		t.Errorf("acme's collection is missing: %v", slices.Collect(maps.Keys(exported)))
+	}
+	for name := range exported {
+		if strings.HasPrefix(name, "Main only") {
+			t.Errorf("the export of acme holds %s of Main", name)
+		}
+	}
+	if code, _, errOut := runCommand(t, "import", "--tenant", "acme", "--owner", "anna", filepath.Join(out, "Acme only"), "Back"); code != 0 {
+		t.Fatalf("import into acme: %q", errOut)
+	}
+	if code, _, errOut := runCommand(t, "import", "--tenant", "nobody", "--owner", "anna", filepath.Join(out, "Acme only"), "Back"); code != 1 || !strings.Contains(errOut, "no such account") {
+		t.Errorf("import into a tenant that does not exist: %d %q", code, errOut)
+	}
+	list, err := first.Collections(inMain(), anna.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range list {
+		if c.Title == "Back" || c.Title == "Acme only" {
+			t.Errorf("the import into acme landed in Main: %+v", c)
+		}
 	}
 }

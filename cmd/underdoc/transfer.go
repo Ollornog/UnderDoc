@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/transfer"
 )
 
@@ -30,8 +31,8 @@ func openDatabase(ctx context.Context) (*db.DB, error) {
 	return database, nil
 }
 
-// export writes every collection of the database into dir, which must not exist yet or be empty, so nothing is ever
-// overwritten. Private notes of every account go too: whoever runs this runs the server (docs/export.md).
+// export writes every collection of the tenant of ctx into dir, which must not exist yet or be empty, so nothing is
+// ever overwritten. Private notes of every account go too: whoever runs this runs the server (docs/export.md).
 func export(ctx context.Context, dir string, stdout, stderr io.Writer) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -85,7 +86,8 @@ func accounts(private []db.Owned) int {
 	return len(seen)
 }
 
-// importTree reads dir into a new collection of the account with the login owner. It never changes what exists.
+// importTree reads dir into a new collection of the account with the login owner, in the tenant of ctx. It never
+// changes what exists.
 func importTree(ctx context.Context, owner, dir, title string, stdout, stderr io.Writer) error {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -113,6 +115,42 @@ func importTree(ctx context.Context, owner, dir, title string, stdout, stderr io
 	}
 	fmt.Fprintf(stdout, "imported %d objects into %q (%s), %d got a new id\n", done.Objects, done.Top.Title, done.Top.ID, len(done.Renamed))
 	return nil
+}
+
+// takeFlag takes --name <value> or --name=<value> from anywhere in the arguments and returns the rest. It reports false
+// only for the flag without its value.
+func takeFlag(args []string, name string) (value string, rest []string, ok bool) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--"+name || a == "-"+name:
+			if i+1 >= len(args) {
+				return "", nil, false
+			}
+			value = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--"+name+"="), strings.HasPrefix(a, "-"+name+"="):
+			_, value, _ = strings.Cut(a, "=")
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return value, rest, true
+}
+
+// tenantFlag takes --tenant <id> from the arguments, Main without it, and returns a context of that tenant.
+func tenantFlag(ctx context.Context, args []string) (context.Context, []string, error) {
+	id, rest, ok := takeFlag(args, "tenant")
+	if !ok {
+		return ctx, nil, errors.New("--tenant needs the ID of a tenant")
+	}
+	if id == "" {
+		id = tenant.Main
+	}
+	if !tenant.Valid(id) {
+		return ctx, nil, tenant.ErrID
+	}
+	return tenant.With(ctx, id), rest, nil
 }
 
 // ownerFlag takes --owner <login> or --owner=<login> from anywhere in the arguments and returns the rest.

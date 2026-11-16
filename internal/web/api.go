@@ -110,7 +110,7 @@ func folderID(path string) string { return "f:" + path }
 func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := account.From(ctx)
-	lib := h.store.Library()
+	lib := h.library(r.Context())
 	state := apiState{
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
 			Admin: h.isAdmin(r)},
@@ -237,7 +237,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	lib := h.store.Library()
+	lib := h.library(r.Context())
 	doc, ok := lib.Document(document.ID(objectID))
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such page"})
@@ -275,7 +275,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 
 // apiSearch searches the full text of the folder source.
 func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
-	lib := h.store.Library()
+	lib := h.library(r.Context())
 	hits := []apiHit{}
 	for _, hit := range lib.Search(r.URL.Query().Get("q"), maxSearchResults) {
 		var snippet strings.Builder

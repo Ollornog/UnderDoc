@@ -3,14 +3,13 @@
 package db
 
 import (
-	"context"
 	"slices"
 	"testing"
 )
 
 func TestReferencesFollowTheBlocks(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if got := RefsIn("text\n::embed{ref=\"7k2m9q4x1c#b3\"}\n  ::embed{ref=\"7k2m9q4x1c\"}  \n::embed{ref=\"7k2m9q4x1c#b3\"}\nnot ::embed{ref=\"7k2m9q4x1c\"} inline\nsee ::embed{ref=\"7k2m9q4x1c#b9\"}\n::embed{ref=\"bad\"}"); !slices.Equal(got, [][2]string{{"7k2m9q4x1c", "b3"}, {"7k2m9q4x1c", ""}}) {
 		t.Errorf("each embedding once, on a line of its own: %q", got)
 	}
@@ -69,7 +68,7 @@ func TestReferencesFollowTheBlocks(t *testing.T) {
 
 func TestUsesBeforeDeleting(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	folder, _ := db.CreateFolder(ctx, anna, "Folder", team.ID)
 	plan, _ := db.CreatePage(ctx, anna, "Plan", folder.ID)

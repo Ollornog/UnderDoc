@@ -309,7 +309,7 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 		made, err := scan(tx.QueryRow(ctx, `
 			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, template)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''), $13)
-			ON CONFLICT (id) DO NOTHING
+			ON CONFLICT (tenant, id) DO NOTHING
 			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o),
 			o.Width, o.Contents, o.Template && o.Kind == KindPage))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
