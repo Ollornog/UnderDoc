@@ -78,7 +78,55 @@ Offsets are UTF-16 code units of the block's Markdown, as the browser counts the
 - The markers of a part show in the HTML of its own page as empty `<span data-part-open="t2">` and
   `<span data-part-close="t2">`, so the page can show the boundary of a part; they never travel into an embedding.
 
+## When something in use goes
+
+Deleting a block that something embeds, deleting the text of a part in use (the part ends when its text is gone), or
+deleting a page of which something is embedded elsewhere always asks first. The workspace asks before it saves (`POST
+/api/pages/{id}/blocks/{block}/lost {"md": …}` or `{"delete": true}` says, without changing anything, what would go and
+where it is used), and the server refuses such a change without a way with 409 and the same list. A dialog names each
+thing with every place of use and offers three ways, with nothing chosen in advance and nothing deleted before each thing
+has its way; with more than one, "The same for all" takes the first choice; "Keep it" gives up, and the block or its text
+comes back:
+
+| Way | What happens |
+|---|---|
+| **Delete everywhere** | It goes (`removed`), and every embedding shows "Removed by … on … from …" in its place, never a quiet gap. **Restore** on the placeholder (for who may change its page) puts it back, blocks with their IDs where they were, a part as a paragraph at the end of its block, and every use shows it again. A page in the trash shows the same placeholder until it is restored. |
+| **A copy in every use** | Each embedding in a page the viewer may change becomes plain text in its place, without markers; the version of that block says `copy of <address>`. Every other page keeps a placeholder, its owner gets a notice, and **Keep a copy here** on it writes the copy there. |
+| **New master** | The viewer picks one use in a page they may change. The content moves there in place of its embedding (a part with a new part ID in that block, a block or section as blocks of that page; the rest of a section leaves the old page with it), every other reference in `refs` is rewritten to the new address in the same transaction, and the old address answers with a redirect (`redirects`, `GET /api/redirect?ref=`), also for embeddings written later with it. The owner of that page gets a notice. |
+
+A block that goes takes its parts and its section with it, one way for all. A whole page has no place inside another, so
+its own embeddings get everywhere or copies. Of a page the viewer may not see nothing is told, not even that it went.
+
+- API: `PUT …/blocks/{block} {"md", "ways"}`, `DELETE …/blocks/{block} {"ways"}`, `DELETE /api/objects/{id} {"ways"}`,
+  with `ways` keyed by the target (`b3.t2`), the address, or `*` for all: `{"way": "everywhere" | "copies" | "master",
+  "master": "<page>#<block>"}`. `POST /api/removed/{id}/restore`, `POST /api/removed/{id}/copy {"page"}`.
+- Notices (`notices`, `GET /api/notices`) are kept for the inbox of M-16, which shows them; until then the dialog says
+  that owners are told.
+- The version history notes where a copy came from and where moved text went (`origin` of a version).
+- **Moving a block into another page** (`POST …/blocks/{block}/move {"page", "after"}`, who may change both pages) takes
+  its parts and its section along under a new block ID there; every reference is rewritten in the same transaction and
+  the old addresses redirect. The editor does not offer it yet.
+
+## In the editor and while reading
+
+- **Marking:** with text marked inside one paragraph, the bar offers **Copy** (plain text with no tie, through the
+  excerpt above; over several blocks the Markdown as it stands, without markers), **Embed** (the text becomes a part, or
+  stays the one it is, and its address goes to the clipboard) and a field **Name it as a value** with its button (the same,
+  with a name). The editor saves first, then the server snaps the edges and writes the markers, and its answer becomes
+  the block's text.
+- **Pasting** the address of a part into a paragraph embeds it there (`:embed{ref=…}`); alone on a line, any address
+  embeds as a block, a section (`#b3.section`) or a part.
+- **Markers** of parts are hidden in the editor and atomic: the cursor jumps over them, and a marker cannot go on its own
+  while text of its part is left (it is put back). When all text of a part is gone, both markers go, and saving asks what
+  happens where the part is used.
+- **Boundaries only when needed:** with the cursor in a part, the editor draws a light outline round its text and a
+  label, "Used in N places" or "Not used elsewhere", with "Value <name>" in front for a value. While reading, the pointer
+  over the text of a part, or a finger on it on a touch screen, shows the same outline and label (`parts.js`, over the
+  boxes of the range between the two markers, so parts that cut through formatting or overlap show whole).
+- **Values:** `GET /api/values` lists every part with a name in the pages the viewer sees, with its text and address,
+  for the Resources tab (ADR-15), which in the workspace is still a mock-up of the first build.
+
 ## Still to come in M-3
 
-Deleting something in use with its three ways, the placeholder, moving with redirects, the boundaries in reading and in
-the editor, marking from the editor, values in the Resources tab: see ADR-22 and M-3.
+The Resources tab of the workspace with real values and snippets, moving a block to another page from the editor (the
+server does it, above), Excel tables in pages, Mermaid (T-3), the facts panel: see M-3.

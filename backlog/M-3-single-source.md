@@ -28,4 +28,7 @@ One change appears everywhere. Everything is still maintained as files.
 **State 2026-11-17:** parts, sections and values in the Markdown, their addresses, embedding them (also inside a
 paragraph), cutting through formatting, marking and copying through the API, where each is used and broken references
 are built ([docs/parts.md](../docs/parts.md)). Next: the three ways of deleting, moving with redirects, the boundaries
-and marking in the editor and in reading, the Resources tab.
+and marking in the editor and in reading, the Resources tab. **Later the same day:** the three ways of deleting with the
+placeholder, restoring, copies, new master, redirects and notices; marking, copying and embedding from the editor, the
+boundaries in the editor and while reading, values by name. Open: the Resources tab of the workspace with real values and
+snippets (it is still a mock-up of the first build), Excel tables in pages, Mermaid (T-3), the facts panel.

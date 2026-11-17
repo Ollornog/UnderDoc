@@ -1340,7 +1340,7 @@ func TestDeletingSomethingInUse(t *testing.T) {
 	b.ready("Team")
 	b.rightClickOn(rowNamed(b, "Plan"))
 	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
-	if !b.waitFor(`document.querySelector('.ctxpop [data-uses]')?.textContent === 'Embedded in Rack. There it will show that it is gone.'`) {
+	if !b.waitFor(`document.querySelector('.ctxpop [data-uses]')?.textContent === 'Embedded in Rack. You choose what happens there.'`) {
 		t.Fatalf("the question names Rack: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
 	}
 	b.press("Escape", "Escape", 27, 0)
@@ -1349,5 +1349,27 @@ func TestDeletingSomethingInUse(t *testing.T) {
 	b.eval(`new Promise(r => setTimeout(r, 300))`)
 	if got := b.eval(`document.querySelector('.ctxpop [data-act="delobj"]')?.textContent + ' | ' + !!document.querySelector('.ctxpop [data-uses]')`); got != "Delete? Yes | false" {
 		t.Errorf("what is used nowhere just asks: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	// Deleting Plan goes through what of it is used, with nothing chosen in advance (ADR-22): a copy in Rack, then the
+	// trash.
+	b.rightClickOn(rowNamed(b, "Plan"))
+	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	b.waitFor(`!!document.querySelector('.ctxpop [data-uses]')`)
+	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	if !b.waitFor(`!!document.querySelector('.wayspop [data-wayitem]')`) {
+		t.Fatalf("deleting a page in use asks for the ways")
+	}
+	if got := b.eval(`document.querySelector('.wayspop [data-wayitem]').innerText.replace(/\s+/g, ' ')`); !strings.Contains(got, "Block #b1 in Plan") || !strings.Contains(got, "Used in Rack") {
+		t.Errorf("the dialog: %q", got)
+	}
+	b.clickOn(`.wayspop [data-act="way"][data-way="copies"]`, 1)
+	b.clickOn(`.wayspop [data-act="waysgo"]`, 1)
+	if !b.waitFor(`/Plan is in the trash/.test(document.body.innerText)`) {
+		t.Errorf("Plan went into the trash: %s", b.eval(`document.querySelector('.toast')?.textContent`))
+	}
+	b.eval(`window.got = null; fetch('/api/doc/' + D[Object.keys(D).find(k => plain(D[k].n) === 'Rack')].sid).then(r => r.json()).then(d => { window.got = d.blocks[0].md; })`)
+	if !b.waitFor(`window.got === 'one'`) {
+		t.Errorf("Rack has a copy: %q", b.eval(`window.got`))
 	}
 }

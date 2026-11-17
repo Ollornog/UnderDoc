@@ -36,6 +36,8 @@ type Version struct {
 	Deleted bool
 	Author  string
 	At      time.Time
+	// Origin says where a copy came from or where moved text went (ADR-22).
+	Origin string
 }
 
 // mayEdit tells whether the viewer may change an object: its owner always, anyone else while others may edit (ADR-20),
@@ -197,8 +199,15 @@ func (db *DB) MoveBlock(ctx context.Context, pageID, blockID, viewer, after stri
 	})
 }
 
-// EditBlock gives a block new text and keeps the change as a version. The same text again makes no version.
+// EditBlock gives a block new text and keeps the change as a version. The same text again makes no version. A part in
+// use that the new text takes away needs a way (ADR-22): without one the change answers *InUse.
 func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body string) (Block, error) {
+	return db.EditBlockWays(ctx, pageID, blockID, viewer, body, nil)
+}
+
+// EditBlockWays is EditBlock with the ways chosen for parts in use that the new text takes away, by target ("b3.t2") or
+// for all ("*").
+func (db *DB) EditBlockWays(ctx context.Context, pageID, blockID, viewer, body string, ways map[string]Way) (Block, error) {
 	if err := checkBody(body); err != nil {
 		return Block{}, err
 	}
@@ -216,21 +225,41 @@ func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body strin
 		if err := roomForBytes(ctx, tx, int64(len(body)-len(old))); err != nil {
 			return err
 		}
+		gone, err := lostByEdit(ctx, tx, pageID, blockID, old, body)
+		if err != nil {
+			return err
+		}
+		if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, "UPDATE blocks SET body = $3 WHERE page = $1 AND id = $2", pageID, blockID, body); err != nil {
 			return err
 		}
 		if err := syncRefs(ctx, tx, pageID, blockID, body); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer)
+		_, err = tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer)
 		return err
 	})
 	return Block{ID: blockID, Body: body}, err
 }
 
-// DeleteBlock takes a block out of its page. Its versions stay, and its ID is not given out again.
+// DeleteBlock takes a block out of its page. Its versions stay, and its ID is not given out again. A block that something
+// embeds, or a part or the section of it, needs a way (ADR-22): without one it answers *InUse.
 func (db *DB) DeleteBlock(ctx context.Context, pageID, blockID, viewer string) error {
+	return db.DeleteBlockWays(ctx, pageID, blockID, viewer, nil)
+}
+
+// DeleteBlockWays is DeleteBlock with the way chosen for the block in use, its parts and its section ("*").
+func (db *DB) DeleteBlockWays(ctx context.Context, pageID, blockID, viewer string, ways map[string]Way) error {
 	return db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
+		gone, err := lostByDelete(ctx, tx, pageID, blockID)
+		if err != nil {
+			return err
+		}
+		if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", pageID, blockID)
 		if err != nil {
 			return err
@@ -249,7 +278,7 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `
-		SELECT v.version, v.block, coalesce(v.body, ''), v.body IS NULL, coalesce(a.name, v.author), v.at
+		SELECT v.version, v.block, coalesce(v.body, ''), v.body IS NULL, coalesce(a.name, v.author), v.at, v.origin
 		FROM block_versions v LEFT JOIN accounts a ON a.id = v.author
 		WHERE v.page = $1 ORDER BY v.version DESC LIMIT $2`, pageID, limit)
 	if err != nil {
@@ -257,7 +286,7 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Version, error) {
 		var v Version
-		err := row.Scan(&v.Number, &v.Block, &v.Body, &v.Deleted, &v.Author, &v.At)
+		err := row.Scan(&v.Number, &v.Block, &v.Body, &v.Deleted, &v.Author, &v.At, &v.Origin)
 		return v, err
 	})
 }

@@ -77,4 +77,7 @@ The third option, worked out with the maintainer on 2026-11-16.
   `<page>#<block>.section`, a section of blocks (a block that opens with a heading, up to the next block that opens with
   one of the same or a higher level; a heading in the middle of a block does not end it), embedding a part inside a
   paragraph with `:embed{ref=…}`, cutting through formatting with the plain text as the fallback where Markdown cannot
-  say it, marking with snapping, copies through the API, the places of use and the list of problems.
+  say it, marking with snapping, copies through the API, the places of use and the list of problems. Then the three
+  ways with the placeholder and restoring, copies, a new master with redirects, and notices for M-16. A section that goes
+  with a new master takes its blocks along; a heading taken out of a block by editing does not count as deleting its
+  section.

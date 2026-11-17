@@ -239,8 +239,11 @@ export function turnInto(md, kind) {
   }
 }
 
-/** The address of a block or page, as Copy address puts it on the clipboard (ADR-18). */
-export const ADDRESS = /^\s*(?:https?:\/\/[^/\s]+)?\/o\/([0-9a-hjkmnp-tv-z]{10})(?:\/[^#\s]*)?(?:#(b[1-9][0-9]{0,8}))?\s*$/;
+/**
+ * The address of a page, block, section or part, as Copy address and Embed put it on the clipboard (ADR-18, ADR-22):
+ * /o/<page>, #b3, #b3.section, #b3.t2.
+ */
+export const ADDRESS = /^\s*(?:https?:\/\/[^/\s]+)?\/o\/([0-9a-hjkmnp-tv-z]{10})(?:\/[^#\s]*)?(?:#(b[1-9][0-9]{0,8}(?:\.(?:t[1-9][0-9]{0,8}|section))?))?\s*$/;
 
 /** embedFor turns a pasted address into the line that embeds it, or null. */
 export function embedFor(text) {
@@ -248,8 +251,38 @@ export function embedFor(text) {
   return m ? `::embed{ref="${m[1]}${m[2] ? '#' + m[2] : ''}"}` : null;
 }
 
+/** inlineEmbedFor turns a pasted address of a part into its embedding inside a paragraph, or null (ADR-22). */
+export function inlineEmbedFor(text) {
+  const m = ADDRESS.exec(text || '');
+  return m && m[2] && /\.t[1-9]/.test(m[2]) ? `:embed{ref="${m[1]}#${m[2]}"}` : null;
+}
+
 /** EMBED reads an embedding line. */
-export const EMBED = /^::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8}))?"\}\s*$/;
+export const EMBED = /^::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8}(?:\.(?:t[1-9][0-9]{0,8}|section))?))?"\}\s*$/;
+
+/** PART_MARKER finds the markers of parts (ADR-22) in a text. */
+export const PART_MARKER = /<!-- (\/?)part (t[1-9][0-9]{0,8})(?: name="([^"<>\n\\]{1,80})")? -->/g;
+
+/**
+ * partsIn finds the parts of a text: an opening marker with the first closing marker of the same ID after it, in the
+ * same paragraph (no blank line between). [{id, name, open: [from, to], close: [from, to]}], offsets into text.
+ */
+export function partsIn(text) {
+  const marks = [...text.matchAll(PART_MARKER)].map((m) => ({ close: m[1] === '/', id: m[2], name: m[3] || '', from: m.index, to: m.index + m[0].length }));
+  const out = [];
+  const taken = new Set();
+  marks.forEach((open, k) => {
+    if (open.close || taken.has(open.id)) return;
+    const end = marks.slice(k + 1).find((c) => c.close && c.id === open.id);
+    if (!end || /\n[ \t]*\n/.test(text.slice(open.to, end.from))) return;
+    taken.add(open.id);
+    out.push({ id: open.id, name: open.name, open: [open.from, open.to], close: [end.from, end.to] });
+  });
+  return out;
+}
+
+/** stripParts takes the markers of parts out of a text, for a copy. */
+export const stripParts = (text) => text.replace(PART_MARKER, '');
 
 // The line that shows a pasted or dropped image (ADR-28): its name without the extension as the text, which no character
 // of it can end early, and the address of the attachment.

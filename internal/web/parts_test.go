@@ -152,6 +152,20 @@ func TestPartsThroughTheAPI(t *testing.T) {
 		t.Errorf("excerpt = %+v", excerpt)
 	}
 
+	// A part with a name is a value, listed by name for the Resources tab.
+	vat := newPage("Rates", "VAT is 19 %.")
+	if res, code := mark(vat, "b1", "VAT is 19 %.", "19 %", "vat"); code != http.StatusCreated || res.MD != `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.` {
+		t.Fatalf("a value = %d %+v", code, res)
+	}
+	if _, code := mark(vat, "b1", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`, "VAT", ""); code != http.StatusCreated {
+		t.Fatalf("a part without a name next to the value = %d", code)
+	}
+	var values []apiValue
+	_ = json.Unmarshal(s.get("/api/values").Body.Bytes(), &values)
+	if len(values) != 1 || values[0].Name != "vat" || values[0].Text != "19 %" || values[0].Ref != vat+"#b1.t1" || values[0].Title != "Rates" {
+		t.Errorf("the values: %+v", values)
+	}
+
 	// Marking refuses what is more than a paragraph, and a name that does not fit.
 	if _, code := mark(catalogue, "b2", "**very important to all** customers", "**very important to all** customers", `a"b`); code != http.StatusBadRequest {
 		t.Errorf("a bad name = %d", code)
@@ -178,13 +192,15 @@ func TestPartsThroughTheAPI(t *testing.T) {
 	}
 
 	// An ID is never given out again while something still embeds it.
-	s.send(http.MethodPut, "/api/pages/"+catalogue+"/blocks/b1", `{"md":"Error 42: gone."}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/pages/"+catalogue+"/blocks/b1", `{"md":"Error 42: gone.","ways":{"*":{"way":"everywhere"}}}`, sameSite).Code; got != http.StatusOK {
+		t.Fatalf("deleting the text of a part in use, everywhere = %d", got)
+	}
 	again, _ := mark(catalogue, "b1", "Error 42: gone.", "gone", "")
 	if again.Part != "t2" {
 		t.Errorf("a new part after t1 that Runbook still embeds: %s", again.Part)
 	}
-	if got := html(runbook); !strings.Contains(got, "Part #b1.t1 is no longer in Errors") {
-		t.Errorf("an embedding of a part that is gone says so: %s", got)
+	if got := html(runbook); !strings.Contains(got, `data-ref="`+disk.Ref+`" data-removed>Removed by Anna Berg on `) {
+		t.Errorf("an embedding of a part deleted everywhere says who removed it: %s", got)
 	}
 
 	// The list of problems names parts and sections that are gone.

@@ -230,7 +230,7 @@ func TestTheListOfProblems(t *testing.T) {
 		"::embed{ref=\""+gone+"\"}",
 		"::embed{ref=\""+secret+"\"}",
 		"::embed{ref=\""+team.ID+"\"}")
-	if got := s.send(http.MethodDelete, "/api/objects/"+gone, "", sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
+	if got := s.send(http.MethodDelete, "/api/objects/"+gone, `{"ways":{"*":{"way":"everywhere"}}}`, sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
 		t.Fatalf("delete = %d", got)
 	}
 	list := func(as map[string]string) []string {

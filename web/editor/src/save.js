@@ -7,17 +7,22 @@ import { moves, normalize, same } from './blocks.js';
 
 export class Conflict extends Error {}
 
+/** The opening marker of a part (ADR-22), as it stands in a block. */
+const PART = /<!-- part t[1-9][0-9]{0,8}[ >]/g;
+
 /**
  * run carries out plan p.
  *
  * stored: the blocks as stored, [{id, md, usedIn}]; it is not changed, the answer has the new list.
- * api: {load(), edit(id, md), remove(id), move(id, after), add(after, md)}; edit and add answer with the block.
+ * api: {load(), edit(id, md, ways), remove(id, ways), move(id, after), add(after, md)}; edit and add answer with the
+ * block. ways: {id: ways} for blocks whose change takes away something in use (ADR-22), as the workspace chose them.
  * events: {edited(block), removed(id), moved(id, after), added(block, after)}, called after each call that succeeded.
  *
  * Returns {stored, made: [{place, id}]}: the new list, and for every new block where its marker goes. A call that fails
- * throws, with what succeeded before it already in events; Conflict when the page changed elsewhere meanwhile.
+ * throws, with what succeeded before it already in events; Conflict when the page changed elsewhere meanwhile. A call
+ * that fails names its block and kind on the error (err.block, err.kind: 'edit' or 'delete').
  */
-export async function run(p, stored, api, events = {}) {
+export async function run(p, stored, api, events = {}, ways = {}) {
   const fire = (name, ...args) => events[name] && events[name](...args);
   const server = await api.load();
   if (!same(server, stored)) throw new Conflict('changed elsewhere');
@@ -33,13 +38,29 @@ export async function run(p, stored, api, events = {}) {
   return { stored: list, made };
 
   async function calls() {
+    const named = (kind, block) => (err) => {
+      err.kind = kind;
+      err.block = block;
+      throw err;
+    };
+    // Before a change takes away something in use, the workspace asks (ADR-22): a block that goes, or a text without a
+    // part its block had. The server refuses such a change without a way as well.
+    const ask = async (kind, id, md) => {
+      if (ways[id] || !api.lost) return;
+      const old = (stored.find((x) => x.id === id) || {}).md || '';
+      if (kind === 'edit' && !(old.match(PART) || []).some((m) => !md.includes(m))) return;
+      const inUse = await api.lost(id, kind === 'edit' ? md : null);
+      if (inUse && inUse.length) named(kind, id)(Object.assign(new Error('409'), { inUse }));
+    };
     for (const e of p.edits) {
-      const b = await api.edit(e.id, e.md);
+      await ask('edit', e.id, e.md);
+      const b = await api.edit(e.id, e.md, ways[e.id]).catch(named('edit', e.id));
       list = list.map((x) => (x.id === e.id ? { ...x, ...b, md: b.md ?? e.md } : x));
       fire('edited', b);
     }
     for (const id of p.deletes) {
-      await api.remove(id);
+      await ask('delete', id);
+      await api.remove(id, ways[id]).catch(named('delete', id));
       list = list.filter((x) => x.id !== id);
       fire('removed', id);
     }
