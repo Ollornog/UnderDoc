@@ -25,8 +25,12 @@ func TestTemplatesStartNewPages(t *testing.T) {
 	b.watch()
 
 	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [data-act="addtpl"]')].map(x => x.textContent).join(',')`); got != "Meeting notes,How-to,Runbook,Decision" {
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [data-act="addtpl"] > span')].map(x => x.firstChild.textContent).join(',')`); got != "Meeting notes,How-to,Runbook,Decision" {
 		t.Errorf("New at a collection offers UnderDoc's templates: %q", got)
+	}
+	// Each says what it is for under its name, in C22's two lines of a menu item (C22 #123), not only in a tooltip.
+	if got := b.eval(`[...document.querySelectorAll('.cmdpop [data-act="addtpl"] > span > small')].filter(x => x.textContent.trim()).length + '/' + document.querySelectorAll('.cmdpop [data-act="addtpl"][title]').length`); got != "4/0" {
+		t.Errorf("the templates in New at a collection carry their description: %q (with text / with a title)", got)
 	}
 	b.shot("templates-new-at-collection")
 	b.clickOn(`.cmdpop [data-act="addtpl"][data-id="builtin:meeting"]`, 1)
@@ -46,6 +50,10 @@ func TestTemplatesStartNewPages(t *testing.T) {
 	b.clickOn(`[data-act="newmenu"]`, 1)
 	b.clickOn(`.newpop [data-act="into"][data-id="`+team+`"]`, 1)
 	b.typeText("Weekly")
+	// The templates of New are cards of C22 (.tplcards): an icon, the name and what it is for.
+	if got := b.eval(`(() => { const x = document.querySelector('.newpop .newtypes.tplcards [data-act="newtpl"][data-id="` + meeting + `"]'); return x ? [!!x.querySelector(':scope > svg'), x.querySelector(':scope > b')?.textContent, !!x.querySelector(':scope > small'), x.hasAttribute('title')].join(',') : 'none'; })()`); got != "true,Meeting notes,true,false" {
+		t.Errorf("the template as a card in New: %q (icon, name, description, title)", got)
+	}
 	b.clickOn(`.newpop [data-act="newtpl"][data-id="`+meeting+`"]`, 1)
 	if !b.waitFor(`location.pathname.slice(3) !== '` + meeting + `' && (EDS[at(0)?.d]?.ed.text() || '').includes('## Decisions')`) {
 		t.Fatalf("New in the top bar starts from the offered page: %q", b.eval(`EDS[at(0)?.d]?.ed.text()`))

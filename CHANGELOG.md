@@ -19,6 +19,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- C22 vendored from 572a276 (C22 #123), which takes over the looks M-8 had kept for itself: the outline and label of a
+  block used elsewhere (`.cm-ud-used*`), the table tools as a group of the bar (`.btool .bgroup`, which wraps on a phone
+  instead of scrolling), and the templates with what each is for, under its name in New at a collection and as cards in
+  New in the top bar (`.tplcards`). The editor bundle drops its own rules for them.
+
 - Every image published from main now also opens the pin PR in the fleet repo (job `fc-pin` in `image.yml`, kit script
   `scripts/_release_automatik.py`, target from the variable `PIN_REPO`): the new `main-<sha>` with its digest replaces the
   pin there; the fleet repo's start probe and auto-merge take it from there.
@@ -104,6 +109,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- On a touch screen, a finger on a table in the editor puts the cursor into the cell it touched, so the table tools show;
+  before, the caret stayed outside the drawn table.
 - The browser tests no longer fail under load: the workspace draws itself in the background, and tests that reached for an
   element at once got `null` ("Uncaught") when the machine was busy. `eval` now tries again, within the same 5 s as
   `waitFor`, while the only problem is an element that is not there yet; `rect`, `clickOn`, `probe` and `rowNamed` wait for

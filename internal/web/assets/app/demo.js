@@ -221,11 +221,11 @@ const NEWGROUPS=[['',['page']],['Tables',['table','excel']],['Databases',['db','
 function addPop(){
   if(!S.addIn)return '';
   const n2=S.addIn==='n2',c=!n2&&D[S.addIn];if(!n2&&!c)return '';
-  const it=(act,id,label,icon,extra='')=>`<button role="menuitem" data-act="${act}" data-id="${id}" data-filter="${label}" ${extra}>${ic(icon)}<span>${label}</span></button>`;
+  const it=(act,id,label,icon,extra='',desc='')=>`<button role="menuitem" data-act="${act}" data-id="${id}" data-filter="${label}" ${extra}>${ic(icon)}<span>${label}${desc?`<small>${esc(desc)}</small>`:''}</span></button>`;
   const grp=(h,items)=>`<div role="group">${h?`<span role="heading">${h}</span>`:''}${items}</div>`;
   const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
   const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
-    :[...NEWGROUPS.flatMap(([h,ks],k)=>[k===1&&c.db&&S.tpls.length?grp('From a template',S.tpls.map(x=>it('addtpl',x.id,x.n,'page',`data-c="${S.addIn}" title="${x.desc||x.place}"`+(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:''))).join('')):'',(()=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
+    :[...NEWGROUPS.flatMap(([h,ks],k)=>[k===1&&c.db&&S.tpls.length?grp('From a template',S.tpls.map(x=>it('addtpl',x.id,x.n,'page',`data-c="${S.addIn}"`+(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:''),x.desc||x.place)).join('')):'',(()=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
         if(h==='Organize')items.push(['Collection',it('newcoll',S.addIn,'Collection','grid')]);
         return items.length?grp(h,items.map(x=>x[1]).join('')):'';})()]).filter(Boolean),
       grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
@@ -531,7 +531,7 @@ function newMenuHtml(where){
   return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.filter(c=>!isDeco(c.id)).map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
     <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
     <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+C.find(c=>c.id===into).n+'. Drag it to its place.'}</p>
-    ${!q&&D[into]&&D[into].db&&S.tpls.length?`<b>From a template</b><div class="newtypes">${S.tpls.map(x=>`<button data-act="newtpl" data-id="${x.id}" title="${x.desc||x.place}">${ic('page')}${x.n}</button>`).join('')}</div>`:''}
+    ${!q&&D[into]&&D[into].db&&S.tpls.length?`<b>From a template</b><div class="newtypes tplcards">${S.tpls.map(x=>`<button data-act="newtpl" data-id="${x.id}">${ic('page')}<b>${esc(x.n)}</b><small>${esc(x.desc||x.place)}</small></button>`).join('')}</div>`:''}
     ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
 }
 function createIn(cid,k,text){
@@ -1438,7 +1438,7 @@ function edBarHtml(key,i){
   return `<div class="btool edbar" role="toolbar" aria-label="Write" data-edbar="${key}">
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
       <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
-      <span data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
+      <span class="bgroup" data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
