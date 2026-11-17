@@ -1,0 +1,4 @@
+go test fuzz v1
+string("00000000\n\\\n0000\\\n\\\n0")
+int(2)
+int(19)

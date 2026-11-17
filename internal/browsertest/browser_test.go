@@ -451,7 +451,12 @@ type box struct{ X, Y, Left, Right, Top, Bottom, Width float64 }
 func (b *browser) rect(selector string) box {
 	b.t.Helper()
 	b.exists(selector)
-	raw := b.eval(`JSON.stringify((() => { const r = document.querySelector(` + strconv.Quote(selector) + `).getBoundingClientRect();
+	// The workspace may draw anew between finding and measuring: the mark of a probe goes back on in the same step.
+	again := ""
+	if b.marked.selector != "" && selector == b.marked.selector+"[data-probe]" {
+		again = `if (!document.querySelector(` + strconv.Quote(selector) + `)) { ` + b.mark() + ` } `
+	}
+	raw := b.eval(`JSON.stringify((() => { ` + again + `const r = document.querySelector(` + strconv.Quote(selector) + `).getBoundingClientRect();
 		return {X: r.left + r.width / 2, Y: r.top + r.height / 2, Left: r.left, Right: r.right, Top: r.top, Bottom: r.bottom, Width: r.width}; })())`)
 	var r box
 	if err := json.Unmarshal([]byte(raw), &r); err != nil {

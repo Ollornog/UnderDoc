@@ -5,13 +5,59 @@ package db
 import (
 	"context"
 	"regexp"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 )
 
-// EmbedLine is a line of a block that embeds a block or a whole page of another page by its address (ADR-18):
-// ::embed{ref="<object id>#<block id>"}, or without "#<block id>" for the whole page. It stands on a line of its own.
-var EmbedLine = regexp.MustCompile(`(?m)^[ \t]*::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8}))?"\}[ \t]*$`)
+// EmbedLine is a line of a block that embeds something of another page by its address (ADR-18, ADR-22):
+// ::embed{ref="<object id>#<block id>"} a block, without "#<block id>" the whole page, with ".<part id>" after the block a
+// part inside a paragraph, with ".section" the section the block opens. It stands on a line of its own.
+var EmbedLine = regexp.MustCompile(`(?m)^[ \t]*::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8})(?:\.(t[1-9][0-9]{0,8}|section))?)?"\}[ \t]*$`)
+
+// Section is what follows a block ID in the address of the section it opens.
+const Section = "section"
+
+// Address is what an embedding refers to: an object, a block of it, or a part or the section of a block.
+type Address struct {
+	Object, Block string
+	// Sub is a part ID (tN), Section, or empty.
+	Sub string
+}
+
+var addressForm = regexp.MustCompile(`^([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8})(?:\.(t[1-9][0-9]{0,8}|section))?)?$`)
+
+// ParseAddress reads an address such as 7k2m9q4x1c#b3.t2.
+func ParseAddress(s string) (Address, bool) {
+	m := addressForm.FindStringSubmatch(s)
+	if m == nil {
+		return Address{}, false
+	}
+	return Address{Object: m[1], Block: m[2], Sub: m[3]}, true
+}
+
+// Target is the address within its object, as refs keeps it: "", "b3", "b3.t2" or "b3.section".
+func (a Address) Target() string {
+	if a.Sub != "" {
+		return a.Block + "." + a.Sub
+	}
+	return a.Block
+}
+
+func (a Address) String() string {
+	if a.Block == "" {
+		return a.Object
+	}
+	return a.Object + "#" + a.Target()
+}
+
+// BlockOf is the block of a target as refs keeps it: "b3" for "b3.t2".
+func BlockOf(target string) string {
+	block, _, _ := strings.Cut(target, ".")
+	return block
+}
 
 // Ref is one embedding: what a block of a page embeds, or where something is embedded.
 type Ref struct {
@@ -20,15 +66,29 @@ type Ref struct {
 	Title string
 }
 
-// RefsIn returns what a block's Markdown embeds, each once, in order.
+var (
+	fencedCode = regexp.MustCompile("(?s)(?m)^[ \t]*(```|~~~).*?^[ \t]*(```|~~~)[ \t]*$")
+	inlineCode = regexp.MustCompile("`+[^`]*`+")
+)
+
+// RefsIn returns what a block's Markdown embeds, each once, in order: the lines of ::embed, and the parts embedded inside
+// a paragraph with :embed (markdown.InlineEmbed), not in code.
 func RefsIn(body string) [][2]string {
 	var out [][2]string
 	seen := map[[2]string]bool{}
-	for _, m := range EmbedLine.FindAllStringSubmatch(body, -1) {
-		r := [2]string{m[1], m[2]}
+	add := func(r [2]string) {
 		if !seen[r] {
 			seen[r] = true
 			out = append(out, r)
+		}
+	}
+	for _, m := range EmbedLine.FindAllStringSubmatch(body, -1) {
+		add([2]string{m[1], Address{Block: m[2], Sub: m[3]}.Target()})
+	}
+	if strings.Contains(body, ":embed{") {
+		text := inlineCode.ReplaceAllString(fencedCode.ReplaceAllString(body, ""), "")
+		for _, m := range markdown.InlineEmbed.FindAllStringSubmatch(text, -1) {
+			add([2]string{m[1], m[2] + "." + m[3]})
 		}
 	}
 	return out

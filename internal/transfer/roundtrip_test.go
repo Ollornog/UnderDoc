@@ -15,6 +15,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
@@ -114,7 +115,10 @@ func TestRoundTrip(t *testing.T) {
 	b2 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "gone"))
 	b3 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "```md\n# not a heading\n<!-- not a marker -->\n```"))
 	b4 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b3.ID, "::embed{ref=\""+plan.ID+"#"+b1.ID+"\"}"))
-	b5 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b4.ID, "last, deleted"))
+	// Parts keep their markers and IDs (ADR-22), and what embeds them follows.
+	parted := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b4.ID, "<!-- part t1 -->Port 1<!-- /part t1 --> is **the <!-- part t2 name=\"uplink\" -->uplink** to the core<!-- /part t2 -->."))
+	must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, parted.ID, "See :embed{ref=\""+plan.ID+"#"+parted.ID+".t2\"}.\n\n::embed{ref=\""+plan.ID+"#"+b1.ID+".section\"}"))
+	b5 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, parted.ID, "last, deleted"))
 	for _, b := range []db.Block{b2, b5} {
 		if err := first.DeleteBlock(ctx, plan.ID, b.ID, anna.ID); err != nil {
 			t.Fatal(err)
@@ -200,12 +204,33 @@ func TestRoundTrip(t *testing.T) {
 	if o := must[db.Object](t)(second.Object(ctx, plan.ID, anna.ID)); o.Width != "full" || o.Contents != "side" || !o.Template {
 		t.Errorf("the view of the plan after the round trip: %q %q", o.Width, o.Contents)
 	}
-	// What the files say is what the database has: the next block of the plan does not reuse the deleted b5.
-	if b := must[db.Block](t)(second.AddBlock(ctx, plan.ID, anna.ID, "", "new")); b.ID != "b6" {
+	// What the files say is what the database has: the next block of the plan does not reuse the deleted b7.
+	if b := must[db.Block](t)(second.AddBlock(ctx, plan.ID, anna.ID, "", "new")); b.ID != "b8" {
 		t.Errorf("the next block after the round trip is %s", b.ID)
 	}
 	if got := ids(must[[]db.Block](t)(second.Blocks(ctx, plan.ID, anna.ID))); !slices.Equal(got[1:], ids(must[[]db.Block](t)(first.Blocks(ctx, plan.ID, anna.ID)))) {
 		t.Errorf("the blocks of the plan: %q", got)
+	}
+	for _, b := range must[[]db.Block](t)(second.Blocks(ctx, plan.ID, anna.ID)) {
+		if b.ID == parted.ID {
+			if ps := markdown.Parts(b.Body); len(ps) != 2 || ps[0].ID != "t1" || ps[1].ID != "t2" || ps[1].Name != "uplink" {
+				t.Errorf("the parts after the round trip: %+v", ps)
+			}
+		}
+	}
+	// Imported into the same database again, the plan is a copy with a new ID, and its embeddings, of parts and sections
+	// too, follow it.
+	copied := importDir(t, first, exported, "Team_ ops_net", "anna")
+	newPlan := copied.Renamed[plan.ID]
+	if newPlan == "" {
+		t.Fatalf("the plan got no new ID: %+v", copied.Renamed)
+	}
+	var embeds string
+	for _, b := range must[[]db.Block](t)(first.Blocks(ctx, newPlan, anna.ID)) {
+		embeds += b.Body + "\n"
+	}
+	if !strings.Contains(embeds, `:embed{ref="`+newPlan+"#"+parted.ID+`.t2"}`) || !strings.Contains(embeds, `::embed{ref="`+newPlan+"#"+b1.ID+`.section"}`) || strings.Contains(embeds, plan.ID) {
+		t.Errorf("the embeddings of the copy:\n%s", embeds)
 	}
 }
 

@@ -279,7 +279,8 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 
 var (
 	objectLink = regexp.MustCompile(`(/o/)([^\s)#/"?<>]+)`)
-	embedRef   = regexp.MustCompile(`(::embed\{ref=")([^"#]+)`)
+	// Both the line ::embed and the inline :embed of a part (ADR-22).
+	embedRef = regexp.MustCompile(`(:embed\{ref=")([^"#]+)`)
 )
 
 // relink points the links and embeddings of an imported block at the IDs its pages got: /o/<old> and ref="<old>" become

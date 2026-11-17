@@ -13,6 +13,7 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 	"github.com/Ollornog/UnderDoc/internal/route"
 )
 
@@ -31,6 +32,10 @@ type apiBlock struct {
 	Align string `json:"align,omitempty"`
 	// Comments counts the comments on this block in threads not resolved.
 	Comments int `json:"comments,omitempty"`
+	// Parts are the parts inside its paragraphs (ADR-22), with where each is used.
+	Parts []apiPart `json:"parts,omitempty"`
+	// SectionUsedIn names the pages that embed the section this block opens.
+	SectionUsedIn []string `json:"sectionUsedIn,omitempty"`
 }
 
 type apiVersion struct {
@@ -71,6 +76,8 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrQuota):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+	case errors.Is(err, db.ErrPart):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": strings.TrimPrefix(err.Error(), db.ErrPart.Error()+"\n")})
 	case errors.Is(err, db.ErrHasReplies):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
@@ -91,6 +98,12 @@ func (h *handler) block(r *http.Request, page string, b db.Block, used []db.Ref)
 		if u.TargetBlock == b.ID && !slices.Contains(out.UsedIn, u.Title) {
 			out.UsedIn = append(out.UsedIn, u.Title)
 		}
+		if u.TargetBlock == b.ID+"."+db.Section && !slices.Contains(out.SectionUsedIn, u.Title) {
+			out.SectionUsedIn = append(out.SectionUsedIn, u.Title)
+		}
+	}
+	if ps := parts(page, b, used); len(ps) > 0 {
+		out.Parts = ps
 	}
 	return out
 }
@@ -99,21 +112,25 @@ func (h *handler) block(r *http.Request, page string, b db.Block, used []db.Ref)
 const maxEmbed = 5
 
 // render turns the Markdown of a block into HTML. A line ::embed{ref="…"} becomes what it refers to, rendered for this
-// viewer each time, so it is live, with a link back to where it comes from (ADR-18). What cannot be shown says so, visibly:
-// a missing source is an error to see, never a silent gap. trail holds what is being rendered, to stop at a loop.
+// viewer each time, so it is live, with a link back to where it comes from (ADR-18); so does a part embedded inside a
+// paragraph with :embed{ref="…"} (ADR-22). What cannot be shown says so, visibly: a missing source is an error to see,
+// never a silent gap. trail holds what is being rendered, to stop at a loop.
 func (h *handler) render(r *http.Request, body string, trail []string) string {
 	var out strings.Builder
 	last := 0
 	for _, m := range db.EmbedLine.FindAllStringSubmatchIndex(body, -1) {
-		out.WriteString(h.markdown(r, body[last:m[0]]))
-		block := ""
+		out.WriteString(h.inlineEmbeds(r, h.markdown(r, body[last:m[0]]), trail))
+		a := db.Address{Object: body[m[2]:m[3]]}
 		if m[4] >= 0 {
-			block = body[m[4]:m[5]]
+			a.Block = body[m[4]:m[5]]
 		}
-		out.WriteString(h.embed(r, body[m[2]:m[3]], block, trail))
+		if m[6] >= 0 {
+			a.Sub = body[m[6]:m[7]]
+		}
+		out.WriteString(h.embed(r, a, trail))
 		last = m[1]
 	}
-	out.WriteString(h.markdown(r, body[last:]))
+	out.WriteString(h.inlineEmbeds(r, h.markdown(r, body[last:]), trail))
 	return out.String()
 }
 
@@ -128,55 +145,101 @@ func (h *handler) markdown(r *http.Request, md string) string {
 	return rendered.HTML
 }
 
-// embed renders one embedded block, or a whole page, of the database.
-func (h *handler) embed(r *http.Request, target, block string, trail []string) string {
-	ref := target
-	if block != "" {
-		ref += "#" + block
+// inlineEmbeds puts the parts embedded inside paragraphs into rendered HTML, in place of their sentinels.
+func (h *handler) inlineEmbeds(r *http.Request, rendered string, trail []string) string {
+	if !strings.Contains(rendered, "data-embed-inline") {
+		return rendered
 	}
-	broken := func(why string) string {
+	return markdown.EmbedSentinels.ReplaceAllStringFunc(rendered, func(sentinel string) string {
+		a, _ := db.ParseAddress(markdown.EmbedSentinels.FindStringSubmatch(sentinel)[1])
+		inner, title, why := h.embedded(r, a, trail)
+		if why != "" {
+			return `<span class="badge" data-variant="destructive" data-ref="` + html.EscapeString(a.String()) + `">` + html.EscapeString(why) + `</span>`
+		}
+		return `<span data-embed-part="` + html.EscapeString(a.String()) + `" title="` + html.EscapeString(title) + `">` + inner + `</span>`
+	})
+}
+
+// embed renders one embedded page, block, section or part of the database, as a block with a link to where it comes from.
+func (h *handler) embed(r *http.Request, a db.Address, trail []string) string {
+	ref := a.String()
+	inner, label, why := h.embedded(r, a, trail)
+	if why != "" {
 		return `<div class="embed broken" data-ref="` + html.EscapeString(ref) + `">` + html.EscapeString(why) + `</div>`
 	}
-	loop := slices.Contains(trail, ref) || slices.Contains(trail, target)
-	if block == "" {
-		loop = loop || slices.ContainsFunc(trail, func(x string) bool { return strings.HasPrefix(x, target+"#") })
+	if a.Sub != "" && a.Sub != db.Section {
+		inner = `<p class="leading-relaxed">` + inner + `</p>`
+	}
+	link := route.Object(a.Object)
+	if a.Block != "" {
+		link += "#" + a.Target()
+	}
+	return `<figure class="embed" data-ref="` + html.EscapeString(ref) + `"><div class="embedbody">` + inner +
+		`</div><figcaption><a href="` + html.EscapeString(link) + `">` + html.EscapeString(label) + `</a></figcaption></figure>`
+}
+
+// embedded renders what an address names for this viewer: its HTML and a label that says where it comes from, or why it
+// cannot be shown. A part comes as inline HTML, cut out of its paragraph with its formatting (markdown.CutPart).
+func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner, label, why string) {
+	ref := a.String()
+	loop := slices.Contains(trail, ref) || slices.Contains(trail, a.Object)
+	if a.Block == "" {
+		loop = loop || slices.ContainsFunc(trail, func(x string) bool { return strings.HasPrefix(x, a.Object+"#") })
+	} else {
+		loop = loop || slices.Contains(trail, a.Object+"#"+a.Block)
 	}
 	if loop {
-		return broken("This embeds itself: " + ref)
+		return "", "", "This embeds itself: " + ref
 	}
 	if len(trail) > maxEmbed {
-		return broken("Embedded too deep: " + ref)
+		return "", "", "Embedded too deep: " + ref
 	}
 	user, _ := account.From(r.Context())
-	o, err := h.options.DB.Object(r.Context(), target, user.ID)
+	o, err := h.options.DB.Object(r.Context(), a.Object, user.ID)
 	if err != nil || o.Kind != db.KindPage {
-		return broken("Not to be found: " + ref)
+		return "", "", "Not to be found: " + ref
 	}
-	blocks, err := h.options.DB.Blocks(r.Context(), target, user.ID)
+	blocks, err := h.options.DB.Blocks(r.Context(), a.Object, user.ID)
 	if err != nil {
-		return broken("Not to be found: " + ref)
+		return "", "", "Not to be found: " + ref
 	}
-	var inner strings.Builder
-	found := false
-	for _, b := range blocks {
-		if block == "" || b.ID == block {
-			found = true
-			inner.WriteString(h.render(r, b.Body, append(slices.Clone(trail), ref, target+"#"+b.ID)))
+	at := slices.IndexFunc(blocks, func(b db.Block) bool { return b.ID == a.Block })
+	if a.Block != "" && at < 0 {
+		return "", "", "Block #" + a.Block + " is no longer in " + o.Title
+	}
+	inside := func(b db.Block) []string { return append(slices.Clone(trail), ref, a.Object+"#"+b.ID) }
+	var out strings.Builder
+	label = o.Title
+	switch {
+	case a.Block == "":
+		for _, b := range blocks {
+			out.WriteString(h.render(r, b.Body, inside(b)))
 		}
+	case a.Sub == "":
+		out.WriteString(h.render(r, blocks[at].Body, inside(blocks[at])))
+		label += " · #" + a.Block
+	case a.Sub == db.Section:
+		bodies := make([]string, len(blocks)-at)
+		for i, b := range blocks[at:] {
+			bodies[i] = b.Body
+		}
+		n := markdown.SectionEnd(bodies)
+		if n == 0 {
+			return "", "", "Block #" + a.Block + " opens no section in " + o.Title
+		}
+		for _, b := range blocks[at : at+n] {
+			out.WriteString(h.render(r, b.Body, inside(b)))
+		}
+		_, heading := markdown.OpeningHeading(blocks[at].Body)
+		label += " · " + heading
+	default:
+		part, ok := markdown.CutPart(h.render(r, blocks[at].Body, inside(blocks[at])), a.Sub)
+		if !ok {
+			return "", "", "Part #" + a.Target() + " is no longer in " + o.Title
+		}
+		return part, o.Title + " · #" + a.Target(), ""
 	}
-	if block != "" && !found {
-		return broken("Block #" + block + " is no longer in " + o.Title)
-	}
-	label := o.Title
-	if block != "" {
-		label += " · #" + block
-	}
-	link := route.Object(target)
-	if block != "" {
-		link += "#" + block
-	}
-	return `<figure class="embed" data-ref="` + html.EscapeString(ref) + `"><div class="embedbody">` + inner.String() +
-		`</div><figcaption><a href="` + html.EscapeString(link) + `">` + html.EscapeString(label) + `</a></figcaption></figure>`
+	return markdown.StripPartSentinels(out.String()), label, ""
 }
 
 // pageDocument answers /api/doc for a page of the database: its blocks, its place and whether the viewer may change it.

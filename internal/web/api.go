@@ -405,6 +405,10 @@ func (h *handler) apiUses(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.options.DB.Object(r.Context(), r.PathValue("id"), user.ID); h.failed(w, err, "uses") {
 		return
 	}
+	if target := r.URL.Query().Get("ref"); target != "" {
+		h.usesOf(w, r, r.PathValue("id"), target)
+		return
+	}
 	titles, hidden, err := h.options.DB.Uses(r.Context(), r.PathValue("id"), user.ID)
 	if h.failed(w, err, "uses") {
 		return

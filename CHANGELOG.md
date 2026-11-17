@@ -33,6 +33,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Parts and sections (ADR-22, M-3, [docs/parts.md](docs/parts.md)): a few words inside a paragraph are a part, marked by
+  two point markers in the Markdown (`<!-- part t2 -->…<!-- /part t2 -->`, with `name="…"` a value) and addressed as
+  `<page>#<block>.<part>`; a block that opens with a heading opens a section (`<page>#<block>.section`) up to the next
+  heading of its level, and it grows with the original. Both are embedded with `::embed{ref=…}`, and a part also inside a
+  paragraph with `:embed{ref=…}`. A part may cut through formatting: it is cut out of the parsed paragraph, with formatting
+  open at its edges closed and opened again (table test and fuzz test). Marking (`POST …/blocks/{block}/parts`) snaps to
+  atomic elements and stays in its paragraph; a copy (`POST …/blocks/{block}/excerpt`) is plain Markdown without markers;
+  `GET /api/objects/{id}/uses?ref=` names every place of use. The list of problems names parts and sections that are gone,
+  the export keeps the markers, and an import relinks inline embeddings too.
 - Tenants (ADR-23, [docs/tenants.md](docs/tenants.md)): every table carries its tenant, and PostgreSQL row-level
   security keeps tenants apart; a query without a tenant sees nothing. `UNDERDOC_TENANTS=one` (the default) keeps
   everything in the tenant Main, where the existing data moves; `many` finds the tenant by the host name, a subdomain of
@@ -136,6 +145,10 @@ All notable changes to this project are documented in this file. The format foll
 
 - On a touch screen, a finger on a table in the editor puts the cursor into the cell it touched, so the table tools show;
   before, the caret stayed outside the drawn table.
+- Browser tests measured an element found by its text in a second step; when the workspace drew anew in between, the
+  mark was gone and the test failed (`TestFilesByHand` under load). Measuring now puts the mark back in the same step.
+- The browser test of dividers and moving in nav3 reloaded the page before the drop was written; on a busy machine it
+  failed. It waits for the order on the server first.
 - The browser tests no longer fail under load: the workspace draws itself in the background, and tests that reached for an
   element at once got `null` ("Uncaught") when the machine was busy. `eval` now tries again, within the same 5 s as
   `waitFor`, while the only problem is an element that is not there yet; `rect`, `clickOn`, `probe` and `rowNamed` wait for

@@ -5,9 +5,11 @@ package web
 import (
 	"net/http"
 	"regexp"
+	"slices"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 )
 
 // maxProblemBlocks is how many blocks the list of problems reads at most; beyond that it says there is more.
@@ -62,6 +64,8 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 		title  string
 		page   bool
 		blocks map[string]bool
+		bodies map[string]string
+		order  []string
 	}
 	known := map[string]*target{}
 	look := func(id string) *target {
@@ -70,11 +74,13 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 		}
 		var t *target
 		if o, err := h.options.DB.Object(ctx, id, user.ID); err == nil {
-			t = &target{title: o.Title, page: o.Kind == db.KindPage, blocks: map[string]bool{}}
+			t = &target{title: o.Title, page: o.Kind == db.KindPage, blocks: map[string]bool{}, bodies: map[string]string{}}
 			if t.page {
 				bs, _ := h.options.DB.Blocks(ctx, id, user.ID)
 				for _, b := range bs {
 					t.blocks[b.ID] = true
+					t.bodies[b.ID] = b.Body
+					t.order = append(t.order, b.ID)
 				}
 			}
 		}
@@ -92,18 +98,32 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, b := range blocks {
 		text := fencedCode.ReplaceAllString(b.Body, "")
-		for _, m := range db.EmbedLine.FindAllStringSubmatch(text, -1) {
-			ref := m[1]
-			if m[2] != "" {
-				ref += "#" + m[2]
+		for _, r := range db.RefsIn(text) {
+			a := db.Address{Object: r[0], Block: db.BlockOf(r[1])}
+			if a.Block != r[1] {
+				a.Sub = r[1][len(a.Block)+1:]
 			}
-			switch t := look(m[1]); {
+			ref := a.String()
+			switch t := look(a.Object); {
 			case t == nil:
 				add(b, ref, "embeds something that is not to be found")
 			case !t.page:
 				add(b, ref, "embeds "+t.title+", which is not a page")
-			case m[2] != "" && !t.blocks[m[2]]:
-				add(b, ref, "embeds block #"+m[2]+", which is no longer in "+t.title)
+			case a.Block != "" && !t.blocks[a.Block]:
+				add(b, ref, "embeds block #"+a.Block+", which is no longer in "+t.title)
+			case a.Sub == db.Section:
+				at := slices.Index(t.order, a.Block)
+				bodies := []string{}
+				for _, id := range t.order[at:] {
+					bodies = append(bodies, t.bodies[id])
+				}
+				if markdown.SectionEnd(bodies) == 0 {
+					add(b, ref, "embeds the section of block #"+a.Block+", which opens no section in "+t.title)
+				}
+			case a.Sub != "":
+				if _, ok := markdown.FindPart(t.bodies[a.Block], a.Sub); !ok {
+					add(b, ref, "embeds part #"+a.Target()+", which is no longer in "+t.title)
+				}
 			}
 		}
 		for _, m := range databaseLink.FindAllStringSubmatch(text, -1) {
