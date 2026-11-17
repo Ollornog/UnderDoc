@@ -625,6 +625,36 @@ func TestTheTableTools(t *testing.T) {
 	b.clean("table tools")
 }
 
+// On a phone the bar wraps its table tools instead of scrolling them out of sight: they are C22's .bgroup (C22 #123), and
+// every tool lies inside the window.
+func TestTheTableToolsOnAPhone(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.phone(390, 844)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
+	b.openEditing(base, page, "Tables")
+	b.tap(`.cm-editor .cm-lp-table-widget tr:nth-child(2) td:nth-child(2)`)
+	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
+		// A finger on the drawn table may land beside its text; the line of the table takes the cursor as well.
+		t.Fatalf("a finger on the table puts the cursor into it, and the table tools show: %s", b.eval(edText))
+	}
+	if got := b.eval(`(() => { const s = EDS[at(0).d].ed.view.state, h = s.selection.main.head; return s.doc.sliceString(h, h + 2); })()`); got != "10" {
+		t.Errorf("the cursor stands in the cell the finger touched: %q", got)
+	}
+	if got := b.eval(`document.querySelector('.edbar [data-edtable]').classList.contains('bgroup')`); got != "true" {
+		t.Errorf("the table tools are a group of the bar")
+	}
+	out := b.eval(`(() => { const bar = document.querySelector('.edbar'), w = innerWidth;
+		const outside = [...bar.querySelectorAll('[data-act="edtable"]')].filter(x => { const r = x.getBoundingClientRect(); return r.width === 0 || r.left < 0 || r.right > w + 0.5; }).map(x => x.dataset.k);
+		return outside.join(',') + '|' + (bar.scrollWidth > bar.clientWidth + 1); })()`)
+	if out != "|false" {
+		t.Errorf("on a phone the table tools wrap inside the window: outside %q", out)
+	}
+	b.shot("editor-table-tools-phone")
+	b.clean("table tools on a phone")
+}
+
 // A block used elsewhere shows its boundary and where it is used while the cursor is in it (ADR-22), so whoever writes
 // there knows that other pages change too; other blocks show nothing of the kind.
 func TestAUsedBlockShowsItsBoundary(t *testing.T) {

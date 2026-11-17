@@ -61,7 +61,9 @@ loaded again with a notice, which offers to copy what was written since the last
   Column left, Column right, Delete row, Delete column and the alignment of the column (left, center, right, written in
   the row of dashes). Each writes the whole table again as plain Markdown, `| a | b |` with one row per line, and the
   cursor goes to the cell the tool names; a table no tool touched stays as it was typed. The header row and the last
-  column stay: a table needs them, and the workspace says so.
+  column stay: a table needs them, and the workspace says so. The tools are a group of the bar that wraps on a narrow
+  screen instead of scrolling out of sight, and on a touch screen a finger on the drawn table puts the cursor into the cell
+  it touched.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
 - The handle of a block: Copy address, Move up, Move down, Delete, Comment, the alignment of the block (left, center,
@@ -76,7 +78,8 @@ loaded again with a notice, which offers to copy what was written since the last
 
 A new page can start from a template (M-8), after Confluence and Docmost: New at a collection lists them right after
 Page, and New in the top bar, with a collection chosen, under "From a template"; there the title typed in the field names
-the page, otherwise the template does. The page starts with the template's blocks, numbered from b1, each with a version
+the page, otherwise the template does. Each template shows what it is for under its name, in New at a collection as the
+second line of its item and in New in the top bar as a card (C22's `.tplcards`). The page starts with the template's blocks, numbered from b1, each with a version
 by whoever made the page, and opens in the editor.
 
 - **UnderDoc's own:** Meeting notes, How-to, Runbook and Decision (`internal/db/templates.go`).

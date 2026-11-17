@@ -354,7 +354,7 @@ class TableWidget extends WidgetType {
   eq(other) {
     return other.source === this.source;
   }
-  toDOM() {
+  toDOM(view) {
     const lines = this.source.split('\n');
     const align = cellsOf(lines[1] || '').map((d) => (/^:-+:$/.test(d) ? 'center' : /-:$/.test(d) ? 'right' : 'left'));
     const table = document.createElement('table');
@@ -369,6 +369,20 @@ class TableWidget extends WidgetType {
         row.append(cell);
       });
       table.append(row);
+    });
+    // A finger on the drawn table puts the cursor into the cell it touched, as the mouse does: on a touch screen the
+    // editor leaves the caret to the browser, which cannot put one inside a widget (2026-11-17).
+    let touch = false;
+    table.addEventListener('pointerdown', (e) => {
+      touch = e.pointerType !== 'mouse';
+    });
+    table.addEventListener('click', (e) => {
+      if (!touch) return;
+      const cell = e.target.closest && e.target.closest('td, th');
+      const row = cell ? cell.parentElement.rowIndex : 0;
+      const col = cell ? cell.cellIndex : 0;
+      view.dispatch({ selection: { anchor: view.posAtDOM(table) + tables.cellStart(this.source, row, col) } });
+      view.focus();
     });
     return table;
   }
