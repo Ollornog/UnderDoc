@@ -15,6 +15,7 @@ import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/lan
 import { classHighlighter } from '@lezer/highlight';
 import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, EMBED } from './blocks.js';
 import { run, Conflict } from './save.js';
+import * as tables from './tables.js';
 import './editor.css';
 
 /** How long typing has to rest before the page is saved. */
@@ -129,6 +130,28 @@ class MarkerWidget extends WidgetType {
   }
   get estimatedHeight() {
     return 0;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+// The label of a block used elsewhere, at the end of its first line while the cursor is in it (ADR-22).
+class UsedWidget extends WidgetType {
+  constructor(count, where) {
+    super();
+    this.count = count;
+    this.where = where;
+  }
+  eq(other) {
+    return other.count === this.count && other.where === this.where;
+  }
+  toDOM() {
+    const label = document.createElement('span');
+    label.className = 'cm-ud-usedlabel lab';
+    label.textContent = `Used in ${this.count} ${this.count === 1 ? 'place' : 'places'}`;
+    label.title = `Changes here show there too: ${this.where}`;
+    return label;
   }
   ignoreEvent() {
     return true;
@@ -407,6 +430,33 @@ function decorate(state) {
     const line = doc.lineAt(m.from);
     const html = cfg.handle ? cfg.handle(m.id) : '';
     add(line.from, line.to, Decoration.replace({ widget: new MarkerWidget(m.id, html, m.id === current || m.id === hover), block: true }));
+  }
+  // A block aligned center or right shows so on its lines (ADR-16), with C22's text-center and text-right.
+  marks.forEach((m, k) => {
+    const align = cfg.align && cfg.align(m.id);
+    if (!align) return;
+    const first = doc.lineAt(m.from).number + 1;
+    const last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
+    for (let n = first; n <= last; n++) add(doc.line(n).from, doc.line(n).from, lineClass(`text-${align}`));
+  });
+  // A block used elsewhere shows its boundary and where it is used while the cursor is in it, so whoever writes there
+  // knows that other pages change too (ADR-22).
+  const usedCount = current && cfg.usedCount ? cfg.usedCount(current) : 0;
+  if (usedCount) {
+    const k = marks.findIndex((m) => m.id === current);
+    const first = doc.lineAt(marks[k].from).number + 1;
+    let last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
+    while (last >= first && !doc.line(last).text.trim()) last--;
+    for (let n = first; n <= last; n++) {
+      const l = doc.line(n);
+      add(l.from, l.from, lineClass('cm-ud-used'));
+      if (n === first) add(l.from, l.from, lineClass('cm-ud-used-first'));
+      if (n === last) add(l.from, l.from, lineClass('cm-ud-used-last'));
+    }
+    if (last >= first) {
+      const l = doc.line(first);
+      add(l.to, l.to, Decoration.widget({ widget: new UsedWidget(usedCount, cfg.usedIn(current)), side: 1 }));
+    }
   }
   // A block used elsewhere whose marker is gone asks here first.
   for (const id of asks) {
@@ -918,6 +968,32 @@ function linesOf(state) {
   return { from, to, code: false };
 }
 
+/** tableAt returns the table around the cursor, {from, to}, or null. */
+function tableAt(state) {
+  const tree = syntaxTree(state);
+  const head = state.selection.main.head;
+  for (const side of [1, -1]) {
+    for (let node = tree.resolveInner(head, side); node; node = node.parent) if (node.name === 'Table') return { from: node.from, to: node.to };
+  }
+  return null;
+}
+
+/** tableTool uses a tool of the bar on the table at the cursor; the cursor goes to the cell the tool names. */
+function tableTool(view, tool) {
+  const at = tableAt(view.state);
+  if (!at) return false;
+  const text = view.state.sliceDoc(at.from, at.to);
+  const done = tables.apply(text, tables.cellAt(text, view.state.selection.main.head - at.from), tool);
+  if (!done) return false;
+  view.dispatch({
+    changes: { from: at.from, to: at.to, insert: done.text },
+    selection: { anchor: at.from + tables.cellStart(done.text, done.row, done.col) },
+    userEvent: 'input',
+    scrollIntoView: true,
+  });
+  return true;
+}
+
 function kindAt(state) {
   const { from, code } = linesOf(state);
   return kindOf(state.doc.lineAt(from).text, code);
@@ -970,6 +1046,8 @@ class PageEditor {
   constructor(options) {
     this.options = options;
     this.stored = options.blocks.map((b) => ({ id: b.id, md: normalize(b.md), usedIn: b.usedIn || [] }));
+    // The alignment of each block: not part of its Markdown, the workspace sets it through the API (setAlign).
+    this.aligns = new Map(options.blocks.filter((b) => b.align).map((b) => [b.id, b.align]));
     this.confirmed = new Set();
     this.saving = null;
     this.again = false;
@@ -989,6 +1067,11 @@ class PageEditor {
       usedIn: (id) => {
         const b = this.stored.find((x) => x.id === id);
         return b && b.usedIn.length ? b.usedIn.join(', ') : '';
+      },
+      align: (id) => this.aligns.get(id) || '',
+      usedCount: (id) => {
+        const b = this.stored.find((x) => x.id === id);
+        return b ? b.usedIn.length : 0;
       },
     };
     this.view = new EditorView({
@@ -1041,6 +1124,7 @@ class PageEditor {
       if (b) this.answer(b.closest('[data-ask]').dataset.ask, b.dataset.answer === 'delete');
     });
     this.lastKind = null;
+    this.lastTable = false;
   }
 
   get dom() {
@@ -1061,6 +1145,11 @@ class PageEditor {
       if (kind !== this.lastKind) {
         this.lastKind = kind;
         this.emit('kind', kind);
+      }
+      const inTable = !!tableAt(u.state);
+      if (inTable !== this.lastTable) {
+        this.lastTable = inTable;
+        this.emit('table', inTable);
       }
     }
     if (u.focusChanged && !u.view.hasFocus) this.schedule(0);
@@ -1188,6 +1277,13 @@ class PageEditor {
     return this.view.hasFocus;
   }
 
+  /** setAlign shows a block aligned center or right, or left with ''. */
+  setAlign(id, align) {
+    if (align) this.aligns.set(id, align);
+    else this.aligns.delete(id);
+    this.refresh();
+  }
+
   /** refresh draws the handles again, after the workspace changed what they show. */
   refresh() {
     this.view.requestMeasure();
@@ -1206,6 +1302,18 @@ class PageEditor {
 
   kind() {
     return kindAt(this.view.state);
+  }
+
+  /** table uses a table tool (tables.TOOLS) at the cursor; false when the cursor is in no table or the tool does not apply. */
+  table(tool) {
+    const done = tableTool(this.view, tool);
+    this.view.focus();
+    return done;
+  }
+
+  /** inTable tells whether the cursor stands in a table. */
+  get inTable() {
+    return !!tableAt(this.view.state);
   }
 
   /** focusBlock puts the cursor at the start of a block's text. */

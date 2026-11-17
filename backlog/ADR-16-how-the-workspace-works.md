@@ -214,8 +214,8 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 
 - M-14 builds the shell, the lists and the settings, M-15 the tabs and windows. M-12 and M-13 fill in the search strategies.
 - Dropping the window count means the layout in the URL (M-15) lists tabs per window, not a number of columns.
-- Saving contents, width and tags from the web comes with editing (M-8). Until then, they are read from the front matter, and a
-  change in the view is not stored.
+- Saving contents, width and tags from the web comes with editing (M-8). Since 2026-11-17 the gear of a document of the
+  database stores all three; ~~until then, they are read from the front matter, and a change in the view is not stored~~.
 - New needs somewhere to store what it makes, so it comes with M-28 or M-8. Until then, the plus is greyed out (ADR-17).
 - The first build (M-28) builds a part of this, and the rest stays in sight, greyed out.
 - The phone gets its own layout, settled in T-10.

@@ -28,7 +28,7 @@ const MaxPageBytes = 8 << 20
 const maxBlockNumber = 999999999
 
 var (
-	markerLine  = regexp.MustCompile(`^ {0,3}<!-- block (b[0-9]+) -->[ \t]*$`)
+	markerLine  = regexp.MustCompile(`^ {0,3}<!-- block (b[0-9]+)(?: align=(center|right))? -->[ \t]*$`)
 	headingLine = regexp.MustCompile(`^ {0,3}#{1,3}([ \t]|$)`)
 	titleLine   = regexp.MustCompile(`^ {0,3}#[ \t]+(.*?)[ \t#]*$`)
 	validBlock  = regexp.MustCompile(`^b[1-9][0-9]{0,8}$`)
@@ -37,6 +37,7 @@ var (
 // chunk is the text of one block before it is checked, with the ID of its marker if it had one.
 type chunk struct {
 	id    string
+	align string
 	lines []string
 }
 
@@ -120,7 +121,7 @@ func parsePage(content []byte, fileName string) page {
 			continue
 		}
 		if m := markerLine.FindStringSubmatch(line); m != nil {
-			chunks = append(chunks, chunk{id: m[1]})
+			chunks = append(chunks, chunk{id: m[1], align: m[2]})
 			marked = true
 			continue
 		}
@@ -135,7 +136,7 @@ func parsePage(content []byte, fileName string) page {
 			continue
 		}
 		for j, piece := range fit(text, db.MaxBlock) {
-			b := db.Block{Body: piece}
+			b := db.Block{Body: piece, Align: c.align}
 			if j == 0 {
 				b.ID = c.id
 			}
@@ -561,6 +562,19 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 		n.Access = access
 	} else {
 		r.warn(file, fmt.Sprintf("access %q is not edit, comment or read, it was left out", p.Meta.Access))
+	}
+	n.Template = p.Meta.Template
+	switch p.Meta.Kind {
+	case "", db.KindPage:
+	case db.KindNotes:
+		n.Kind, n.Template = db.KindNotes, false
+	default:
+		r.warn(file, fmt.Sprintf("kind %q is not a page or quick notes, it was read as a page", p.Meta.Kind))
+	}
+	if db.ValidView(p.Meta.Width, p.Meta.Contents) {
+		n.Width, n.Contents = p.Meta.Width, p.Meta.Contents
+	} else {
+		r.warn(file, fmt.Sprintf("width %q or contents %q unknown, the defaults are kept", p.Meta.Width, p.Meta.Contents))
 	}
 	return n, nil
 }

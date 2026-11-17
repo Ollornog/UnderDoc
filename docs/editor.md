@@ -54,13 +54,49 @@ loaded again with a notice, which offers to copy what was written since the last
   headings, lists, to-do, quote, code) for the lines of the selection, and bold, italic, strikethrough, code and link for
   the selection, and whether the page is saved. Ctrl+B, Ctrl+I and Ctrl+K do the same. Its buttons keep the selection and
   the focus in the editor. Every button writes plain Markdown, so the round trip stays whole.
+- **A block used elsewhere** (embedded in other pages, ADR-22) shows its boundary while the cursor is in it: a light
+  outline round its lines and, at the end of its first line, "Used in N places", with the places in its title. So whoever
+  writes there knows that other pages change too. Away from the block, or in a block used nowhere, nothing shows.
+- **Table tools** (`web/editor/src/tables.js`): while the cursor stands in a table, the bar shows Row above, Row below,
+  Column left, Column right, Delete row, Delete column and the alignment of the column (left, center, right, written in
+  the row of dashes). Each writes the whole table again as plain Markdown, `| a | b |` with one row per line, and the
+  cursor goes to the cell the tool names; a table no tool touched stays as it was typed. The header row and the last
+  column stay: a table needs them, and the workspace says so.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
-- The handle of a block: Copy address, Move up, Move down, Delete, Comment, and where the block is used. Its menu is as
+- The handle of a block: Copy address, Move up, Move down, Delete, Comment, the alignment of the block (left, center,
+  right; ADR-16), and where the block is used. The alignment is kept with the block, not in its Markdown, through
+  `PUT /api/pages/{id}/blocks/{block}/align`; it makes no version, and the editor shows it on the block's lines. Its menu is as
   compact as the right-click menus and looks like them; near the bottom of the window it opens above the handle. Dragged,
   the handle moves the block (below).
 - A single newline is a line break, as in Obsidian or Notion: two lines of a quote, of a paragraph or of a list item read
   as two lines, in the editor as when the page is read (below).
+
+## Templates
+
+A new page can start from a template (M-8), after Confluence and Docmost: New at a collection lists them right after
+Page, and New in the top bar, with a collection chosen, under "From a template"; there the title typed in the field names
+the page, otherwise the template does. The page starts with the template's blocks, numbered from b1, each with a version
+by whoever made the page, and opens in the editor.
+
+- **UnderDoc's own:** Meeting notes, How-to, Runbook and Decision (`internal/db/templates.go`).
+- **Your own:** any page of the database is offered as a template from its gear (Template: off, offered), by whoever may
+  change it; it stays where it was written, and whoever sees it can start from it, so a private page offers itself only to
+  its owner. A page made from it is a page of its own, not a template, and keeps no tie to it.
+- API: `GET /api/templates`, `PUT /api/objects/{id}/template {"template": true}`, `POST /api/pages {"template": id}`. The
+  export writes `template: true` into the front matter, and an import reads it back.
+
+## Quick notes
+
+Quick notes are a document type of their own (ADR-16, M-8): a board of small cards, newest first, with a field on top to
+add one. Each account has its board in its private notes, made the first time a note is taken; each card is a block of
+the board (kind `notes`), so it keeps its ID, versions and comments, and editing the board writes its cards as a page.
+
+- **New** lands in Quick notes or in a chosen collection, and the last choice stays with the account. With Quick notes,
+  typing and Enter puts a card on the board without choosing a place first (`POST /api/notes {"md": …}`); with a
+  collection, it makes a page there.
+- The field on top of the board adds the next card (`POST /api/pages/{board}/blocks`).
+- The export writes the board as a page file with `kind: notes` in its front matter, and an import makes it a board again.
 
 ## Line breaks
 

@@ -561,3 +561,99 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 	}
 	b.shot("editor-rhythm")
 }
+
+// The table tools of the bar (M-8): shown while the cursor stands in a table, each writes the table again as plain
+// Markdown, and the cursor goes to the cell the tool names.
+func TestTheTableTools(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
+	b.openEditing(base, page, "Tables")
+	if got := b.eval(`document.querySelector('[data-edtable]').hidden`); got != "true" {
+		t.Errorf("the table tools hide while the cursor is in no table: %q", got)
+	}
+	b.clickOn(`.cm-editor .cm-lp-table-widget td`, 1)
+	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
+		t.Fatalf("the table tools did not show in the table: %s", b.eval(edText))
+	}
+	b.shot("editor-table-tools")
+	b.lineWith("| 1 | 10 |")
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowBelow"]`, 1)
+	if !b.edWait(`t.includes('| 1 | 10 |\n|  |  |')`) {
+		t.Fatalf("Row below: %q", b.eval(edText))
+	}
+	b.typeKeys("x")
+	if !b.edWait(`t.includes('| 1 | 10 |\n|  | x |')`) {
+		t.Errorf("the cursor stands in the new row, in the column it was in: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="colLeft"]`, 1)
+	b.typeKeys("y")
+	if !b.edWait(`t.includes('| Port |  | VLAN |\n|---|---|---:|\n| 1 |  | 10 |\n|  | y | x |')`) {
+		t.Errorf("Column left: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="alignCenter"]`, 1)
+	if !b.edWait(`t.includes('|---|:---:|---:|')`) {
+		t.Errorf("Center column: %q", b.eval(edText))
+	}
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowAbove"]`, 1)
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
+	b.clickOn(`.edbar [data-act="edtable"][data-k="colDelete"]`, 1)
+	want := "| Port | VLAN |\n|---|---:|\n| 1 | 10 |\n|  | x |"
+	if !b.edWait(`t.includes(` + strconv.Quote(want) + `)`) {
+		t.Errorf("Row above, then Delete row and Delete column: %q", b.eval(edText))
+	}
+	b.lineWith("| Port | VLAN |")
+	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
+	if !b.waitFor(`/header row stays/.test(document.body.textContent)`) {
+		t.Errorf("the header row does not go, and the workspace says why")
+	}
+	if !b.edWait(`t.includes(` + strconv.Quote(want) + `)`) {
+		t.Errorf("the header row stays: %q", b.eval(edText))
+	}
+	b.lineWith("Before")
+	if !b.waitFor(`document.querySelector('[data-edtable]').hidden`) {
+		t.Errorf("the table tools hide again outside the table")
+	}
+	time.Sleep(1500 * time.Millisecond)
+	if got := b.stored(page); got != "b1:Before | b2:"+want {
+		t.Errorf("the server has: %q", got)
+	}
+	b.clean("table tools")
+}
+
+// A block used elsewhere shows its boundary and where it is used while the cursor is in it (ADR-22), so whoever writes
+// there knows that other pages change too; other blocks show nothing of the kind.
+func TestAUsedBlockShowsItsBoundary(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Used", "One", "Two\nand more", "Three")
+	makePage(b, "Uses it", "::embed{ref=\""+page+"#b2\"}")
+	makePage(b, "Uses it too", "::embed{ref=\""+page+"#b2\"}")
+	b.openEditing(base, page, "Used")
+	b.lineWith("One")
+	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel').length`); got != "0" {
+		t.Errorf("a block used nowhere shows no boundary: %q", got)
+	}
+	b.lineWith("and more")
+	if !b.waitFor(`document.querySelectorAll('.cm-editor .cm-line.cm-ud-used').length === 2`) {
+		t.Fatalf("the lines of the used block are outlined: %q", b.eval(`[...document.querySelectorAll('.cm-editor .cm-ud-used')].map(l => l.textContent).join(' / ')`))
+	}
+	if got := b.eval(`(() => { const f = document.querySelector('.cm-ud-used-first'), l = document.querySelector('.cm-ud-used-last'), x = f.querySelector('.cm-ud-usedlabel');
+		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, getComputedStyle(f).boxShadow !== 'none', x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
+		t.Errorf("the boundary and its label: %q", got)
+	}
+	b.shot("editor-used-block")
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	b.press("ArrowDown", "ArrowDown", 40, 0)
+	if !b.waitFor(`!document.querySelector('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel')`) {
+		t.Errorf("leaving the block takes the boundary away: %s", b.eval(edText))
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if got := b.eval(`window.writes.join(', ')`); got != "" {
+		t.Errorf("showing the boundary wrote: %s", got)
+	}
+	b.clean("used block")
+}

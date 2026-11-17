@@ -305,3 +305,118 @@ func TestTagsThroughTheAPI(t *testing.T) {
 		t.Errorf("bob may only read = %d", got)
 	}
 }
+
+func TestViewThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"width":"full"}`, sameSite)
+	if res.Code != http.StatusOK || res.Body.String() != `{"contents":"","width":"full"}`+"\n" {
+		t.Fatalf("width: %d %q", res.Code, res.Body.String())
+	}
+	if res = s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"contents":"side"}`, sameSite); !strings.Contains(res.Body.String(), `"contents":"side","width":"full"`) {
+		t.Errorf("contents keep the width: %q", res.Body.String())
+	}
+	var found apiNode
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		for _, k := range c.Kids {
+			if k.ID == p.ID {
+				found = k
+			}
+		}
+	}
+	if found.Width != "full" || found.Contents != "side" {
+		t.Errorf("the tree carries the view to the workspace: %+v", found)
+	}
+	for _, bad := range []string{`{"width":"huge"}`, `{"contents":"top"}`} {
+		if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", bad, sameSite).Code; got != http.StatusBadRequest {
+			t.Errorf("%s = %d", bad, got)
+		}
+	}
+	asBob := merged(bob)
+	asBob["Sec-Fetch-Site"] = "same-origin"
+	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"width":"slim"}`, asBob).Code; got != http.StatusForbidden && got != http.StatusNotFound {
+		t.Errorf("bob may only read = %d", got)
+	}
+}
+
+func TestAlignThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	b := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"Title","after":""}`, sameSite))
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/"+b.ID+"/align", `{"align":"center"}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("align = %d", got)
+	}
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks[0]; got.Align != "center" || got.Markdown != "Title" {
+		t.Errorf("the page tells the alignment: %+v", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/"+b.ID+"/align", `{"align":"justify"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("justify = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/b9/align", `{"align":"right"}`, sameSite).Code; got != http.StatusNotFound {
+		t.Errorf("no such block = %d", got)
+	}
+}
+
+func TestTemplatesThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	list := decode[[]apiTemplate](t, s.get("/api/templates"))
+	if len(list) < 2 || list[0].ID != "builtin:meeting" || len(list[0].Blocks) == 0 {
+		t.Fatalf("UnderDoc's own templates: %+v", list)
+	}
+	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Monday","parent":"`+team.ID+`","template":"builtin:meeting"}`, sameSite))
+	if got := decode[apiDocument](t, s.get("/api/doc/"+p.ID)).Blocks; len(got) != len(list[0].Blocks) || got[1].Markdown != list[0].Blocks[1] {
+		t.Errorf("the page starts with the template: %+v", got)
+	}
+	if got := s.send(http.MethodPost, "/api/pages", `{"title":"x","parent":"`+team.ID+`","template":"`+p.ID+`"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("a page not offered as a template = %d", got)
+	}
+	if res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/template", `{"template":true}`, sameSite); res.Body.String() != `{"template":true}`+"\n" {
+		t.Errorf("offer: %d %s", res.Code, res.Body.String())
+	}
+	if list = decode[[]apiTemplate](t, s.get("/api/templates")); list[len(list)-1].ID != p.ID || list[len(list)-1].Place != "Team" {
+		t.Errorf("the page is offered: %+v", list[len(list)-1])
+	}
+	for _, c := range decode[apiState](t, s.get("/api/state")).Collections {
+		for _, k := range c.Kids {
+			if k.ID == p.ID && !k.Template {
+				t.Errorf("the tree tells the workspace it is a template")
+			}
+		}
+	}
+	if got := s.send(http.MethodPost, "/api/pages", `{"title":"Tuesday","parent":"`+team.ID+`","template":"`+p.ID+`"}`, sameSite).Code; got != http.StatusCreated {
+		t.Errorf("from the page = %d", got)
+	}
+}
+
+func TestQuickNotesThroughTheAPI(t *testing.T) {
+	s := withDatabase(t)
+	s.get("/api/state") // the first visit makes the account with its private notes
+	res := s.send(http.MethodPost, "/api/notes", `{"md":"Call the crane company"}`, sameSite)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("note: %d %s", res.Code, res.Body.String())
+	}
+	got := decode[struct {
+		Board apiNode  `json:"board"`
+		In    string   `json:"in"`
+		Block apiBlock `json:"block"`
+	}](t, res)
+	if got.Board.Kind != "notes" || got.Board.Title != "Quick notes" || got.Block.ID != "b1" || !strings.Contains(got.Block.HTML, "crane") {
+		t.Errorf("the board and the card: %+v", got)
+	}
+	s.send(http.MethodPost, "/api/notes", `{"md":"Second"}`, sameSite)
+	doc := decode[apiDocument](t, s.get("/api/doc/"+got.Board.ID))
+	if doc.Kind != "notes" || len(doc.Blocks) != 2 || doc.Blocks[0].Markdown != "Second" || !doc.CanEdit {
+		t.Errorf("the board reads as a list of cards, newest first: %+v", doc)
+	}
+	state := decode[apiState](t, s.get("/api/state"))
+	if notes := state.Collections[0]; notes.ID != got.In || !notes.Private || len(notes.Kids) != 1 || notes.Kids[0].Kind != "notes" {
+		t.Errorf("the board lies in the private notes: %+v", notes)
+	}
+	if got := s.send(http.MethodPost, "/api/notes", `{"md":"  "}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("an empty note = %d", got)
+	}
+}

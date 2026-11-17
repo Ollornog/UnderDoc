@@ -44,9 +44,14 @@ type apiNode struct {
 	// Access is what all others may do, set on this object itself; empty when it comes from above (ADR-20).
 	Access string `json:"access,omitempty"`
 	// Mine tells the workspace that the viewer owns it, so it offers what only the owner may do. Each change checks again.
-	Mine bool      `json:"mine,omitempty"`
-	Tags []string  `json:"tags,omitempty"`
-	Kids []apiNode `json:"kids"`
+	Mine bool     `json:"mine,omitempty"`
+	Tags []string `json:"tags,omitempty"`
+	// Width and Contents say how a document of the database is shown, where they are set (ADR-16).
+	Width    string `json:"width,omitempty"`
+	Contents string `json:"contents,omitempty"`
+	// Template tells that a page is offered as a template for new pages (M-8).
+	Template bool      `json:"template,omitempty"`
+	Kids     []apiNode `json:"kids"`
 }
 
 type apiState struct {
@@ -149,7 +154,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
 	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
-		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Kids: []apiNode{}}
+		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template, Kids: []apiNode{}}
 	if depth > 8 {
 		return node
 	}
@@ -216,7 +221,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 	objectID := r.PathValue("id")
 	if h.options.DB != nil && id.Valid(objectID) {
 		o, err := h.options.DB.Object(ctx, objectID, user.ID)
-		if err == nil && o.Kind == db.KindPage {
+		if err == nil && db.HasBlocks(o.Kind) {
 			h.pageDocument(w, r, o)
 			return
 		}
@@ -349,6 +354,23 @@ func (h *handler) apiTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string][]string{"tags": tagList(o.Tags)})
+}
+
+// apiView keeps how a document of the database is shown: its width, where its contents show, or both (ADR-16).
+func (h *handler) apiView(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Width    *string `json:"width"`
+		Contents *string `json:"contents"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	o, err := h.options.DB.SetView(r.Context(), r.PathValue("id"), user.ID, in.Width, in.Contents)
+	if h.failed(w, err, "view") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"width": o.Width, "contents": o.Contents})
 }
 
 // apiUses says, before deleting, where an object or anything below it is embedded from outside of it.

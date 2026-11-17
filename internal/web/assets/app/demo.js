@@ -48,16 +48,17 @@ const D = {
 for (let i=0;i<11;i++) D['log'+i]={t:'page',n:'Log week '+(30+i),w:'slim',kids:[],path:`operations/site-logs/week-${30+i}.md`,by:'J. Roth',ch:'Oct',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('Weekly site log.',['Work','<p>Routine checks.</p>'],['Notes','<p>Nothing unusual.</p>'])};
 const C = [{id:'ops',n:'Operations',top:['net','logs','hand']},{id:'pro',n:'Projects',top:['tower','inv']},{id:'me',n:'My notes',top:['n1']}];
 function bodyHtml(w,i){
-  const d=D[w.d]; const hs=d.doc?d.doc.secs.map(s=>s[0]):[]; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
+  const d=D[w.d]; let hs=d.doc?d.doc.secs.map(s=>s[0]):[],to=null; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
   let h='';
-  if(d.blocks) h+=blocksHtml(d,w,i);
+  /* The contents of a page of the database are its blocks that begin with a heading (M-8), each a jump to its block. */
+  if(d.blocks){h+=blocksHtml(d,w,i);const heads=d.blocks.filter(b=>/^#{1,3} \S/.test(b.raw||''));hs=heads.map(b=>esc((b.raw||'').split('\n')[0].replace(/^#+ /,'')));to=heads.map(b=>`w${i}${b.id}`);}
   else if(d.doc) h+=(d.real?d.doc.intro:`<p>${d.doc.intro}</p>`)+d.doc.secs.map((s,j)=>`<h2 id="w${i}h${j}">${s[0]}</h2>${s[1]}`).join('');
   if(d.tab) h+=`<div class="note">${d.tab.note}</div><div class="tw"><table><tr>${d.tab.head.map(x=>`<th>${x}</th>`).join('')}</tr>${d.tab.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div>`;
   if(d.t==='images'){const tones=[['oklch(45% .06 240)','Base, north'],['oklch(50% .05 150)','Foundation'],['oklch(42% .04 40)','Segment 2'],['oklch(38% .05 280)','Crane'],['oklch(48% .03 200)','Antenna'],['oklch(36% .02 100)','Gatehouse']];h+=`<div class="note">These images lie in a folder on the disk. This collection only shows them.</div><div class="imgs">${tones.map(t=>`<div data-style="background:${t[0]}">${t[1]}</div>`).join('')}</div>`;}
   if(d.t==='folder') h+=`<p>${d.why}</p>`;
   if(d.kids.length) h+=`${d.t==='folder'||d.t==='coll'?'':'<h2>Below this document</h2>'}<div class="kids">${d.kids.filter(shown).map(k=>`<button data-act="open" data-id="${k}">${ic(D[k].i||TYPE[D[k].t][0])}<span>${D[k].n}</span><em>${TYPE[D[k].t][1]}</em></button>`).join('')}</div>`;
   if(d.html) h=d.t==='coll'?d.html+h:h+d.html;
-  return {h,hs};
+  return {h,hs,to};
 }
 /* Lucide (ISC, licenses/Lucide-LICENSE.txt): book-open, bold, italic, strikethrough, heading, list-ordered, type. */
 Object.assign(I,{book:'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
@@ -161,7 +162,7 @@ const W3=300;
 const newTab=(d,general=false)=>({d,general,top:0,fly:false,gear:false,cmt:false,find:false,q:'',cur:0,src:false});
 const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',addIn:null,just:null,prof:false,filters:false,newN:0,
   focus:0,rail:!phone(),limit:8,tog:{},treeTop:0,s1:0,s2:3,w3:W3,theme:'system',scale:100,first:false,clock:false,
-  ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',
+  ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',tpls:[],
   fav:{ops:true,pro:true,me:true,arc:false},open:{ops:true,pro:true},pin:{ops:true},so:{todo:{mine:true},cal:{all:true},time:{week:true},vac:{y26:true},notes:{quick:true}},spin:{},mods:{mail:true,private:true,bookmarks:true,news:true,ai:true,network:true,lists:true,video:true,slides:true,notes:true},menu:null,
   sq:'',strat:'full',ai:false,ftype:'',ftags:[],
   wins:[{tabs:[newTab('plan',true)],a:0,hist:['plan']}]};
@@ -214,7 +215,8 @@ function treeHtml(){
 Object.assign(I,{link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',hr:'<path d="M4 12h16"/>',gap:'<path d="M4 5h16M4 19h16M12 9v6"/>'});
 const SOON=' disabled data-later="1" title="Comes later"';
 /* New in a collection: what is needed most comes first, a page, then tables, databases, single records, and boards and
-   lists (the maintainer, 2026-11-09); within a block the same order of need. */
+   lists (the maintainer, 2026-11-09); within a block the same order of need. Right after the page come the templates a
+   page can start from (M-8). */
 const NEWGROUPS=[['',['page']],['Tables',['table','excel']],['Databases',['db','view']],['Records',['ipnet','devices','bookmark']],['Boards and lists',['kanban','todo','notes']],['Media',['images','slides','video']],['Organize',['folder','search']]];
 function addPop(){
   if(!S.addIn)return '';
@@ -223,9 +225,9 @@ function addPop(){
   const grp=(h,items)=>`<div role="group">${h?`<span role="heading">${h}</span>`:''}${items}</div>`;
   const place=n2?'':canPlace(S.addIn)?'':' disabled title="'+placeWhy(S.addIn)+'"';
   const groups=n2?[grp('Make',it('newcoll','','Collection','grid')),grp('Set apart',it('n2line','','Line','hr')+it('n2space','','Space','gap')),grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON))]
-    :[...NEWGROUPS.map(([h,ks])=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
+    :[...NEWGROUPS.flatMap(([h,ks],k)=>[k===1&&c.db&&S.tpls.length?grp('From a template',S.tpls.map(x=>it('addtpl',x.id,x.n,'page',`data-c="${S.addIn}" title="${x.desc||x.place}"`+(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:''))).join('')):'',(()=>{const items=ks.filter(k=>addTypes().includes(k)).map(k=>[TYPE[k][1],it('add',k,TYPE[k][1],TYPE[k][0],`data-c="${S.addIn}"`+(off('add',k)||(madeHere(S.addIn)?` disabled title="${madeHere(S.addIn)}"`:'')))]);
         if(h==='Organize')items.push(['Collection',it('newcoll',S.addIn,'Collection','grid')]);
-        return items.length?grp(h,items.map(x=>x[1]).join('')):'';}).filter(Boolean),
+        return items.length?grp(h,items.map(x=>x[1]).join('')):'';})()]).filter(Boolean),
       grp('Set apart',it('lineend',S.addIn,'Line','hr',place)+it('spaceend',S.addIn,'Space','gap',place)),
       grp('Bring in',it('none','','Import','down',SOON)+it('none','','Link','link',SOON)+(S.mods.bookmarks?it('open','bm:import','Import bookmarks','down',off('add','bookmark')):''))];
   return `<div class="pop ctxpop cmdpop" data-style="left:${S.addAt.x}px;top:${S.addAt.y}px"><div class="command" aria-label="New ${n2?'in nav2':'in '+c.n}"><header>${ic('search')}<input data-nfilter value="${esc(S.addQ)}" placeholder="Type to filter" aria-label="Filter" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true"></header><div role="menu" data-empty="Nothing matches.">${groups.join('<hr role="separator">')}</div></div></div>`;
@@ -411,14 +413,15 @@ function cmtHtml(t,i){
     ${here}${rest?`<h3>${sel?'Elsewhere on this page':'On this page'}</h3>${rest}`:''}</aside>`;
 }
 function gearHtml(t,i,hasSecs){
-  const d=D[t.d],seg=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-w="${i}" data-id="${x}" aria-pressed="${cur===x}">${x}</button>`).join('')}</span>`;
+  const d=D[t.d],no=d.db&&!mayTag(t.d)?` disabled title="Only who may change this sets it"`:'',seg=(act,opts,cur)=>`<span class="seg" role="group">${opts.map(x=>`<button data-act="${act}" data-w="${i}" data-id="${x}" aria-pressed="${cur===x}"${act==='setacc'?'':no}>${x}</button>`).join('')}</span>`;
   return `<aside class="fdrawer" aria-label="Document settings"><div class="fhead">Document settings<button class="ic" data-act="gear" data-w="${i}" aria-label="Close settings">${ic('x')}</button></div>
     <h3>View</h3>
     ${hasSecs?`<div class="setrow"><span>Contents</span>${seg('settoc',['marker','side','hidden'],d.toc)}</div>`:''}
     <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
+    ${d.db&&d.blocks?`<div class="setrow"><span>Template</span>${seg('settpl',['off','offered'],d.tpl?'offered':'off')}</div>`:''}
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
-    <p class="hint">Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload. In the product, saving from the web comes with editing (M-8).</p>
+    <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
 }
@@ -430,6 +433,25 @@ function tagsHtml(id,i){
   const add=may||!d.db&&!d.real?`<input class="addtag" data-addtag="${i}" placeholder="Add a tag, then Enter" aria-label="Add a tag" maxlength="40">`
     :d.db?'<p class="hint">Only who may change this adds tags.</p>':'<p class="hint">Tags of the folder source come from the front matter of the file.</p>';
   return `<h3>Tags</h3><div class="tagrow">${chips||'<span class="lab">No tags yet.</span>'}</div>${add}`;
+}
+/* Width and contents of a document of the database are kept with it (ADR-16, M-8); made-up content keeps them until
+   reload. If the server refuses, the view goes back. */
+async function saveView(id,key,field,value){
+  const d=D[id],before=d[key];d[key]=value;render();
+  if(!d.db)return;
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/view',{...same,method:'PUT',body:JSON.stringify({[field]:value})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){d[key]=before;render();toast(e.message==='403'?'Only who may change this sets it.':'The view could not be saved.');}
+}
+/* Templates (M-8): UnderDoc's own and the pages offered as one, for New. A page is offered from its gear. */
+async function loadTemplates(){
+  try{const r=await fetch('/api/templates',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
+    S.tpls=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),desc:esc(x.desc||''),place:esc(x.place||'')}));render();}
+  catch(e){S.tpls=[];}
+}
+async function saveTemplate(id,on){
+  const d=D[id],before=!!d.tpl;d.tpl=on;render();
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid)+'/template',{...same,method:'PUT',body:JSON.stringify({template:on})});if(!r.ok)throw new Error(String(r.status));loadTemplates();}
+  catch(e){d.tpl=before;render();toast(e.message==='403'?'Only who may change this page offers it.':'The template could not be saved.');}
 }
 async function saveTags(id,tags){
   const d=D[id];
@@ -460,8 +482,8 @@ function winHtml(w,i){
     +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
     +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+D[x.d].n:'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
   if(!has) return `<section class="${cls}" data-win="${i}" aria-label="Window ${i+1}">${head}${pop}<div class="empty"><p>Empty.<br>What a list opens lands here, in the active window.</p></div></section>`;
-  const d=D[t.d],{h,hs}=bodyHtml(t,i),mode=d.toc;
-  const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="w${i}h${j}">${x}</button>`).join('');
+  const d=D[t.d],{h,hs,to}=bodyHtml(t,i),mode=d.toc;
+  const links=hs.map((x,j)=>`<button data-act="jump" data-w="${i}" data-id="${to?to[j]:`w${i}h${j}`}">${x}</button>`).join('');
   const marker=hs.length&&mode==='marker'&&!t.src?`<span class="marker"><button class="chip" data-act="fly" data-w="${i}" aria-expanded="${t.fly}" aria-pressed="${t.fly}">${ic('list')}${hs.length} sections ▾</button>${t.fly?`<div class="fly"><b>In this document</b>${links}</div>`:''}</span>`:'';
   const find=t.find?`<span class="findin"><input data-findq="${i}" type="search" value="${esc(t.q)}" placeholder="Find on this page" aria-label="Find on this page"><span class="lab" data-findc="${i}"></span><button class="ic" data-act="findnav" data-w="${i}" data-id="-1" aria-label="Previous hit" title="Previous hit">${ic('up')}</button><button class="ic" data-act="findnav" data-w="${i}" data-id="1" aria-label="Next hit" title="Next hit">${ic('down')}</button></span>`:'';
   /* The heading is not content. The title sits below the breadcrumbs in the same bar, the tags to the right of the breadcrumbs. Created, changed and the rest are metadata. */
@@ -508,6 +530,7 @@ function newMenuHtml(where){
   return `<div class="pop newpop ${where}" role="dialog" aria-label="New"><div class="intorow"><span>Into</span>${[['qn','Quick notes','note'],...C.filter(c=>!isDeco(c.id)).map(c=>[c.id,c.n,c.i])].map(x=>`<button class="chip" data-act="into" data-id="${x[0]}" aria-pressed="${into===x[0]}"${x[0]==='qn'?off('tool','qn'):''}>${ic(x[2])}${x[1]}</button>`).join('')}</div>
     <input data-quick placeholder="${q?'Just type, Enter keeps it as a note':'Just type, Enter makes a page'}" aria-label="New">
     <p class="hint">${q?'A card in Quick notes. It can move to a collection later.':'A Markdown page at the top of '+C.find(c=>c.id===into).n+'. Drag it to its place.'}</p>
+    ${!q&&D[into]&&D[into].db&&S.tpls.length?`<b>From a template</b><div class="newtypes">${S.tpls.map(x=>`<button data-act="newtpl" data-id="${x.id}" title="${x.desc||x.place}">${ic('page')}${x.n}</button>`).join('')}</div>`:''}
     ${q?'<p class="hint">Pick a collection for other types.</p>':`<b>Or start as</b><div class="newtypes">${addTypes().map(k=>`<button data-act="newdoc" data-id="${k}"${off('add',k)}>${ic(TYPE[k][0])}${k==='page'?'Page, Markdown':TYPE[k][1]}</button>`).join('')}</div>`}</div>`;
 }
 function createIn(cid,k,text){
@@ -838,6 +861,10 @@ document.addEventListener('click',e=>{
     case 'tadd':{const l=TL.find(x=>x.id===a.id);l.items.push({t:'New to-do',done:false});todoDocs();openDoc(`ti:${l.id}/${l.items.length-1}`);break;}
     case 'priv':openDoc(a.id);break;
     case 'newmenu':{if(hadNew===(a.w!==undefined?i:'bar'))break;S.newAt=a.w!==undefined?i:'bar';if(a.w!==undefined)S.focus=i;render();const f=document.querySelector('[data-quick]');if(f)f.focus();return;}
+    case 'newtpl':{const f=document.querySelector('[data-quick]'),v=f&&f.value.trim().split('\n')[0].slice(0,200),x=S.tpls.find(y=>y.id===a.id);
+      if(D[S.into]&&D[S.into].db&&x)createPage(S.into,v||unesc(x.n),x.id);break;}
+    case 'addtpl':{const x=S.tpls.find(y=>y.id===a.id);if(x&&D[a.c]&&D[a.c].db)createPage(a.c,unesc(x.n),x.id);break;}
+    case 'settpl':saveTemplate(t.d,a.id==='offered');break;
     case 'newdoc':if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}openDoc(createIn(S.into,a.id,''));break;
     case 'into':S.into=a.id;S.newAt=hadNew;render();{const f=document.querySelector('[data-quick]');if(f)f.focus();}return;
     case 'addmenu2':{S.view='workspace';S.rail=true;S.open[a.id]=true;render();openNew(a.id,document.querySelector(`.cheadrow[data-cdrop="${a.id}"]`));break;}
@@ -929,8 +956,10 @@ document.addEventListener('click',e=>{
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
     case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
     case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
+    case 'edtable':{const e=EDS[t.d];if(e&&!e.ed.table(a.k))toast(a.k==='rowDelete'?'The header row stays: a table needs one.':a.k==='colDelete'?'The last column stays: a table needs one.':'The cursor is not in a table.');return;}
     case 'edmove':{const e=EDS[t.d];if(e)e.ed.moveBlock(a.id,a.k);break;}
     case 'eddel':{const e=EDS[t.d];if(e)e.ed.deleteBlock(a.id);break;}
+    case 'balign':alignBlock(t.d,a.id,a.k);break;
     case 'edcopy':{const text=S.edNote&&S.edNote[t.d];if(text)(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast('What you wrote is on the clipboard.'),()=>toast('The clipboard could not be written.'));return;}
     case 'ednote':if(S.edNote)delete S.edNote[t.d];break;
     case 'bcmt':commentOn(t.d,a.id);return;
@@ -943,8 +972,8 @@ document.addEventListener('click',e=>{
     case 'findnav':t.cur+=+a.id;render();{const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});}return;
     case 'fly':t.fly=!t.fly;break;
     case 'jump':t.fly=false;render();{const x=document.getElementById(a.id);if(x)x.scrollIntoView({block:'start'});}return;
-    case 'settoc':D[t.d].toc=a.id;break;
-    case 'setw':D[t.d].w=a.id;break;
+    case 'settoc':saveView(t.d,'toc','contents',a.id);break;
+    case 'setw':saveView(t.d,'w','width',a.id);break;
     case 'todo':{const it=D[t.d].items[+a.id];it.done=!it.done;break;}
     case 'slide':D[t.d].cur=+a.id;break;
     case 'clock':S.clock=!S.clock;break;
@@ -1001,13 +1030,14 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(e.key==='Escape'&&S.sel&&!S.sel.soft&&!drag){S.sel=null;render();return;}
   if(e.key!=='Enter')return;
-  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
+  if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'&&S.canCreate){quickNote(v);render();return;}else if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),id=at(+x.dataset.addtag).d,d=D[id];
     if(d.db){if(v&&!d.tags.includes(esc(v)))saveTags(id,[...d.tags.map(unesc),v]);return;}
     if(v&&!d.tags.includes(esc(v)))d.tags.push(esc(v));render();}
   if(x.dataset.addcmt!==undefined){const v=x.value.trim(),d=D[at(+x.dataset.addcmt).d];const tt=at(+x.dataset.addcmt);if(v&&tt.cb)(d.comments=d.comments||[]).push({b:tt.cb,l:tt.cbl,who:'A. Keller',when:'now',t:v});render();const n=document.querySelector('[data-addcmt]');if(n)n.focus();return;}
+  if(x.dataset.addnote!==undefined&&D[at(S.focus).d].blocks){const v=x.value.trim();if(v){x.value='';addCard(at(S.focus).d,v);}return;}
   if(x.dataset.addnote!==undefined){const v=x.value.trim(),d=D[at(S.focus).d];if(v)d.notes.unshift({h:'',b:v});render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
   if(x.dataset.findq!==undefined){const i=+x.dataset.findq,t=at(i);t.cur++;render();const c=document.querySelector(`[data-art="${i}"] mark.cur`);if(c)c.scrollIntoView({block:'center'});const f=document.querySelector(`[data-findq="${i}"]`);if(f)f.focus();}
 });
@@ -1243,7 +1273,7 @@ C.forEach(c=>{D[c.id].n=D[c.id].n+' (demo)';S.fav[c.id]=false;});
 S.open={};S.pin={};
 
 async function loadDoc(id){
-  const d=D[id];if(!d||d.loading||d.t!=='page')return;d.loading=true;d.html='<p class="lab">Loading…</p>';
+  const d=D[id];if(!d||d.loading||(d.t!=='page'&&!(d.t==='notes'&&d.real)))return;d.loading=true;d.html='<p class="lab">Loading…</p>';
   try{
     const r=await fetch('/api/doc/'+pathOf(d.sid||id),{credentials:'same-origin',headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error(String(r.status));
@@ -1269,9 +1299,10 @@ function addNode(node){
   const id=keyOf(node.id),kids=(node.kids||[]).map(addNode),n=esc(node.n);
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
-  else D[id]=fill({t:node.t==='folder'?'folder':'page',n,w:'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
+  else D[id]=fill({t:node.t==='folder'?'folder':node.t==='notes'?'notes':'page',n,w:node.t==='notes'?'full':'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
   D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
+  if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;D[id].tpl=!!node.template;
   return id;
 }
 
@@ -1327,7 +1358,8 @@ async function renameObject(id,title){
    the whole page in one editor (ADR-21, web/editor, editor.js): CodeMirror 6 with a live preview, the blocks joined with
    a hidden marker line before each, where the handle of the block shows. The editor saves about a second after typing
    stops and when it is left, block by block through the same API. */
-const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0});
+const ALIGNS=['center','right'];
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0,align:ALIGNS.includes(b.align)?b.align:''});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 /* The bar sits once above the page (2026-11-09, ADR-21): a bar that follows the cursor jumps with every line and covers
    the text above it, and M-8 asks for a bar above the page. It acts on the selection of the editor; "/" at the start of an
@@ -1336,6 +1368,13 @@ const KINDS=[['p','Text','text'],['h1','Heading 1','heading'],['h2','Heading 2',
   ['ol','Numbered list','olist'],['todo','To-do list','check'],['quote','Quote','quote'],['code','Code','code']];
 const SLASH=[...KINDS.map(k=>({k:k[0],n:k[1],i:k[2]})),{k:'hr',n:'Divider',i:'hr'},{k:'table',n:'Table',i:'table'},
   {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
+/* The table tools of the bar (M-8): shown while the cursor stands in a table; each writes the table again as Markdown. */
+Object.assign(I,{rowup:'<rect x="3" y="11" width="18" height="9" rx="1"/><path d="M12 3v6M9 6h6"/>',rowdown:'<rect x="3" y="4" width="18" height="9" rx="1"/><path d="M12 15v6M9 18h6"/>',
+  colleft:'<rect x="11" y="3" width="9" height="18" rx="1"/><path d="M3 12h6M6 9v6"/>',colright:'<rect x="4" y="3" width="9" height="18" rx="1"/><path d="M15 12h6M18 9v6"/>',
+  rowdel:'<rect x="3" y="7" width="18" height="10" rx="1"/><path d="m9 10 6 4M15 10l-6 4"/>',coldel:'<rect x="7" y="3" width="10" height="18" rx="1"/><path d="m10 9 4 6M14 9l-4 6"/>',
+  alleft:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',alcenter:'<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',alright:'<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'});
+const TABLE=[['rowAbove','Row above','rowup'],['rowBelow','Row below','rowdown'],['colLeft','Column left','colleft'],['colRight','Column right','colright'],
+  ['rowDelete','Delete row','rowdel'],['colDelete','Delete column','coldel'],['alignLeft','Align column left','alleft'],['alignCenter','Center column','alcenter'],['alignRight','Align column right','alright']];
 const FMT=[['bold','Bold (Ctrl+B)','bold'],['italic','Italic (Ctrl+I)','italic'],['strike','Strikethrough','strike'],['code','Inline code','code'],['link','Link (Ctrl+K)','link']];
 /* Every block has a handle at its left, shown on hover, as Docmost has one (the idea only): its menu copies the address
    to embed the block, comments on it and says where it is used. In reading it opens the block for editing; in the editor
@@ -1350,15 +1389,37 @@ function handleHtml(d,w,i,b,inEditor){
     <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
     ${edit}
     <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span>${b.cmts?`<small>${b.cmts}</small>`:''}</button>
+    ${may?`<span class="seg" role="group" aria-label="Align the block">${[['left','alleft','Align left'],['center','alcenter','Center'],['right','alright','Align right']].map(x=>`<button data-act="balign" data-w="${i}" data-id="${b.id}" data-k="${x[0]}" aria-pressed="${(b.align||'left')===x[0]}" aria-label="${x[2]}" title="${x[2]}">${ic(x[1])}</button>`).join('')}</span>`:''}
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
   return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}"${may?' data-drag':''} aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(d.t==='notes'&&!(editing(w)&&d.canEdit))return notesHtml(d,w,i);
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}"${b.align?` class="text-${b.align}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
   return edHtml(d,i,key);
 }
 
+/* Quick notes of the database (M-8): a board of small cards, newest first, with a field on top to add one. Each card is a
+   block of the board, so it has its handle, comments and versions; editing the board writes its cards as a page. */
+function notesHtml(d,w,i){
+  const add=d.canEdit?`<input class="noteadd" data-addnote placeholder="Take a note, then Enter" aria-label="Take a note">`:'';
+  return `${add}<div class="keep">${d.blocks.map(b=>`<div class="kard${b.align?' text-'+b.align:''}" id="w${i}${b.id}" data-b="${b.id}">${handleHtml(d,w,i,b)}${b.html}</div>`).join('')||'<p class="lab">No notes yet.</p>'}</div>`;
+}
+async function addCard(key,md){
+  const d=D[key];
+  try{const r=await fetch(pageURL(key)+'/blocks',{...same,method:'POST',body:JSON.stringify({after:'',md})});if(!r.ok)throw new Error(String(r.status));
+    d.blocks.unshift(blockOf(await r.json()));syncBlocks(d);d.ch='now';render();const n=document.querySelector('[data-addnote]');if(n)n.focus();}
+  catch(e){toast(e.message==='403'?'Others may not change this.':'The note could not be kept.');}
+}
+/* New with Quick notes chosen: the card goes on top of the account's board, made in the private notes the first time. */
+async function quickNote(md){
+  try{const r=await fetch('/api/notes',{...same,method:'POST',body:JSON.stringify({md})});if(!r.ok)throw new Error(String(r.status));
+    const a=await r.json();let key=SID[a.board.id];
+    if(!key||!D[key]){a.board.t='notes';key=addNode(a.board);const parent=SID[a.in];if(parent&&D[parent]&&!D[parent].kids.includes(key))D[parent].kids.unshift(key);rebuildPlaces();}
+    D[key].loaded=false;delete D[key].blocks;await loadDoc(key);openDoc(key);render();}
+  catch(e){toast('The note could not be kept.');}
+}
 /* The editor of a page lives on through every render: render() draws an empty place for it, and mountEditors() puts the
    same editor back there, with its text, selection and undo. An editor whose place is gone is saved and closed. */
 const EDS={};
@@ -1374,6 +1435,7 @@ function edBarHtml(key,i){
   return `<div class="btool edbar" role="toolbar" aria-label="Write" data-edbar="${key}">
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
       <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
+      <span data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
@@ -1400,7 +1462,7 @@ function makeEditor(key){
   const d=D[key],e={key,w:S.focus,kind:'p',status:''};
   const show=(sel,v,attr)=>{const n=document.querySelector(`[${sel}="${key}"]`);if(n)n[attr]=v;};
   e.ed=window.UnderDocEditor.create({
-    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain)})),
+    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain),align:b.align})),
     label:'Page '+plain(d.n)+', Markdown',
     api:edAPI(key),
     handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
@@ -1408,6 +1470,7 @@ function makeEditor(key){
     embed:ref=>{const [sid,blk]=ref.split('#'),k=Object.keys(D).find(x=>D[x].sid===sid);return {label:(k?plain(D[k].n):'Page '+sid)+(blk?' · #'+blk:''),href:'/o/'+sid+(blk?'#'+blk:'')};},
     on:{
       kind:k=>{e.kind=k;show('data-edtype',k,'value');},
+      table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
@@ -1477,6 +1540,15 @@ const BDRAG={
     if(c.gap)c.gap.remove();c.el.style.display='';
     if(after!==null)moveBlockTo(c.key,c.id,after);}
 };
+/* A block is aligned left, center or right from the menu of its handle (ADR-16, M-8): the alignment belongs to the block,
+   not to its Markdown, so the text stays as written. The view changes at once and goes back if the server refuses. */
+async function alignBlock(key,id,align){
+  const d=D[key],b=d.blocks.find(x=>x.id===id);if(!b)return;const before=b.align,to=align==='left'?'':align;
+  const show=a=>{b.align=a;if(EDS[key])EDS[key].ed.setAlign(id,a);render();};
+  show(to);
+  try{const r=await fetch(pageURL(key)+'/blocks/'+encodeURIComponent(id)+'/align',{...same,method:'PUT',body:JSON.stringify({align:to})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){show(before);toast(e.message==='403'?'Others may not change this page.':'The block could not be aligned.');}
+}
 async function moveBlockTo(key,id,after){
   const d=D[key],before=d.blocks.slice(),k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;
   const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);syncBlocks(d);render();
@@ -1502,10 +1574,12 @@ async function loadVersions(id){
 }
 const gearOpen=id=>S.wins.some(w=>w.tabs.some(t=>t.d===id&&t.gear));
 /* A new page lands in the collection, folder or page it was made in, and opens in the editor, ready to write. */
-async function createPage(parent,title){
-  try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid})});if(!r.ok)throw new Error(String(r.status));
+async function createPage(parent,title,template){
+  try{const r=await fetch('/api/pages',{...same,method:'POST',body:JSON.stringify({title,parent:D[parent].sid,template:template||''})});if(!r.ok)throw new Error(String(r.status));
     const node=await r.json();node.t='page';node.owner=S.user.name;node.mine=true;const id=addNode(node);D[id].canEdit=true;D[id].canComment=true;
     D[id].loaded=true;D[id].blocks=[];D[id].by=esc(S.user.name);D[id].created='today';D[id].path='not a file, lives in the database';syncBlocks(D[id]);delete D[id].html;
+    /* A page from a template has blocks already: they are read from the server before it is written. */
+    if(template){D[id].loaded=false;delete D[id].blocks;await loadDoc(id);}
     D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();openDoc(id);S.just=id;
     const w=S.wins[S.focus],t=w&&w.tabs[w.a];if(t&&t.d===id)setEdit(t,true);
     S.focusNext={d:id};render();}
@@ -1763,7 +1837,8 @@ function applyN2(list){
 }
 
 /* The settings of the workspace: widths, the order of nav2, what is kept open, zoom and theme. */
-const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme','openEdit'];
+/* into is where New lands, Quick notes or a collection: the last choice stays (ADR-16, M-8). */
+const KEEP=['s1','s2','w3','fav','pin','limit','scale','theme','openEdit','into'];
 /* With the database the account keeps them, so they follow it from browser to browser (M-28); a change goes to the
    server a moment later, once, and the browser keeps a copy for the next start and for the workspace without database. */
 let sentSettings=null,settingsTimer=0;
@@ -1788,7 +1863,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.canCreate=st.canCreate;
+    S.user=st.user;S.canCreate=st.canCreate;loadTemplates();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
@@ -1798,6 +1873,7 @@ async function boot(){
   if(kept){Object.keys(kept.fav||{}).forEach(k=>{if(D[k])S.fav[k]=kept.fav[k];});Object.keys(kept.pin||{}).forEach(k=>{if(D[k]){S.pin[k]=kept.pin[k];if(kept.pin[k])S.open[k]=true;}});}
   if(window.udTheme)S.theme=window.udTheme();
   rebuildPlaces();
+  if(S.into!=='qn'&&!C.some(c=>c.id===S.into&&!isDeco(c.id)))S.into='qn';
   const start=idFromPath();
   const first=C.find(c=>D[c.id].real);
   if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}

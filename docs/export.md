@@ -49,7 +49,7 @@ backup/
       - space: 9x4c1m2k7q
   ```
 
-- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access` and `tags` where set. Its blocks
+- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access`, `tags`, `width`, `contents` and `template` where set; a board of quick notes says `kind: notes`. Its blocks
   follow in order, each after a marker that keeps its ID:
 
   ```markdown
@@ -71,7 +71,8 @@ backup/
   The marker is an HTML comment on a line of its own, so every Markdown viewer, and UnderDoc itself, leaves it out. A block
   is written as it is, directives such as `::embed{…}` included; only blank lines at its start and end are dropped, as
   they mean nothing in Markdown and the file needs one between blocks. `next_block` is written only when a block at the end
-  was deleted, so that its ID is not given out again after an import.
+  was deleted, so that its ID is not given out again after an import. A block aligned center or right (ADR-16) says so in
+  its marker, `<!-- block b3 align=center -->`, and an import aligns it again; the alignment is not part of its Markdown.
 
 - **Names** of files and directories are only labels; the `id` in the file is the identity. A name is the title with the
   characters that Linux or Windows refuse replaced by `_`, without a leading dot or a trailing dot or space, never a device

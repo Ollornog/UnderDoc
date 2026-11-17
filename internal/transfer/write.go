@@ -57,19 +57,31 @@ type entry struct {
 }
 
 type pageMeta struct {
-	ID          string        `yaml:"id,omitempty"`
+	ID string `yaml:"id,omitempty"`
+	// Kind is written only for a board of quick notes; a page has none.
+	Kind        string        `yaml:"kind,omitempty"`
 	Title       string        `yaml:"title,omitempty"`
 	Description string        `yaml:"description,omitempty"`
 	Access      string        `yaml:"access,omitempty"`
 	Tags        markdown.Tags `yaml:"tags,omitempty,flow"`
+	// Width and Contents say how the page is shown (ADR-16), where they are set.
+	Width    string `yaml:"width,omitempty"`
+	Contents string `yaml:"contents,omitempty"`
+	// Template tells that the page is offered as a template for new pages (M-8).
+	Template bool `yaml:"template,omitempty"`
 	// NextBlock is written only when it is higher than the block after the highest, so that an ID deleted at the end is
 	// not given out again after an import.
 	NextBlock int `yaml:"next_block,omitempty"`
 }
 
 // marker is the line before each block. An HTML comment on a line of its own is dropped by every Markdown viewer and by
-// UnderDoc itself.
-func marker(blockID string) string { return "<!-- block " + blockID + " -->" }
+// UnderDoc itself. A block aligned center or right says so in its marker (ADR-16), so an import aligns it again.
+func marker(b db.Block) string {
+	if b.Align != "" {
+		return "<!-- block " + b.ID + " align=" + b.Align + " -->"
+	}
+	return "<!-- block " + b.ID + " -->"
+}
 
 type writer struct {
 	put      Put
@@ -147,7 +159,7 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 		return entry{Line: n.ID}, nil
 	case db.KindSpace:
 		return entry{Space: n.ID}, nil
-	case db.KindPage:
+	case db.KindPage, db.KindNotes:
 		stem := names.take(n.Title)
 		file := path.Join(dir, stem+".md")
 		text, err := pageText(n)
@@ -181,13 +193,21 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 	}
 }
 
+// kindOfPage is the kind a page file names: only a board of quick notes says so.
+func kindOfPage(kind string) string {
+	if kind == db.KindNotes {
+		return kind
+	}
+	return ""
+}
+
 // trimBody takes the blank lines off both ends of a block: they mean nothing in Markdown, and the file needs one blank
 // line between blocks.
 func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags}
+	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Kind), Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}
@@ -200,7 +220,7 @@ func pageText(n *db.Node) ([]byte, error) {
 	b.Write(front)
 	b.WriteString("---\n")
 	for _, block := range n.Blocks {
-		b.WriteString("\n" + marker(block.ID) + "\n")
+		b.WriteString("\n" + marker(block) + "\n")
 		if body := trimBody(block.Body); body != "" {
 			b.WriteString(body + "\n")
 		}

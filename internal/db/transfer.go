@@ -53,7 +53,7 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 	nodes, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*Node, error) {
 		n := &Node{}
 		o := &n.Object
-		err := row.Scan(&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags, &n.NextBlock)
+		err := row.Scan(append(fields(o), &n.NextBlock)...)
 		return n, err
 	})
 	if err != nil {
@@ -86,7 +86,7 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 }
 
 func (db *DB) fillBlocks(ctx context.Context, byID map[string]*Node) error {
-	rows, err := db.pool.Query(ctx, "SELECT page, id, body FROM blocks ORDER BY page, position")
+	rows, err := db.pool.Query(ctx, "SELECT page, id, body, coalesce(align, '') FROM blocks ORDER BY page, position")
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (db *DB) fillBlocks(ctx context.Context, byID map[string]*Node) error {
 	for rows.Next() {
 		var page string
 		var b Block
-		if err := rows.Scan(&page, &b.ID, &b.Body); err != nil {
+		if err := rows.Scan(&page, &b.ID, &b.Body, &b.Align); err != nil {
 			return err
 		}
 		if n := byID[page]; n != nil {
@@ -135,7 +135,7 @@ func (db *DB) Subtree(ctx context.Context, objectID, viewer string) (*Node, erro
 			return nil, ErrTooMany
 		}
 		n := &Node{Object: o}
-		if o.Kind == KindPage {
+		if HasBlocks(o.Kind) {
 			if err := db.pool.QueryRow(ctx, "SELECT next_block FROM objects WHERE id = $1", o.ID).Scan(&n.NextBlock); err != nil {
 				return nil, err
 			}
@@ -252,7 +252,10 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 				}
 				number, _ := strconv.Atoi(b.ID[1:])
 				next = max(next, number+1)
-				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body) VALUES ($1, $2, $3, $4)", a.id, b.ID, i, body); err != nil {
+				if !ValidAlign(b.Align) {
+					return errors.New("block " + b.ID + ": alignment " + strconv.Quote(b.Align) + " is not center or right")
+				}
+				if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body, align) VALUES ($1, $2, $3, $4, nullif($5, ''))", a.id, b.ID, i, body, b.Align); err != nil {
 					return err
 				}
 				if err := syncRefs(ctx, tx, a.id, b.ID, body); err != nil {
@@ -304,10 +307,11 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags)
-			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, template)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''), $13)
 			ON CONFLICT (id) DO NOTHING
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o)))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o),
+			o.Width, o.Contents, o.Template && o.Kind == KindPage))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}

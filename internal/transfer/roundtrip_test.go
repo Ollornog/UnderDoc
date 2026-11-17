@@ -119,6 +119,12 @@ func TestRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	full, side := "full", "side"
+	must[db.Object](t)(first.SetView(ctx, plan.ID, anna.ID, &full, &side))
+	if err := first.AlignBlock(ctx, plan.ID, b1.ID, anna.ID, "center"); err != nil {
+		t.Fatal(err)
+	}
+	must[db.Object](t)(first.SetTemplate(ctx, plan.ID, anna.ID, true))
 	kid := must[db.Object](t)(first.CreatePage(ctx, anna, "Plan", plan.ID))
 	must[db.Block](t)(first.AddBlock(ctx, kid.ID, anna.ID, "", "Below the plan."))
 	must[db.Object](t)(first.CreatePage(ctx, bob, "Grandchild", kid.ID))
@@ -139,6 +145,10 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	notes := must[[]db.Object](t)(first.Collections(ctx, anna.ID))[0]
+	board, _, err := first.AddNote(ctx, anna, "A card")
+	if err != nil {
+		t.Fatal(err)
+	}
 	must[db.Object](t)(first.CreatePage(ctx, anna, "Secret", notes.ID))
 
 	exported := exportAll(t, first)
@@ -179,6 +189,15 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if !maps.Equal(restored, subtree(exported, "private/anna/My notes")) {
 		t.Errorf("the private notes after the round trip: %q", restored)
+	}
+	if b := must[[]db.Block](t)(second.Blocks(ctx, plan.ID, anna.ID)); b[0].ID != b1.ID || b[0].Align != "center" || b[1].Align != "" {
+		t.Errorf("the alignment of the blocks after the round trip: %+v", b)
+	}
+	if o := must[db.Object](t)(second.Object(ctx, board.ID, anna.ID)); o.Kind != db.KindNotes {
+		t.Errorf("the board of quick notes after the round trip: %+v", o)
+	}
+	if o := must[db.Object](t)(second.Object(ctx, plan.ID, anna.ID)); o.Width != "full" || o.Contents != "side" || !o.Template {
+		t.Errorf("the view of the plan after the round trip: %q %q", o.Width, o.Contents)
 	}
 	// What the files say is what the database has: the next block of the plan does not reuse the deleted b5.
 	if b := must[db.Block](t)(second.AddBlock(ctx, plan.ID, anna.ID, "", "new")); b.ID != "b6" {

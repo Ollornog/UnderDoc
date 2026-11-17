@@ -17,6 +17,26 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Quick notes are a document type (ADR-16, M-8): a board of small cards in the private notes, newest first, with a field
+  on top to add one; each card is a block of the board. New with Quick notes chosen puts a card there without choosing a
+  place first, New with a collection makes a page there, and the last choice stays with the account. See docs/editor.md.
+- Templates start new pages (M-8): New at a collection and New in the top bar offer UnderDoc's own (Meeting notes, How-to,
+  Runbook, Decision) and every page offered as a template from its gear; the page starts with the template's blocks and
+  opens in the editor. A template of one's own stays where it was written, with its owner and access. See docs/editor.md.
+- Blocks of a page are aligned left, center or right from the menu of their handle, in reading and in the editor (ADR-16,
+  M-8). The alignment is kept with the block, not in its Markdown (`PUT /api/pages/{id}/blocks/{block}/align`), makes no
+  version, goes along with a copy, and the export writes it into the block's marker (`<!-- block b3 align=center -->`),
+  which an import reads back.
+- The gear of a document of the database keeps its width (slim, wide, full) and where its contents show (marker, side,
+  hidden) for everyone who opens it (ADR-16, M-8): `PUT /api/objects/{id}/view`, kept in the database, carried to the
+  workspace with the tree, kept by a copy and written into the front matter of the export (`width`, `contents`), which
+  an import reads back. The contents of such a page are its blocks that start with a heading. Who may only read or
+  comment sees the choices greyed.
+- A block used elsewhere shows its boundary and "Used in N places" while the cursor is in it in the editor (ADR-22), so
+  whoever writes there knows that other pages change too.
+- Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
+  left or right of it, a row or a column goes, and a column is aligned left, center or right. Each tool writes the table
+  again as plain Markdown, and the cursor goes to the cell it names. See docs/editor.md.
 - Every state on `main` is published as a container image, `ghcr.io/ollornog/underdoc:main-<commit>`, for amd64 and
   arm64 (`.github/workflows/image.yml`; after a Dependabot auto-merge the merge job starts it, too). The same check as in the CI (`scripts/check-image.sh`) runs first; a manual run
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles
