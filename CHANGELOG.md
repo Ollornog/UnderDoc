@@ -67,6 +67,19 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Images pasted or dropped into the editor become attachments of the page (ADR-28): uploaded in chunks, shown on a line
+  of their own in the editor and in reading, listed in the facts of the page, where "Move to the files" makes one a file
+  in the files of the space or the user's own folder, and the page shows the file from then on. Blocks show images of
+  the content store by their addresses (`/api/pages/<id>/attachments/<a>`, `/api/files/<id>/content`).
+- The text of files for the search (ADR-24, docs/files.md), three ways, each allowed by the hoster
+  (`UNDERDOC_TEXT_WAYS`) and switched by the tenant and each user: the uploader's browser reads PDF with pdf.js, a queue
+  on the server reads PDF, Office and text files in Go (zip bombs refused before unpacking, limits on size, time and
+  tries) and images with Tesseract where it is installed (`UNDERDOC_TESSERACT`), and a model for OCR of scans plugs in
+  with M-13, with a quota of pages per user and tenant. Every text is kept with where it came from.
+- Previews of files (ADR-28, docs/files.md): images get a small picture made on the server with Go alone (no decoding of
+  images with more than 50 million pixels), PDF shows in the window through pdf.js, built from its lockfile in
+  `web/pdfjs` and served by UnderDoc itself (Apache-2.0, licences beside it), and Office files show the same way when the
+  optional Office module, a Gotenberg service at `UNDERDOC_OFFICE_URL`, converts them to PDF.
 - Files of M-2 without Samba (ADR-28, docs/files.md): a content store keeps every version of a file and every attachment
   of a page as a blob named by its SHA-256, once per content and apart per tenant (`UNDERDOC_STORE_DIR`). The view Files
   shows its roots in nav2, the folder of the company, the user's own folder and collections (addendum to ADR-28), and one

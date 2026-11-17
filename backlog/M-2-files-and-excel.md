@@ -30,5 +30,8 @@ here, so T-1 can run before M-1 is finished.
 **Built on 2026-11-17 (without Samba):** the content store with versions, dedup and a backup that takes it along, the
 roots of the view Files (ADR-28 addendum), uploads in chunks that resume, quotas, the thinning of versions, the trash for
 files, attachments of pages and "move to the files", and the link from a space to its files ([docs/files.md](../docs/files.md)).
-Open in M-2: previews of PDF and Office, the text of files for the search, pasting images in the editor, Excel as native
-tables, Samba and the watcher (T-1).
+Also built on 2026-11-17: previews of images (on the server) and PDF (pdf.js), Office through an optional Gotenberg
+module, the text of files for the search on three ways (browser, server queue, a model of M-13 behind an interface),
+each switched by hoster, tenant and user, and images pasted or dropped into the editor as attachments of the page.
+Open in M-2: Tesseract.js in the browser with the language data deu and eng, handing the text of files to the search
+service once it is on main, Excel as native tables, Samba and the watcher (T-1).

@@ -4,7 +4,7 @@
 // and carrying it out against a made-up API. Run with `node --test test/` (scripts/_js_check.sh).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { joinBlocks, markerLine, normalize, chunks, around, plan, idle, moves, turnInto, kindOf, embedFor } from '../src/blocks.js';
+import { joinBlocks, markerLine, normalize, chunks, around, plan, idle, moves, turnInto, kindOf, embedFor, imageLine } from '../src/blocks.js';
 import { run, Conflict } from '../src/save.js';
 
 const stored = [
@@ -214,4 +214,10 @@ test('an address alone becomes an embedding', () => {
   assert.equal(embedFor('/o/8p3n5v2w6h'), '::embed{ref="8p3n5v2w6h"}');
   assert.equal(embedFor('see /o/8p3n5v2w6h'), null);
   assert.equal(markerLine('b7'), '<!-- block b7 -->');
+});
+
+test('a pasted image is a line of its own text and address', () => {
+  assert.equal(imageLine('screen shot.png', '/api/pages/p/attachments/a1'), '![screen shot](/api/pages/p/attachments/a1)');
+  assert.equal(imageLine('a]b[c\\d.jpeg', '/x'), '![abcd](/x)');
+  assert.equal(imageLine('.png', '/x'), '![image](/x)');
 });

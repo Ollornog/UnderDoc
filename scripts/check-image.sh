@@ -43,6 +43,11 @@ doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" || fail "the page does not
 editor="$(curl -fsS "${gate[@]}" "$base/assets/app/editor/editor.js")" || fail "the editor bundle is not in the image"
 [[ "$editor" == *'UnderDocEditor'* ]] || fail "the editor bundle in the image is not the editor"
 curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/editor/LICENSES.txt" || fail "the licences of the editor are not in the image"
+# The PDF preview, too (ADR-28): its viewer, pdf.js and their licences.
+viewer="$(curl -fsS "${gate[@]}" "$base/assets/app/pdfjs/viewer.mjs")" || fail "the PDF preview is not in the image"
+[[ "$viewer" == *'pdf.min.mjs'* ]] || fail "the PDF preview in the image is not the viewer"
+curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/pdfjs/pdf.worker.min.mjs" || fail "the worker of pdf.js is not in the image"
+curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/pdfjs/LICENSES.txt" || fail "the licences of pdf.js are not in the image"
 
 printf -- '---\nid: first\n---\n# Second, longer version\n' >"$notes/page.md"
 for _ in $(seq 1 40); do

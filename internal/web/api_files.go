@@ -3,13 +3,18 @@
 package web
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,15 +71,19 @@ type apiFileVersion struct {
 
 type apiFile struct {
 	apiFileEntry
-	Parent     string           `json:"parent"`
-	Place      string           `json:"place"`
-	Owner      string           `json:"owner"`
-	Created    string           `json:"created"`
-	CanEdit    bool             `json:"canEdit"`
-	CanComment bool             `json:"canComment"`
-	Inline     bool             `json:"inline"`
-	Content    string           `json:"content"`
-	History    []apiFileVersion `json:"history"`
+	Parent     string `json:"parent"`
+	Place      string `json:"place"`
+	Owner      string `json:"owner"`
+	Created    string `json:"created"`
+	CanEdit    bool   `json:"canEdit"`
+	CanComment bool   `json:"canComment"`
+	Inline     bool   `json:"inline"`
+	Content    string `json:"content"`
+	// Preview says how the window shows the file: image (Thumb), pdf (PDF, through pdf.js), video, text, or empty.
+	Preview string           `json:"preview"`
+	Thumb   string           `json:"thumb,omitempty"`
+	PDF     string           `json:"pdf,omitempty"`
+	History []apiFileVersion `json:"history"`
 }
 
 type apiUpload struct {
@@ -134,7 +143,11 @@ func (h *handler) apiFileRoots(w http.ResponseWriter, r *http.Request) {
 			Access: root.Access, Writers: root.Writers, Quota: root.Quota, Limit: root.Limit, Used: root.Used,
 			CanEdit: h.options.DB.MayEdit(ctx, root.Object, user.ID)})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"roots": out, "admin": admin, "chunk": MaxChunk})
+	ways, err := h.options.DB.TextWays(ctx, h.options.TextWays, user.ID)
+	if h.failed(w, err, "roots") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"roots": out, "admin": admin, "chunk": MaxChunk, "text": waysOut(ways)})
 }
 
 func (h *handler) apiCreateFileCollection(w http.ResponseWriter, r *http.Request) {
@@ -245,6 +258,14 @@ func (h *handler) apiFile(w http.ResponseWriter, r *http.Request) {
 	out := apiFile{apiFileEntry: fileEntry(f), Parent: f.Parent, Place: h.place(r, f.Object), Owner: h.options.DB.AccountName(ctx, f.Owner),
 		Created: stamp(f.Created), CanEdit: h.options.DB.MayEdit(ctx, f.Object, user.ID), CanComment: h.options.DB.MayComment(ctx, f.Object, user.ID),
 		Inline: files.Inline(f.ContentType), Content: db.FilePath(f.ID), History: []apiFileVersion{}}
+	switch {
+	case files.IsImage(f.ContentType):
+		out.Preview, out.Thumb = "image", "/api/files/"+f.ID+"/thumb?size=1024"
+	case f.ContentType == "application/pdf" || (h.options.Office != nil && files.IsOffice(f.ContentType)):
+		out.Preview, out.PDF = "pdf", "/api/files/"+f.ID+"/pdf"
+	case strings.HasPrefix(f.ContentType, "video/") && out.Inline:
+		out.Preview = "video"
+	}
 	for _, v := range versions {
 		out.History = append(out.History, apiFileVersion{Number: v.Number, Size: v.Size, Type: v.ContentType, Name: v.Name, Author: v.AuthorName, At: stamp(v.At)})
 	}
@@ -527,7 +548,7 @@ func (h *handler) apiFinishUpload(w http.ResponseWriter, r *http.Request) {
 	if err := h.options.Store.RemoveUpload(tenant, u.ID); err != nil {
 		h.log.Error("upload not removed", slog.String("error", err.Error()))
 	}
-	h.afterUpload(r, done, sha, contentType)
+	h.queueText(r.Context(), user, done, sha, contentType)
 	if done.Page != "" {
 		writeJSON(w, http.StatusCreated, map[string]string{"page": done.Page, "attachment": done.Attachment,
 			"url": db.AttachmentPath(done.Page, done.Attachment), "type": contentType})
@@ -535,9 +556,6 @@ func (h *handler) apiFinishUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": done.File.ID, "n": done.File.Title, "version": done.Version, "type": contentType})
 }
-
-// afterUpload is where what follows an upload starts, such as previews and the text for the search.
-func (h *handler) afterUpload(*http.Request, db.Finished, string, string) {}
 
 // detect reads the first bytes of a file and tells its type.
 func detect(path, name string) (string, error) {
@@ -666,4 +684,172 @@ func (h *handler) apiLinkSpaceFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- Previews
+
+// thumbs limits how many previews are made at once: decoding an image takes memory and time.
+var thumbs = make(chan struct{}, 2)
+
+// apiFileThumb sends a small picture of the current version of an image, made the first time it is asked for.
+func (h *handler) apiFileThumb(w http.ResponseWriter, r *http.Request) {
+	if !h.filesReady(w) {
+		return
+	}
+	user, _ := account.From(r.Context())
+	v, err := h.options.DB.FileVersion(r.Context(), r.PathValue("id"), user.ID, 0)
+	if h.failed(w, err, "thumbnail") {
+		return
+	}
+	h.serveThumb(w, r, v.Blob, v.ContentType)
+}
+
+func (h *handler) apiAttachmentThumb(w http.ResponseWriter, r *http.Request) {
+	if !h.filesReady(w) {
+		return
+	}
+	user, _ := account.From(r.Context())
+	a, err := h.options.DB.GetAttachment(r.Context(), r.PathValue("id"), r.PathValue("attachment"), user.ID)
+	if h.failed(w, err, "thumbnail") {
+		return
+	}
+	h.serveThumb(w, r, a.Blob, a.ContentType)
+}
+
+func (h *handler) serveThumb(w http.ResponseWriter, r *http.Request, sha, contentType string) {
+	size, err := strconv.Atoi(r.URL.Query().Get("size"))
+	if err != nil || !slices.Contains(files.ThumbSizes, size) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "size is one of the preview sizes", "sizes": files.ThumbSizes})
+		return
+	}
+	if !files.IsImage(contentType) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no preview of this content"})
+		return
+	}
+	tenant := h.tenant(r)
+	name := fmt.Sprintf("%s-thumb-%d.jpg", sha, size)
+	path, err := h.options.Store.DerivedPath(tenant, name)
+	if err != nil {
+		h.failed(w, err, "thumbnail")
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		select {
+		case thumbs <- struct{}{}:
+		case <-r.Context().Done():
+			return
+		}
+		made, err := h.makeThumb(tenant, sha, size)
+		<-thumbs
+		if errors.Is(err, files.ErrNoPreview) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if err != nil {
+			h.failed(w, err, "thumbnail")
+			return
+		}
+		if err := h.options.Store.WriteDerived(tenant, name, made); err != nil {
+			h.failed(w, err, "thumbnail")
+			return
+		}
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		h.failed(w, err, "thumbnail")
+		return
+	}
+	defer func() { _ = f.Close() }()
+	info, _ := f.Stat()
+	header := w.Header()
+	header.Set("Content-Type", "image/jpeg")
+	header.Set("Content-Security-Policy", fileCSP)
+	header.Set("ETag", `"`+name+`"`)
+	header.Set("Cache-Control", "private, no-cache")
+	http.ServeContent(w, r, "", info.ModTime(), f)
+}
+
+func (h *handler) makeThumb(tenant, sha string, size int) ([]byte, error) {
+	f, err := h.options.Store.Open(tenant, sha)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return files.Thumbnail(f, size)
+}
+
+// apiFilePDF sends an Office file as PDF for its preview in pdf.js, converted by the optional Office module the first
+// time it is asked for; a PDF is sent as it is. Without the module, Office files have no preview.
+func (h *handler) apiFilePDF(w http.ResponseWriter, r *http.Request) {
+	if !h.filesReady(w) {
+		return
+	}
+	user, _ := account.From(r.Context())
+	v, err := h.options.DB.FileVersion(r.Context(), r.PathValue("id"), user.ID, 0)
+	if h.failed(w, err, "pdf preview") {
+		return
+	}
+	if v.ContentType == "application/pdf" {
+		h.servePDF(w, r, v.Blob, "", v.Name)
+		return
+	}
+	if h.options.Office == nil || !files.IsOffice(v.ContentType) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no preview of this content"})
+		return
+	}
+	tenant := h.tenant(r)
+	name := v.Blob + "-office.pdf"
+	path, err := h.options.Store.DerivedPath(tenant, name)
+	if err != nil {
+		h.failed(w, err, "pdf preview")
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		in, err := h.options.Store.Open(tenant, v.Blob)
+		if err != nil {
+			h.failed(w, err, "pdf preview")
+			return
+		}
+		var out bytes.Buffer
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+		err = h.options.Office.ToPDF(ctx, in, v.ContentType, &out)
+		cancel()
+		_ = in.Close()
+		if err != nil {
+			h.log.Warn("office preview failed", slog.String("error", err.Error()))
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "the Office module could not convert this file"})
+			return
+		}
+		if !bytes.HasPrefix(out.Bytes(), []byte("%PDF-")) {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "the Office module did not answer with a PDF"})
+			return
+		}
+		if err := h.options.Store.WriteDerived(tenant, name, out.Bytes()); err != nil {
+			h.failed(w, err, "pdf preview")
+			return
+		}
+	}
+	h.servePDF(w, r, "", path, v.Name+".pdf")
+}
+
+// servePDF sends a PDF for pdf.js, a blob or a derived file: as a download to the browser itself, which pdf.js does not
+// mind, and sandboxed.
+func (h *handler) servePDF(w http.ResponseWriter, r *http.Request, sha, path, name string) {
+	if sha != "" {
+		h.serveBlob(w, r, sha, name, "application/pdf")
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		h.failed(w, err, "pdf preview")
+		return
+	}
+	defer func() { _ = f.Close() }()
+	info, _ := f.Stat()
+	header := w.Header()
+	header.Set("Content-Type", "application/octet-stream")
+	header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+	header.Set("Content-Security-Policy", fileCSP)
+	header.Set("Cache-Control", "private, no-cache")
+	http.ServeContent(w, r, "", info.ModTime(), f)
 }

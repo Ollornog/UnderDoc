@@ -54,6 +54,19 @@ updates:
       minor:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+  # The PDF preview (ADR-28): pdf.js, copied from the lockfile into the assets by scripts/build-js.sh.
+  - package-ecosystem: npm
+    directory: /web/pdfjs
+    cooldown:
+      default-days: 14
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"
+    groups:
+      minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
   # The base images of the Dockerfile. scripts/check-image.sh in the CI accepts them.
   - package-ecosystem: docker
     directory: /

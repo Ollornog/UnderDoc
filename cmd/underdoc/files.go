@@ -6,12 +6,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	filetype "github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
@@ -60,6 +62,11 @@ func readFilesConfig() (filesConfig, error) {
 		*d.into = time.Duration(n) * 24 * time.Hour
 	}
 	return c, nil
+}
+
+// officeModule is the optional module that converts Office files for their preview (docs/files.md).
+func officeModule(url string) filetype.Gotenberg {
+	return filetype.Gotenberg{URL: url, Client: &http.Client{Timeout: 3 * time.Minute}}
 }
 
 // parseSize reads a size in bytes, with an optional K, M, G or T for powers of 1024; 0 means no limit.

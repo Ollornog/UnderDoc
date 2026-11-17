@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func setupWithFiles(t *testing.T) (*browser, string, *db.DB, *store.Store) {
 	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
 		t.Fatal(err)
 	}
-	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops"}, nil)
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops", TextWays: db.Ways{Browser: true}}, nil)
 	return b, base, database, s
 }
 
@@ -97,6 +98,15 @@ func (b *browser) openMyFiles() {
 	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
 }
 
+// filesSettled waits until the uploads are done and their list has gone, and no folder is loading: until then nav3 draws
+// itself again, and a mark put on one of its entries goes with it.
+func (b *browser) filesSettled() {
+	b.t.Helper()
+	if !b.waitFor(`FS.ups.length === 0 && !Object.values(FS.dirs).some(d => d.loading)`) {
+		b.t.Fatalf("the files did not settle: %s", b.eval(`JSON.stringify(FS.ups)`))
+	}
+}
+
 const fileRows = `[...document.querySelectorAll('.nav3 [data-act="fopen"], .nav3 [data-act="fdir"].name')].map(n => n.textContent.trim()).join(', ')`
 
 // The view Files with the real mouse: a root in nav2, an upload through the file chooser, the file in the window with its
@@ -117,6 +127,7 @@ func TestFilesByHand(t *testing.T) {
 	if !b.waitFor(fileRows + ` === 'photo.png'`) {
 		t.Fatalf("the upload is not listed: %q", b.eval(fileRows))
 	}
+	b.filesSettled()
 	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "photo.png"), 1)
 	b.ready("photo.png")
 	if !b.waitFor(`(() => { const i = document.querySelector('article.doc img'); return !!i && i.complete && i.naturalWidth === 1; })()`) {
@@ -129,6 +140,7 @@ func TestFilesByHand(t *testing.T) {
 	if !b.waitFor(versions + ` === 2`) {
 		t.Fatalf("versions: %s", b.eval(versions))
 	}
+	b.filesSettled()
 	b.clickOn(probe(b, `article.doc [data-act="frestore"]`, "Restore"), 1)
 	if !b.waitFor(versions + ` === 3`) {
 		t.Fatalf("after the restore: %s", b.eval(versions))
@@ -144,6 +156,7 @@ func TestFilesByHand(t *testing.T) {
 		t.Fatalf("the dropped file is not listed: %q", b.eval(fileRows))
 	}
 	// A new folder is named in place and opens with its path.
+	b.filesSettled()
 	b.clickOn(`.nav3 [data-act="fnewdir"]`, 1)
 	b.clickOn(`.nav3 form[data-fform="dir"] input`, 3)
 	b.typeText("Scans")
@@ -239,5 +252,126 @@ func TestFilesWaitForTheirRoots(t *testing.T) {
 	b.call("Fetch.disable", map[string]any{}, nil)
 	if !b.waitFor(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
 		t.Fatalf("the roots: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+	}
+}
+
+// minimalPDF is a PDF of one page with one line of text, with its cross-reference table.
+func minimalPDF(text string) []byte {
+	objects := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+		"",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+	}
+	stream := "BT /F1 24 Tf 20 60 Td (" + text + ") Tj ET"
+	objects[3] = fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream)
+	var b strings.Builder
+	b.WriteString("%PDF-1.4\n")
+	offsets := []int{}
+	for i, o := range objects {
+		offsets = append(offsets, b.Len())
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", i+1, o)
+	}
+	xref := b.Len()
+	fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for _, off := range offsets {
+		fmt.Fprintf(&b, "%010d 00000 n \n", off)
+	}
+	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return []byte(b.String())
+}
+
+// A PDF shows in the window through pdf.js, served by UnderDoc itself and under its policy: the page is drawn into a
+// canvas, and nothing is loaded from elsewhere.
+func TestPDFPreview(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.openMyFiles()
+	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "report.pdf", minimalPDF("Card payment")))
+	b.filesSettled()
+	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "report.pdf"), 1)
+	b.ready("report.pdf")
+	drawn := `(() => { const c = document.querySelector('article.doc [data-pdf] canvas'); if (!c) return false;
+		const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+		for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0 && d[i] < 128) return true; return false; })()`
+	if !b.waitFor(drawn) {
+		t.Fatalf("the page is not drawn: %s; %s", b.eval(`document.querySelector('article.doc [data-pdf]')?.outerHTML.slice(0, 300)`), b.eval(`JSON.stringify(PDFS)`))
+	}
+	b.shot("pdf-preview")
+	// The browser of the uploader read the text of the PDF for the search (ADR-24).
+	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'report.pdf' && D[k].sid)].sid;
+		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
+	if !b.waitFor(`JSON.parse(` + textOf + `).some(t => t.source === 'browser' && t.text.includes('Card payment'))`) {
+		t.Fatalf("the browser gave no text: %s", b.eval(textOf))
+	}
+	// It stays drawn when the window draws itself again.
+	b.eval(`render()`)
+	if !b.waitFor(drawn) {
+		t.Fatal("the canvas is gone after a redraw")
+	}
+	if got := b.eval(`performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin)).join(' ')`); got != "" {
+		t.Errorf("loaded from elsewhere: %s", got)
+	}
+}
+
+// An image dropped from the desktop into the editor of a page becomes an attachment of the page, on a line of its own that
+// shows it; "Move to the files" makes it a file in the user's own folder, and the page shows the file from then on.
+func TestImagesInTheEditor(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.eval(`window.made = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Team"}'}).then(r => r.json()).then(j => { window.made = j.id; })`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the collection for the test was not made")
+	}
+	team := b.eval(`window.made`)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
+		t.Fatal("the new page is not in the editor")
+	}
+	b.typeKeys("Rack photo:")
+	picture, _ := base64.StdEncoding.DecodeString(pixel)
+	photo := writeTemp(t, "rack photo.png", picture)
+	r := b.rect(`.cm-content`)
+	for _, kind := range []string{"dragEnter", "dragOver", "drop"} {
+		b.call("Input.dispatchDragEvent", map[string]any{"type": kind, "x": r.X, "y": r.Top + 8,
+			"data": map[string]any{"items": []any{}, "files": []string{photo}, "dragOperationsMask": 1}}, nil)
+	}
+	if !b.waitFor(`/!\[rack photo\]\(\/api\/pages\/[0-9a-z]{10}\/attachments\/a1\)/.test(EDS[at(0).d]?.ed.text()) && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the image is not in the page: %q", b.eval(`EDS[at(0).d]?.ed.text()`))
+	}
+	if !b.waitFor(`[...document.querySelectorAll('.cm-content img.cm-lp-image')].some(i => i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("the editor does not show the image: %s", b.eval(`document.querySelector('.cm-content')?.innerHTML.slice(0, 400)`))
+	}
+	b.shot("image-in-editor")
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!document.querySelector('.cm-editor') && [...document.querySelectorAll('article.doc img')].some(i => i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("reading does not show the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	}
+	b.clickOn(`[data-act="gear"]`, 1)
+	// The facts of the page stand below the window's fold: scrolled into view as a hand would, once the attachments are
+	// there and nothing draws the drawer again.
+	if !b.waitFor(`D[at(0).d].atts?.length === 1 && !D[at(0).d].loading && (() => { const x = document.querySelector('[data-act="fatt"]');
+		if (!x) return false; x.scrollIntoView({block: 'center'}); const r = x.getBoundingClientRect();
+		return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === x; })()`) {
+		t.Fatal("Move to the files is not in reach")
+	}
+	// The drawer of the facts may move while it fills in under load; the button is taken by the keyboard, focused and
+	// pressed in one go, which a moving layout cannot misdirect.
+	b.eval(`document.querySelector('[data-act="fatt"]').focus()`)
+	for _, kind := range []string{"keyDown", "keyUp"} {
+		b.call("Input.dispatchKeyEvent", map[string]any{"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
+	}
+	if !b.waitFor(`[...document.querySelectorAll('article.doc img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("the page does not show the file: %s; %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`), b.eval(`(() => { const sid = D[at(0).d].sid, x = new XMLHttpRequest(); x.open('GET', '/api/pages/' + sid + '/attachments', false); x.send(); const y = new XMLHttpRequest(); y.open('GET', '/api/doc/' + sid, false); y.send(); return x.responseText + ' || ' + y.responseText.slice(0, 300) + ' || ' + JSON.stringify(D[at(0).d].atts) })()`))
+	}
+	b.openMyFiles()
+	if !b.waitFor(fileRows + ` === 'rack photo.png'`) {
+		t.Fatalf("the file is not in my files: %q", b.eval(fileRows))
 	}
 }

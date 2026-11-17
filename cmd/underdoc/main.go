@@ -21,6 +21,9 @@
 //	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC (none: not offered)
 //	UNDERDOC_MODULES        the modules allowed, each on by default or with ":off" off by default (none: every module)
 //	UNDERDOC_HOSTER_HOST    with many tenants, the host name of the hoster administration (none: no such page)
+//	UNDERDOC_OFFICE_URL     the optional Office module for previews, a Gotenberg service (none: no Office previews)
+//	UNDERDOC_TEXT_WAYS, _TEXT_MAX_SIZE, UNDERDOC_TESSERACT, UNDERDOC_AI_OCR_PAGES_USER, _TENANT
+//	                        how the text of files is read for the search (docs/files.md)
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -50,6 +53,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
+	filetype "github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/module"
@@ -192,7 +196,24 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 				return fmt.Errorf("content store: %w", err)
 			}
 			database.SetLimits(files.Limits)
-			go keepFiles(ctx, database, options.Store, files.Retention, time.Hour, web.ModuleOn(database, options.Modules, module.Files), log)
+			if office := os.Getenv("UNDERDOC_OFFICE_URL"); office != "" {
+				options.Office = officeModule(office)
+			}
+			filesOn := web.ModuleOn(database, options.Modules, module.Files)
+			go keepFiles(ctx, database, options.Store, files.Retention, time.Hour, filesOn, log)
+			text, err := readTextConfig()
+			if err != nil {
+				return err
+			}
+			options.TextWays = text.Ways
+			worker := textWorker{db: database, store: options.Store, config: text, on: filesOn, log: log}
+			if text.Tesseract != "" {
+				worker.ocr = filetype.Tesseract{Path: text.Tesseract}
+				options.OCR = worker.ocr
+			}
+			if text.Ways.Server || text.Ways.AI {
+				go worker.run(ctx, 5*time.Second)
+			}
 		}
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {

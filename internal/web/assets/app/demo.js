@@ -395,7 +395,7 @@ function factsHtml(d){
   const useRows=rows('ext','External')+rows('int','Internal')+rows('data','Data')+rows('vals','Value')+rows('db','Database');
   return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
     ${d.desc?`<dt>Description</dt><dd>${d.desc}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
-    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>
+    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>${attachmentsHtml(d)}
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
     <h3>Versions</h3>${d.blocks?versionsHtml(d):`<ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`}`:''}
@@ -895,6 +895,7 @@ document.addEventListener('click',e=>{
     case 'aiask':S.chat.push({q:a.id,a:aiAnswer()});break;
     case 'focus':S.focus=+a.id;break;
     case 'fdir':case 'fopen':case 'fnewdir':case 'fup':case 'frestore':case 'ftrash':if(!filesAct(act,a))return;break;
+    case 'fatt':moveAttachment(a.id,a.att);break;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
@@ -1287,7 +1288,7 @@ async function loadDoc(id){
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
     d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
-    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);}
+    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(S.files)loadAttachments(id);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
@@ -1478,6 +1479,8 @@ function makeEditor(key){
       table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
+      /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
+      upload:f=>uploadAttachment(key,f),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
       conflict:text=>{S.edNote=S.edNote||{};S.edNote[key]=text;if(EDS[key]===e){delete EDS[key];e.ed.discard();}d.loaded=false;loadDoc(key);},
       saved:edSaved(key),
@@ -1873,7 +1876,7 @@ const fsend=async(url,method,body)=>{const r=await fetch(url,{...same,method,bod
   const a=r.status===204?{}:await r.json().catch(()=>({}));if(!r.ok)throw new Error(a.error||String(r.status));return a;};
 async function loadRoots(){
   let a;try{const r=await fetch('/api/files',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
-  FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;
+  FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;FS.text=a.text||{};
   if(!FS.roots.some(x=>x.id===S.sec.files)&&!['ext','newfcoll'].includes(S.sec.files))S.sec.files=(FS.roots.find(x=>x.role==='user')||FS.roots[0]||{id:'ext'}).id;
   render();
 }
@@ -1911,13 +1914,51 @@ async function openFile(sid){
   if(!D[key])pseudo(key,{t:'file',n:'…',path:'the content store',vis:'',stat:'',html:'<p class="lab">Loading…</p>'});
   D[key].sid=sid;openDoc(key);render();
   let f;try{f=await fget('/api/files/'+encodeURIComponent(sid));}catch(e){D[key].html='<p class="lab">This file could not be loaded.</p>';render();return;}
-  const url=f.content,dl=url+'?download=1',img=f.inline&&f.type.startsWith('image/'),vid=f.inline&&f.type.startsWith('video/');
-  const preview=img?`<img src="${url}" alt="${esc(f.n)}">`:vid?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)} yet. Download it to open it.</div>`;
+  const url=f.content,dl=url+'?download=1';
+  const preview=f.preview==='image'?`<a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a>`
+    :f.preview==='pdf'?`<div data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></div>`
+    :f.preview==='video'?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
   Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
     html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
       <h2>Versions</h2>${tableHtml(['Version','When','Who','Size',''],vrows)}`});
   render();
+}
+/* PDF, and Office files through the optional Office module, show in pdf.js, served by UnderDoc itself
+   (assets/app/pdfjs). The pages are drawn once; each redraw of the window takes the same canvases again. */
+const PDFS={};
+function mountPDFs(){
+  document.querySelectorAll('[data-pdf]').forEach(el=>{const url=el.dataset.pdf,p=PDFS[url];
+    if(!p){PDFS[url]={state:'loading',nodes:[]};const box=document.createElement('div');
+      const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+      import('/assets/app/pdfjs/viewer.mjs?v='+v).then(m=>m.show(box,url)).then(r=>{PDFS[url]={state:'done',nodes:[...box.children],pages:r.pages,shown:r.shown};render();})
+        .catch(e=>{PDFS[url]={state:'failed',nodes:[],error:String(e)};render();});return;}
+    if(p.state==='done'&&!el.querySelector('canvas')){el.replaceChildren(...p.nodes);if(p.pages>p.shown){const n=document.createElement('p');n.className='hint';n.textContent=`The first ${p.shown} of ${p.pages} pages. Download the file for all of them.`;el.append(n);}}
+    else if(p.state==='failed'&&!el.dataset.failed){el.dataset.failed='1';el.innerHTML='<div class="note">The preview could not be drawn. Download the file to open it.</div>';}});
+}
+new MutationObserver(()=>{if(document.querySelector('[data-pdf]'))mountPDFs();}).observe(document.documentElement,{childList:true,subtree:true});
+/* Attachments of a page: images pasted into it (ADR-28). They belong to the page; "Move to the files" makes one a file
+   in the files of the space, or the user's own, and the page shows the file from then on. */
+async function uploadAttachment(key,f){
+  const up={name:f.name,size:f.size,done:0,state:'uploading',dir:null};
+  const done=await uploadOne(f,{page:D[key].sid},up);loadAttachments(key);return {url:done.url,name:f.name};
+}
+async function loadAttachments(key){
+  try{const r=await fetch('/api/pages/'+encodeURIComponent(D[key].sid)+'/attachments',{credentials:'same-origin',headers:{Accept:'application/json'}});
+    if(!r.ok)return;D[key].atts=await r.json();render();}catch(e){}
+}
+function attachmentsHtml(d){
+  if(!d.atts||!d.atts.length)return '';const key=Object.keys(D).find(k=>D[k]===d);
+  return `<h3>Attachments</h3><ul>${d.atts.map(a=>`<li><small>${fsize(a.size)}</small><span><a class="l" href="${a.url}" target="_blank" rel="noopener">${esc(a.name)}</a>${d.canEdit?` <button class="l" data-act="fatt" data-id="${key}" data-att="${a.id}">Move to the files</button>`:''}</span></li>`).join('')}</ul>`;
+}
+async function moveAttachment(key,att){
+  const sid=D[key].sid,top=COLL[key]&&D[COLL[key].id].sid;
+  try{let parent=null;
+    if(top){const l=await fget('/api/spaces/'+encodeURIComponent(top)+'/files');if(l.root)parent=l.root.id;}
+    if(!parent){const a=await fget('/api/files');parent=(a.roots.find(r=>r.role==='user')||{}).id;}
+    const f=await fsend('/api/pages/'+encodeURIComponent(sid)+'/attachments/'+encodeURIComponent(att)+'/move','POST',{parent});
+    toast(`Moved to the files as ${f.n}.`);D[key].loaded=false;loadDoc(key);}
+  catch(e){toast(e.message);}
 }
 /* Uploads go in chunks, and a broken one resumes where the server says it stands: the browser keeps the ID of each
    upload under its target, name, size and date, so choosing the same file again continues it. */
@@ -1942,10 +1983,18 @@ async function uploadOne(f,target,up){
   up.state='finishing';render();
   const done=await fsend('/api/uploads/'+encodeURIComponent(u.id)+'/finish','POST');keep.del(k);return done;
 }
+/* The way of the browser (ADR-24): the uploader's browser reads the text of a PDF with pdf.js and gives it to the search;
+   the server reads it as well where its way is on, and the search knows which text came from where. */
+async function browserText(id){
+  try{const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+    const m=await import('/assets/app/pdfjs/viewer.mjs?v='+v),pages=await m.text('/api/files/'+encodeURIComponent(id)+'/pdf');
+    const text=pages.join('\n').trim();if(text)await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
+  catch(e){/* the server reads it too, where its way is on */}
+}
 async function uploadFiles(files,target,dir){
   for(const f of files){
     const up={name:f.name,size:f.size,done:0,state:'uploading',dir};FS.ups.push(up);render();
-    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;}catch(e){up.err=e.message;}
+    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;if(done.id&&done.type==='application/pdf'&&FS.text.browser)browserText(done.id);}catch(e){up.err=e.message;}
     render();
   }
   setTimeout(()=>{FS.ups=FS.ups.filter(u=>u.err);render();},2500);
@@ -1983,7 +2032,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;loadTemplates();
+    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

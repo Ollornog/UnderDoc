@@ -26,6 +26,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
+	"github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/module"
@@ -84,6 +85,14 @@ type Options struct {
 	TenantDomain string
 	// Store is the content store of the files (ADR-28). Without it, or without DB, there are no files.
 	Store *store.Store
+	// Office converts Office files to PDF for their preview, an optional module (docs/files.md); nil for none.
+	Office files.OfficeConverter
+	// TextWays are the ways of reading the text of files the hoster allows (ADR-24); the tenant and each user narrow them.
+	TextWays db.Ways
+	// OCR reads the text of images on the server, as part of its way, and AIOCR through a model (M-13); nil for none.
+	OCR, AIOCR files.OCR
+	// TextChanged tells the search that the text of these files changed; nil until the search takes it.
+	TextChanged func(ctx context.Context, fileIDs []string)
 }
 
 type handler struct {
@@ -195,6 +204,13 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	fil("GET /api/files/{id}/list", h.apiFileList)
 	fil("GET /api/files/{id}", h.apiFile)
 	fil("GET /api/files/{id}/content", h.apiFileContent)
+	fil("GET /api/files/{id}/thumb", h.apiFileThumb)
+	fil("GET /api/files/{id}/text", h.apiFileText)
+	fil("PUT /api/files/{id}/text", h.apiPutFileText)
+	fil("GET /api/files/text-settings", h.apiTextSettings)
+	fil("PUT /api/files/text-settings", h.apiSetTextSettings)
+	fil("GET /api/files/{id}/pdf", h.apiFilePDF)
+	doc("GET /api/pages/{id}/attachments/{attachment}/thumb", h.apiAttachmentThumb)
 	fil("POST /api/files/{id}/versions/{n}/restore", h.apiRestoreFileVersion)
 	fil("POST /api/uploads", h.apiStartUpload)
 	fil("GET /api/uploads/{id}", h.apiUploadState)
