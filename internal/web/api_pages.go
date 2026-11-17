@@ -103,7 +103,7 @@ func (h *handler) render(r *http.Request, body string, trail []string) string {
 	var out strings.Builder
 	last := 0
 	for _, m := range db.EmbedLine.FindAllStringSubmatchIndex(body, -1) {
-		out.WriteString(h.markdown(body[last:m[0]]))
+		out.WriteString(h.markdown(r, body[last:m[0]]))
 		block := ""
 		if m[4] >= 0 {
 			block = body[m[4]:m[5]]
@@ -111,15 +111,15 @@ func (h *handler) render(r *http.Request, body string, trail []string) string {
 		out.WriteString(h.embed(r, body[m[2]:m[3]], block, trail))
 		last = m[1]
 	}
-	out.WriteString(h.markdown(body[last:]))
+	out.WriteString(h.markdown(r, body[last:]))
 	return out.String()
 }
 
-func (h *handler) markdown(md string) string {
+func (h *handler) markdown(r *http.Request, md string) string {
 	if strings.TrimSpace(md) == "" {
 		return ""
 	}
-	rendered, err := h.store.Library().RenderMarkdown(md)
+	rendered, err := h.library(r.Context()).RenderMarkdown(md)
 	if err != nil {
 		return "<pre>" + html.EscapeString(md) + "</pre>"
 	}

@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -11,7 +10,7 @@ import (
 
 func order(t *testing.T, db *DB, parent string) []string {
 	t.Helper()
-	kids, err := db.Children(context.Background(), parent, anna.ID)
+	kids, err := db.Children(inMain(), parent, anna.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +23,7 @@ func order(t *testing.T, db *DB, parent string) []string {
 
 func TestDividersAndMoving(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
@@ -85,7 +84,7 @@ func TestDividersAndMoving(t *testing.T) {
 
 func TestMovingFollowsAccess(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)

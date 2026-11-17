@@ -78,6 +78,9 @@ func (s *site) getWith(target string, headers map[string]string) *httptest.Respo
 	for name, value := range headers {
 		request.Header.Set(name, value)
 	}
+	if host := request.Header.Get("Host"); host != "" {
+		request.Host = host
+	}
 	s.http.ServeHTTP(recorder, request)
 	return recorder
 }

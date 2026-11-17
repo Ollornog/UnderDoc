@@ -21,6 +21,9 @@ func (s *site) send(method, target, body string, headers map[string]string) *htt
 	for name, value := range headers {
 		request.Header.Set(name, value)
 	}
+	if host := request.Header.Get("Host"); host != "" {
+		request.Host = host
+	}
 	s.http.ServeHTTP(recorder, request)
 	return recorder
 }

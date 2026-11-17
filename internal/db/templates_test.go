@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -12,7 +11,7 @@ import (
 
 func TestTemplates(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	list, err := db.Templates(ctx, anna.ID)
 	if err != nil || len(list) != len(BuiltInTemplates) || list[0].ID != "builtin:meeting" {

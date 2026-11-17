@@ -15,6 +15,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
@@ -26,13 +27,13 @@ var (
 
 func open(t *testing.T) *db.DB {
 	t.Helper()
-	database, err := db.Open(context.Background(), pgtest.URL(t))
+	database, err := db.Open(tenant.With(context.Background(), tenant.Main), pgtest.URL(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
 	for _, user := range []account.User{anna, bob} {
-		if err := database.SeeAccount(context.Background(), user); err != nil {
+		if err := database.SeeAccount(tenant.With(context.Background(), tenant.Main), user); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -52,7 +53,7 @@ func must[T any](t *testing.T) func(T, error) T {
 // exportAll writes everything of a database into a map of files, as the command line does into a directory.
 func exportAll(t *testing.T, database *db.DB) fstest.MapFS {
 	t.Helper()
-	shared, private, err := database.Everything(context.Background())
+	shared, private, err := database.Everything(tenant.With(context.Background(), tenant.Main))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func importDir(t *testing.T, database *db.DB, files fstest.MapFS, dir, login str
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("read %s: %v %q", dir, err, warnings)
 	}
-	done, err := database.Import(context.Background(), login, tree.Title, tree)
+	done, err := database.Import(tenant.With(context.Background(), tenant.Main), login, tree.Title, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func fsSub(files fstest.MapFS, dir string) (fstest.MapFS, error) {
 // Export, then import into an empty database, then export again: the files are the same byte for byte, so the tree,
 // the titles, the order with its lines and spaces, the blocks and every ID came back.
 func TestRoundTrip(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.With(context.Background(), tenant.Main)
 	first := open(t)
 	team := must[db.Object](t)(first.CreateCollection(ctx, anna, "Team: ops/net", ""))
 	plan := must[db.Object](t)(first.CreatePage(ctx, anna, "Plan", team.ID))

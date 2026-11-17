@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -20,7 +19,7 @@ func bodies(blocks []Block) []string {
 
 func TestPagesAreBlocks(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, err := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if err != nil || page.Kind != KindPage || page.Parent != team.ID {
@@ -76,7 +75,7 @@ func TestPagesAreBlocks(t *testing.T) {
 
 func TestBlocksFollowAccess(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	block, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "Text")
@@ -126,7 +125,7 @@ func TestBlocksFollowAccess(t *testing.T) {
 
 func TestBlockLimits(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if _, err := db.AddBlock(ctx, page.ID, anna.ID, "", strings.Repeat("ä", MaxBlock+1)); !errors.Is(err, ErrBlock) {
@@ -148,7 +147,7 @@ func TestBlockLimits(t *testing.T) {
 
 func TestMovingBlocks(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	after := ""

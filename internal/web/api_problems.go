@@ -42,7 +42,7 @@ type apiProblems struct {
 // nothing; and what the folder source ran into. A broken reference is a visible error, never a silent gap.
 func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 	out := apiProblems{Database: []apiProblem{}, Source: []apiSourceProblem{}}
-	for _, p := range h.store.Library().Problems() {
+	for _, p := range h.library(r.Context()).Problems() {
 		out.Source = append(out.Source, apiSourceProblem{Source: p.Source, Message: p.Message})
 	}
 	if h.options.DB == nil {
@@ -111,7 +111,7 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 				add(b, "/o/"+m[1], "links to a page that is not to be found")
 			}
 		}
-		if rendered, err := h.store.Library().RenderMarkdown(text); err == nil {
+		if rendered, err := h.library(r.Context()).RenderMarkdown(text); err == nil {
 			for _, broken := range rendered.Broken {
 				add(b, broken.Reference, broken.Reason)
 			}

@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Tenants (ADR-23, [docs/tenants.md](docs/tenants.md)): every table carries its tenant, and PostgreSQL row-level
+  security keeps tenants apart; a query without a tenant sees nothing. `UNDERDOC_TENANTS=one` (the default) keeps
+  everything in the tenant Main, where the existing data moves; `many` finds the tenant by the host name, a subdomain of
+  `UNDERDOC_TENANT_DOMAIN` or a domain of its own. A locked tenant answers 403, an unknown host 404. The folder source
+  belongs to Main. `underdoc tenant add`, and `--tenant` for export and import. A connection as superuser steps down to
+  the role `underdoc_app`; one with `BYPASSRLS` stops the start. The trash empties itself per tenant.
+- A guard test fails for any table, also a later one, without tenant column, forced row-level security, a tenant-only
+  policy, the tenant in its key and in every reference; a separation test goes through every door of the web.
+
 ### Changed
 
 - Every image published from main now also opens the pin PR in the fleet repo (job `fc-pin` in `image.yml`, kit script

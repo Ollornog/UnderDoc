@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -33,14 +32,14 @@ func thread(comments []Comment) []string {
 
 func setAccess(t *testing.T, db *DB, objectID, access string) {
 	t.Helper()
-	if _, err := db.pool.Exec(context.Background(), "UPDATE objects SET access = nullif($2, '') WHERE id = $1", objectID, access); err != nil {
+	if _, err := db.pool.Exec(inMain(), "UPDATE objects SET access = nullif($2, '') WHERE id = $1", objectID, access); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	b1, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "# Plan")
@@ -162,7 +161,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 // always may; a private page of someone else has none to show.
 func TestCommentsFollowAccess(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	block, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "Text")
@@ -253,7 +252,7 @@ func TestCommentsFollowAccess(t *testing.T) {
 
 func TestDeletingComments(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	mine, _ := db.AddComment(ctx, page.ID, bob.ID, "", "Bob asks", 0)

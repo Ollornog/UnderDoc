@@ -3,14 +3,13 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"testing"
 )
 
 func TestSettingAccess(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if o, err := db.SetAccess(ctx, team.ID, anna.ID, "read"); err != nil || o.Access != "read" {

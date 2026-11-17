@@ -12,9 +12,13 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
+
+// inMain is a context of the tenant Main, which every test of this package works in unless it says otherwise.
+func inMain() context.Context { return tenant.With(context.Background(), tenant.Main) }
 
 var (
 	anna = account.User{ID: "u-anna", Login: "anna", Name: "Anna Berg", Email: "anna@example.com", Groups: []string{"ops"}}
@@ -23,13 +27,13 @@ var (
 
 func open(t *testing.T) *DB {
 	t.Helper()
-	db, err := Open(context.Background(), pgtest.URL(t))
+	db, err := Open(inMain(), pgtest.URL(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
 	for _, user := range []account.User{anna, bob} {
-		if err := db.SeeAccount(context.Background(), user); err != nil {
+		if err := db.SeeAccount(inMain(), user); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -46,7 +50,7 @@ func titles(objects []Object) []string {
 
 func TestMigrationsRunOnce(t *testing.T) {
 	url := pgtest.URL(t)
-	ctx := context.Background()
+	ctx := inMain()
 	files, _ := fs.Glob(migrations, "migrations/*.sql")
 	for range 2 {
 		db, err := Open(ctx, url)
@@ -66,7 +70,7 @@ func TestMigrationsRunOnce(t *testing.T) {
 
 func TestAccountsComeWithPrivateNotes(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	renamed := anna
 	renamed.Name = "Anna Maria Berg"
 	if err := db.SeeAccount(ctx, renamed); err != nil {
@@ -88,7 +92,7 @@ func TestAccountsComeWithPrivateNotes(t *testing.T) {
 
 func TestCollections(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	ops, err := db.CreateCollection(ctx, anna, "  Operations ", "")
 	if err != nil || !id.Valid(ops.ID) || ops.Title != "Operations" || ops.Private || ops.Access != "" {
 		t.Fatalf("%+v %v", ops, err)
@@ -120,7 +124,7 @@ func TestCollections(t *testing.T) {
 // A private collection and everything inside it stay with their owner, also when someone asks for an ID directly.
 func TestPrivateStaysPrivate(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	notes, _ := db.Collections(ctx, anna.ID)
 	private := notes[0]
 	inside, err := db.CreateCollection(ctx, anna, "Ideas", private.ID)
@@ -149,7 +153,7 @@ func TestPrivateStaysPrivate(t *testing.T) {
 // The schema itself refuses what must never be stored, whatever the code above it does.
 func TestSchemaRefuses(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	for name, sql := range map[string]string{
 		"page without a place": `INSERT INTO objects (id, kind, title, owner) VALUES ('aaaaaaaaaa', 'page', 'x', 'u-anna')`,
 		"unknown kind":         `INSERT INTO objects (id, kind, title, owner) VALUES ('aaaaaaaaab', 'table', 'x', 'u-anna')`,
@@ -165,7 +169,7 @@ func TestSchemaRefuses(t *testing.T) {
 
 func TestAccessIsInherited(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
 	for _, o := range []Object{top, inner} {
@@ -189,7 +193,7 @@ func TestAccessIsInherited(t *testing.T) {
 
 func TestRename(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
 	if _, err := db.Rename(ctx, inner.ID, anna.ID, " "); !errors.Is(err, ErrTitle) {

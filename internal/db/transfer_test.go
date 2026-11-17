@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -11,7 +10,7 @@ import (
 
 func TestEverythingReadsAllButTheTrash(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	ops, _ := db.CreateCollection(ctx, bob, "Ops", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
@@ -49,7 +48,7 @@ func TestEverythingReadsAllButTheTrash(t *testing.T) {
 
 func TestSubtreeIsWhatTheViewerSees(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	if _, err := db.CreatePage(ctx, anna, "Kid", a.ID); err != nil {
@@ -78,7 +77,7 @@ func TestSubtreeIsWhatTheViewerSees(t *testing.T) {
 
 func TestImportKeepsFreeIDsAndTouchesNothing(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	tree := &Node{Object: Object{ID: team.ID, Kind: KindFolder, Description: "about", Access: "read", Private: true}, Kids: []*Node{
 		{Object: Object{ID: "7k2m9q4x1c", Kind: KindPage, Title: "Kept", Access: "comment"}, NextBlock: 9, Blocks: []Block{{ID: "b4", Body: "four"}, {ID: "b2", Body: "two"}}},
@@ -142,7 +141,7 @@ func TestImportKeepsFreeIDsAndTouchesNothing(t *testing.T) {
 // An imported page embeds what its blocks name, so the source knows where it is used.
 func TestImportKeepsTheReferences(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	tree := &Node{Object: Object{Kind: KindCollection}, Kids: []*Node{

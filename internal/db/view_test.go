@@ -3,14 +3,13 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"testing"
 )
 
 func TestView(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	text := func(s string) *string { return &s }
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
@@ -56,7 +55,7 @@ func TestView(t *testing.T) {
 
 func TestAlignBlock(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	b1, _ := db.AddBlock(ctx, plan.ID, anna.ID, "", "Title")

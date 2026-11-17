@@ -3,14 +3,13 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"testing"
 )
 
 func TestFoldersAndConverting(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	folder, err := db.CreateFolder(ctx, anna, "Drawings", team.ID)

@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -11,7 +10,7 @@ import (
 
 func TestSettingsOfAnAccount(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if got, err := db.Settings(ctx, anna.ID); err != nil || string(got) != "{}" {
 		t.Fatalf("an account starts with no settings: %s %v", got, err)
 	}

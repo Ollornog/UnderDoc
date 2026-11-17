@@ -12,11 +12,15 @@
 //	UNDERDOC_ADMIN_GROUP    the group of the gate whose members see the administration ("underdoc-admins")
 //	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
 //	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
+//	UNDERDOC_TENANTS        "one" tenant, or "many" found by their host name, which needs the database ("one")
+//	UNDERDOC_TENANT_DOMAIN  with many tenants, the domain of the hoster: <tenant>.<domain> leads to a tenant
 //
-// Export and import need the database (docs/export.md):
+// Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
+// without it:
 //
-//	underdoc export <dir>                          every collection as normal files, private notes under private/<login>/
-//	underdoc import --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
+//	underdoc export [--tenant <id>] <dir>                          every collection as normal files, private notes under private/<login>/
+//	underdoc import [--tenant <id>] --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
+//	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
 //
 // There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
 // request headers. That is why it binds to loopback unless told otherwise, and answers nothing without those headers.
@@ -36,12 +40,13 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/version"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export <dir> | underdoc import --owner <login> <dir> <title> | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc tenant add <id> <name> | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -70,15 +75,23 @@ func run(args []string, stdout, stderr io.Writer) int {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 		defer stop()
 		err = serve(ctx, dir, stdout)
-	case args[0] == "export" && len(args) == 2:
-		err = export(context.Background(), args[1], stdout, stderr)
-	case args[0] == "import":
-		owner, rest, ok := ownerFlag(args[1:])
-		if !ok || len(rest) != 2 {
+	case args[0] == "export":
+		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		if terr != nil || len(rest) != 1 {
 			fmt.Fprintln(stderr, usage)
 			return 2
 		}
-		err = importTree(context.Background(), owner, rest[0], rest[1], stdout, stderr)
+		err = export(ctx, rest[0], stdout, stderr)
+	case args[0] == "import":
+		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		owner, rest, ok := ownerFlag(rest)
+		if terr != nil || !ok || len(rest) != 2 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = importTree(ctx, owner, rest[0], rest[1], stdout, stderr)
+	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":
+		err = addTenant(context.Background(), args[2], args[3], stdout)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -103,7 +116,15 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	if err := store.Refresh(); err != nil {
 		return err
 	}
-	options := web.Options{DevUI: os.Getenv("UNDERDOC_DEV_UI") == "1", AdminGroup: env("UNDERDOC_ADMIN_GROUP", "underdoc-admins")}
+	options := web.Options{
+		DevUI:        os.Getenv("UNDERDOC_DEV_UI") == "1",
+		AdminGroup:   env("UNDERDOC_ADMIN_GROUP", "underdoc-admins"),
+		Tenants:      env("UNDERDOC_TENANTS", tenant.ModeOne),
+		TenantDomain: os.Getenv("UNDERDOC_TENANT_DOMAIN"),
+	}
+	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
+		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")
+	}
 	healthy := store.Healthy
 	if url := os.Getenv("UNDERDOC_DATABASE_URL"); url != "" {
 		database, err := db.Open(ctx, url)
@@ -135,4 +156,19 @@ func env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// addTenant makes a new, empty tenant.
+func addTenant(ctx context.Context, tenantID, name string, stdout io.Writer) error {
+	database, err := openDatabase(ctx)
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	t, err := database.CreateTenant(ctx, tenantID, name)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "tenant %s (%s) is there\n", t.ID, t.Name)
+	return nil
 }

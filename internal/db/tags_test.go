@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 
 func TestTags(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if got, err := CleanTags([]string{" Network ", "#vlan", "network", "", "main-site", "v1.2_x"}); err != nil || !slices.Equal(got, []string{"network", "vlan", "main-site", "v1.2_x"}) {
 		t.Errorf("clean: %q %v", got, err)
 	}

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 // Package db keeps what lives in PostgreSQL (ADR-19): accounts, and objects with their place, owner and access. Every
-// query that returns objects takes the viewer, so what a viewer may not see never leaves this package (ADR-20).
+// query that returns objects takes the viewer, so what a viewer may not see never leaves this package (ADR-20). Every
+// query runs as the tenant its context carries (package tenant), and row-level security keeps it to the rows of that
+// tenant (ADR-23): a context without a tenant sees nothing.
 package db
 
 import (
@@ -21,6 +23,7 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 //go:embed migrations/*.sql
@@ -38,22 +41,96 @@ var (
 	ErrNotAllowed = errors.New("others may not change this")
 )
 
-// Open connects and brings the schema up to date.
+// AppRole is the role the application works as when it connects as a superuser: row-level security does not hold for a
+// superuser, so every connection of the pool steps down to this role, which has no way around the rules (ADR-23).
+const AppRole = "underdoc_app"
+
+// ErrBypass is a connection that row-level security does not hold for, so tenants would not be kept apart.
+var ErrBypass = errors.New("the database role passes row-level security (superuser or BYPASSRLS) and cannot step down to " + AppRole)
+
+// Open connects and brings the schema up to date. The schema is migrated as the role of the URL, which owns the tables;
+// the pool then works as a role that row-level security holds for, and Open refuses to go on if it does not.
 func Open(ctx context.Context, url string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, url)
+	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, err
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
+	stepDown, err := prepare(ctx, config.ConnConfig)
+	if err != nil {
+		return nil, err
+	}
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		if !stepDown {
+			return nil
+		}
+		_, err := conn.Exec(ctx, "SET ROLE "+AppRole)
+		return err
+	}
+	// Every connection taken from the pool is set to the tenant of the context it is taken for, and to none without one.
+	config.PrepareConn = func(ctx context.Context, conn *pgx.Conn) (bool, error) {
+		t, _ := tenant.From(ctx)
+		if _, err := conn.Exec(ctx, "SELECT set_config('underdoc.tenant', $1, false)", t); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
 		return nil, err
 	}
 	db := &DB{pool: pool}
-	if err := db.migrate(ctx); err != nil {
+	if err := db.checkRules(ctx); err != nil {
 		pool.Close()
 		return nil, err
 	}
 	return db, nil
+}
+
+// prepare migrates the schema on a connection of its own and, if the role passes row-level security, sets up the role
+// to step down to. It reports whether the pool must step down.
+func prepare(ctx context.Context, config *pgx.ConnConfig) (bool, error) {
+	conn, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = conn.Close(context.Background()) }()
+	if err := migrate(ctx, conn); err != nil {
+		return false, err
+	}
+	var super, bypass bool
+	if err := conn.QueryRow(ctx, "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(&super, &bypass); err != nil {
+		return false, err
+	}
+	if !super && !bypass {
+		// The owner of the tables: FORCE ROW LEVEL SECURITY holds the rules for it.
+		return false, nil
+	}
+	if !super {
+		return false, ErrBypass
+	}
+	_, err = conn.Exec(ctx, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '`+AppRole+`') THEN
+			CREATE ROLE `+AppRole+` NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+		END IF;
+	END $$;
+	GRANT USAGE ON SCHEMA public TO `+AppRole+`;
+	GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO `+AppRole+`;
+	GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO `+AppRole)
+	return true, err
+}
+
+// checkRules makes sure that row-level security holds for the connections of the pool, so a mistake in the setup of
+// the database stops the start instead of mixing tenants.
+func (db *DB) checkRules(ctx context.Context) error {
+	var super, bypass bool
+	err := db.pool.QueryRow(ctx, "SELECT current_setting('is_superuser') = 'on', rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(&super, &bypass)
+	if err != nil {
+		return err
+	}
+	if super || bypass {
+		return ErrBypass
+	}
+	return nil
 }
 
 // Close ends all connections.
@@ -68,12 +145,7 @@ func (db *DB) Healthy(ctx context.Context) bool {
 
 // migrate applies every migration not applied yet, in the order of their numbers, each in its own transaction. An
 // advisory lock keeps two starting instances from doing it at once.
-func (db *DB) migrate(ctx context.Context) error {
-	conn, err := db.pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
+func migrate(ctx context.Context, conn *pgx.Conn) error {
 	const lock = 7272822 // any number, the same for every instance
 	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", lock); err != nil {
 		return err
@@ -128,7 +200,7 @@ func (db *DB) SeeAccount(ctx context.Context, user account.User) error {
 		var inserted bool
 		err := tx.QueryRow(ctx, `
 			INSERT INTO accounts (id, login, name, email, groups) VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (id) DO UPDATE SET login = EXCLUDED.login, name = EXCLUDED.name, email = EXCLUDED.email,
+			ON CONFLICT (tenant, id) DO UPDATE SET login = EXCLUDED.login, name = EXCLUDED.name, email = EXCLUDED.email,
 				groups = EXCLUDED.groups, last_seen = now()
 			RETURNING (xmax = 0)`, user.ID, user.Login, user.Name, user.Email, nonNil(user.Groups)).Scan(&inserted)
 		if err != nil || !inserted {

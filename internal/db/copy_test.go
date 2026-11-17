@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -12,7 +11,7 @@ import (
 
 func TestCopyTakesTheTreeAndTheBlocks(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	if _, err := db.CreatePage(ctx, anna, "B", team.ID); err != nil {
@@ -74,7 +73,7 @@ func TestCopyTakesTheTreeAndTheBlocks(t *testing.T) {
 
 func TestCopyFollowsAccessAndLimits(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)

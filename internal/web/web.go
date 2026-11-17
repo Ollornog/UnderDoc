@@ -29,6 +29,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 //go:embed templates/*.html
@@ -64,6 +65,10 @@ type Options struct {
 	AdminGroup string
 	// DB keeps accounts and the objects made in the web (ADR-19). Without it, the folder source is all there is.
 	DB *db.DB
+	// Tenants is the mode of the instance (ADR-23): tenant.ModeOne, the default, or tenant.ModeMany, which needs DB.
+	Tenants string
+	// TenantDomain is the domain of the hoster in the mode many tenants: acme.<domain> leads to the tenant acme.
+	TenantDomain string
 }
 
 type handler struct {
@@ -75,11 +80,24 @@ type handler struct {
 	// seen keeps when an account was last written, so not every request writes it.
 	seenMu sync.Mutex
 	seen   map[string]time.Time
+	// noFolder is the empty library that tenants other than Main see in place of the folder source.
+	noFolder *library.Library
 }
 
 // New returns the complete handler with logging and security headers.
 func New(store *library.Store, log *slog.Logger, options Options) (http.Handler, error) {
-	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}}
+	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{})}
+	switch options.Tenants {
+	case "":
+		h.options.Tenants = tenant.ModeOne
+	case tenant.ModeOne:
+	case tenant.ModeMany:
+		if options.DB == nil {
+			return nil, errors.New("many tenants need the database")
+		}
+	default:
+		return nil, fmt.Errorf("unknown mode of tenants %q: %s or %s", options.Tenants, tenant.ModeOne, tenant.ModeMany)
+	}
 	var err error
 	if h.pages, err = template.ParseFS(templateFiles, "templates/*.html"); err != nil {
 		return nil, err
@@ -145,14 +163,67 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	}
 	mux.HandleFunc("GET /dev/editor-trial", h.editorTrial)
 	mux.HandleFunc("GET /", h.notFound)
-	return accessLog(log, secure(h.signedIn(mux))), nil
+	return accessLog(log, secure(h.tenanted(h.signedIn(mux)))), nil
+}
+
+// open reports whether a request needs neither tenant nor sign-in: the assets, so a page that says why nothing else
+// answers still has its styles.
+func open(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.ico"
+}
+
+// tenanted finds the tenant of a request and carries it in the context, where the database takes it from (ADR-23). With
+// one tenant every request belongs to Main. With many, the host name decides; an unknown host finds nothing, and a
+// locked tenant lets nobody in.
+func (h *handler) tenanted(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if open(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if h.options.Tenants != tenant.ModeMany {
+			next.ServeHTTP(w, r.WithContext(tenant.With(r.Context(), tenant.Main)))
+			return
+		}
+		t, err := h.options.DB.TenantByHost(r.Context(), r.Host, h.options.TenantDomain)
+		switch {
+		case errors.Is(err, db.ErrNotFound):
+			h.message(w, http.StatusNotFound, message{
+				Title: "Nothing here",
+				Text:  "No workspace answers at this address. Check the address you were given.",
+				Link:  "Try again",
+			})
+			return
+		case err != nil:
+			h.log.Error("tenant not found", slog.String("error", err.Error()))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		case t.State == db.TenantLocked:
+			h.message(w, http.StatusForbidden, message{
+				Title: "Locked",
+				Text:  "This workspace is locked for now. Nothing in it is lost. Ask whoever runs it.",
+				Link:  "Try again",
+			})
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(tenant.With(r.Context(), t.ID)))
+	})
+}
+
+// library returns the folder source as the tenant of the request sees it: whole for Main, and empty for every other
+// tenant, since the folder belongs to the instance.
+func (h *handler) library(ctx context.Context) *library.Library {
+	if t, _ := tenant.From(ctx); t == tenant.Main {
+		return h.store.Library()
+	}
+	return h.noFolder
 }
 
 // signedIn lets a request through only with a user from the gate. Assets stay open, so the page that says so has its
 // styles. Without the gate in front, nothing else answers (M-28).
 func (h *handler) signedIn(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.ico" {
+		if open(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -179,18 +250,20 @@ func (h *handler) seeAccount(ctx context.Context, user account.User) {
 	if h.options.DB == nil {
 		return
 	}
+	t, _ := tenant.From(ctx)
+	key := t + "\x00" + user.ID
 	h.seenMu.Lock()
-	last, ok := h.seen[user.ID]
+	last, ok := h.seen[key]
 	if ok && time.Since(last) < 5*time.Minute {
 		h.seenMu.Unlock()
 		return
 	}
-	h.seen[user.ID] = time.Now()
+	h.seen[key] = time.Now()
 	h.seenMu.Unlock()
 	if err := h.options.DB.SeeAccount(ctx, user); err != nil {
 		h.log.Error("account not written", slog.String("error", err.Error()))
 		h.seenMu.Lock()
-		delete(h.seen, user.ID)
+		delete(h.seen, key)
 		h.seenMu.Unlock()
 	}
 }
@@ -301,7 +374,7 @@ func (h *handler) exists(r *http.Request) bool {
 	switch {
 	case strings.HasPrefix(r.URL.Path, "/o/"):
 		key := r.PathValue("id")
-		if _, ok := h.store.Library().Document(document.ID(key)); ok {
+		if _, ok := h.library(r.Context()).Document(document.ID(key)); ok {
 			return true
 		}
 		if h.options.DB == nil || !id.Valid(key) {
@@ -311,7 +384,7 @@ func (h *handler) exists(r *http.Request) bool {
 		_, err := h.options.DB.Object(r.Context(), key, user.ID)
 		return err == nil
 	case strings.HasPrefix(r.URL.Path, "/f/"):
-		_, ok := h.store.Library().Tree().Folder(r.PathValue("path"))
+		_, ok := h.library(r.Context()).Tree().Folder(r.PathValue("path"))
 		return ok
 	}
 	return true
@@ -364,7 +437,7 @@ func withoutFirstHeading(body string, startsWithTitle bool) string {
 func (h *handler) file(w http.ResponseWriter, r *http.Request) {
 	imagePath := r.PathValue("path")
 	contentType, known := imageTypes[strings.ToLower(path.Ext(imagePath))]
-	if !known || !h.store.Library().HasImage(imagePath) {
+	if !known || !h.library(r.Context()).HasImage(imagePath) {
 		h.notFound(w, r)
 		return
 	}
