@@ -193,6 +193,9 @@ All notable changes to this project are documented in this file. The format foll
   workspace drew anew meanwhile (a toast going, an upload ending): the field showed "New folder" again, and what was typed
   next went nowhere. The field now keeps both, and "Move to the files" of an attachment keeps the focus for the keyboard.
   Found by `TestFilesByHand` in CI, whose toast of a restore went just after the test had started typing.
+- `TestShiftAfterAPlainClick` clicked again right after a plain click, while the page it opened was still loading; when
+  the page came between the press and the release of the next click, its redraw swallowed that click. The test now
+  waits for the page first.
 - The browser tests of the files waited only for the uploads and the folders; they now also wait until no request of the
   view is under way (`FS.busy`) and no toast waits to go, since each of them draws the workspace anew and can swallow a
   click whose press and release it falls between.

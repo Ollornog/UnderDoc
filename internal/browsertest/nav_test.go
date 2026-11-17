@@ -512,11 +512,17 @@ func TestShiftAfterAPlainClick(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
+	// A plain click opens the entry, whose page then loads and draws the workspace anew. A redraw between the press and
+	// the release of the next click swallows that click, so the next one waits for the page (a red run under load,
+	// 2026-11-17: the Ctrl click after a plain click went nowhere).
 	click := func(sel string, mods int) {
 		r := b.rect(sel)
 		b.mouse("mouseMoved", r.X, r.Y, 0, 0)
 		b.mouse("mousePressed", r.X, r.Y, 1, mods)
 		b.mouse("mouseReleased", r.X, r.Y, 1, mods)
+		if mods == 0 && !b.waitFor(`!Object.values(D).some(d => d && d.loading)`) {
+			t.Fatalf("the page opened by a plain click on %s did not load", sel)
+		}
 	}
 	selected := func() string {
 		return b.eval(`[...document.querySelectorAll('.nav3 [aria-selected="true"]')].map(n => n.textContent.trim()).join(' ')`)
