@@ -140,14 +140,18 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 			// A marker does not go on its own: Backspace right after the part leaves it whole.
 			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), p = t.indexOf('<!-- /part t1 -->') + '<!-- /part t1 -->'.length; v.dispatch({selection: {anchor: p}}); v.focus(); })()`)
 			b.press("Backspace", "Backspace", 8, 0)
-			if !b.edWait(`t.includes('<!-- part t1 -->') && t.includes('<!-- /part t1 -->')`) {
-				t.Errorf("the part keeps both markers: %q", b.eval(edText))
+			if !b.edWait(`t.includes('<!-- part t1 -->disk is **ver<!-- /part t1 -->')`) {
+				t.Errorf("the part keeps both markers, and Backspace takes its last character: %q", b.eval(edText))
+			}
+			b.press("Backspace", "Backspace", 8, 0)
+			if !b.edWait(`t.includes('<!-- part t1 -->disk is **ve<!-- /part t1 -->')`) {
+				t.Errorf("and the next one: %q", b.eval(edText))
 			}
 			// Copy is plain text with the formatting closed.
-			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('very'), to = t.indexOf('now'); v.dispatch({selection: {anchor: from, head: to}}); v.focus(); window.clip = null; })()`)
+			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('ve'), to = t.indexOf('now'); v.dispatch({selection: {anchor: from, head: to}}); v.focus(); window.clip = null; })()`)
 			b.waitFor(`!document.querySelector('[data-edsel]').hidden`)
 			b.clickOn(`.edbar [data-act="edselcopy"]`, 1)
-			if !b.waitFor(`window.clip === '**very full**'`) {
+			if !b.waitFor(`window.clip === '**ve full**'`) {
 				t.Errorf("the copy: %q", b.eval(`window.clip`))
 			}
 			// Pasted into a paragraph of Runbook, the address embeds the part there.
@@ -159,7 +163,7 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 				t.Fatalf("pasted inside a paragraph: %q", b.eval(edText))
 			}
 			b.clickOn(`[data-win="0"] .dstatus`, 1) // back to reading
-			if !b.waitFor(`(document.querySelector('article.doc [data-embed-part]')?.innerHTML || '') === 'disk is <strong>very</strong>'`) {
+			if !b.waitFor(`(document.querySelector('article.doc [data-embed-part]')?.innerHTML || '') === 'disk is <strong>ve</strong>'`) {
 				t.Errorf("Runbook reads the part through its formatting: %s", b.eval(`document.querySelector('article.doc')?.innerHTML`))
 			}
 			// Reading Errors, the pointer on the part shows its boundary and where it is used.

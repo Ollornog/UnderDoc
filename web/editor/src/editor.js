@@ -832,8 +832,17 @@ const keepPartsWhole = EditorState.transactionFilter.of((tr) => {
     const textLeft = to > from && after.slice(from, to).replace(PART_MARKER, '').length > 0;
     const openGone = o === null || after.slice(o, o + open.length) !== open;
     const closeGone = c === null || after.slice(c - close.length, c) !== close;
-    if (textLeft && openGone && !closeGone) changes.push({ from, insert: open });
-    if (textLeft && closeGone && !openGone) changes.push({ from: to, insert: close });
+    // Backspace right after a part, or Delete right before it, took only its marker: it stays, and the character of the
+    // part next to it goes instead, as the key meant.
+    const onlyMarker = (m) => tr.startState.doc.length - tr.newDoc.length === m.length;
+    if (textLeft && openGone && !closeGone) {
+      changes.push({ from, insert: open });
+      if (onlyMarker(open)) changes.push({ from, to: from + 1 });
+    }
+    if (textLeft && closeGone && !openGone) {
+      if (onlyMarker(close)) changes.push({ from: to - 1, to });
+      changes.push({ from: to, insert: close });
+    }
     if (!textLeft && !openGone && !closeGone) {
       changes.push({ from: tr.changes.mapPos(p.open[0], 1), to: tr.changes.mapPos(p.open[1], -1) });
       changes.push({ from: tr.changes.mapPos(p.close[0], 1), to: tr.changes.mapPos(p.close[1], -1) });
