@@ -177,6 +177,10 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 	if got := names(); got != "C A line B" {
 		t.Errorf("after the drop: %q", got)
 	}
+	// The drop is written in the background; on a busy machine a reload right after it came too early (2026-11-17).
+	if !b.waitFor(`(() => { fetch('/api/state').then(r => r.json()).then(s => { const find = (l) => { for (const n of l || []) { if (n.id === '` + team + `') return n; const k = find(n.kids); if (k) return k; } return null; }; const t = find(s.collections); window.order = t ? t.kids.map(k => k.t === 'line' ? 'line' : k.n).join(' ') : ''; }); return window.order === 'C A line B'; })()`) {
+		t.Errorf("the server has the order of the drop: %q", b.eval(`window.order`))
+	}
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) || names() != "C A line B" {
@@ -187,6 +191,9 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 	b.clickOn(probe(b, `.ctxpop button`, "Remove"), 1)
 	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 0`) {
 		t.Error("the line was not removed")
+	}
+	if !b.waitFor(`(() => { fetch('/api/state').then(r => r.json()).then(s => { const find = (l) => { for (const n of l || []) { if (n.id === '` + team + `') return n; const k = find(n.kids); if (k) return k; } return null; }; const t = find(s.collections); window.order = t ? t.kids.map(k => k.t === 'line' ? 'line' : k.n).join(' ') : ''; }); return window.order === 'C A B'; })()`) {
+		t.Errorf("the server removed the line: %q", b.eval(`window.order`))
 	}
 	b.open(base + "/o/" + team)
 	b.ready("Team")

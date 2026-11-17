@@ -24,6 +24,10 @@ import (
 )
 
 var engine = goldmark.New(
+	// The default parser, with a paragraph that starts with a part marker kept a paragraph (parts.go).
+	goldmark.WithParser(parser.NewParser(parser.WithBlockParsers(blockParsers()...),
+		parser.WithInlineParsers(parser.DefaultInlineParsers()...),
+		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...))),
 	goldmark.WithExtensions(
 		// Attributes instead of the default inline style, which a strict CSP would block.
 		extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
@@ -35,8 +39,9 @@ var engine = goldmark.New(
 	goldmark.WithParserOptions(
 		parser.WithAutoHeadingID(),
 		parser.WithInlineParsers(util.Prioritized(wikiParser{}, 199)), // before the link parser at 200
+		parser.WithInlineParsers(util.Prioritized(embedParser{}, 198)),
 	),
-	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(nodeRenderer{}, 100))),
+	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(nodeRenderer{}, 100), util.Prioritized(embedRenderer{}, 100))),
 )
 
 // Front is the front matter a page may start with. All other keys are ignored.
@@ -198,7 +203,8 @@ type headingIDs struct {
 }
 
 func (h *headingIDs) Generate(value []byte, _ ast.NodeKind) []byte {
-	slug := Slug(string(value))
+	// The markers of a part (ADR-22) are no words of the heading: marking one keeps its anchor.
+	slug := Slug(anyPartMarker.ReplaceAllString(string(value), ""))
 	h.seen[slug]++
 	if count := h.seen[slug]; count > 1 {
 		return []byte(slug + "-" + strconv.Itoa(count))

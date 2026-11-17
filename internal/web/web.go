@@ -170,6 +170,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("DELETE /api/pages/{id}/blocks/{block}", h.apiDeleteBlock)
 	doc("POST /api/pages/{id}/blocks/{block}/move", h.apiMoveBlock)
 	doc("PUT /api/pages/{id}/blocks/{block}/align", h.apiAlignBlock)
+	doc("POST /api/pages/{id}/blocks/{block}/parts", h.apiMarkPart)
+	doc("POST /api/pages/{id}/blocks/{block}/excerpt", h.apiExcerpt)
 	doc("GET /api/pages/{id}/versions", h.apiVersions)
 	doc("GET /api/pages/{id}/comments", h.apiComments)
 	doc("POST /api/pages/{id}/comments", h.apiAddComment)

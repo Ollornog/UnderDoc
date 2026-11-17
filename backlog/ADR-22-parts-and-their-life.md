@@ -73,3 +73,8 @@ The third option, worked out with the maintainer on 2026-11-16.
 - `refs` gains the section and the part as targets, and a table of redirects keeps old addresses alive.
 - The Markdown export keeps the part markers, so an import gives every part its ID back.
 - Pinning an embedding to a version ("fixed", with a notice when the original changes) is left for later.
+- **Built on 2026-11-17** ([docs/parts.md](../docs/parts.md)): the markers, the addresses `<page>#<block>.<part>` and
+  `<page>#<block>.section`, a section of blocks (a block that opens with a heading, up to the next block that opens with
+  one of the same or a higher level; a heading in the middle of a block does not end it), embedding a part inside a
+  paragraph with `:embed{ref=…}`, cutting through formatting with the plain text as the fallback where Markdown cannot
+  say it, marking with snapping, copies through the API, the places of use and the list of problems.

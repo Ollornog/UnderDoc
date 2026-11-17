@@ -69,7 +69,8 @@ backup/
   ```
 
   The marker is an HTML comment on a line of its own, so every Markdown viewer, and UnderDoc itself, leaves it out. A block
-  is written as it is, directives such as `::embed{…}` included; only blank lines at its start and end are dropped, as
+  is written as it is, directives such as `::embed{…}` and the markers of parts (`<!-- part t2 -->`, [parts.md](parts.md))
+  included; only blank lines at its start and end are dropped, as
   they mean nothing in Markdown and the file needs one between blocks. `next_block` is written only when a block at the end
   was deleted, so that its ID is not given out again after an import. A block aligned center or right (ADR-16) says so in
   its marker, `<!-- block b3 align=center -->`, and an import aligns it again; the alignment is not part of its Markdown.
@@ -99,7 +100,7 @@ backup/
   IDs of the folder source such as `network-plan` do not have that form and get new ones.
 - **Links follow the pages** (2026-11-09): a relative link to a Markdown file of the tree and a link `[[page]]` by ID,
   path, file name or title become a link `/o/<id>` to the page it became, with its anchor; `/o/<id>` links and
-  embeddings of objects of the tree that got a new ID follow it too. A link that finds nothing, and anything in fenced
+  embeddings of objects of the tree that got a new ID follow it too, the inline `:embed` of a part as well. A link that finds nothing, and anything in fenced
   code, stays as written, and the list of problems names it.
 - **Blocks:** the markers give the blocks and their IDs. An ID is kept where it is valid and not used before in the same
   page; every other block gets the next number after the highest, and the next block of the page after that comes later

@@ -386,6 +386,29 @@ func (nodeRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(kindTableBox, renderTableBox)
 	reg.Register(ast.KindFencedCodeBlock, renderCodeBlock)
 	reg.Register(ast.KindCodeBlock, renderCodeBlock)
+	reg.Register(ast.KindRawHTML, renderRawHTML)
+}
+
+// renderRawHTML drops raw HTML, as goldmark does without its unsafe switch, but shows the markers of a part (ADR-22) as
+// empty spans, so the part can be cut out of the page and its boundary shown.
+func renderRawHTML(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkSkipChildren, nil
+	}
+	raw := n.(*ast.RawHTML)
+	if raw.Segments.Len() > 0 {
+		value := source[raw.Segments.At(0).Start:raw.Segments.At(raw.Segments.Len()-1).Stop]
+		if m := partMarker.FindSubmatch(value); m != nil {
+			if len(m[1]) > 0 {
+				_, _ = w.WriteString(closeSentinel(string(m[2])))
+			} else {
+				_, _ = w.WriteString(openSentinel(string(m[2])))
+			}
+			return ast.WalkSkipChildren, nil
+		}
+	}
+	_, _ = w.WriteString("<!-- raw HTML omitted -->")
+	return ast.WalkSkipChildren, nil
 }
 
 func renderWikiLink(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {

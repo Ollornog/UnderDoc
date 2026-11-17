@@ -24,3 +24,8 @@ One change appears everywhere. Everything is still maintained as files.
 - Every object shows where it is used, and a list names all broken references.
 - Adds the Resources tab with values and snippets (ADR-15).
 - The facts panel adds the values, snippets and tables a document uses.
+
+**State 2026-11-17:** parts, sections and values in the Markdown, their addresses, embedding them (also inside a
+paragraph), cutting through formatting, marking and copying through the API, where each is used and broken references
+are built ([docs/parts.md](../docs/parts.md)). Next: the three ways of deleting, moving with redirects, the boundaries
+and marking in the editor and in reading, the Resources tab.
