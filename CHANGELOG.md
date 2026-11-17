@@ -50,6 +50,10 @@ All notable changes to this project are documented in this file. The format foll
   same transaction and the old address redirects. The server refuses such a change without a way (409). New tables
   `removed`, `redirects` and `notices` with their tenant and row-level security; a version says where a copy came from.
 - A part embedded inside a paragraph reads as the text around it, with a faint dotted line under it.
+- Parts in the editor and while reading (ADR-22): with text marked, the bar copies it as plain text, makes it a part and
+  copies its address, or makes it a value with a name; the address of a part pasted into a paragraph embeds it there.
+  The markers of parts are hidden and atomic and never go on their own; the cursor in a part, the pointer over it while
+  reading, or a finger on it shows its boundary and "Used in N places". `GET /api/values` lists the values.
 - Tenants (ADR-23, [docs/tenants.md](docs/tenants.md)): every table carries its tenant, and PostgreSQL row-level
   security keeps tenants apart; a query without a tenant sees nothing. `UNDERDOC_TENANTS=one` (the default) keeps
   everything in the tenant Main, where the existing data moves; `many` finds the tenant by the host name, a subdomain of
@@ -170,6 +174,8 @@ All notable changes to this project are documented in this file. The format foll
   mark was gone and the test failed (`TestFilesByHand` under load). Measuring now puts the mark back in the same step.
 - The browser test of dividers and moving in nav3 reloaded the page before the drop was written; on a busy machine it
   failed. It waits for the order on the server first.
+- The editor knew it had the focus again only from a focus event: after the workspace drew anew around it, a click into
+  the text left the boundary of a used block hidden. A press or a selection now tells it.
 - The browser tests no longer fail under load: the workspace draws itself in the background, and tests that reached for an
   element at once got `null` ("Uncaught") when the machine was busy. `eval` now tries again, within the same 5 s as
   `waitFor`, while the only problem is an element that is not there yet; `rect`, `clickOn`, `probe` and `rowNamed` wait for

@@ -13,7 +13,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { classHighlighter } from '@lezer/highlight';
-import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, EMBED, imageLine } from './blocks.js';
+import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, inlineEmbedFor, EMBED, PART_MARKER, partsIn, stripParts, imageLine } from './blocks.js';
 import { run, Conflict } from './save.js';
 import * as tables from './tables.js';
 import './editor.css';
@@ -34,6 +34,15 @@ const focused = StateField.define({
   },
 });
 const trackFocus = EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing));
+// A press into an editor that has the focus without having seen it come (the workspace drew anew around it) tells it so.
+const resyncFocus = EditorView.domEventHandlers({
+  pointerup(_event, view) {
+    setTimeout(() => {
+      if (view.hasFocus && !view.state.field(focused)) view.dispatch({ effects: setFocus.of(true) });
+    }, 0);
+    return false;
+  },
+});
 
 // ---- The markers of the blocks. Each is a line `<!-- block bN -->` the editor keeps track of: written at the start,
 // written by saving, or typed, pasted or brought back by undo as a whole line. A marker whose line changed is gone.
@@ -156,6 +165,53 @@ class UsedWidget extends WidgetType {
   ignoreEvent() {
     return true;
   }
+}
+
+// The label of a part while the cursor is in it (ADR-22): where it is used, and its name if it is a value.
+class PartWidget extends WidgetType {
+  constructor(label, title) {
+    super();
+    this.label = label;
+    this.title = title;
+  }
+  eq(other) {
+    return other.label === this.label && other.title === this.title;
+  }
+  toDOM() {
+    const label = document.createElement('span');
+    label.className = 'cm-ud-partlabel lab';
+    label.textContent = this.label;
+    if (this.title) label.title = this.title;
+    return label;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/** partMarkers lists the markers of parts in a text, outside tables and embedding lines, as [from, to]. */
+function partMarkers(doc) {
+  const out = [];
+  const text = doc.toString();
+  for (const m of text.matchAll(PART_MARKER)) {
+    const line = doc.lineAt(m.index);
+    if (/^\s*\|/.test(line.text) || MARKER.test(line.text)) continue;
+    out.push([m.index, m.index + m[0].length]);
+  }
+  return out;
+}
+
+/** partAt finds the part the cursor stands in inside its block, the innermost: {id, name, from, to} in the document. */
+function partAt(state, pos, block) {
+  const seg = segments(state).find((s) => s.id === block);
+  if (!seg) return null;
+  let best = null;
+  for (const p of partsIn(seg.text)) {
+    const from = seg.body[0] + p.open[1];
+    const to = seg.body[0] + p.close[0];
+    if (pos >= from && pos <= to && (!best || to - from < best.to - best.from)) best = { id: p.id, name: p.name, from, to };
+  }
+  return best;
 }
 
 class AskWidget extends WidgetType {
@@ -445,6 +501,18 @@ function decorate(state) {
     const html = cfg.handle ? cfg.handle(m.id) : '';
     add(line.from, line.to, Decoration.replace({ widget: new MarkerWidget(m.id, html, m.id === current || m.id === hover), block: true }));
   }
+  // The markers of parts are hidden everywhere (ADR-22); the cursor jumps over them (atomicMarkers).
+  for (const [from, to] of partMarkers(doc)) replace(from, to, hide);
+  // The part the cursor stands in shows its boundary and where it is used.
+  if (current) {
+    const p = partAt(state, state.selection.main.head, current);
+    if (p) {
+      if (p.to > p.from) add(p.from, p.to, mark('cm-ud-part'));
+      const use = (cfg.partUse && cfg.partUse(current, p.id)) || { count: 0, where: '' };
+      const label = (p.name ? `Value ${p.name} · ` : '') + (use.count ? `Used in ${use.count} ${use.count === 1 ? 'place' : 'places'}` : 'Not used elsewhere');
+      add(p.to, p.to, Decoration.widget({ widget: new PartWidget(label, use.where ? `Changes here show there too: ${use.where}` : ''), side: -1 }));
+    }
+  }
   // A block aligned center or right shows so on its lines (ADR-16), with C22's text-center and text-right.
   marks.forEach((m, k) => {
     const align = cfg.align && cfg.align(m.id);
@@ -718,6 +786,7 @@ const atomicMarkers = EditorView.atomicRanges.of((view) => {
     const line = view.state.doc.lineAt(m.from);
     b.push(Decoration.mark({}).range(line.from, line.to));
   }
+  for (const [from, to] of partMarkers(view.state.doc)) b.push(Decoration.mark({}).range(from, to));
   return Decoration.set(b, true);
 });
 
@@ -743,6 +812,34 @@ const keepOutOfMarkers = EditorState.transactionFilter.of((tr) => {
   });
   if (!moved) return tr;
   return [tr, { selection: EditorSelection.create(ranges, tr.selection.mainIndex), sequential: true }];
+});
+
+// A marker of a part cannot go on its own while text of the part is left (ADR-22): it is put back where it was. A part
+// whose text is all gone loses both markers, and saving asks what happens where it is used.
+const keepPartsWhole = EditorState.transactionFilter.of((tr) => {
+  if (!tr.docChanged || tr.annotation(system)) return tr;
+  const before = partsIn(tr.startState.doc.toString());
+  if (!before.length) return tr;
+  const after = tr.newDoc.toString();
+  const changes = [];
+  for (const p of before) {
+    const open = tr.startState.doc.sliceString(p.open[0], p.open[1]);
+    const close = tr.startState.doc.sliceString(p.close[0], p.close[1]);
+    const o = tr.changes.mapPos(p.open[0], 1, MapMode.TrackDel);
+    const c = tr.changes.mapPos(p.close[1], -1, MapMode.TrackDel);
+    const from = tr.changes.mapPos(p.open[1], 1);
+    const to = tr.changes.mapPos(p.close[0], -1);
+    const textLeft = to > from && after.slice(from, to).replace(PART_MARKER, '').length > 0;
+    const openGone = o === null || after.slice(o, o + open.length) !== open;
+    const closeGone = c === null || after.slice(c - close.length, c) !== close;
+    if (textLeft && openGone && !closeGone) changes.push({ from, insert: open });
+    if (textLeft && closeGone && !openGone) changes.push({ from: to, insert: close });
+    if (!textLeft && !openGone && !closeGone) {
+      changes.push({ from: tr.changes.mapPos(p.open[0], 1), to: tr.changes.mapPos(p.open[1], -1) });
+      changes.push({ from: tr.changes.mapPos(p.close[0], 1), to: tr.changes.mapPos(p.close[1], -1) });
+    }
+  }
+  return changes.length ? [tr, { changes, sequential: true }] : tr;
 });
 
 // Backspace at the start of a block's first line takes away its marker: the block joins the one before it, and its text
@@ -1027,8 +1124,16 @@ const pasteAddress = EditorView.domEventHandlers({
     const sel = view.state.selection.main;
     if (!sel.empty) return false;
     const line = view.state.doc.lineAt(sel.head);
-    if (line.text.trim() !== '') return false;
-    const embed = embedFor((event.clipboardData || window.clipboardData).getData('text'));
+    const pasted = (event.clipboardData || window.clipboardData).getData('text');
+    if (line.text.trim() !== '') {
+      // The address of a part pasted inside a paragraph embeds it there (ADR-22).
+      const inline = inlineEmbedFor(pasted);
+      if (!inline) return false;
+      event.preventDefault();
+      view.dispatch({ changes: { from: sel.head, insert: inline }, selection: { anchor: sel.head + inline.length }, userEvent: 'input.paste' });
+      return true;
+    }
+    const embed = embedFor(pasted);
     if (!embed) return false;
     event.preventDefault();
     view.dispatch({ changes: { from: line.from, to: line.to, insert: embed }, selection: { anchor: line.from + embed.length }, userEvent: 'input.paste' });
@@ -1104,6 +1209,8 @@ class PageEditor {
   constructor(options) {
     this.options = options;
     this.stored = options.blocks.map((b) => ({ id: b.id, md: normalize(b.md), usedIn: b.usedIn || [] }));
+    // Where the parts of each block are used (ADR-22): block id → part id → names of pages.
+    this.partUses = new Map(options.blocks.map((b) => [b.id, new Map((b.parts || []).map((p) => [p.id, p.usedIn || []]))]));
     // The alignment of each block: not part of its Markdown, the workspace sets it through the API (setAlign).
     this.aligns = new Map(options.blocks.filter((b) => b.align).map((b) => [b.id, b.align]));
     this.confirmed = new Set();
@@ -1129,6 +1236,10 @@ class PageEditor {
         return b && b.usedIn.length ? b.usedIn.join(', ') : '';
       },
       align: (id) => this.aligns.get(id) || '',
+      partUse: (block, part) => {
+        const where = (this.partUses.get(block) || new Map()).get(part) || [];
+        return { count: where.length, where: where.join(', ') };
+      },
       usedCount: (id) => {
         const b = this.stored.find((x) => x.id === id);
         return b ? b.usedIn.length : 0;
@@ -1146,6 +1257,7 @@ class PageEditor {
           dragging,
           focused,
           trackFocus,
+          resyncFocus,
           history(),
           drawSelection(),
           EditorView.lineWrapping,
@@ -1171,6 +1283,7 @@ class PageEditor {
           pasteAddress,
           atomicMarkers,
           keepOutOfMarkers,
+          keepPartsWhole,
           livePreview,
           EditorView.updateListener.of((u) => this.updated(u)),
         ],
@@ -1207,6 +1320,11 @@ class PageEditor {
         this.lastKind = kind;
         this.emit('kind', kind);
       }
+      const marked = !u.state.selection.main.empty;
+      if (marked !== this.lastMarked) {
+        this.lastMarked = marked;
+        this.emit('selection', marked);
+      }
       const inTable = !!tableAt(u.state);
       if (inTable !== this.lastTable) {
         this.lastTable = inTable;
@@ -1214,6 +1332,11 @@ class PageEditor {
       }
     }
     if (u.focusChanged && !u.view.hasFocus) this.schedule(0);
+    // The workspace draws its page anew around the editor, which can take the focus away and give it back without a
+    // focus event; a selection set by a hand then shows that the editor has the focus after all (2026-11-17).
+    if (u.selectionSet && u.view.hasFocus && !u.state.field(focused)) {
+      queueMicrotask(() => !this.destroyed && this.view.dispatch({ effects: setFocus.of(this.view.hasFocus) }));
+    }
   }
 
   emit(name, ...args) {
@@ -1328,6 +1451,72 @@ class PageEditor {
     if (!b || !seg) return;
     const last = seg.body[1] >= this.view.state.doc.length;
     this.view.dispatch({ changes: { from: seg.body[0], to: seg.body[1], insert: b.md + (last ? '' : '\n\n') }, userEvent: 'input' });
+  }
+
+  /**
+   * selectionInBlock names the block the selection lies in and where, in UTF-16 offsets of the block's Markdown as
+   * stored, or null when it reaches over more than one block.
+   */
+  selectionInBlock() {
+    const state = this.view.state;
+    const sel = state.selection.main;
+    if (sel.empty) return null;
+    const seg = segments(state).find((s) => s.id && sel.from >= s.body[0] && sel.to <= s.body[1]);
+    if (!seg) return null;
+    const md = normalize(seg.text);
+    const shift = seg.text.indexOf(md);
+    return { block: seg.id, start: sel.from - seg.body[0] - shift, end: sel.to - seg.body[0] - shift, seg, md, shift };
+  }
+
+  /**
+   * markSelection makes the selection a part that can be embedded (ADR-22): it saves first, then the server snaps the
+   * edges and puts the markers, and its answer becomes the block's text. Answers {ref, url} or {error}.
+   */
+  async markSelection(name = '') {
+    if (!this.selectionInBlock()) return { error: 'Mark text inside one paragraph; for more, copy the address of a block.' };
+    await this.save();
+    const at = this.selectionInBlock();
+    const stored = at && this.stored.find((b) => b.id === at.block);
+    if (!at || !stored || stored.md !== at.md || !this.options.api.mark) return { error: 'The page is not saved yet. Try again in a moment.' };
+    let res;
+    try {
+      res = await this.options.api.mark(at.block, at.start, at.end, name);
+    } catch (err) {
+      return { error: err.detail || 'This cannot be marked.' };
+    }
+    const now = segments(this.view.state).find((s) => s.id === at.block);
+    if (!now || normalize(now.text) !== at.md) return { error: 'The text changed meanwhile. Try again.' };
+    const from = now.body[0] + at.shift;
+    this.view.dispatch({
+      changes: { from, to: from + at.md.length, insert: res.md },
+      selection: { anchor: from + res.start, head: from + res.end },
+      annotations: [system.of(true), Transaction.addToHistory.of(false)],
+    });
+    this.stored = this.stored.map((b) => (b.id === at.block ? { ...b, md: normalize(res.md) } : b));
+    const uses = this.partUses.get(at.block) || new Map();
+    if (!uses.has(res.part)) uses.set(res.part, []);
+    this.partUses.set(at.block, uses);
+    return res;
+  }
+
+  /**
+   * copySelection gives the selection as a copy (ADR-22): plain text with no tie. Inside one block the server closes the
+   * formatting open at its edges; over several blocks it is the Markdown as it stands, without markers.
+   */
+  async copySelection() {
+    const at = this.selectionInBlock();
+    const sel = this.view.state.selection.main;
+    const plainText = () => stripParts(this.view.state.doc.sliceString(sel.from, sel.to)).split('\n').filter((l) => !MARKER.test(l)).join('\n');
+    if (!at || !this.options.api.excerpt) return plainText();
+    await this.save();
+    const now = this.selectionInBlock();
+    const stored = now && this.stored.find((b) => b.id === now.block);
+    if (!now || !stored || stored.md !== now.md) return plainText();
+    try {
+      return await this.options.api.excerpt(now.block, now.start, now.end);
+    } catch (err) {
+      return plainText();
+    }
   }
 
   /** answer deletes a block used elsewhere, or puts its marker back where it was. */

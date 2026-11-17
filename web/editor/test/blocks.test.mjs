@@ -221,3 +221,14 @@ test('a pasted image is a line of its own text and address', () => {
   assert.equal(imageLine('a]b[c\\d.jpeg', '/x'), '![abcd](/x)');
   assert.equal(imageLine('.png', '/x'), '![image](/x)');
 });
+
+test('parts: pairs in a paragraph, addresses of parts and sections, inline embedding', async () => {
+  const { partsIn, stripParts, embedFor, inlineEmbedFor } = await import('../src/blocks.js');
+  const text = 'a <!-- part t1 -->b <!-- part t2 name="v" -->c<!-- /part t1 --> d<!-- /part t2 -->\n\n<!-- part t3 -->e\n\nf<!-- /part t3 -->';
+  assert.deepEqual(partsIn(text).map((p) => p.id + ':' + p.name + ':' + text.slice(p.open[1], p.close[0])), ['t1::b <!-- part t2 name="v" -->c', 't2:v:c<!-- /part t1 --> d']);
+  assert.equal(stripParts(text), 'a b c d\n\ne\n\nf');
+  assert.equal(embedFor('/o/7k2m9q4x1c#b3.section'), '::embed{ref="7k2m9q4x1c#b3.section"}');
+  assert.equal(embedFor('/o/7k2m9q4x1c#b3.t2'), '::embed{ref="7k2m9q4x1c#b3.t2"}');
+  assert.equal(inlineEmbedFor('https://x.example/o/7k2m9q4x1c#b3.t2'), ':embed{ref="7k2m9q4x1c#b3.t2"}');
+  assert.equal(inlineEmbedFor('/o/7k2m9q4x1c#b3'), null);
+});

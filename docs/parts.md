@@ -104,7 +104,26 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
   that owners are told.
 - The version history notes where a copy came from and where moved text went (`origin` of a version).
 
+## In the editor and while reading
+
+- **Marking:** with text marked inside one paragraph, the bar offers **Copy** (plain text with no tie, through the
+  excerpt above; over several blocks the Markdown as it stands, without markers), **Embed** (the text becomes a part, or
+  stays the one it is, and its address goes to the clipboard) and a field **Name it as a value** with its button (the same,
+  with a name). The editor saves first, then the server snaps the edges and writes the markers, and its answer becomes
+  the block's text.
+- **Pasting** the address of a part into a paragraph embeds it there (`:embed{ref=…}`); alone on a line, any address
+  embeds as a block, a section (`#b3.section`) or a part.
+- **Markers** of parts are hidden in the editor and atomic: the cursor jumps over them, and a marker cannot go on its own
+  while text of its part is left (it is put back). When all text of a part is gone, both markers go, and saving asks what
+  happens where the part is used.
+- **Boundaries only when needed:** with the cursor in a part, the editor draws a light outline round its text and a
+  label, "Used in N places" or "Not used elsewhere", with "Value <name>" in front for a value. While reading, the pointer
+  over the text of a part, or a finger on it on a touch screen, shows the same outline and label (`parts.js`, over the
+  boxes of the range between the two markers, so parts that cut through formatting or overlap show whole).
+- **Values:** `GET /api/values` lists every part with a name in the pages the viewer sees, with its text and address,
+  for the Resources tab (ADR-15), which in the workspace is still a mock-up of the first build.
+
 ## Still to come in M-3
 
-The boundaries in reading and in the editor, marking from the editor, moving a block to another page from the editor,
-values in the Resources tab: see ADR-22 and M-3.
+The Resources tab of the workspace with real values and snippets, moving a block to another page from the editor (the
+server rewrites and redirects already for a new master), Excel tables in pages, Mermaid (T-3), the facts panel: see M-3.

@@ -5,6 +5,7 @@ package web
 import (
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
@@ -134,4 +135,46 @@ func (h *handler) usesOf(w http.ResponseWriter, r *http.Request, object, target 
 		out = append(out, apiUse{Page: u.Page, Title: u.Title, Block: u.Block, CanEdit: u.CanEdit})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ref": a.String(), "uses": out, "hidden": hidden})
+}
+
+type apiValue struct {
+	Name  string `json:"name"`
+	Ref   string `json:"ref"`
+	URL   string `json:"url"`
+	Page  string `json:"page"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
+}
+
+// apiValues lists the values (M-3), parts with a name, in the pages the viewer sees, by name: for the Resources tab and
+// for finding a value to embed.
+func (h *handler) apiValues(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	blocks, err := h.options.DB.AllBlocks(r.Context(), user.ID, maxProblemBlocks)
+	if h.failed(w, err, "values") {
+		return
+	}
+	out := []apiValue{}
+	for _, b := range blocks {
+		if !strings.Contains(b.Body, ` name="`) {
+			continue
+		}
+		for _, p := range markdown.Parts(b.Body) {
+			if p.Name == "" {
+				continue
+			}
+			md, err := markdown.PartMarkdown(b.Body, p.ID)
+			if err != nil {
+				continue
+			}
+			a := db.Address{Object: b.Page, Block: b.Block, Sub: p.ID}
+			out = append(out, apiValue{Name: p.Name, Ref: a.String(), URL: route.Object(b.Page) + "#" + a.Target(), Page: b.Page, Title: b.Title, Text: markdown.StripParts(md)})
+		}
+	}
+	slices.SortStableFunc(out, func(x, y apiValue) int { return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })
+	writeJSON(w, http.StatusOK, out)
 }

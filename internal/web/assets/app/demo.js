@@ -915,6 +915,9 @@ document.addEventListener('click',e=>{
     case 'waysgo':endWays(true);break;
     case 'waysno':endWays(false);break;
     case 'restoreremoved':removedAct(a.id,'restore');break;
+    case 'edselcopy':case 'edselembed':case 'edselvalue':{const e=t&&EDS[t.d];if(!e)return;
+      if(act==='edselvalue'){const n=document.querySelector(`[data-edvalname="${t.d}"]`),name=n?n.value.trim():'';if(!name){toast('Type a name for the value first.');if(n)n.focus();return;}markOrCopy(e,true,name);return;}
+      markOrCopy(e,act==='edselembed');return;}
     case 'keepcopy':removedAct(a.id,'copy',a.page);break;
     case 'trpurge':if(hadAsk!==a.id){S.trashAsk=a.id;break;}purgeTrash(a.id);break;
     case 'trempty':if(hadAsk!=='all'){S.trashAsk='all';break;}emptyTrash();break;
@@ -1373,7 +1376,8 @@ async function renameObject(id,title){
    a hidden marker line before each, where the handle of the block shows. The editor saves about a second after typing
    stops and when it is left, block by block through the same API. */
 const ALIGNS=['center','right'];
-const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0,align:ALIGNS.includes(b.align)?b.align:''});
+const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0,align:ALIGNS.includes(b.align)?b.align:'',
+  parts:(b.parts||[]).map(p=>({id:p.id,name:p.name||'',usedIn:p.usedIn||[]}))});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 /* The bar sits once above the page (2026-11-09, ADR-21): a bar that follows the cursor jumps with every line and covers
    the text above it, and M-8 asks for a bar above the page. It acts on the selection of the editor; "/" at the start of an
@@ -1410,7 +1414,7 @@ function handleHtml(d,w,i,b,inEditor){
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
   if(d.t==='notes'&&!(editing(w)&&d.canEdit))return notesHtml(d,w,i);
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}"${b.align?` class="text-${b.align}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-b="${b.id}"${b.align?` class="text-${b.align}"`:''}${b.parts&&b.parts.length?` data-parts="${esc(JSON.stringify(b.parts))}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="lab">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
   return edHtml(d,i,key);
 }
 
@@ -1450,16 +1454,19 @@ function edBarHtml(key,i){
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
       <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
       <span class="bgroup" data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
+      <span class="bgroup" data-edsel="${key}"${e&&e.marked?'':' hidden'}><span class="bsep"></span><button class="ic" data-act="edselcopy" data-w="${i}" title="Copy as text, with no tie" aria-label="Copy as text">${ic('copy')}</button><button class="ic" data-act="edselembed" data-w="${i}" title="Embed elsewhere: copies the address of the marked text" aria-label="Embed elsewhere">${ic('link')}</button><input data-edvalname="${key}" placeholder="Name it as a value" aria-label="Name of the value" size="14" maxlength="80"><button class="ic" data-act="edselvalue" data-w="${i}" title="Make the marked text a value with this name, and copy its address" aria-label="Make a value">${ic('list')}</button></span>
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
   const call=async(url,init)=>{const r=await fetch(pageURL(key)+url,{...same,...init});
     if(r.status===409){const e=new Error('409');try{e.inUse=(await r.json()).inUse;}catch(x){}throw e;}
-    if(!r.ok)throw new Error(String(r.status));return r.status===204?null:r.json();};
+    if(!r.ok){const e=new Error(String(r.status));try{e.detail=(await r.json()).error;}catch(x){}throw e;}return r.status===204?null:r.json();};
   return {
     load:async()=>{const r=await fetch('/api/doc/'+pathOf(D[key].sid),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return ((await r.json()).blocks||[]).map(b=>({id:b.id,md:b.md,usedIn:b.usedIn}));},
     edit:(id,md,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(ways?{md,ways}:{md})}),
     remove:(id,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'DELETE',...(ways?{body:JSON.stringify({ways})}:{})}),
+    mark:(id,start,end,name)=>call('/blocks/'+encodeURIComponent(id)+'/parts',{method:'POST',body:JSON.stringify({start,end,name})}),
+    excerpt:async(id,start,end)=>(await call('/blocks/'+encodeURIComponent(id)+'/excerpt',{method:'POST',body:JSON.stringify({start,end})})).md,
     lost:async(id,md)=>(await call('/blocks/'+encodeURIComponent(id)+'/lost',{method:'POST',body:JSON.stringify(md===null?{delete:true}:{md})})).inUse,
     move:(id,after)=>call('/blocks/'+encodeURIComponent(id)+'/move',{method:'POST',body:JSON.stringify({after})}),
     add:(after,md)=>call('/blocks',{method:'POST',body:JSON.stringify({after,md})}),
@@ -1479,7 +1486,7 @@ function makeEditor(key){
   const d=D[key],e={key,w:S.focus,kind:'p',status:''};
   const show=(sel,v,attr)=>{const n=document.querySelector(`[${sel}="${key}"]`);if(n)n[attr]=v;};
   e.ed=window.UnderDocEditor.create({
-    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain),align:b.align})),
+    blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain),align:b.align,parts:b.parts||[]})),
     label:'Page '+plain(d.n)+', Markdown',
     api:edAPI(key),
     handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
@@ -1488,6 +1495,7 @@ function makeEditor(key){
     on:{
       kind:k=>{e.kind=k;show('data-edtype',k,'value');},
       table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
+      selection:on=>{e.marked=on;show('data-edsel',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
       /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
@@ -1583,6 +1591,15 @@ function versionsHtml(d){
   if(!d.versions)return '<div class="lab">Loading…</div>';
   if(!d.versions.length)return '<div class="lab">No changes yet.</div>';
   return `<ul>${d.versions.map(v=>`<li><small>${v.at}</small><span>${v.who} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}</span></li>`).join('')}</ul>`;
+}
+/* Marked text in the editor (ADR-22): Copy puts it on the clipboard as plain text with no tie; Embed makes it a part, or
+   finds the part it already is, and puts its address on the clipboard, to paste where it should show. */
+async function markOrCopy(e,embed,name=''){
+  const put=(text,said)=>(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast(said),()=>toast(text));
+  if(!embed){put(await e.ed.copySelection(),'Copied as text, with no tie to where it came from.');return;}
+  const r=await e.ed.markSelection(name);
+  if(r.error){toast(r.error);return;}
+  window.lastMarked=r;put(location.origin+r.url,'Address copied. Paste it into a paragraph or alone on a line to embed it there.');
 }
 /* The placeholder of something deleted everywhere (ADR-22): restoring it brings every use back; keeping a copy writes it
    into the page that embeds it. Every open page of the database draws again. */

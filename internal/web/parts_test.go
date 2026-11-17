@@ -152,6 +152,20 @@ func TestPartsThroughTheAPI(t *testing.T) {
 		t.Errorf("excerpt = %+v", excerpt)
 	}
 
+	// A part with a name is a value, listed by name for the Resources tab.
+	vat := newPage("Rates", "VAT is 19 %.")
+	if res, code := mark(vat, "b1", "VAT is 19 %.", "19 %", "vat"); code != http.StatusCreated || res.MD != `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.` {
+		t.Fatalf("a value = %d %+v", code, res)
+	}
+	if _, code := mark(vat, "b1", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`, "VAT", ""); code != http.StatusCreated {
+		t.Fatalf("a part without a name next to the value = %d", code)
+	}
+	var values []apiValue
+	_ = json.Unmarshal(s.get("/api/values").Body.Bytes(), &values)
+	if len(values) != 1 || values[0].Name != "vat" || values[0].Text != "19 %" || values[0].Ref != vat+"#b1.t1" || values[0].Title != "Rates" {
+		t.Errorf("the values: %+v", values)
+	}
+
 	// Marking refuses what is more than a paragraph, and a name that does not fit.
 	if _, code := mark(catalogue, "b2", "**very important to all** customers", "**very important to all** customers", `a"b`); code != http.StatusBadRequest {
 		t.Errorf("a bad name = %d", code)
