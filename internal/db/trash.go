@@ -34,6 +34,11 @@ type Trashed struct {
 // are never deleted, also not with something they were moved into. A line or a space has nothing to restore, so it goes
 // for good, as DeleteDivider does.
 func (db *DB) Delete(ctx context.Context, objectID, viewer string) error {
+	return db.deleteObject(ctx, objectID, viewer, nil)
+}
+
+// deleteObject is Delete, with a step before the trash in the same transaction.
+func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before func(pgx.Tx) error) error {
 	o, err := db.Object(ctx, objectID, viewer)
 	if err != nil {
 		return err
@@ -71,6 +76,11 @@ func (db *DB) Delete(ctx context.Context, objectID, viewer string) error {
 		}
 		if private {
 			return ErrNotAllowed
+		}
+		if before != nil {
+			if err := before(tx); err != nil {
+				return err
+			}
 		}
 		_, err := tx.Exec(ctx, `WITH RECURSIVE down AS (
 				SELECT id FROM objects WHERE id = $1

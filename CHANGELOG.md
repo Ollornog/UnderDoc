@@ -42,6 +42,14 @@ All notable changes to this project are documented in this file. The format foll
   atomic elements and stays in its paragraph; a copy (`POST …/blocks/{block}/excerpt`) is plain Markdown without markers;
   `GET /api/objects/{id}/uses?ref=` names every place of use. The list of problems names parts and sections that are gone,
   the export keeps the markers, and an import relinks inline embeddings too.
+- Deleting something in use asks for its way (ADR-22, [docs/parts.md](docs/parts.md)): a block, the text of a part or a
+  page of which something is embedded elsewhere. A dialog of the workspace names each thing with every place of use, with
+  nothing chosen in advance: delete everywhere (each use shows who removed it and when, and Restore brings every use
+  back), a copy in every use the viewer may change (others keep a placeholder, their owners a notice and "Keep a copy
+  here"), or a new master among the uses, into which the content moves while every other reference is rewritten in the
+  same transaction and the old address redirects. The server refuses such a change without a way (409). New tables
+  `removed`, `redirects` and `notices` with their tenant and row-level security; a version says where a copy came from.
+- A part embedded inside a paragraph reads as the text around it, with a faint dotted line under it.
 - Tenants (ADR-23, [docs/tenants.md](docs/tenants.md)): every table carries its tenant, and PostgreSQL row-level
   security keeps tenants apart; a query without a tenant sees nothing. `UNDERDOC_TENANTS=one` (the default) keeps
   everything in the tenant Main, where the existing data moves; `many` finds the tenant by the host name, a subdomain of

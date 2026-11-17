@@ -371,8 +371,21 @@ func TestTheHandleInTheEditor(t *testing.T) {
 	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
 	b.waitFor(`!!document.querySelector('.cm-ud-ask')`)
 	b.clickOn(`.cm-ud-ask [data-answer="delete"]`, 1)
-	if !b.waitFor(`!document.querySelector('.cm-ud-ask')`) {
+	// What happens in the page that uses it is chosen in a dialog, with nothing chosen in advance (ADR-22).
+	if !b.waitFor(`!!document.querySelector('.wayspop')`) {
+		t.Fatalf("the ways to choose from do not show")
+	}
+	if got := b.eval(`document.querySelector('.wayspop [data-act="waysgo"]').disabled + ' ' + document.querySelectorAll('.wayspop [aria-pressed="true"]').length`); got != "true 0" {
+		t.Errorf("nothing is chosen in advance, and nothing goes before: %q", got)
+	}
+	b.clickOn(`.wayspop [data-act="way"][data-way="copies"]`, 1)
+	b.clickOn(`.wayspop [data-act="waysgo"]`, 1)
+	if !b.waitFor(`!document.querySelector('.cm-ud-ask') && !document.querySelector('.wayspop')`) {
 		t.Errorf("the question goes")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if got := b.stored(other); got != "b1:Two" {
+		t.Errorf("the page that used it has a copy now: %q", got)
 	}
 	b.lineWith("One")
 	b.press("Home", "Home", 36, 0)

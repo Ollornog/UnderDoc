@@ -44,6 +44,8 @@ type apiVersion struct {
 	At      string `json:"at"`
 	Deleted bool   `json:"deleted,omitempty"`
 	Excerpt string `json:"excerpt"`
+	// Origin says where a copy came from or where moved text went (ADR-22).
+	Origin string `json:"origin,omitempty"`
 }
 
 // change reads the body of a request that changes something: only with the database, only from this application, and
@@ -76,6 +78,8 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrQuota):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+	case errors.Is(err, db.ErrWay):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrPart):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": strings.TrimPrefix(err.Error(), db.ErrPart.Error()+"\n")})
 	case errors.Is(err, db.ErrHasReplies):
@@ -153,6 +157,9 @@ func (h *handler) inlineEmbeds(r *http.Request, rendered string, trail []string)
 	return markdown.EmbedSentinels.ReplaceAllStringFunc(rendered, func(sentinel string) string {
 		a, _ := db.ParseAddress(markdown.EmbedSentinels.FindStringSubmatch(sentinel)[1])
 		inner, title, why := h.embedded(r, a, trail)
+		if g := h.goneAt(r, a); why != "" && g != nil {
+			return h.placeholder(r, a, g, trail[0], true)
+		}
 		if why != "" {
 			return `<span class="badge" data-variant="destructive" data-ref="` + html.EscapeString(a.String()) + `">` + html.EscapeString(why) + `</span>`
 		}
@@ -164,6 +171,9 @@ func (h *handler) inlineEmbeds(r *http.Request, rendered string, trail []string)
 func (h *handler) embed(r *http.Request, a db.Address, trail []string) string {
 	ref := a.String()
 	inner, label, why := h.embedded(r, a, trail)
+	if g := h.goneAt(r, a); why != "" && g != nil {
+		return h.placeholder(r, a, g, trail[0], false)
+	}
 	if why != "" {
 		return `<div class="embed broken" data-ref="` + html.EscapeString(ref) + `">` + html.EscapeString(why) + `</div>`
 	}
@@ -205,6 +215,9 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	}
 	at := slices.IndexFunc(blocks, func(b db.Block) bool { return b.ID == a.Block })
 	if a.Block != "" && at < 0 {
+		if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+			return h.embedded(r, to, trail)
+		}
 		return "", "", "Block #" + a.Block + " is no longer in " + o.Title
 	}
 	inside := func(b db.Block) []string { return append(slices.Clone(trail), ref, a.Object+"#"+b.ID) }
@@ -225,6 +238,9 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 		}
 		n := markdown.SectionEnd(bodies)
 		if n == 0 {
+			if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+				return h.embedded(r, to, trail)
+			}
 			return "", "", "Block #" + a.Block + " opens no section in " + o.Title
 		}
 		for _, b := range blocks[at : at+n] {
@@ -235,6 +251,9 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	default:
 		part, ok := markdown.CutPart(h.render(r, blocks[at].Body, inside(blocks[at])), a.Sub)
 		if !ok {
+			if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+				return h.embedded(r, to, trail)
+			}
 			return "", "", "Part #" + a.Target() + " is no longer in " + o.Title
 		}
 		return part, o.Title + " · #" + a.Target(), ""
@@ -352,14 +371,15 @@ func (h *handler) apiMoveBlock(w http.ResponseWriter, r *http.Request) {
 // apiEditBlock gives a block new Markdown.
 func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Body string `json:"md"`
+		Body string            `json:"md"`
+		Ways map[string]db.Way `json:"ways"`
 	}
 	user, ok := h.change(w, r, 1<<20, &in)
 	if !ok {
 		return
 	}
-	b, err := h.options.DB.EditBlock(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Body)
-	if h.failed(w, err, "block") {
+	b, err := h.options.DB.EditBlockWays(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Body, in.Ways)
+	if h.inUse(w, r, err) || h.failed(w, err, "block") {
 		return
 	}
 	used, _ := h.options.DB.UsedIn(r.Context(), r.PathValue("id"), user.ID)
@@ -454,13 +474,21 @@ func (h *handler) apiAlignBlock(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// apiDeleteBlock takes a block out of its page.
+// apiDeleteBlock takes a block out of its page. A block in use needs a way, {"ways": {"*": {"way": …}}} (ADR-22).
 func (h *handler) apiDeleteBlock(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.change(w, r, 0, nil)
+	var in struct {
+		Ways map[string]db.Way `json:"ways"`
+	}
+	var into any
+	if r.ContentLength > 0 {
+		into = &in
+	}
+	user, ok := h.change(w, r, 8<<10, into)
 	if !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.DeleteBlock(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID), "delete block") {
+	err := h.options.DB.DeleteBlockWays(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Ways)
+	if h.inUse(w, r, err) || h.failed(w, err, "delete block") {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -483,7 +511,7 @@ func (h *handler) apiVersions(w http.ResponseWriter, r *http.Request) {
 		if len(excerpt) > 80 {
 			excerpt = append(excerpt[:79], '…')
 		}
-		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt)})
+		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt), Origin: v.Origin})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -507,12 +535,21 @@ func (h *handler) apiCreateDivider(w http.ResponseWriter, r *http.Request) {
 }
 
 // apiDeleteObject takes an object away: a line or a space for good, anything else into the trash with everything below it.
+// What of it is embedded from outside needs a way, {"ways": {"<address>" or "*": {"way": …}}} (ADR-22).
 func (h *handler) apiDeleteObject(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.change(w, r, 0, nil)
+	var in struct {
+		Ways map[string]db.Way `json:"ways"`
+	}
+	var into any
+	if r.ContentLength > 0 {
+		into = &in
+	}
+	user, ok := h.change(w, r, 64<<10, into)
 	if !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.Delete(r.Context(), r.PathValue("id"), user.ID), "delete") {
+	err := h.options.DB.DeleteWays(r.Context(), r.PathValue("id"), user.ID, in.Ways)
+	if h.inUse(w, r, err) || h.failed(w, err, "delete") {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

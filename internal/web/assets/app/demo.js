@@ -274,7 +274,7 @@ function delItem(id){
   const d=D[id];if(!d||isDeco(id))return '';
   const top=C.some(c=>c.id===id&&!c.alias),ask=!!(S.ctx&&S.ctx.ask);
   const why=d.real&&!d.db?'The folder source is read only':d.private||id==='me'?'Private notes stay':!d.db?'':top&&!d.mine?'Only its owner deletes a collection at the top':!d.mine&&accOf(id)!=='edit'?ACC[accOf(id)]:'';
-  const u=ask&&S.ctx.uses,used=u&&(u.usedIn.length||u.hidden)?`<p class="hint" data-uses="${id}">Embedded in ${[...u.usedIn,...(u.hidden?[u.hidden+(u.hidden===1?' page':' pages')+' you cannot see']:[])].join(', ')}. There it will show that it is gone.</p>`:'';
+  const u=ask&&S.ctx.uses,used=u&&(u.usedIn.length||u.hidden)?`<p class="hint" data-uses="${id}">Embedded in ${[...u.usedIn,...(u.hidden?[u.hidden+(u.hidden===1?' page':' pages')+' you cannot see']:[])].join(', ')}. You choose what happens there.</p>`:'';
   return `<hr><button data-act="delobj" data-id="${id}" aria-pressed="${ask}"${why?` disabled title="${why}"`:''}>${mi('delobj')}${ask?'Delete? Yes':'Delete'}</button>${used}`;
 }
 /* Before deleting, the question names where the object, or anything below it, is embedded (M-28). */
@@ -712,7 +712,7 @@ function render(){
   const name=w=>{const t=w.tabs[w.a];return t&&t.d?D[t.d].n:'Empty';};
   const winbar=S.wins.length>1?`<div class="winbar">${S.wins.map((w,i)=>`<button class="chip" data-act="focus" data-id="${i}" aria-pressed="${i===S.focus}">${name(w)}</button>`).join('')}</div>`:'';
   const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
-  rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}`;
+  rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}${waysHtml()}`;
   mountEditors(edFocus,want);
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
   rendering=false;
@@ -911,6 +911,11 @@ document.addEventListener('click',e=>{
     case 'trash':openDoc('trash:');loadTrash();break;
     case 'problems':openDoc('problems:');loadProblems();break;
     case 'trrestore':restoreTrash(a.id);break;
+    case 'way':setWay(+a.k,a.way);break;
+    case 'waysgo':endWays(true);break;
+    case 'waysno':endWays(false);break;
+    case 'restoreremoved':removedAct(a.id,'restore');break;
+    case 'keepcopy':removedAct(a.id,'copy',a.page);break;
     case 'trpurge':if(hadAsk!==a.id){S.trashAsk=a.id;break;}purgeTrash(a.id);break;
     case 'trempty':if(hadAsk!=='all'){S.trashAsk='all';break;}emptyTrash();break;
     case 'winmenu':{if(hadCtx==='win')break;const z=S.scale/100,r=b.getBoundingClientRect();S.ctx={kind:'win',x:Math.round(r.left/z),y:Math.round(r.bottom/z)+2};break;}
@@ -999,6 +1004,8 @@ document.addEventListener('focusout',e=>{const x=e.target;if(!rendering&&x.datas
 document.addEventListener('change',e=>{
   const x=e.target;
   if(x.dataset.edtype!==undefined){const e=EDS[x.dataset.edtype];if(e)e.ed.turnInto(x.value);return;}
+  if(x.dataset.wmaster!==undefined){if(x.value)setWay(+x.dataset.wmaster,'master',x.value);return;}
+  if(x.dataset.wsame!==undefined&&S.ways){S.ways.same=x.checked;const f=S.ways.items[0];if(x.checked&&f.way)setWay(0,f.way,f.master);else render();return;}
   if(x.id==='limit'){S.limit=Math.max(0,+x.value||0);S.tog={};render();}
   if(x.id==='stype'){S.ftype=x.value;render();}
   if(x.dataset.cname!==undefined){const v=x.value.trim(),cid=x.dataset.cname;if(v){D[cid].n=esc(v);if(D[cid].real)renameObject(cid,v);}render();}
@@ -1033,6 +1040,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='/'&&!x.closest('input,select,textarea,[contenteditable]')){e.preventDefault();if(!document.getElementById('search')){S.view='search';S.rail=true;render();}document.getElementById('search').focus();return;}
   if(x.dataset&&x.dataset.nfilter!==undefined&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){e.preventDefault();if(e.key==='Enter'){const n=document.querySelector('.cmdpop [role="menuitem"].active')||[...document.querySelectorAll('.cmdpop [role="menuitem"]')].find(n=>n.getAttribute('aria-hidden')!=='true'&&!n.disabled);if(n)n.click();}else stepNew(e.key==='ArrowDown'?1:-1);return;}
   if(x.dataset&&x.dataset.ren!==undefined&&(e.key==='Enter'||e.key==='Escape')){e.preventDefault();if(e.key==='Escape')x.value=x.defaultValue;x.blur();return;}
+  if(e.key==='Escape'&&S.ways){endWays(false);return;}
   if(e.key==='Escape'&&(S.newAt!==null||S.ctx||S.addIn||S.tmenu||S.hist!==null||S.tlist!==null)){S.newAt=null;S.ctx=null;S.addIn=null;S.tmenu=null;S.hist=null;S.tlist=null;render();return;}
   if(e.key==='Escape'&&S.sel&&!S.sel.soft&&!drag){S.sel=null;render();return;}
   if(e.key!=='Enter')return;
@@ -1445,11 +1453,14 @@ function edBarHtml(key,i){
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
 }
 const edAPI=key=>{
-  const call=async(url,init)=>{const r=await fetch(pageURL(key)+url,{...same,...init});if(!r.ok)throw new Error(String(r.status));return r.status===204?null:r.json();};
+  const call=async(url,init)=>{const r=await fetch(pageURL(key)+url,{...same,...init});
+    if(r.status===409){const e=new Error('409');try{e.inUse=(await r.json()).inUse;}catch(x){}throw e;}
+    if(!r.ok)throw new Error(String(r.status));return r.status===204?null:r.json();};
   return {
     load:async()=>{const r=await fetch('/api/doc/'+pathOf(D[key].sid),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return ((await r.json()).blocks||[]).map(b=>({id:b.id,md:b.md,usedIn:b.usedIn}));},
-    edit:(id,md)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({md})}),
-    remove:id=>call('/blocks/'+encodeURIComponent(id),{method:'DELETE'}),
+    edit:(id,md,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(ways?{md,ways}:{md})}),
+    remove:(id,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'DELETE',...(ways?{body:JSON.stringify({ways})}:{})}),
+    lost:async(id,md)=>(await call('/blocks/'+encodeURIComponent(id)+'/lost',{method:'POST',body:JSON.stringify(md===null?{delete:true}:{md})})).inUse,
     move:(id,after)=>call('/blocks/'+encodeURIComponent(id)+'/move',{method:'POST',body:JSON.stringify({after})}),
     add:(after,md)=>call('/blocks',{method:'POST',body:JSON.stringify({after,md})}),
   };
@@ -1484,6 +1495,7 @@ function makeEditor(key){
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
       conflict:text=>{S.edNote=S.edNote||{};S.edNote[key]=text;if(EDS[key]===e){delete EDS[key];e.ed.discard();}d.loaded=false;loadDoc(key);},
       saved:edSaved(key),
+      inUse:q=>askWays(q.inUse).then(m=>m&&Object.fromEntries(Object.entries(m).map(([ref,w])=>[ref.split('#')[1],w]))),
     },
   });
   return e;
@@ -1571,6 +1583,14 @@ function versionsHtml(d){
   if(!d.versions)return '<div class="lab">Loading…</div>';
   if(!d.versions.length)return '<div class="lab">No changes yet.</div>';
   return `<ul>${d.versions.map(v=>`<li><small>${v.at}</small><span>${v.who} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}</span></li>`).join('')}</ul>`;
+}
+/* The placeholder of something deleted everywhere (ADR-22): restoring it brings every use back; keeping a copy writes it
+   into the page that embeds it. Every open page of the database draws again. */
+async function removedAct(id,what,page){
+  try{const r=await fetch('/api/removed/'+encodeURIComponent(id)+'/'+what,{...same,method:'POST',...(page?{body:JSON.stringify({page})}:{})});if(!r.ok)throw new Error(String(r.status));
+    toast(what==='restore'?'It is back, everywhere.':'The copy is in this page now.');}
+  catch(e){toast(e.message==='403'?'Others may not change this page.':'That did not work.');return;}
+  for(const k of Object.keys(D))if(D[k].db&&D[k].loaded&&!EDS[k]){D[k].loaded=false;loadDoc(k);}
 }
 function toast(text){S.toast=text;render();setTimeout(()=>{S.toast='';render();},2600);}
 const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
@@ -1759,9 +1779,46 @@ function dropLocal(id){
   compact();S.sel=null;rebuildPlaces();
 }
 const trashOpen=()=>S.wins.some(w=>w.tabs.some(t=>t.d==='trash:'));
+/* What happens where something in use goes (ADR-22): for each thing, delete it everywhere (a placeholder says who removed
+   it), a copy in every use, or a new master among the uses one may change. Nothing is chosen in advance, and nothing goes
+   before each thing has its way; Keep it gives up. With more than one, "The same for all" takes the choice of the first. */
+function askWays(items){
+  return new Promise(resolve=>{S.ways={items:items.map(x=>({...x,way:'',master:''})),same:false,resolve};render();});
+}
+function endWays(ok){
+  const w=S.ways;if(!w)return;S.ways=null;render();
+  w.resolve(ok?Object.fromEntries(w.items.map(x=>[x.ref,x.way==='master'?{way:'master',master:x.master}:{way:x.way}])):null);
+}
+function setWay(k,way,master){
+  const w=S.ways;if(!w)return;
+  const put=x=>{if(way==='master'){if(!x.uses.some(u=>u.canEdit&&u.page+'#'+u.block===master))return;x.master=master;}else x.master='';x.way=way;};
+  if(w.same)w.items.forEach(put);else put(w.items[k]);render();
+}
+function wayLabel(ref){
+  const [sid,t='']=ref.split('#'),k=Object.keys(D).find(x=>D[x].sid===sid),page=k?plain(D[k].n):'a page';
+  if(!t)return 'The page '+page;const [b,s]=t.split('.');
+  return (s==='section'?'The section of #'+b:s?'Part #'+t:'Block #'+b)+' in '+page;
+}
+function waysHtml(){
+  const w=S.ways;if(!w)return '';
+  const ready=w.items.every(x=>x.way&&(x.way!=='master'||x.master)),hidden=w.items.some(x=>x.uses.some(u=>!u.canEdit)||x.hidden);
+  return `<div class="pop wayspop" role="dialog" aria-label="Used elsewhere"><b>Used elsewhere</b>
+    <p class="hint">Choose what happens where it is used. Nothing is chosen for you.${hidden?' Pages you may not change keep a note that it is gone, and their owners are told.':''}</p>
+    ${w.items.map((x,k)=>{const can=x.uses.filter(u=>u.canEdit);
+      return `<div class="wayitem" data-wayitem="${k}"><b>${esc(wayLabel(x.ref))}</b><p class="lab">Used in ${[...x.uses.map(u=>esc(u.title)),...(x.hidden?[x.hidden+(x.hidden===1?' page':' pages')+' you cannot see']:[])].join(', ')}</p>
+        <div class="wayrow"><button class="chip" data-act="way" data-k="${k}" data-way="everywhere" aria-pressed="${x.way==='everywhere'}">Delete everywhere</button>
+        <button class="chip" data-act="way" data-k="${k}" data-way="copies" aria-pressed="${x.way==='copies'}">A copy in every use</button>
+        <select data-wmaster="${k}" aria-label="New master"${can.length&&!x.ref.endsWith('#')&&x.ref.includes('#')?'':' disabled title="No use you may change"'}><option value="">New master in…</option>${can.map(u=>`<option value="${u.page}#${u.block}"${x.way==='master'&&x.master===u.page+'#'+u.block?' selected':''}>${esc(u.title)}</option>`).join('')}</select></div></div>`;}).join('')}
+    ${w.items.length>1?`<label class="waysame"><input type="checkbox" data-wsame${w.same?' checked':''}> The same for all</label>`:''}
+    <div class="wayrow"><button class="chip" data-act="waysgo"${ready?'':' disabled title="Choose a way for each"'}>Delete</button><button class="chip" data-act="waysno">Keep it</button></div></div>`;
+}
 async function deleteObject(id){
   const d=D[id];if(!d)return;
-  if(d.db){try{const r=await fetch('/api/objects/'+encodeURIComponent(d.sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));}
+  if(d.db){try{let r=await fetch('/api/objects/'+encodeURIComponent(d.sid),{...same,method:'DELETE'});
+      /* What of it is embedded elsewhere is gone through one by one, with the same for all (ADR-22). */
+      if(r.status===409){const ways=await askWays((await r.json()).inUse||[]);if(!ways){toast('Nothing was deleted.');return;}
+        r=await fetch('/api/objects/'+encodeURIComponent(d.sid),{...same,method:'DELETE',body:JSON.stringify({ways})});}
+      if(!r.ok)throw new Error(String(r.status));}
     catch(e){toast(e.message==='403'?'Others may not delete this.':'It could not be deleted.');return;}}
   dropLocal(id);toast(d.db?plain(d.n)+' is in the trash.':plain(d.n)+' is deleted.');if(d.db&&trashOpen())loadTrash();
 }

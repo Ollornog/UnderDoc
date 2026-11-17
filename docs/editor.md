@@ -32,9 +32,9 @@ the browser tab hidden), the editor compares its text with the stored blocks and
 
 | In the text | Call |
 |---|---|
-| The text of a block changed | `PUT /api/pages/{id}/blocks/{block}` |
+| The text of a block changed | `PUT /api/pages/{id}/blocks/{block}`; a part in use whose text is gone asks for its way first ([parts.md](parts.md)), and without one the block keeps its text |
 | Paragraphs written before or after the text of a block, a blank line apart, or before the first marker | `POST /api/pages/{id}/blocks` for each, after the block before it; then its marker goes into the text, without moving the cursor or the view |
-| A marker is gone (Backspace at the start of a block joins it to the one before, or the text was cut) | `DELETE /api/pages/{id}/blocks/{block}`; a block used elsewhere asks first, in place, and comes back when kept |
+| A marker is gone (Backspace at the start of a block joins it to the one before, or the text was cut) | `DELETE /api/pages/{id}/blocks/{block}`; a block used elsewhere asks first, in place, then for the way of each use ([parts.md](parts.md)), and comes back when kept |
 | The order changed (a block dragged by its handle, Move up and Move down in the menu of the handle, or a cut and paste) | `POST /api/pages/{id}/blocks/{block}/move` |
 | Nothing changed | nothing: opening a page and leaving it writes nothing and makes no version |
 

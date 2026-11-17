@@ -178,13 +178,15 @@ func TestPartsThroughTheAPI(t *testing.T) {
 	}
 
 	// An ID is never given out again while something still embeds it.
-	s.send(http.MethodPut, "/api/pages/"+catalogue+"/blocks/b1", `{"md":"Error 42: gone."}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/pages/"+catalogue+"/blocks/b1", `{"md":"Error 42: gone.","ways":{"*":{"way":"everywhere"}}}`, sameSite).Code; got != http.StatusOK {
+		t.Fatalf("deleting the text of a part in use, everywhere = %d", got)
+	}
 	again, _ := mark(catalogue, "b1", "Error 42: gone.", "gone", "")
 	if again.Part != "t2" {
 		t.Errorf("a new part after t1 that Runbook still embeds: %s", again.Part)
 	}
-	if got := html(runbook); !strings.Contains(got, "Part #b1.t1 is no longer in Errors") {
-		t.Errorf("an embedding of a part that is gone says so: %s", got)
+	if got := html(runbook); !strings.Contains(got, `data-ref="`+disk.Ref+`" data-removed>Removed by Anna Berg on `) {
+		t.Errorf("an embedding of a part deleted everywhere says who removed it: %s", got)
 	}
 
 	// The list of problems names parts and sections that are gone.

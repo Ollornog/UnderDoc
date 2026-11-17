@@ -173,11 +173,11 @@ class AskWidget extends WidgetType {
     box.setAttribute('role', 'alert');
     box.dataset.ask = this.id;
     const text = document.createElement('span');
-    text.textContent = `Block #${this.id} is used in ${this.used}. Delete it there too? `;
+    text.textContent = `Block #${this.id} is used in ${this.used}. Delete it? `;
     const yes = document.createElement('button');
     yes.className = 'chip';
     yes.dataset.answer = 'delete';
-    yes.textContent = 'Delete';
+    yes.textContent = 'Choose what happens there';
     const no = document.createElement('button');
     no.className = 'chip';
     no.dataset.answer = 'keep';
@@ -1107,6 +1107,8 @@ class PageEditor {
     // The alignment of each block: not part of its Markdown, the workspace sets it through the API (setAlign).
     this.aligns = new Map(options.blocks.filter((b) => b.align).map((b) => [b.id, b.align]));
     this.confirmed = new Set();
+    // The ways chosen for blocks whose change takes away something in use (ADR-22), until that change is saved.
+    this.ways = {};
     this.saving = null;
     this.again = false;
     this.timer = 0;
@@ -1243,7 +1245,8 @@ class PageEditor {
     this.during = null;
     this.saving = (async () => {
       try {
-        const done = await run(p, this.stored, this.options.api, this.options.on && this.options.on.saved);
+        const done = await run(p, this.stored, this.options.api, this.options.on && this.options.on.saved, this.ways);
+        this.ways = {};
         this.stored = done.stored;
         this.place(done.made);
         this.everSaved = true;
@@ -1253,6 +1256,9 @@ class PageEditor {
         if (err.made) this.place(err.made);
         if (err instanceof Conflict) {
           this.emit('conflict', this.view.state.doc.toString());
+        } else if (err.inUse) {
+          this.emit('status', 'Not saved yet');
+          this.chooseWays(err);
         } else {
           this.emit('status', 'Not saved');
           this.emit('error', err);
@@ -1296,6 +1302,32 @@ class PageEditor {
     const now = this.view.state.field(asking);
     if (ids.length === now.length && ids.every((id, k) => now[k] === id)) return;
     this.view.dispatch({ effects: setAsks.of(ids) });
+  }
+
+  /**
+   * chooseWays asks the workspace what happens where something in use goes (ADR-22): the change of a block that takes away
+   * a part in use, or the deletion of a block in use. With the ways chosen it saves again; without, the block keeps its
+   * text, or comes back.
+   */
+  async chooseWays(err) {
+    const ask = this.options.on && this.options.on.inUse;
+    const ways = ask ? await ask({ kind: err.kind, block: err.block, inUse: err.inUse }) : null;
+    if (this.destroyed) return;
+    if (ways) {
+      this.ways[err.block] = ways;
+      this.save();
+      return;
+    }
+    this.confirmed.delete(err.block);
+    if (err.kind === 'delete') {
+      this.answer(err.block, false);
+      return;
+    }
+    const b = this.stored.find((x) => x.id === err.block);
+    const seg = segments(this.view.state).find((s) => s.id === err.block);
+    if (!b || !seg) return;
+    const last = seg.body[1] >= this.view.state.doc.length;
+    this.view.dispatch({ changes: { from: seg.body[0], to: seg.body[1], insert: b.md + (last ? '' : '\n\n') }, userEvent: 'input' });
   }
 
   /** answer deletes a block used elsewhere, or puts its marker back where it was. */
