@@ -83,6 +83,17 @@ func writeTemp(t *testing.T, name string, content []byte) string {
 	return p
 }
 
+// openMyFiles opens the view Files at the user's own folder, once the roots have come from the server: until then nav2
+// shows nothing in their place.
+func (b *browser) openMyFiles() {
+	b.t.Helper()
+	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	if !b.waitFor(`FS.on && !FS.pending`) {
+		b.t.Fatal("the roots of the files did not come")
+	}
+	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+}
+
 const fileRows = `[...document.querySelectorAll('.nav3 [data-act="fopen"], .nav3 [data-act="fdir"].name')].map(n => n.textContent.trim()).join(', ')`
 
 // The view Files with the real mouse: a root in nav2, an upload through the file chooser, the file in the window with its
@@ -91,8 +102,7 @@ func TestFilesByHand(t *testing.T) {
 	b, base, _, _ := setupWithFiles(t)
 	b.open(base + "/")
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
-	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+	b.openMyFiles()
 	if !b.waitFor(`!!document.querySelector('.nav3 [data-act="fup"]')`) {
 		t.Fatalf("no upload in my files: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
 	}
@@ -151,8 +161,7 @@ func TestUploadResumesAfterABreak(t *testing.T) {
 	b, base, database, s := setupWithFiles(t)
 	b.open(base + "/")
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
-	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+	b.openMyFiles()
 	big := make([]byte, 2*web.MaxChunk+12345)
 	_, _ = rand.Read(big)
 	sum := sha256.Sum256(big)
@@ -205,5 +214,27 @@ func TestUploadResumesAfterABreak(t *testing.T) {
 	}
 	if left := b.eval(`Object.keys(localStorage).filter(k => k.startsWith('ud-upload:')).length`); left != "0" {
 		t.Errorf("%s uploads are still kept for resuming", left)
+	}
+}
+
+// While the roots of the files are on their way, nav2 shows none: not the made-up ones of the mockup, which a click
+// would open instead (the cause of a red run under load, 2026-11-17).
+func TestFilesWaitForTheirRoots(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/api/files", "requestStage": "Request"}}}, nil)
+	b.call("Page.navigate", map[string]any{"url": base + "/"}, nil)
+	var held struct{ RequestID string }
+	if err := json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &held); err != nil {
+		t.Fatal(err)
+	}
+	b.ready("")
+	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ')`); got != "" {
+		t.Errorf("before the roots came, nav2 shows %q", got)
+	}
+	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
+	b.call("Fetch.disable", map[string]any{}, nil)
+	if !b.waitFor(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
+		t.Fatalf("the roots: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
 	}
 }

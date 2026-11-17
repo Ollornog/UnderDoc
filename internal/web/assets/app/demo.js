@@ -328,7 +328,7 @@ function nav2Html(){
   return items.map(one2).join('')+(acts.length?'<span class="favsep"></span>'+acts.map(one).join(''):'');
 }
 const SECTIONS={
-  files:()=>FS.on?[...FS.roots.map(r=>[r.id,esc(r.n),r.role==='user'?'user':r.role==='tenant'?'hd':'grid']),['newfcoll','New collection','plus',1],['ext','Add a source','plus',1]]
+  files:()=>FS.pending?[]:FS.on?[...FS.roots.map(r=>[r.id,esc(r.n),r.role==='user'?'user':r.role==='tenant'?'hd':'grid']),['newfcoll','New collection','plus',1],['ext','Add a source','plus',1]]
     :[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
   todo:()=>[...TL.map(l=>[l.id,l.n,l.i]),['newlist','New list','plus',1]],
   cal:()=>[['all','All calendars','grid',0,1],...CALS.map(c=>[c.id,c.n,c.i]),['import','Import a calendar','down',1]],
@@ -1863,7 +1863,7 @@ function loadSettings(server){
    nav2 lists the roots: the folder of the tenant, the user's own folder and collections. nav3 shows one folder at a
    time with its path, and takes uploads by its button or by dropping files on it; a file opens in the window with its
    preview, its versions and a download. Without the store on the server, the view keeps the made-up content. */
-const FS={on:false,roots:[],dirs:{},cur:{},ups:[],chunk:8<<20,admin:false,form:null};
+const FS={on:false,pending:false,roots:[],dirs:{},cur:{},ups:[],chunk:8<<20,admin:false,form:null};
 TYPE.file=['page','File'];TYPE.fdir=['folder','Folder'];
 const fsize=n=>n<1024?n+' B':n<1<<20?Math.round(n/1024)+' KB':n<1<<30?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(1)+' GB';
 const fget=async url=>{const r=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return r.json();};
@@ -1985,7 +1985,7 @@ async function boot(){
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
-    if(st.files){loadRoots();const m=location.pathname.match(/^\/o\/([0-9a-z]{10})$/);if(m&&!SID[m[1]])fileStart=m[1];}
+    if(st.files){FS.pending=true;loadRoots().finally(()=>{FS.pending=false;render();});const m=location.pathname.match(/^\/o\/([0-9a-z]{10})$/);if(m&&!SID[m[1]])fileStart=m[1];}
   }
   const kept=loadSettings(st&&st.settings);
   if(kept)applyN2(kept.n2);
