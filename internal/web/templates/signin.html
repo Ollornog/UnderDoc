@@ -1,0 +1,269 @@
+{{define "auth-head" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · {{.Tenant}}</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.Version}}">
+  <script src="/assets/app/theme.js?v={{.Version}}"></script>
+  <script src="/assets/app/signin.js?v={{.Version}}" defer></script>
+</head>
+{{- end}}
+
+{{define "auth-alerts" -}}
+{{if .Error}}<div class="alert" data-variant="destructive" role="alert" data-test="error"><section>{{.Error}}</section></div>{{end}}
+{{if .Notice}}<div class="alert" role="status" data-test="notice"><section>{{.Notice}}</section></div>{{end}}
+<div class="alert hidden" data-variant="destructive" role="alert" data-passkey-error><section></section></div>
+{{- end}}
+
+{{define "signin" -}}
+{{template "auth-head" .}}
+<body>
+  <main class="grid min-h-svh place-items-center p-4">
+    <div class="card w-full max-w-md">
+      <header>
+        <h1 class="card-title">Sign in to {{.Tenant}}</h1>
+      </header>
+      <section class="grid gap-4">
+        {{template "auth-alerts" .}}
+        {{if .Passkey}}
+        <button class="btn w-full" type="button" data-passkey-sign-in data-next="{{.Next}}">Sign in with a passkey</button>
+        {{end}}
+        {{if .OIDC}}
+        <a class="btn w-full" data-variant="outline" href="/sign-in/oidc?next={{.Next}}">Sign in with {{.OIDC}}</a>
+        {{end}}
+        {{if .Password}}
+        <form class="grid gap-4" method="post" action="/sign-in/password">
+          <input type="hidden" name="next" value="{{.Next}}">
+          <div class="field"><label for="login">Login</label>
+            <input class="input" id="login" name="login" autocomplete="username" autocapitalize="none" required value="{{.Login}}"></div>
+          <div class="field"><label for="password">Password</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
+          {{if .TOTP}}
+          <div class="field"><label for="code">Code from your app</label>
+            <input class="input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></div>
+          {{end}}
+          <button class="btn" data-variant="{{if .Passkey}}outline{{else}}primary{{end}}" type="submit">Sign in with a password</button>
+        </form>
+        {{end}}
+        {{if .Register}}<p class="text-sm text-muted-foreground">No account yet? <a class="underline" href="/register">Register</a>.</p>{{end}}
+      </section>
+    </div>
+  </main>
+</body>
+</html>
+{{- end}}
+
+{{define "register" -}}
+{{template "auth-head" .}}
+<body>
+  <main class="grid min-h-svh place-items-center p-4">
+    <div class="card w-full max-w-md">
+      <header>
+        <h1 class="card-title">Register at {{.Tenant}}</h1>
+        <p class="card-description">Choose your login and your name. The next step sets up how you sign in.</p>
+      </header>
+      <section class="grid gap-4">
+        {{template "auth-alerts" .}}
+        <form class="grid gap-4" method="post" action="/register">
+          <div class="field"><label for="login">Login</label>
+            <input class="input" id="login" name="login" autocomplete="username" autocapitalize="none" required maxlength="63" value="{{.Login}}"></div>
+          <div class="field"><label for="name">Name</label>
+            <input class="input" id="name" name="name" autocomplete="name" required maxlength="200"></div>
+          <button class="btn" type="submit">Go on</button>
+        </form>
+        <p class="text-sm text-muted-foreground"><a class="underline" href="/sign-in">Back to sign in</a></p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
+{{- end}}
+
+{{define "welcome" -}}
+{{template "auth-head" .}}
+<body>
+  <main class="grid min-h-svh place-items-center p-4">
+    <div class="card w-full max-w-md">
+      <header>
+        <h1 class="card-title">Welcome, {{.Name}}</h1>
+        <p class="card-description">Your login at {{.Tenant}} is <strong data-test="login">{{.Login}}</strong>. Set up how you sign in.</p>
+      </header>
+      <section class="grid gap-4">
+        {{template "auth-alerts" .}}
+        {{if .Passkey}}
+        <div class="grid gap-2">
+          <div class="field"><label for="passkey-name">Name of the passkey</label>
+            <input class="input" id="passkey-name" placeholder="Laptop" maxlength="100"></div>
+          <button class="btn w-full" type="button" data-passkey-create data-options="/invite/{{.Token}}/passkey/options"
+            data-finish="/invite/{{.Token}}/passkey" data-name-from="passkey-name">Set up a passkey</button>
+        </div>
+        {{end}}
+        {{if .Password}}
+        <form class="grid gap-4" method="post" action="/invite/{{.Token}}/password">
+          <input class="hidden" name="username" value="{{.Login}}" autocomplete="username" aria-hidden="true" tabindex="-1">
+          <div class="field"><label for="password">{{if .Passkey}}Or a password{{else}}Password{{end}}, at least 12 characters</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="200"></div>
+          <div class="field"><label for="repeat">The password again</label>
+            <input class="input" id="repeat" name="repeat" type="password" autocomplete="new-password" required minlength="12" maxlength="200"></div>
+          {{with .TOTPSetup}}
+          <input type="hidden" name="totp_secret" value="{{.Secret}}">
+          <div class="grid gap-2">
+            <p class="text-sm">Scan this with an authenticator app{{if $.PasswordOnly}}, if you want a code with your password{{end}}:</p>
+            <img class="mx-auto h-auto max-w-full" src="{{.QR}}" alt="Code to scan" width="240" height="240" data-test="totp-qr">
+            <p class="text-sm text-muted-foreground">Or type the key: <span class="font-mono" data-test="totp-secret">{{.Secret}}</span></p>
+          </div>
+          <div class="field"><label for="code">Code from the app</label>
+            <input class="input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" {{if not $.PasswordOnly}}required{{end}}></div>
+          {{end}}
+          <button class="btn" data-variant="{{if .Passkey}}outline{{else}}primary{{end}}" type="submit">Set up the password</button>
+        </form>
+        {{end}}
+      </section>
+    </div>
+  </main>
+</body>
+</html>
+{{- end}}
+
+{{define "security" -}}
+{{template "auth-head" .}}
+<body>
+  <main class="grid min-h-svh place-items-center p-4">
+    <div class="card w-full max-w-lg">
+      <header>
+        <h1 class="card-title">Sign-in and security</h1>
+        <p class="card-description">{{.User.Name}} · {{.User.Login}}</p>
+      </header>
+      <section class="grid gap-6">
+        {{template "auth-alerts" .}}
+        {{if not .Local}}
+        <p class="text-sm" data-test="managed">You sign in through {{if eq .Source "oidc"}}single sign-on{{else}}the sign-in gate{{end}}. Passwords and passkeys are managed there.</p>
+        {{else}}
+        {{if .Passkey}}
+        <div class="grid gap-2">
+          <h2 class="font-semibold">Passkeys</h2>
+          {{if .Passkeys}}
+          <div class="table-container"><table class="table">
+            <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
+            <tbody>{{range .Passkeys}}
+              <tr data-test="passkey"><td>{{.Name}}</td><td>{{.Created}}</td><td>{{.LastUsed}}</td>
+                <td><form method="post" action="/account/passkeys/{{.ID}}/remove"><button class="btn" data-variant="outline" data-size="sm" type="submit">Remove</button></form></td></tr>
+            {{end}}</tbody>
+          </table></div>
+          {{else}}<p class="text-sm text-muted-foreground">No passkey yet.</p>{{end}}
+          <div class="flex flex-wrap items-center gap-2">
+            <input class="input" id="passkey-name" placeholder="Name, such as Laptop" maxlength="100" aria-label="Name of the new passkey">
+            <button class="btn" type="button" data-passkey-create data-options="/account/passkeys/options" data-finish="/account/passkeys"
+              data-name-from="passkey-name">Add a passkey</button>
+          </div>
+        </div>
+        {{end}}
+        {{if .Password}}
+        <form class="grid gap-4" method="post" action="/account/password">
+          <h2 class="font-semibold">Password</h2>
+          <input class="hidden" name="username" value="{{.User.Login}}" autocomplete="username" aria-hidden="true" tabindex="-1">
+          {{if .HasPass}}<div class="field"><label for="current">Current password</label>
+            <input class="input" id="current" name="current" type="password" autocomplete="current-password" required></div>{{end}}
+          <div class="field"><label for="password">New password, at least 12 characters</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="200"></div>
+          <div class="field"><label for="repeat">The new password again</label>
+            <input class="input" id="repeat" name="repeat" type="password" autocomplete="new-password" required minlength="12" maxlength="200"></div>
+          <button class="btn" type="submit">{{if .HasPass}}Change the password{{else}}Set a password{{end}}</button>
+        </form>
+        {{end}}
+        {{if .TOTP}}
+        <div class="grid gap-2">
+          <h2 class="font-semibold">Code from an app</h2>
+          {{with .TOTPSetup}}
+          <form class="grid gap-2" method="post" action="/account/totp">
+            <input type="hidden" name="totp_secret" value="{{.Secret}}">
+            <img class="mx-auto h-auto max-w-full" src="{{.QR}}" alt="Code to scan" width="240" height="240" data-test="totp-qr">
+            <p class="text-sm text-muted-foreground">Or type the key: <span class="font-mono" data-test="totp-secret">{{.Secret}}</span></p>
+            <div class="field"><label for="code">Code from the app</label>
+              <input class="input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+            <button class="btn" type="submit">Use this app</button>
+          </form>
+          {{else}}
+          <p class="text-sm" data-test="totp-state">{{if .HasTOTP}}An app gives your codes.{{else}}No app gives codes yet.{{end}}</p>
+          <div class="flex flex-wrap gap-2">
+            <a class="btn" data-variant="outline" href="/account/security?totp=new">{{if .HasTOTP}}Use another app{{else}}Set up an app{{end}}</a>
+            {{if .HasTOTP}}<form method="post" action="/account/totp/remove"><button class="btn" data-variant="outline" type="submit">No more codes</button></form>{{end}}
+          </div>
+          {{end}}
+        </div>
+        {{end}}
+        {{end}}
+        <form method="post" action="/account/sessions/end"><button class="btn" data-variant="outline" type="submit">Sign out everywhere else</button></form>
+        <p class="text-sm"><a class="underline" href="/profile">Back to the workspace</a></p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
+{{- end}}
+
+{{define "admin-signin" -}}
+{{template "auth-head" .}}
+<body>
+  <main class="grid min-h-svh place-items-center p-4">
+    <div class="card w-full max-w-2xl">
+      <header>
+        <h1 class="card-title">Sign-in of {{.Tenant}}</h1>
+        <p class="card-description">How people get in, who is invited, and who signed in.</p>
+      </header>
+      <section class="grid gap-6">
+        {{template "auth-alerts" .}}
+        {{if .Link}}<p class="text-sm font-mono" data-test="invite-link">{{.Link}}</p>{{end}}
+        <form class="grid gap-4" method="post" action="/admin/sign-in">
+          <h2 class="font-semibold">Ways in</h2>
+          {{range .Methods}}
+          <div class="field" data-orientation="horizontal">
+            <input class="input" type="checkbox" id="m-{{.ID}}" name="method" value="{{.ID}}"{{if .On}} checked{{end}}{{if .Disabled}} disabled{{end}}>
+            <label for="m-{{.ID}}">{{.Label}}<span class="block text-sm text-muted-foreground">{{.Hint}}</span></label>
+          </div>
+          {{end}}
+          <div class="field" data-orientation="horizontal">
+            <input class="input" type="checkbox" id="registration" name="registration"{{if .Settings.Registration}} checked{{end}}>
+            <label for="registration">Anyone may register<span class="block text-sm text-muted-foreground">Off: only invited people get a local account.</span></label>
+          </div>
+          <h2 class="font-semibold">Single sign-on (OIDC)</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="field"><label for="oidc_name">Name on the button</label><input class="input" id="oidc_name" name="oidc_name" maxlength="100" value="{{.Settings.OIDCName}}"></div>
+            <div class="field"><label for="oidc_issuer">Issuer (https)</label><input class="input" id="oidc_issuer" name="oidc_issuer" maxlength="500" value="{{.Settings.OIDCIssuer}}"></div>
+            <div class="field"><label for="oidc_client_id">Client ID</label><input class="input" id="oidc_client_id" name="oidc_client_id" maxlength="500" value="{{.Settings.OIDCClientID}}"></div>
+            <div class="field"><label for="oidc_client_secret">Client secret{{if .SecretSet}} (kept, type to replace){{end}}</label>
+              <input class="input" id="oidc_client_secret" name="oidc_client_secret" type="password" autocomplete="off" maxlength="500"{{if not .VaultReady}} disabled placeholder="needs a key for secrets"{{end}}></div>
+            <div class="field"><label for="oidc_groups_claim">Claim with the groups</label><input class="input" id="oidc_groups_claim" name="oidc_groups_claim" maxlength="100" value="{{.Settings.OIDCGroupsClaim}}"></div>
+            <div class="field"><label for="admin_group">Group of the administrators</label><input class="input" id="admin_group" name="admin_group" maxlength="100" value="{{.Settings.AdminGroup}}" placeholder="{{.DefaultTeam}}"></div>
+          </div>
+          {{if .SecretSet}}<div class="field" data-orientation="horizontal"><input class="input" type="checkbox" id="oidc_forget_secret" name="oidc_forget_secret"><label for="oidc_forget_secret">Forget the client secret</label></div>{{end}}
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <form class="grid gap-4" method="post" action="/admin/invites">
+          <h2 class="font-semibold">Invite someone</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="field"><label for="invite-login">Login</label><input class="input" id="invite-login" name="login" required maxlength="63" autocapitalize="none"></div>
+            <div class="field"><label for="invite-name">Name</label><input class="input" id="invite-name" name="name" required maxlength="200"></div>
+          </div>
+          <div class="field" data-orientation="horizontal"><input class="input" type="checkbox" id="invite-admin" name="admin"><label for="invite-admin">Administrator of this workspace</label></div>
+          <button class="btn" data-variant="outline" type="submit">Make an invitation link</button>
+        </form>
+        <div class="grid gap-2">
+          <h2 class="font-semibold">Recent sign-ins</h2>
+          {{if .Log}}
+          <div class="table-container"><table class="table">
+            <thead><tr><th>When (UTC)</th><th>Login</th><th>Way</th><th>Result</th></tr></thead>
+            <tbody>{{range .Log}}<tr data-test="log"><td class="whitespace-nowrap">{{.At}}</td><td>{{.Login}}</td><td>{{.Method}}</td><td>{{if .OK}}✓ in{{else}}✗ {{.Reason}}{{end}}</td></tr>{{end}}</tbody>
+          </table></div>
+          {{else}}<p class="text-sm text-muted-foreground">None yet.</p>{{end}}
+        </div>
+        <p class="text-sm"><a class="underline" href="/profile">Back to the workspace</a></p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
+{{- end}}

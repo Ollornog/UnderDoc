@@ -40,12 +40,13 @@ or Docker, as shown below.
 
 ## Try it
 
-UnderDoc has no sign-in of its own, so it binds to loopback by default. A sign-in gate in front of it checks who someone
-is and passes that on in the headers `Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email` and `Remote-Groups`, which
-the gate must remove from every incoming request first. Without `Remote-User`, UnderDoc shows only a page that says so.
-How people sign in is up to the gate: [TinySesam](https://github.com/Ollornog/TinySesam) offers OIDC (for example
-PocketID or Microsoft Entra ID), SAML, LDAP, TOTP and passkeys, and any other gate that sets these headers works too.
-To try it on your own machine, let a made-up user stand in for the gate:
+UnderDoc binds to loopback by default. Each tenant chooses how people sign in ([docs/sign-in.md](docs/sign-in.md)):
+local accounts with a passkey (the default), with a password and a code, or with a password alone, single sign-on with
+any OIDC provider, or a sign-in gate in front. A gate checks who someone is and passes that on in the headers
+`Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email` and `Remote-Groups`, which it must remove from every incoming
+request first; [TinySesam](https://github.com/Ollornog/TinySesam) is one, and any other gate that sets these headers works
+too. An instance that ran behind a gate keeps it. The first administrator of a new instance comes from
+`underdoc invite --admin <login> <name>`. To try it on your own machine, let a made-up user stand in for the gate:
 
 ```bash
 UNDERDOC_DEV_USER=me go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
@@ -62,10 +63,12 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_HEALTH_ADDR` | Address of `GET /healthz` | `127.0.0.1:8081` |
 | `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
-| `UNDERDOC_ADMIN_GROUP` | Group of the gate whose members see the administration | `underdoc-admins` |
+| `UNDERDOC_ADMIN_GROUP` | Group of the gate or of OIDC whose members administer a tenant, unless the tenant names another | `underdoc-admins` |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 | `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |
+| `UNDERDOC_GATE` | `on` lets tenants trust the headers of a sign-in gate, `off` never; empty keeps it where a tenant has it | empty |
+| `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (TOTP, the client secret of OIDC); without it, these are not offered | none |
 | `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
 | `UNDERDOC_STORE_DIR` | The content store of the files, with the database; limits and versions in [docs/files.md](docs/files.md) | none: no files |
 

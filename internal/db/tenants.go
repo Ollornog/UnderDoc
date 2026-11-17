@@ -186,3 +186,17 @@ func (db *DB) TenantIDs(ctx context.Context) ([]string, error) {
 	}
 	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
+
+// ForEachTenant runs a job for every tenant that is not archived, each in a context of that tenant, and goes on after a
+// failure; it returns all failures together.
+func (db *DB) ForEachTenant(ctx context.Context, job func(context.Context) error) error {
+	ids, err := db.TenantIDs(ctx)
+	if err != nil {
+		return err
+	}
+	var failed error
+	for _, t := range ids {
+		failed = errors.Join(failed, job(tenant.With(ctx, t)))
+	}
+	return failed
+}

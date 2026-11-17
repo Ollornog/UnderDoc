@@ -620,6 +620,7 @@ function settingsHtml(sec){
 }
 const ADMINTXT={users:['Users and groups','Who exists, who is in which group, who may administer. Comes with M-5.'],src:['Sources','Connections to databases and other systems. Comes with M-4.'],store:['Storage and backup','Where documents lie, the share, the export. Comes with M-2.'],signin:['Sign-in','How people sign in. The gate in front decides today.'],audit:['Audit log','Who did what. Comes with M-2 and M-5.']};
 function adminHtml(sec){
+  if(sec==='signin') return `<div class="spanel"><div class="shead">Sign-in</div><p class="hint">How people sign in, who is invited, and who signed in.</p>${S.user.admin?'<a class="chip" href="/admin/sign-in">Open the sign-in settings</a>':''}</div>`;
   if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;
   return `<div class="spanel"><div class="shead">Modules</div>${MODS.map(m=>`<button class="modrow" data-act="mod" data-id="${m[0]}" aria-pressed="${S.mods[m[0]]}"><span>${m[1]}<small>${m[2]}</small></span><em>${S.mods[m[0]]?'✓ On':'Off'}</em></button>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched. Only administrators see this part of the profile.</p></div>`;
 }
@@ -663,7 +664,7 @@ function privNav3(v){
 function accountHtml(){
   const u=S.user;
   return `<div class="spanel"><div class="who"><span class="avatar">${esc(u.initials)}</span><span>${esc(u.name)}<small>${esc(u.email||u.login)}</small></span></div><div class="tagrow">${u.groups.map(g=>`<span class="tagc">${esc(g)}</span>`).join('')}</div>
-    <p class="hint">Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.</p><a class="chip signout" href="/.tinysesam/logout">Sign out</a></div>`;
+    <p class="hint">Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.</p>${u.method&&u.method!=='gate'?`<a class="chip" href="/account/security">Sign-in and security</a><form method="post" action="/sign-out"><button class="chip signout" type="submit">Sign out</button></form>`:'<a class="chip signout" href="/.tinysesam/logout">Sign out</a>'}</div>`;
 }
 function nav3Html(){
   const v=S.view,sec=S.sec[v];

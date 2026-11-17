@@ -225,6 +225,7 @@ func (db *DB) ExpireTrash(ctx context.Context, before time.Time) (int64, error) 
 }
 
 // ExpireAllTrash runs ExpireTrash for every tenant, each as itself. An archived tenant keeps its trash as it is.
+// It returns how many objects went in all.
 func (db *DB) ExpireAllTrash(ctx context.Context, before time.Time) (int64, error) {
 	ids, err := db.TenantIDs(ctx)
 	if err != nil {
@@ -240,13 +241,17 @@ func (db *DB) ExpireAllTrash(ctx context.Context, before time.Time) (int64, erro
 	return gone, failed
 }
 
-// KeepTrash empties the trash of every tenant of what lies there longer than TrashDays, at once and then every so often, until ctx ends.
-// What fails is told to onError and tried again next time.
+// KeepTrash empties the trash of every tenant of what lies there longer than TrashDays, and removes what has run out of
+// signing in (ExpireSignIns), at once and then every so often, until ctx ends. What fails is told to onError and tried
+// again next time.
 func (db *DB) KeepTrash(ctx context.Context, every time.Duration, onError func(error)) {
 	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
 		if _, err := db.ExpireAllTrash(ctx, time.Now().Add(-TrashDays*24*time.Hour)); err != nil && ctx.Err() == nil {
+			onError(err)
+		}
+		if err := db.ForEachTenant(ctx, db.ExpireSignIns); err != nil && ctx.Err() == nil {
 			onError(err)
 		}
 		select {
