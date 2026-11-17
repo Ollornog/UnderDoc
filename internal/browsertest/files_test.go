@@ -98,6 +98,15 @@ func (b *browser) openMyFiles() {
 	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
 }
 
+// filesSettled waits until the uploads are done and their list has gone, and no folder is loading: until then nav3 draws
+// itself again, and a mark put on one of its entries goes with it.
+func (b *browser) filesSettled() {
+	b.t.Helper()
+	if !b.waitFor(`FS.ups.length === 0 && !Object.values(FS.dirs).some(d => d.loading)`) {
+		b.t.Fatalf("the files did not settle: %s", b.eval(`JSON.stringify(FS.ups)`))
+	}
+}
+
 const fileRows = `[...document.querySelectorAll('.nav3 [data-act="fopen"], .nav3 [data-act="fdir"].name')].map(n => n.textContent.trim()).join(', ')`
 
 // The view Files with the real mouse: a root in nav2, an upload through the file chooser, the file in the window with its
@@ -118,6 +127,7 @@ func TestFilesByHand(t *testing.T) {
 	if !b.waitFor(fileRows + ` === 'photo.png'`) {
 		t.Fatalf("the upload is not listed: %q", b.eval(fileRows))
 	}
+	b.filesSettled()
 	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "photo.png"), 1)
 	b.ready("photo.png")
 	if !b.waitFor(`(() => { const i = document.querySelector('article.doc img'); return !!i && i.complete && i.naturalWidth === 1; })()`) {
@@ -130,6 +140,7 @@ func TestFilesByHand(t *testing.T) {
 	if !b.waitFor(versions + ` === 2`) {
 		t.Fatalf("versions: %s", b.eval(versions))
 	}
+	b.filesSettled()
 	b.clickOn(probe(b, `article.doc [data-act="frestore"]`, "Restore"), 1)
 	if !b.waitFor(versions + ` === 3`) {
 		t.Fatalf("after the restore: %s", b.eval(versions))
@@ -145,6 +156,7 @@ func TestFilesByHand(t *testing.T) {
 		t.Fatalf("the dropped file is not listed: %q", b.eval(fileRows))
 	}
 	// A new folder is named in place and opens with its path.
+	b.filesSettled()
 	b.clickOn(`.nav3 [data-act="fnewdir"]`, 1)
 	b.clickOn(`.nav3 form[data-fform="dir"] input`, 3)
 	b.typeText("Scans")
@@ -278,6 +290,7 @@ func TestPDFPreview(t *testing.T) {
 	b.ready("")
 	b.openMyFiles()
 	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "report.pdf", minimalPDF("Card payment")))
+	b.filesSettled()
 	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "report.pdf"), 1)
 	b.ready("report.pdf")
 	drawn := `(() => { const c = document.querySelector('article.doc [data-pdf] canvas'); if (!c) return false;
@@ -341,9 +354,11 @@ func TestImagesInTheEditor(t *testing.T) {
 		t.Fatalf("reading does not show the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
 	}
 	b.clickOn(`[data-act="gear"]`, 1)
+	// The facts of the page stand below the window's fold: scrolled into view as a hand would.
+	b.eval(`document.querySelector('[data-act="fatt"]').scrollIntoView({block: 'center'})`)
 	b.clickOn(probe(b, `[data-act="fatt"]`, "Move to the files"), 1)
 	if !b.waitFor(`[...document.querySelectorAll('article.doc img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
-		t.Fatalf("the page does not show the file: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+		t.Fatalf("the page does not show the file: %s; %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`), b.eval(`(() => { const sid = D[at(0).d].sid, x = new XMLHttpRequest(); x.open('GET', '/api/pages/' + sid + '/attachments', false); x.send(); const y = new XMLHttpRequest(); y.open('GET', '/api/doc/' + sid, false); y.send(); return x.responseText + ' || ' + y.responseText.slice(0, 300) + ' || ' + JSON.stringify(D[at(0).d].atts) })()`))
 	}
 	b.openMyFiles()
 	if !b.waitFor(fileRows + ` === 'rack photo.png'`) {

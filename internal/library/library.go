@@ -273,6 +273,9 @@ type resolver struct {
 }
 
 // databaseLink is the address of an object, as a block of the database links to it: /o/<id>, maybe with a name after it.
+// storeImage is the address of an attachment of a page or of the content of a file (ADR-28).
+var storeImage = regexp.MustCompile(`^/api/(pages/[0-9a-hjkmnp-tv-z]{10}/attachments/a[1-9][0-9]{0,8}|files/[0-9a-hjkmnp-tv-z]{10}/content)$`)
+
 var databaseLink = regexp.MustCompile(`^/o/[0-9a-hjkmnp-tv-z]{10}(/[^/?#]*)?$`)
 
 // Wiki resolves in this order: stable ID, path relative to the page, path from the root, then title or file name.
@@ -341,8 +344,12 @@ func (r *resolver) Link(linkPath string) (markdown.Target, bool) {
 	return markdown.Target{}, false
 }
 
-// Image resolves the path of an image.
+// Image resolves the path of an image. A page of the database also shows its attachments and files of the content store
+// (ADR-28) by their addresses; whether the reader may see them, the store decides when the browser asks.
 func (r *resolver) Image(imagePath string) (markdown.Target, bool) {
+	if r.database && storeImage.MatchString(imagePath) {
+		return markdown.Target{Href: imagePath}, true
+	}
 	relative := r.relative(imagePath)
 	if !r.lib.images[relative] {
 		return markdown.Target{}, false

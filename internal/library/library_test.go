@@ -410,3 +410,25 @@ func TestBlocksBreakLinesTheFolderSourceDoesNot(t *testing.T) {
 		}
 	}
 }
+
+// A block shows the images of the content store by their addresses (ADR-28); pages of the folder source do not, and
+// nothing that only looks like such an address passes.
+func TestBlocksShowImagesOfTheStore(t *testing.T) {
+	lib := Build(Input{Pages: []Page{page("other.md", "# Other\n\n![x](/api/files/7k2m9q4x1c/content)\n")}})
+	got, err := lib.RenderMarkdown("![shot](/api/pages/7k2m9q4x1c/attachments/a1) ![file](/api/files/8p3n5v2w6h/content) " +
+		"![bad](/api/files/8p3n5v2w6h/content/../../state) ![other](/api/pages/7k2m9q4x1c/attachments/b1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`src="/api/pages/7k2m9q4x1c/attachments/a1"`, `src="/api/files/8p3n5v2w6h/content"`} {
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("missing %s: %s", want, got.HTML)
+		}
+	}
+	if len(got.Broken) != 2 {
+		t.Errorf("what is not an address of the store is broken: %+v", got.Broken)
+	}
+	if len(lib.Problems()) != 1 {
+		t.Errorf("the folder source shows no image of the store: %+v", lib.Problems())
+	}
+}
