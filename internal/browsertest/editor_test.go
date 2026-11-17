@@ -46,9 +46,12 @@ func jsonList(items []string) (string, error) {
 func (b *browser) watch() {
 	b.t.Helper()
 	b.eval(`(() => {
-		window.writes = []; window.problems = [];
+		window.writes = []; window.written = []; window.problems = [];
 		const original = window.fetch;
-		window.fetch = (url, init) => { const m = (init && init.method) || 'GET'; if (m !== 'GET' && !String(url).startsWith('/api/settings')) window.writes.push(m + ' ' + url); return original(url, init); };
+		// writes are the changes sent, written those the server has answered.
+		window.fetch = (url, init) => { const m = (init && init.method) || 'GET', w = m !== 'GET' && !String(url).startsWith('/api/settings');
+			if (w) window.writes.push(m + ' ' + url);
+			const answer = original(url, init); if (w) answer.then(() => window.written.push(m + ' ' + url), () => {}); return answer; };
 		document.addEventListener('securitypolicyviolation', e => window.problems.push('CSP ' + e.effectiveDirective + ' ' + e.blockedURI + ' ' + e.sourceFile + ':' + e.lineNumber));
 		addEventListener('error', e => window.problems.push('error ' + e.message));
 		addEventListener('unhandledrejection', e => window.problems.push('rejection ' + (e.reason && e.reason.message || e.reason)));

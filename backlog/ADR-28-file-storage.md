@@ -42,6 +42,29 @@ Hybrid, chosen by the maintainer on 2026-11-16.
   place (M-7). UnderDoc manages Samba users and shares through a small local channel and does not run as root. Each user has
   an app password for SMB.
 
+## Addendum 2026-11-17: the roots under Files
+
+Settled with the maintainer on 2026-11-16, written down before the build of M-2.
+
+- **The view Files has three kinds of roots:** the **folder of the tenant** (the company's files, "Company"), a **folder of
+  each user** ("My files") and **collections** with members of their own. Sources of files (M-27) appear later as further
+  roots.
+- **Technically all three are collections**, in an area of their own beside the documents, so the documents never show
+  them and a file never lands among the pages. The folder of the tenant is a collection whose membership is fixed to
+  everyone: all read, and a group named by an administrator writes. The folder of a user is a collection with one member.
+  A collection has members and roles, links of its own for sharing, and optionally a share over Samba or WebDAV.
+- **Until roles per group arrive (ADR-29),** the rules of ADR-20 hold: the folder of a user is private to that user, the
+  folder of the tenant is read only for all others, with its writers' group as the one exception, and a collection is
+  like a collection of the documents. The folder of the tenant and the folders of users are never deleted or moved.
+- **A space of the documents can link one collection of the files** as "files of this space". Pasted images stay
+  attachments of their page (see above); "move to the files" makes one a file in a folder of the files, and the page
+  shows the file from then on.
+- **Quotas** hold per folder of a user, per collection and per tenant: an administrator sets them, and defaults come from
+  the configuration. An upload counts against them with its declared size from its start, so many uploads at once cannot
+  pass a quota.
+- **A hoster** offers the same roots over WebDAV (M-7). **Samba** shows the folder of the tenant as `\\server\Company`,
+  the folder of each user through `[homes]`, and each collection that is shared as a share of its own.
+
 ## Consequences
 
 - Samba comes last in the sprint of 2026-11-16 (the maintainer): LibreOffice is measured in a container, and saving from real

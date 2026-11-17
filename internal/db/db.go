@@ -32,6 +32,8 @@ var migrations embed.FS
 // DB is the connection pool with the schema brought up to date.
 type DB struct {
 	pool *pgxpool.Pool
+	// limits are the sizes files may have (SetLimits); set once before the first request.
+	limits Limits
 }
 
 // Errors a caller can tell apart.
@@ -227,6 +229,13 @@ const (
 	KindPage       = "page"
 	// KindNotes is a board of quick notes: its cards are its blocks (M-8).
 	KindNotes = "notes"
+	KindFile  = "file"
+)
+
+// Areas of objects (ADR-28): the documents, and the view Files with its roots.
+const (
+	AreaDocs  = "docs"
+	AreaFiles = "files"
 )
 
 // Object is a collection, folder or page, without its content.
@@ -250,15 +259,18 @@ type Object struct {
 	Contents string
 	// Template tells that a page is offered as a template for new pages (M-8).
 	Template bool
+	// Area is where the object lives: AreaDocs for the documents, AreaFiles for the view Files (ADR-28). Below the top it
+	// is the area of the parent.
+	Area string
 }
 
 const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags,
-	coalesce(width, ''), coalesce(contents, ''), template`
+	coalesce(width, ''), coalesce(contents, ''), template, area`
 
 // fields are the places columns scans into, in their order.
 func fields(o *Object) []any {
 	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags,
-		&o.Width, &o.Contents, &o.Template}
+		&o.Width, &o.Contents, &o.Template, &o.Area}
 }
 
 func scan(row pgx.Row) (Object, error) {
@@ -279,6 +291,14 @@ func tagsOf(o Object) []string {
 	return o.Tags
 }
 
+// areaOf gives the area of an object at the top: the documents unless it says otherwise.
+func areaOf(o Object) string {
+	if o.Area == "" {
+		return AreaDocs
+	}
+	return o.Area
+}
+
 // insertObject gives the object a new ID and puts it last at its place. A clash of IDs is drawn again.
 func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	o.Title = strings.TrimSpace(o.Title)
@@ -288,11 +308,11 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, area)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''),
 				(SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NOT DISTINCT FROM nullif($6, '')),
-				nullif($7, ''), $8, $9, nullif($10, ''), nullif($11, ''))
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o), o.Width, o.Contents))
+				nullif($7, ''), $8, $9, nullif($10, ''), nullif($11, ''), coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $12))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o), o.Width, o.Contents, areaOf(o)))
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "objects_pkey" && attempt < 5 {
 			continue
@@ -328,9 +348,10 @@ const visible = `NOT EXISTS (
 // not deleted never lies below one that is.
 const alive = `o.deleted_at IS NULL`
 
-// Collections returns the collections at the top that the viewer may see, in their order.
+// Collections returns the collections of the documents at the top that the viewer may see, in their order. The roots
+// of the view Files are collections too, and come from FileRoots.
 func (db *DB) Collections(ctx context.Context, viewer string) ([]Object, error) {
-	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND `+alive+` AND `+visible+`
+	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND area = 'docs' AND `+alive+` AND `+visible+`
 		ORDER BY private DESC, position, created`, viewer)
 }
 

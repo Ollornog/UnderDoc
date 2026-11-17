@@ -92,7 +92,7 @@ type writer struct {
 // MetaFile with the format and the order of the shared collections; private notes go to private/<login>/.
 func Write(t Tree, put Put) ([]string, error) {
 	w := &writer{put: put}
-	names := newNamer(PrivateDir)
+	names := newNamer(PrivateDir, FilesDir)
 	root := dirMeta{Format: Format}
 	for _, n := range t.Shared {
 		e, err := w.node("", names, n)

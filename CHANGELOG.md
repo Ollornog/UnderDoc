@@ -28,6 +28,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Files of M-2 without Samba (ADR-28, docs/files.md): a content store keeps every version of a file and every attachment
+  of a page as a blob named by its SHA-256, once per content and apart per tenant (`UNDERDOC_STORE_DIR`). The view Files
+  shows its roots in nav2, the folder of the company, the user's own folder and collections (addendum to ADR-28), and one
+  folder at a time in nav3, where files are uploaded by a button or by dropping them from the desktop; a file opens in
+  the window with a preview of images and video, its versions with download and restore, and the trash. Uploads come in
+  chunks of 8 MiB and resume after a break; their declared size counts against the quota of the user's folder, the
+  collection and the tenant from the start. A file uploaded again under its name becomes a new version, and versions are
+  thinned after 30 days to one a day and after 90 days to one a week (configurable). The type of a file comes from its
+  content; only raster images, text, sound and video show in the browser, everything else is downloaded, and nothing
+  served from the store runs. Pasted images are attachments of their page and can be moved to the files; a collection of
+  the documents can name the files of its space. `underdoc export` writes the files with every version next to the
+  documents, and `underdoc import --files` brings them back, each content checked against its hash.
 - Quick notes are a document type (ADR-16, M-8): a board of small cards in the private notes, newest first, with a field
   on top to add one; each card is a block of the board. New with Quick notes chosen puts a card there without choosing a
   place first, New with a collection makes a page there, and the last choice stays with the account. See docs/editor.md.

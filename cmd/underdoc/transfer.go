@@ -4,16 +4,20 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os"
 	"path"
 	"slices"
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/transfer"
 )
@@ -75,6 +79,115 @@ func export(ctx context.Context, dir string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "warning:", w)
 	}
 	fmt.Fprintf(stdout, "exported %d collections and the private notes of %d accounts as %d files to %s\n", len(shared), accounts(private), files, dir)
+	return exportFiles(ctx, database, root, stdout)
+}
+
+// exportFiles writes the view Files and the attachments of pages below files/, with their content from the store: a
+// backup of the database and the store together (ADR-28). Without a store there is nothing to write.
+func exportFiles(ctx context.Context, database *db.DB, root *os.Root, stdout io.Writer) error {
+	config, err := readFilesConfig()
+	if err != nil || config.Dir == "" {
+		return err
+	}
+	s, err := store.Open(config.Dir)
+	if err != nil {
+		return err
+	}
+	t, _ := tenant.From(ctx)
+	roots, attachments, err := database.AllFiles(ctx)
+	if err != nil {
+		return err
+	}
+	if err := root.Mkdir(transfer.FilesDir, 0o755); err != nil {
+		return err
+	}
+	dir, err := root.OpenRoot(transfer.FilesDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = dir.Close() }()
+	done, err := transfer.WriteFiles(dir, roots, attachments, func(sha string) (io.ReadCloser, error) { return s.Open(t, sha) })
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "exported %d roots of the files with %d files and %d further versions and attachments to %s/\n", done.Roots, done.Files, done.Blobs, transfer.FilesDir)
+	return nil
+}
+
+func hashOf(r io.Reader) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// importFiles reads a files/ directory of an export back: the content into the store, checked against its hash, then the
+// roots, files, versions and attachments into the database in one transaction (docs/files.md).
+func importFiles(ctx context.Context, owner, dir string, stdout, stderr io.Writer) error {
+	config, err := readFilesConfig()
+	if err != nil {
+		return err
+	}
+	if config.Dir == "" {
+		return errors.New("no content store: set UNDERDOC_STORE_DIR")
+	}
+	s, err := store.Open(config.Dir)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	in, err := transfer.ReadFiles(root)
+	if err != nil {
+		return err
+	}
+	database, err := openDatabase(ctx)
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	t, _ := tenant.From(ctx)
+	// Every copy of every content is checked against its hash, so a backup changed by hand is found, not half taken.
+	for _, sha := range slices.Sorted(maps.Keys(in.Sources)) {
+		for i, name := range in.Sources[sha] {
+			f, err := root.Open(name)
+			if err != nil {
+				return err
+			}
+			var got string
+			if i == 0 && !s.Has(t, sha) {
+				got, _, err = s.Put(t, f, math.MaxInt64-1)
+				if err == nil && got != sha {
+					_ = s.Remove(t, got)
+				}
+			} else {
+				got, err = hashOf(f)
+			}
+			_ = f.Close()
+			if err != nil {
+				return err
+			}
+			if got != sha {
+				return fmt.Errorf("%s: the content does not match its hash %s", name, sha)
+			}
+		}
+	}
+	done, err := database.ImportFiles(ctx, owner, in.Roots, in.Attachments, func(sha string) bool { return s.Has(t, sha) })
+	if err != nil {
+		return err
+	}
+	for _, w := range done.Warnings {
+		fmt.Fprintln(stderr, "warning:", w)
+	}
+	for _, old := range slices.Sorted(maps.Keys(done.Renamed)) {
+		fmt.Fprintf(stderr, "new id: %s was taken or not valid, it is %s now\n", old, done.Renamed[old])
+	}
+	fmt.Fprintf(stdout, "imported %d roots with %d objects, %d versions and %d attachments, %d got a new id\n",
+		done.Roots, done.Objects, done.Versions, done.Attachments, len(done.Renamed))
 	return nil
 }
 

@@ -61,6 +61,8 @@ type apiState struct {
 	Problems    int       `json:"problems"`
 	// Settings are the account's settings of the workspace, as the browser saved them; absent without the database.
 	Settings json.RawMessage `json:"settings,omitempty"`
+	// Files tells that the view Files has the database and the content store behind it (ADR-28).
+	Files bool `json:"files,omitempty"`
 }
 
 type apiDocument struct {
@@ -116,6 +118,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 			Admin: h.isAdmin(r)},
 		CanCreate: h.options.DB != nil,
 		Problems:  len(lib.Problems()),
+		Files:     h.options.DB != nil && h.options.Store != nil,
 	}
 	if state.User.Groups == nil {
 		state.User.Groups = []string{}

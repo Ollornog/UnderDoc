@@ -49,6 +49,13 @@ func (db *DB) Delete(ctx context.Context, objectID, viewer string) error {
 	if o.Parent == "" && o.Owner != viewer {
 		return ErrNotAllowed
 	}
+	// The folder of the tenant and of each user stay: they are where files land (ADR-28).
+	if fixed, err := isFixedRoot(ctx, db.pool, objectID); err != nil || fixed {
+		if err == nil {
+			err = ErrNotAllowed
+		}
+		return err
+	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var deleted bool
 		if err := tx.QueryRow(ctx, "SELECT deleted_at IS NOT NULL FROM objects WHERE id = $1 FOR UPDATE", objectID).Scan(&deleted); err != nil {

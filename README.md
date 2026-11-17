@@ -67,12 +67,17 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 | `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |
 | `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
+| `UNDERDOC_STORE_DIR` | The content store of the files, with the database; limits and versions in [docs/files.md](docs/files.md) | none: no files |
 
 **Export and import** need the database and work on one tenant, Main unless `--tenant <id>` names another.
 `underdoc export <dir>` writes every collection as normal files: directories,
 Markdown files with front matter, and a hidden comment before each block that keeps its ID. `underdoc import --owner <login>
 <dir> <title>` reads such a tree, or any folder of Markdown files, into a new collection. The layout and the rules are in
 [docs/export.md](docs/export.md).
+
+**Files** need the database and `UNDERDOC_STORE_DIR`: the view Files has the folder of the company, a folder of each user
+and collections, with uploads that resume, versions, quotas and a trash. Every version lies once in a content store named
+by its hash, and an export takes the files along. How it works: [docs/files.md](docs/files.md).
 
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from

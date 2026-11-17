@@ -328,7 +328,8 @@ function nav2Html(){
   return items.map(one2).join('')+(acts.length?'<span class="favsep"></span>'+acts.map(one).join(''):'');
 }
 const SECTIONS={
-  files:()=>[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
+  files:()=>FS.pending?[]:FS.on?[...FS.roots.map(r=>[r.id,esc(r.n),r.role==='user'?'user':r.role==='tenant'?'hd':'grid']),['newfcoll','New collection','plus',1],['ext','Add a source','plus',1]]
+    :[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
   todo:()=>[...TL.map(l=>[l.id,l.n,l.i]),['newlist','New list','plus',1]],
   cal:()=>[['all','All calendars','grid',0,1],...CALS.map(c=>[c.id,c.n,c.i]),['import','Import a calendar','down',1]],
   time:()=>[['week','This week','clock'],['last','Last week','clock'],['oct','October','cal'],['export','Export','down',1]],
@@ -671,6 +672,7 @@ function nav3Html(){
   if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
   if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
   if(v==='files'){
+    if(FS.on&&sec!=='ext')return filesNav3();
     if(sec==='ext') return `<div class="spanel"><div class="shead">Add a source</div>${[['SMB share','A Windows or NAS share'],['WebDAV','A cloud folder over WebDAV'],['SFTP','A folder on a server'],['S3','An object store bucket']].map(x=>`<button class="opt" disabled>${x[0]}<small>${x[1]}</small></button>`).join('')}<p class="hint">Later. A source you add shows here next to your files and the share, and every user sees only the sources they may use.</p></div>`;
     const root=sec==='home'?'~':'',head=sec==='home'?'My files · only you':'Share';
     return `<div class="tree" id="tree"><div class="chead first">${head}</div><ul class="t top">${listRow('dir:'+root,'folder',sec==='home'?'All my files':'All of the share')}${FILEROWS[root].map(x=>diskRow(root,x)).join('')}</ul></div>`;}
@@ -890,6 +892,7 @@ document.addEventListener('click',e=>{
     case 'aid':S.aid=!S.aid;break;
     case 'aiask':S.chat.push({q:a.id,a:aiAnswer()});break;
     case 'focus':S.focus=+a.id;break;
+    case 'fdir':case 'fopen':case 'fnewdir':case 'fup':case 'frestore':case 'ftrash':if(!filesAct(act,a))return;break;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
@@ -1856,7 +1859,122 @@ function loadSettings(server){
   if(!o||typeof o!=='object')return null;
   KEEP.forEach(k=>{if(o[k]!==undefined&&k!=='fav'&&k!=='pin')S[k]=o[k];});return o;
 }
+/* ---- The view Files (ADR-28): roots, folders and files of the content store ----
+   nav2 lists the roots: the folder of the tenant, the user's own folder and collections. nav3 shows one folder at a
+   time with its path, and takes uploads by its button or by dropping files on it; a file opens in the window with its
+   preview, its versions and a download. Without the store on the server, the view keeps the made-up content. */
+const FS={on:false,pending:false,roots:[],dirs:{},cur:{},ups:[],chunk:8<<20,admin:false,form:null};
+TYPE.file=['page','File'];TYPE.fdir=['folder','Folder'];
+const fsize=n=>n<1024?n+' B':n<1<<20?Math.round(n/1024)+' KB':n<1<<30?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(1)+' GB';
+const fget=async url=>{const r=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return r.json();};
+const fsend=async(url,method,body)=>{const r=await fetch(url,{...same,method,body:body===undefined?undefined:JSON.stringify(body)});
+  const a=r.status===204?{}:await r.json().catch(()=>({}));if(!r.ok)throw new Error(a.error||String(r.status));return a;};
+async function loadRoots(){
+  let a;try{const r=await fetch('/api/files',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
+  FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;
+  if(!FS.roots.some(x=>x.id===S.sec.files)&&!['ext','newfcoll'].includes(S.sec.files))S.sec.files=(FS.roots.find(x=>x.role==='user')||FS.roots[0]||{id:'ext'}).id;
+  render();
+}
+async function loadDir(id){
+  FS.dirs[id]=FS.dirs[id]||{loading:true,entries:[]};
+  try{const a=await fget('/api/files/'+encodeURIComponent(id)+'/list');FS.dirs[id]={...a,loading:false};}
+  catch(e){FS.dirs[id]={failed:true,entries:[]};}
+  render();
+}
+const froot=()=>FS.roots.find(x=>x.id===S.sec.files);
+/* The path from the root to the folder shown: each step was opened from the one before, so all of them are known. */
+function fcrumbs(root,cur){const out=[];for(let x=cur;x;x=FS.dirs[x]&&FS.dirs[x].parent){out.unshift(x);if(x===root)break;}
+  return out.map((x,k)=>k===out.length-1?`<span>${esc(FS.dirs[x]&&FS.dirs[x].n||'')}</span>`:`<button class="l" data-act="fdir" data-id="${x}">${esc(FS.dirs[x].n)}</button>`).join(' › ');}
+function filesNav3(){
+  const sec=S.sec.files;
+  if(sec==='newfcoll')return `<div class="spanel"><div class="shead">New collection</div><form data-fform="coll"><input name="title" value="Files" aria-label="Name of the collection" required maxlength="200"><button class="chip" type="submit">Make</button></form><p class="hint">A collection of files with its own members; until roles come (ADR-29), others may do what you let them.</p></div>`;
+  const r=froot();if(!r)return '<p class="lab pad">Loading…</p>';
+  const cur=FS.cur[r.id]||r.id,d=FS.dirs[cur];
+  if(!d){loadDir(cur);return '<p class="lab pad">Loading…</p>';}
+  const room=r.limit>0?`${fsize(r.used)} of ${fsize(r.limit)}`:`${fsize(r.used)} used`;
+  const rows=d.entries.map(e=>{const t=at(S.focus),key=SID[e.id],sel=t&&key&&t.d===key;
+    return e.t==='file'?`<li><div class="row${sel?' cur':''}" data-frow="${e.id}"><button class="arrow none" aria-hidden="true" tabindex="-1">${ic('chev')}</button><button class="name" data-act="fopen" data-id="${e.id}" title="${esc(e.n)}">${ic('page')}<span>${esc(e.n)}</span></button><span class="count" title="${e.versions} versions">${fsize(e.size)}</span></div></li>`
+      :`<li><div class="row" data-frow="${e.id}"><button class="arrow" data-act="fdir" data-id="${e.id}" aria-label="Open ${esc(e.n)}">${ic('chev')}</button><button class="name" data-act="fdir" data-id="${e.id}" title="${esc(e.n)}">${ic('folder')}<span>${esc(e.n)}</span></button></div></li>`;}).join('');
+  const ups=FS.ups.filter(u=>u.dir===cur).map(u=>`<li class="lab" data-fup="${esc(u.name)}"><small>${esc(u.name)}</small> <progress max="${u.size||1}" value="${u.done}"></progress> <small>${u.err?esc(u.err):u.state}</small></li>`).join('');
+  const tools=d.canEdit?`<div class="tagrow"><button class="chip" data-act="fup" data-id="${cur}">${ic('plus')} Upload</button><button class="chip" data-act="fnewdir" data-id="${cur}">${ic('folder')} New folder</button></div>
+    <input type="file" multiple hidden data-fpick="${cur}" aria-label="Files to upload">`:`<p class="hint">${r.role==='tenant'?'Everyone reads this folder; its writers change it.':'You may only read here.'}</p>`;
+  const form=FS.form===cur?`<form data-fform="dir" data-id="${cur}"><input name="title" value="New folder" aria-label="Name of the folder" required maxlength="200"><button class="chip" type="submit">Make</button></form>`:'';
+  return `<div class="tree" id="tree" data-fdrop="${d.canEdit?cur:''}"><div class="chead first">${esc(r.n)}</div><p class="hint">${fcrumbs(r.id,cur)} · ${room}</p>${tools}${form}
+    <ul class="t top">${rows||(d.loading?'':'<li class="lab pad">Empty. Upload files or drop them here.</li>')}${ups}</ul></div>`;
+}
+/* A file opens in the window like any document: what the browser may show inline is shown, everything else is a
+   download; the versions list who changed it and when, and an older one comes back as a new version. */
+async function openFile(sid){
+  const key=keyOf(sid);
+  if(!D[key])pseudo(key,{t:'file',n:'…',path:'the content store',vis:'',stat:'',html:'<p class="lab">Loading…</p>'});
+  D[key].sid=sid;openDoc(key);render();
+  let f;try{f=await fget('/api/files/'+encodeURIComponent(sid));}catch(e){D[key].html='<p class="lab">This file could not be loaded.</p>';render();return;}
+  const url=f.content,dl=url+'?download=1',img=f.inline&&f.type.startsWith('image/'),vid=f.inline&&f.type.startsWith('video/');
+  const preview=img?`<img src="${url}" alt="${esc(f.n)}">`:vid?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)} yet. Download it to open it.</div>`;
+  const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
+  Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
+    html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
+      <h2>Versions</h2>${tableHtml(['Version','When','Who','Size',''],vrows)}`});
+  render();
+}
+/* Uploads go in chunks, and a broken one resumes where the server says it stands: the browser keeps the ID of each
+   upload under its target, name, size and date, so choosing the same file again continues it. */
+const upKey=(target,f)=>'ud-upload:'+JSON.stringify([target.parent||target.file||target.page,f.name,f.size,f.lastModified]);
+const keep={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+async function uploadOne(f,target,up){
+  const k=upKey(target,f);let u=null;
+  const kept=keep.get(k);if(kept){try{u=await fget('/api/uploads/'+encodeURIComponent(kept));}catch(e){keep.del(k);}}
+  if(!u){u=await fsend('/api/uploads','POST',{...target,name:f.name,size:f.size});keep.set(k,u.id);}
+  let off=u.received,tries=0;up.done=off;
+  while(off<f.size){
+    const end=Math.min(off+(u.chunk||FS.chunk),f.size);let r=null;
+    try{r=await fetch('/api/uploads/'+encodeURIComponent(u.id),{method:'PATCH',credentials:'same-origin',headers:{'Upload-Offset':String(off),Accept:'application/json'},body:f.slice(off,end)});}catch(e){r=null;}
+    if(r&&(r.ok||r.status===409)){const a=await r.json();off=a.received;up.done=off;tries=0;render();continue;}
+    if(r&&r.status!==408&&r.status<500){const a=await r.json().catch(()=>({}));keep.del(k);throw new Error(a.error||String(r.status));}
+    /* A break of the network or a server that fails for a moment: a few tries, each waiting longer, then the upload
+       waits for the same file to be chosen again. */
+    if(++tries>5)throw new Error('the connection broke, choose the file again to resume');
+    up.state=`waiting to resume (${tries})`;render();await pause(500*2**tries);
+  }
+  up.state='finishing';render();
+  const done=await fsend('/api/uploads/'+encodeURIComponent(u.id)+'/finish','POST');keep.del(k);return done;
+}
+async function uploadFiles(files,target,dir){
+  for(const f of files){
+    const up={name:f.name,size:f.size,done:0,state:'uploading',dir};FS.ups.push(up);render();
+    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;}catch(e){up.err=e.message;}
+    render();
+  }
+  setTimeout(()=>{FS.ups=FS.ups.filter(u=>u.err);render();},2500);
+  if(dir)await loadDir(dir);
+  if(target.file)await openFile(target.file);
+  await loadRoots();
+}
+function filesAct(act,a){
+  switch(act){
+    case 'fdir':FS.cur[S.sec.files]=a.id;FS.form=null;if(!FS.dirs[a.id]||!FS.dirs[a.id].loading)loadDir(a.id);break;
+    case 'fopen':openFile(a.id);break;
+    case 'fnewdir':FS.form=FS.form===a.id?null:a.id;break;
+    case 'fup':{const pick=a.file?document.querySelector(`[data-fpick-file="${a.file}"]`):document.querySelector(`[data-fpick="${a.id}"]`);if(pick)pick.click();return false;}
+    case 'frestore':fsend('/api/files/'+encodeURIComponent(a.id)+'/versions/'+encodeURIComponent(a.n)+'/restore','POST').then(()=>{toast('Restored as a new version.');openFile(a.id);}).catch(e=>toast(e.message));break;
+    case 'ftrash':{const key=SID[a.id],parent=D[key]&&D[key].fparent;fsend('/api/objects/'+encodeURIComponent(a.id),'DELETE').then(()=>{toast('Moved to the trash.');const w=S.wins[S.focus];if(w.tabs[0].d===key)fallback(w);if(parent)loadDir(parent);loadRoots();}).catch(e=>toast(e.message));break;}
+  }
+  return true;
+}
+document.addEventListener('change',e=>{const n=e.target;if(!n.files||!n.files.length)return;
+  if(n.dataset.fpick!==undefined){uploadFiles([...n.files],{parent:n.dataset.fpick},n.dataset.fpick);n.value='';}
+  else if(n.dataset.fpickFile!==undefined){uploadFiles([...n.files],{file:n.dataset.fpickFile},D[SID[n.dataset.fpickFile]]&&D[SID[n.dataset.fpickFile]].fparent);n.value='';}});
+document.addEventListener('submit',e=>{const f=e.target.closest('[data-fform]');if(!f)return;e.preventDefault();const title=f.elements.title.value.trim();if(!title)return;
+  if(f.dataset.fform==='dir'){const parent=f.dataset.id;fsend('/api/folders','POST',{title,parent}).then(()=>{FS.form=null;loadDir(parent);}).catch(e=>toast(e.message));}
+  else fsend('/api/files/collections','POST',{title}).then(a=>{S.sec.files=a.id;loadRoots();}).catch(e=>toast(e.message));});
+/* Files dropped from the desktop onto the folder shown in nav3 are uploaded into it. */
+document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('[data-fdrop]');if(z&&z.dataset.fdrop&&e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';}});
+document.addEventListener('drop',e=>{const z=e.target.closest&&e.target.closest('[data-fdrop]');if(!z||!z.dataset.fdrop||!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();
+  uploadFiles([...e.dataTransfer.files],{parent:z.dataset.fdrop},z.dataset.fdrop);});
+
 async function boot(){
+  let fileStart=null;
   if(window.C22AppWorkspaceDrag)C22AppWorkspaceDrag.attach(DRAG);
   if(window.UnderDocBlockDrag)UnderDocBlockDrag.attach(BDRAG);
   let st=null;
@@ -1867,6 +1985,7 @@ async function boot(){
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
+    if(st.files){FS.pending=true;loadRoots().finally(()=>{FS.pending=false;render();});const m=location.pathname.match(/^\/o\/([0-9a-z]{10})$/);if(m&&!SID[m[1]])fileStart=m[1];}
   }
   const kept=loadSettings(st&&st.settings);
   if(kept)applyN2(kept.n2);
@@ -1879,6 +1998,8 @@ async function boot(){
   if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}
   else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
   S.booted=true;render();
+  /* An address of a file opens the view Files with the file in the window. */
+  if(fileStart)fget('/api/files/'+fileStart).then(f=>{S.view='files';S.rail=true;openFile(f.id);}).catch(()=>{});
 }
 /* A link inside a page to another page opens it in the window, as a click in the list does; Ctrl or the middle button
    leave it to the browser. */

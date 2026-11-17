@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -28,6 +29,15 @@ func copyTitle(title string) string {
 	return string(r) + mark
 }
 
+// fileCopyTitle marks a file as a copy before its extension, so it keeps its type: "plan (copy).pdf".
+func fileCopyTitle(name string) string {
+	base, ext := name, ""
+	if i := strings.LastIndex(name, "."); i > 0 && len([]rune(name[i:])) <= 16 {
+		base, ext = name[:i], name[i:]
+	}
+	return copyTitle(base) + ext
+}
+
 // Copy duplicates an object with everything below it that the viewer sees into parent, after the entry named by after
 // or first. The viewer must be allowed to change the parent (ADR-20); the copies belong to the viewer, pages keep their
 // blocks with their IDs, and the top copy is marked as a copy in its title. Only a collection stands at the top, and
@@ -37,7 +47,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 	if err != nil {
 		return Object{}, err
 	}
-	if parent == "" && o.Kind != KindCollection {
+	if parent == "" && (o.Kind != KindCollection || o.Area == AreaFiles) {
 		return Object{}, ErrPlace
 	}
 	if parent != "" {
@@ -48,7 +58,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if err := db.mayEdit(ctx, p, viewer); err != nil {
 			return Object{}, err
 		}
-		if IsDivider(p.Kind) {
+		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {
 			return Object{}, ErrPlace
 		}
 		for x := p; ; {
@@ -69,12 +79,20 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		kids []*node
 	}
 	count := 0
+	// size is what the copies of files and attachments add to the store's count, checked against the quotas.
+	var size int64
 	var read func(o Object) (*node, error)
 	read = func(o Object) (*node, error) {
 		if count++; count > copyLimit {
 			return nil, ErrTooMany
 		}
 		n := &node{o: o}
+		var more int64
+		if err := db.pool.QueryRow(ctx, `SELECT coalesce((SELECT size FROM file_versions WHERE file = $1 ORDER BY number DESC LIMIT 1), 0)
+			+ coalesce((SELECT sum(size) FROM attachments WHERE page = $1), 0)`, o.ID).Scan(&more); err != nil {
+			return nil, err
+		}
+		size += more
 		kids, err := db.Children(ctx, o.ID, viewer)
 		if err != nil {
 			return nil, err
@@ -93,7 +111,24 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		return Object{}, err
 	}
 	var top Object
+	root := ""
+	if o.Area == AreaFiles {
+		if root, err = rootOf(ctx, db.pool, parent); err != nil {
+			return Object{}, err
+		}
+	}
 	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if size > 0 {
+			if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockQuota); err != nil {
+				return err
+			}
+			if err := db.checkRoom(ctx, tx, root, size); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared($1)", lockBlobs); err != nil {
+				return err
+			}
+		}
 		position, err := place(ctx, tx, parent, after)
 		if err != nil {
 			return err
@@ -105,10 +140,24 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			if err != nil {
 				return Object{}, err
 			}
-			if _, err := tx.Exec(ctx, "UPDATE objects SET next_block = (SELECT next_block FROM objects WHERE id = $2) WHERE id = $1", made.ID, n.o.ID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE objects SET (next_block, next_attachment) = (SELECT next_block, next_attachment FROM objects WHERE id = $2)
+				WHERE id = $1`, made.ID, n.o.ID); err != nil {
 				return Object{}, err
 			}
-			if _, err := tx.Exec(ctx, "INSERT INTO blocks (page, id, position, body, align) SELECT $1, id, position, body, align FROM blocks WHERE page = $2", made.ID, n.o.ID); err != nil {
+			// Attachments go with their page, and its blocks show the copies (ADR-28).
+			if _, err := tx.Exec(ctx, `INSERT INTO blocks (page, id, position, body, align)
+				SELECT $1, id, position, replace(body, $3, $4), align FROM blocks WHERE page = $2`,
+				made.ID, n.o.ID, AttachmentPath(n.o.ID, ""), AttachmentPath(made.ID, "")); err != nil {
+				return Object{}, err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO attachments (page, id, blob, size, name, content_type, author)
+				SELECT $1, id, blob, size, name, content_type, $3 FROM attachments WHERE page = $2`, made.ID, n.o.ID, viewer); err != nil {
+				return Object{}, err
+			}
+			// A copy of a file starts with the content it has now; its history stays with the original.
+			if _, err := tx.Exec(ctx, `INSERT INTO file_versions (file, number, blob, size, name, content_type, author)
+				SELECT $1, 1, blob, size, $3, content_type, $4 FROM file_versions WHERE file = $2 ORDER BY number DESC LIMIT 1`,
+				made.ID, n.o.ID, title, viewer); err != nil {
 				return Object{}, err
 			}
 			if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) SELECT page, id, body, $2 FROM blocks WHERE page = $1 ORDER BY position", made.ID, viewer); err != nil {
@@ -124,7 +173,11 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			}
 			return made, nil
 		}
-		if top, err = write(tree, parent, copyTitle(o.Title)); err != nil {
+		title := copyTitle(o.Title)
+		if o.Kind == KindFile {
+			title = fileCopyTitle(o.Title)
+		}
+		if top, err = write(tree, parent, title); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, "UPDATE objects SET position = $2 WHERE id = $1", top.ID, position)

@@ -103,7 +103,7 @@ func checkComment(body string) (string, error) {
 // Comments returns the comments of a page the viewer sees, each thread in the order it began, its replies right after
 // it. A page in the trash, or a private page of someone else, has none to show: it is not found.
 func (db *DB) Comments(ctx context.Context, pageID, viewer string) ([]Comment, error) {
-	if _, err := db.page(ctx, pageID, viewer); err != nil {
+	if _, err := db.commentable(ctx, pageID, viewer); err != nil {
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `SELECT `+commentColumns+commentFrom+` WHERE c.page = $1
@@ -117,7 +117,7 @@ func (db *DB) Comments(ctx context.Context, pageID, viewer string) ([]Comment, e
 // OpenComments counts the comments of a page the viewer sees that belong to a thread not resolved, by block; the whole
 // page counts under "". Comments on a block that is gone count under its ID too.
 func (db *DB) OpenComments(ctx context.Context, pageID, viewer string) (map[string]int, error) {
-	if _, err := db.page(ctx, pageID, viewer); err != nil {
+	if _, err := db.commentable(ctx, pageID, viewer); err != nil {
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `SELECT c.block, count(*) FROM comments c LEFT JOIN comments t ON t.id = c.parent
@@ -146,7 +146,7 @@ func (db *DB) AddComment(ctx context.Context, pageID, viewer, block, body string
 	if err != nil {
 		return Comment{}, err
 	}
-	o, err := db.page(ctx, pageID, viewer)
+	o, err := db.commentable(ctx, pageID, viewer)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -165,6 +165,9 @@ func (db *DB) AddComment(ctx context.Context, pageID, viewer, block, body string
 			return Comment{}, ErrPlace
 		}
 	} else if block != "" {
+		if o.Kind != KindPage {
+			return Comment{}, ErrNotFound
+		}
 		var found bool
 		if err := db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM blocks WHERE page = $1 AND id = $2)", pageID, block).Scan(&found); err != nil {
 			return Comment{}, err
@@ -181,6 +184,16 @@ func (db *DB) AddComment(ctx context.Context, pageID, viewer, block, body string
 	return db.comment(ctx, id)
 }
 
+// commentable returns an object that takes comments, a page or a file (ADR-28), if the viewer may see it. A file has no
+// blocks, so its comments are on the whole file.
+func (db *DB) commentable(ctx context.Context, objectID, viewer string) (Object, error) {
+	o, err := db.Object(ctx, objectID, viewer)
+	if err == nil && o.Kind != KindPage && o.Kind != KindFile {
+		err = ErrNotFound
+	}
+	return o, err
+}
+
 func (db *DB) comment(ctx context.Context, id int64) (Comment, error) {
 	return scanComment(db.pool.QueryRow(ctx, `SELECT `+commentColumns+commentFrom+` WHERE c.id = $1`, id))
 }
@@ -192,7 +205,7 @@ func (db *DB) ownComment(ctx context.Context, id int64, viewer string) (Comment,
 	if err != nil {
 		return Comment{}, Object{}, err
 	}
-	o, err := db.page(ctx, c.Page, viewer)
+	o, err := db.commentable(ctx, c.Page, viewer)
 	if err != nil {
 		return Comment{}, Object{}, err
 	}

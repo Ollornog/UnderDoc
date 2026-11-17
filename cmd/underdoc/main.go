@@ -14,12 +14,16 @@
 //	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
 //	UNDERDOC_TENANTS        "one" tenant, or "many" found by their host name, which needs the database ("one")
 //	UNDERDOC_TENANT_DOMAIN  with many tenants, the domain of the hoster: <tenant>.<domain> leads to a tenant
+//	UNDERDOC_STORE_DIR      the content store of the files, with the database (none: no files; docs/files.md)
+//	UNDERDOC_FILES_MAX_SIZE, _QUOTA, _USER_QUOTA, _COLLECTION_QUOTA, _KEEP_ALL_DAYS, _KEEP_DAILY_DAYS, _KEEP_WEEKLY_DAYS
+//	                        limits and how long versions are kept (docs/files.md)
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
 //
 //	underdoc export [--tenant <id>] <dir>                          every collection as normal files, private notes under private/<login>/
 //	underdoc import [--tenant <id>] --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
+//	underdoc import [--tenant <id>] --files --owner <login> <dir>  the files/ of an export, with UNDERDOC_STORE_DIR (docs/files.md)
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
 //
 // There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
@@ -33,6 +37,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -40,13 +45,14 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
+	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/version"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc tenant add <id> <name> | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -75,6 +81,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 		defer stop()
 		err = serve(ctx, dir, stdout)
+	case args[0] == "import" && slices.Contains(args, "--files"):
+		ctx, rest, terr := tenantFlag(context.Background(), slices.DeleteFunc(slices.Clone(args[1:]), func(a string) bool { return a == "--files" }))
+		owner, rest, ok := ownerFlag(rest)
+		if terr != nil || !ok || len(rest) != 1 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = importFiles(ctx, owner, rest[0], stdout, stderr)
 	case args[0] == "export":
 		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
 		if terr != nil || len(rest) != 1 {
@@ -112,8 +126,8 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		return fmt.Errorf("UNDERDOC_SCAN_INTERVAL: a positive duration is expected, like 2s")
 	}
 	log := slog.New(slog.NewJSONHandler(stdout, nil))
-	store := library.NewStore(folder.New(dir), log)
-	if err := store.Refresh(); err != nil {
+	lib := library.NewStore(folder.New(dir), log)
+	if err := lib.Refresh(); err != nil {
 		return err
 	}
 	options := web.Options{
@@ -125,7 +139,7 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
 		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")
 	}
-	healthy := store.Healthy
+	healthy := lib.Healthy
 	if url := os.Getenv("UNDERDOC_DATABASE_URL"); url != "" {
 		database, err := db.Open(ctx, url)
 		if err != nil {
@@ -133,18 +147,29 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		}
 		defer database.Close()
 		options.DB = database
-		healthy = func() bool { return store.Healthy() && database.Healthy(context.Background()) }
+		healthy = func() bool { return lib.Healthy() && database.Healthy(context.Background()) }
 		go database.KeepTrash(ctx, time.Hour, func(err error) { log.Error("emptying the trash failed", slog.String("error", err.Error())) })
+		files, err := readFilesConfig()
+		if err != nil {
+			return err
+		}
+		if files.Dir != "" {
+			if options.Store, err = store.Open(files.Dir); err != nil {
+				return fmt.Errorf("content store: %w", err)
+			}
+			database.SetLimits(files.Limits)
+			go keepFiles(ctx, database, options.Store, files.Retention, time.Hour, log)
+		}
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
 		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}
 		log.Warn("UNDERDOC_DEV_USER is set: every request counts as signed in, never use this behind a real gate", slog.String("user", login))
 	}
-	handler, err := web.New(store, log, options)
+	handler, err := web.New(lib, log, options)
 	if err != nil {
 		return err
 	}
-	go store.Run(ctx, interval)
+	go lib.Run(ctx, interval)
 	log.Info("start", slog.String("version", version.Version))
 	return web.Serve(ctx, log,
 		web.NewServer(env("UNDERDOC_ADDR", defaultAddr), handler, log),
