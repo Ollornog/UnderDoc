@@ -36,6 +36,9 @@ func setupWithSearch(t *testing.T) (*browser, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
+	if err := database.SetSignIn(ctx, db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
+		t.Fatal(err)
+	}
 	engine := meili.New(searchtest.URL(t, searchtest.EnvMeilisearch), "", searchtest.Prefix())
 	t.Cleanup(func() { _ = engine.Drop(context.Background(), tenant.Main) })
 	log := slog.New(slog.DiscardHandler)

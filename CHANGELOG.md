@@ -196,6 +196,9 @@ All notable changes to this project are documented in this file. The format foll
 - The browser tests of the files waited only for the uploads and the folders; they now also wait until no request of the
   view is under way (`FS.busy`) and no toast waits to go, since each of them draws the workspace anew and can swallow a
   click whose press and release it falls between.
+- A test holds the browser-test helper `rect` to putting the mark of a probe back in the step that measures: it redraws a
+  button every two milliseconds and measures it fifty times (TestFilesByHand had failed in the CI when a redraw came
+  between finding and measuring, 2026-11-17).
 - On a touch screen, a finger on a table in the editor puts the cursor into the cell it touched, so the table tools show;
   before, the caret stayed outside the drawn table.
 - Browser tests measured an element found by its text in a second step; when the workspace drew anew in between, the
