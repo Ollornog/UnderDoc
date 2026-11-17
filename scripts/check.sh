@@ -40,6 +40,16 @@ fi
 step "JavaScript: the bundles come from the lockfiles"
 scripts/build-js.sh || fail "JavaScript"
 
+# The search tests run against real engines in throwaway containers (ADR-24). Without Docker this fails: a skipped
+# search test is not a green one. Engines already running can be named instead (scripts/search-engines.sh).
+if [[ -z "${UNDERDOC_TEST_MEILISEARCH_URL:-}" ]]; then
+    step "Search engines in containers"
+    engines="$(scripts/search-engines.sh start)" || fail "search engines (they need Docker, see scripts/search-engines.sh)"
+    eval "$engines"
+    trap 'scripts/search-engines.sh stop "$UNDERDOC_SEARCH_RUN"' EXIT
+    echo "  Meilisearch at $UNDERDOC_TEST_MEILISEARCH_URL"
+fi
+
 # The browser test sits behind a tag, so it also has to pass vet and staticcheck explicitly.
 export GO_PRUEF_TAGS="browser"
 if [[ $FAST -eq 1 ]]; then

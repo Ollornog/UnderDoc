@@ -206,10 +206,10 @@ func TestTheFolderBelongsToMain(t *testing.T) {
 			t.Errorf("acme: %s = %d", target, got.Code)
 		}
 	}
-	if hits := decode[[]apiHit](t, s.getWith("/api/search?q=router", at(acmeHost))); len(hits) != 0 {
+	if hits := decode[apiSearchResult](t, s.getWith("/api/search?q=network", at(acmeHost))).Hits; len(hits) != 0 {
 		t.Errorf("acme finds the folder: %+v", hits)
 	}
-	if hits := decode[[]apiHit](t, s.getWith("/api/search?q=router", at(mainHost))); len(hits) == 0 {
+	if hits := decode[apiSearchResult](t, s.getWith("/api/search?q=network", at(mainHost))).Hits; len(hits) == 0 {
 		t.Error("Main finds its folder")
 	}
 }

@@ -26,6 +26,7 @@ type Store struct {
 	current atomic.Pointer[Library]
 	healthy atomic.Bool
 	state   string
+	watch   watcher
 }
 
 // NewStore returns an empty store. Refresh fills it.
@@ -58,6 +59,7 @@ func (s *Store) Refresh() error {
 	lib := Build(*in)
 	s.current.Store(lib)
 	s.state = state
+	s.changed(lib)
 	s.log.Info("library loaded", slog.Int("documents", lib.Len()), slog.Int("problems", len(lib.Problems())))
 	return nil
 }

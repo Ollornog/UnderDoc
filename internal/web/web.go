@@ -31,6 +31,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/route"
+	"github.com/Ollornog/UnderDoc/internal/search"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -93,6 +94,8 @@ type Options struct {
 	OCR, AIOCR files.OCR
 	// TextChanged tells the search that the text of these files changed; nil until the search takes it.
 	TextChanged func(ctx context.Context, fileIDs []string)
+	// Search answers /api/search when there is a database (ADR-24). Without it, the folder is searched in memory.
+	Search *search.Service
 }
 
 type handler struct {
@@ -115,6 +118,9 @@ type handler struct {
 
 // New returns the complete handler with logging and security headers.
 func New(store *library.Store, log *slog.Logger, options Options) (http.Handler, error) {
+	if options.DB != nil && options.Search == nil {
+		options.Search = search.NewService(nil, TitleFallback(options.DB, store), tenant.Main, log)
+	}
 	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
 		throttle: auth.NewThrottle()}
 	if h.options.Modules.IsZero() {

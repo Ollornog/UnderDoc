@@ -1,0 +1,1076 @@
+[
+ {
+  "q": "E-1042",
+  "page": "fehlerkatalog/e-1042",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1043",
+  "page": "fehlerkatalog/e-1043",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1044",
+  "page": "fehlerkatalog/e-1044",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1050",
+  "page": "fehlerkatalog/e-1050",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1051",
+  "page": "fehlerkatalog/e-1051",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1060",
+  "page": "fehlerkatalog/e-1060",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1061",
+  "page": "fehlerkatalog/e-1061",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-1070",
+  "page": "fehlerkatalog/e-1070",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-2001",
+  "page": "fehlerkatalog/e-2001",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-2002",
+  "page": "fehlerkatalog/e-2002",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-2010",
+  "page": "fehlerkatalog/e-2010",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E-3100",
+  "page": "fehlerkatalog/e-3100",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x80070005",
+  "page": "fehlerkatalog/0x80070005",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x80070057",
+  "page": "fehlerkatalog/0x80070057",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x800f0922",
+  "page": "fehlerkatalog/0x800f0922",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x80004005",
+  "page": "fehlerkatalog/0x80004005",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x8024402c",
+  "page": "fehlerkatalog/0x8024402c",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0xc000021a",
+  "page": "fehlerkatalog/0xc000021a",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x80072ee2",
+  "page": "fehlerkatalog/0x80072ee2",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x8007045d",
+  "page": "fehlerkatalog/0x8007045d",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-00942",
+  "page": "fehlerkatalog/ora-00942",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-01017",
+  "page": "fehlerkatalog/ora-01017",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-12154",
+  "page": "fehlerkatalog/ora-12154",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-12541",
+  "page": "fehlerkatalog/ora-12541",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-01555",
+  "page": "fehlerkatalog/ora-01555",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ORA-00054",
+  "page": "fehlerkatalog/ora-00054",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 503",
+  "page": "fehlerkatalog/http-503",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 502",
+  "page": "fehlerkatalog/http-502",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 401",
+  "page": "fehlerkatalog/http-401",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 403",
+  "page": "fehlerkatalog/http-403",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 404",
+  "page": "fehlerkatalog/http-404",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 429",
+  "page": "fehlerkatalog/http-429",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "HTTP 504",
+  "page": "fehlerkatalog/http-504",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "KB5034441",
+  "page": "fehlerkatalog/kb5034441",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "KB5005565",
+  "page": "fehlerkatalog/kb5005565",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "KB5021233",
+  "page": "fehlerkatalog/kb5021233",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SQLSTATE 23505",
+  "page": "fehlerkatalog/sqlstate-23505",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SQLSTATE 40P01",
+  "page": "fehlerkatalog/sqlstate-40p01",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SQLSTATE 53300",
+  "page": "fehlerkatalog/sqlstate-53300",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SQLSTATE 28P01",
+  "page": "fehlerkatalog/sqlstate-28p01",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "5.7.1",
+  "page": "fehlerkatalog/smtp-5-7-1",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x800CCC0E",
+  "page": "fehlerkatalog/0x800ccc0e",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x8004010F",
+  "page": "fehlerkatalog/0x8004010f",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "AADSTS50076",
+  "page": "fehlerkatalog/aadsts50076",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "AADSTS700016",
+  "page": "fehlerkatalog/aadsts700016",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Event ID 4625",
+  "page": "fehlerkatalog/event-4625",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Event ID 41",
+  "page": "fehlerkatalog/event-41",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Event ID 7034",
+  "page": "fehlerkatalog/event-7034",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ERR_CONNECTION_REFUSED",
+  "page": "fehlerkatalog/err-connection-refused",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "ERR_CERT_DATE_INVALID",
+  "page": "fehlerkatalog/err-cert-date-invalid",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "DNS_PROBE_FINISHED_NXDOMAIN",
+  "page": "fehlerkatalog/dns-probe",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "CVE-2024-3094",
+  "page": "fehlerkatalog/cve-2024-3094",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "CVE-2021-44228",
+  "page": "fehlerkatalog/cve-2021-44228",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "CVE-2023-4966",
+  "page": "fehlerkatalog/cve-2023-4966",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Fehler 809",
+  "page": "fehlerkatalog/vpn-809",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Fehler 691",
+  "page": "fehlerkatalog/vpn-691",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x0000011b",
+  "page": "fehlerkatalog/0x0000011b",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "Fehler 79",
+  "page": "fehlerkatalog/fehler-79",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SC542",
+  "page": "fehlerkatalog/sc542",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SIP 486",
+  "page": "fehlerkatalog/sip-486",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "SIP 408",
+  "page": "fehlerkatalog/sip-408",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "0x800423F4",
+  "page": "fehlerkatalog/vss-0x800423f4",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "code 23",
+  "page": "fehlerkatalog/rsync-23",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "E_ACCESSDENIED",
+  "page": "fehlerkatalog/e-accessdenied",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "max_connections",
+  "page": "fehlerkatalog/max-connections",
+  "heading": "",
+  "kind": "code"
+ },
+ {
+  "q": "e1042",
+  "page": "fehlerkatalog/e-1042",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "e 1042",
+  "page": "fehlerkatalog/e-1042",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "ora-942",
+  "page": "fehlerkatalog/ora-00942",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "ORA 00942",
+  "page": "fehlerkatalog/ora-00942",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "00942",
+  "page": "fehlerkatalog/ora-00942",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "80070005",
+  "page": "fehlerkatalog/0x80070005",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "0X80070005",
+  "page": "fehlerkatalog/0x80070005",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "kb 5034441",
+  "page": "fehlerkatalog/kb5034441",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "5034441",
+  "page": "fehlerkatalog/kb5034441",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "0x80070643",
+  "page": "fehlerkatalog/kb5034441",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "http503",
+  "page": "fehlerkatalog/http-503",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "HTTP-503",
+  "page": "fehlerkatalog/http-503",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "Fehler 809",
+  "page": "fehlerkatalog/vpn-809",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "809",
+  "page": "fehlerkatalog/vpn-809",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "Fehler 79",
+  "page": "fehlerkatalog/fehler-79",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "sqlstate 53300",
+  "page": "fehlerkatalog/sqlstate-53300",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "53300",
+  "page": "fehlerkatalog/sqlstate-53300",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "40p01",
+  "page": "fehlerkatalog/sqlstate-40p01",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "event 4625",
+  "page": "fehlerkatalog/event-4625",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "4625",
+  "page": "fehlerkatalog/event-4625",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "NET::ERR_CERT_DATE_INVALID",
+  "page": "fehlerkatalog/err-cert-date-invalid",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "err_connection_refused",
+  "page": "fehlerkatalog/err-connection-refused",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "550 5.7.1",
+  "page": "fehlerkatalog/smtp-5-7-1",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "0x800ccc0e",
+  "page": "fehlerkatalog/0x800ccc0e",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "cve 2021 44228",
+  "page": "fehlerkatalog/cve-2021-44228",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "sc 542",
+  "page": "fehlerkatalog/sc542",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "TID 60014511",
+  "page": "it-doku/kartenterminals",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "60014511",
+  "page": "it-doku/kartenterminals",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "E-1042 Kartenterminal",
+  "page": "fehlerkatalog/e-1042",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "Fehler E-1043 Kartenzahlung",
+  "page": "fehlerkatalog/e-1043",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "0x80070005 Windows Update",
+  "page": "fehlerkatalog/0x80070005",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "ORA-12541 Listener",
+  "page": "fehlerkatalog/ora-12541",
+  "heading": "",
+  "kind": "code-variant"
+ },
+ {
+  "q": "0x80070015",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "E-1049",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "ORA-00943",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "KB5034440",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "HTTP 418",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "SQLSTATE 53301",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "AADSTS50077",
+  "page": "",
+  "heading": "",
+  "kind": "code-absent"
+ },
+ {
+  "q": "Kartenzahlung",
+  "page": "handbuch/kartenzahlung",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Kasse bedienen",
+  "page": "handbuch/kasse-bedienen",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Inventur",
+  "page": "handbuch/inventur",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "TSE tauschen",
+  "page": "runbooks/tse-tauschen",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Druckerliste",
+  "page": "it-doku/druckerliste",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Serverübersicht",
+  "page": "it-doku/serveruebersicht",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Backup-Konzept",
+  "page": "it-doku/backup-konzept",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Passwortrichtlinie",
+  "page": "handbuch/passwortrichtlinie",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Glossar",
+  "page": "it-doku/glossar",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Zeiterfassung",
+  "page": "handbuch/zeiterfassung",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Kassensturz",
+  "page": "handbuch/kassensturz",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Mahnwesen",
+  "page": "handbuch/mahnwesen",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Netzwerkplan Filiale Nord",
+  "page": "it-doku/netzwerkplan-nord",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Lizenzübersicht",
+  "page": "it-doku/lizenzuebersicht",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Datenbankserver",
+  "page": "it-doku/datenbankserver",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Click & Collect",
+  "page": "handbuch/click-collect",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Change-Board Januar 2026",
+  "page": "protokolle/change-board-2026-01",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Störungsbericht Webshop",
+  "page": "protokolle/stoerung-webshop-2026-02-02",
+  "heading": "",
+  "kind": "title"
+ },
+ {
+  "q": "Kartenzahlung stornieren",
+  "page": "handbuch/kartenzahlung",
+  "heading": "Kartenzahlung stornieren",
+  "kind": "heading"
+ },
+ {
+  "q": "Falschgeld",
+  "page": "handbuch/barzahlung",
+  "heading": "Falschgeld",
+  "kind": "heading"
+ },
+ {
+  "q": "Retoure ohne Bon",
+  "page": "handbuch/retouren",
+  "heading": "Ohne Bon",
+  "kind": "heading"
+ },
+ {
+  "q": "Meldung an das Finanzamt",
+  "page": "runbooks/tse-tauschen",
+  "heading": "Meldung an das Finanzamt",
+  "kind": "heading"
+ },
+ {
+  "q": "Update-Cache zurücksetzen",
+  "page": "runbooks/windows-updates-manuell",
+  "heading": "Update-Cache zurücksetzen",
+  "kind": "heading"
+ },
+ {
+  "q": "Ausleuchtung",
+  "page": "it-doku/wlan-konzept",
+  "heading": "Ausleuchtung",
+  "kind": "heading"
+ },
+ {
+  "q": "Fahrtenbuch",
+  "page": "handbuch/dienstwagen",
+  "heading": "Fahrtenbuch",
+  "kind": "heading"
+ },
+ {
+  "q": "Rufumleitung",
+  "page": "handbuch/telefonanlage-bedienen",
+  "heading": "Rufumleitung",
+  "kind": "heading"
+ },
+ {
+  "q": "Lehren aus der Störung",
+  "page": "protokolle/stoerung-kartenzahlung-2026-03-14",
+  "heading": "Lehren",
+  "kind": "heading"
+ },
+ {
+  "q": "Gesperrte Gutscheine",
+  "page": "runbooks/gutscheinsystem-pruefen",
+  "heading": "Gesperrte Gutscheine",
+  "kind": "heading"
+ },
+ {
+  "q": "Stoppcode lesen",
+  "page": "runbooks/bluescreen-analysieren",
+  "heading": "Stoppcode lesen",
+  "kind": "heading"
+ },
+ {
+  "q": "Organisationseinheiten",
+  "page": "it-doku/active-directory",
+  "heading": "Organisationseinheiten",
+  "kind": "heading"
+ },
+ {
+  "q": "Punkte einlösen",
+  "page": "handbuch/kundenkarte",
+  "heading": "Punkte einlösen",
+  "kind": "heading"
+ },
+ {
+  "q": "Verpflegungspauschalen",
+  "page": "handbuch/reisekosten",
+  "heading": "Abrechnung",
+  "kind": "heading"
+ },
+ {
+  "q": "Speicherabbild",
+  "page": "runbooks/bluescreen-analysieren",
+  "heading": "Speicherabbild",
+  "kind": "heading"
+ },
+ {
+  "q": "Retoure",
+  "page": "handbuch/retouren",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Gutschein",
+  "page": "handbuch/gutscheine",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Zertifikate erneuern",
+  "page": "runbooks/tls-zertifikat-erneuern",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Etikett drucken",
+  "page": "handbuch/etiketten-drucken",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Spesenabrechnung",
+  "page": "handbuch/spesen",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Urlaub beantragen",
+  "page": "handbuch/urlaubsantrag",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Bestellungen beim Lieferanten",
+  "page": "handbuch/lieferantenbestellung",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Wareneingänge buchen",
+  "page": "handbuch/wareneingang",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Mitarbeiterin anlegen",
+  "page": "runbooks/mitarbeiter-anlegen",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Server neustarten",
+  "page": "runbooks/server-neustart",
+  "heading": "",
+  "kind": "wordform"
+ },
+ {
+  "q": "Warteschlange",
+  "page": "runbooks/druckerwarteschlange-leeren",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Partition vergrößern",
+  "page": "runbooks/winre-partition",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Zahlung stornieren",
+  "page": "handbuch/kartenzahlung",
+  "heading": "Kartenzahlung stornieren",
+  "kind": "compound"
+ },
+ {
+  "q": "Drucker Liste",
+  "page": "it-doku/druckerliste",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Bestand Mindest",
+  "page": "handbuch/mindestbestand",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Strom USV",
+  "page": "it-doku/usv-strom",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Gastzugang WLAN",
+  "page": "runbooks/wlan-gast",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Ransomware",
+  "page": "runbooks/ransomware-verdacht",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Telefonanlage",
+  "page": "it-doku/telefonanlage",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Regelwerk Firewall",
+  "page": "it-doku/firewall-regelwerk",
+  "heading": "",
+  "kind": "compound"
+ },
+ {
+  "q": "Kartenzahlnug",
+  "page": "handbuch/kartenzahlung",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Druckerwarteschlage",
+  "page": "runbooks/druckerwarteschlange-leeren",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Zertifkat erneuern",
+  "page": "runbooks/tls-zertifikat-erneuern",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Inventor",
+  "page": "handbuch/inventur",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Passwortrichtlinei",
+  "page": "handbuch/passwortrichtlinie",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Kasensturz",
+  "page": "handbuch/kassensturz",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Gutschien",
+  "page": "handbuch/gutscheine",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Dienstwgen",
+  "page": "handbuch/dienstwagen",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Netzwerkpaln",
+  "page": "it-doku/netzwerkplan-nord",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Ransomwar",
+  "page": "runbooks/ransomware-verdacht",
+  "heading": "",
+  "kind": "typo"
+ },
+ {
+  "q": "Kasse druckt keinen Bon",
+  "page": "fehlerkatalog/e-1050",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Terminal antwortet nicht",
+  "page": "fehlerkatalog/e-1042",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Webshop nicht erreichbar",
+  "page": "runbooks/webshop-wiederherstellen",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Outlook verbindet nicht",
+  "page": "fehlerkatalog/0x800ccc0e",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "VPN im Hotel geht nicht",
+  "page": "fehlerkatalog/vpn-809",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Telefon verloren",
+  "page": "it-doku/mdm",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "neue Kollegin Konto anlegen",
+  "page": "runbooks/mitarbeiter-anlegen",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Waage zeigt kein Gewicht",
+  "page": "fehlerkatalog/e-3100",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Kunde will Geld zurück",
+  "page": "handbuch/retouren",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "wer darf in den Serverraum",
+  "page": "it-doku/zutritt-serverraum",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Kopierer Papierstau",
+  "page": "handbuch/kopierer",
+  "heading": "",
+  "kind": "phrase"
+ },
+ {
+  "q": "Passwort vergessen",
+  "page": "runbooks/passwort-zuruecksetzen",
+  "heading": "",
+  "kind": "phrase"
+ }
+]

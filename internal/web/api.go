@@ -97,13 +97,6 @@ type apiDocument struct {
 	CanComment bool `json:"canComment,omitempty"`
 }
 
-type apiHit struct {
-	ID      string `json:"id"`
-	Title   string `json:"n"`
-	Place   string `json:"place"`
-	Snippet string `json:"snippet"`
-}
-
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -293,32 +286,6 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, answer)
-}
-
-// apiSearch searches the full text of the folder source.
-func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
-	lib := h.library(r.Context())
-	hits := []apiHit{}
-	for _, hit := range lib.Search(r.URL.Query().Get("q"), maxSearchResults) {
-		var snippet strings.Builder
-		for _, f := range hit.Snippet {
-			if f.Match {
-				snippet.WriteString("<mark>" + html.EscapeString(f.Text) + "</mark>")
-			} else {
-				snippet.WriteString(html.EscapeString(f.Text))
-			}
-		}
-		place := homeLabel
-		if folder, ok := lib.Tree().Location(hit.Document.ID); ok && folder != lib.Tree().Root() {
-			var names []string
-			for _, f := range tree.Ancestors(folder)[1:] {
-				names = append(names, f.Name)
-			}
-			place = strings.Join(names, " › ")
-		}
-		hits = append(hits, apiHit{ID: string(hit.Document.ID), Title: hit.Document.Title, Place: place, Snippet: snippet.String()})
-	}
-	writeJSON(w, http.StatusOK, hits)
 }
 
 // apiCreateCollection makes a collection, from the workspace, and answers with it.

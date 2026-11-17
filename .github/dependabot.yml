@@ -76,3 +76,12 @@ updates:
       interval: weekly
     commit-message:
       prefix: "deps"
+  # The search engines the tests run against (scripts/search/Dockerfile.*); the search tests in the CI accept them.
+  - package-ecosystem: docker
+    directory: /scripts/search
+    cooldown:
+      default-days: 3
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"

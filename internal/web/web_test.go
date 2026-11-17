@@ -163,7 +163,7 @@ func TestPagesArrive(t *testing.T) {
 	if net := node(t, state.Collections, "f:ops/net"); len(net.Kids) != 1 || net.Kids[0].Title != "Network plan" || net.Kind != "folder" {
 		t.Errorf("ops/net: %+v", net)
 	}
-	if got := decode[[]apiHit](t, s.get("/api/search?q=xyzzy")); len(got) != 0 {
+	if got := decode[apiSearchResult](t, s.get("/api/search?q=xyzzy")).Hits; len(got) != 0 {
 		t.Errorf("nothing should be found: %+v", got)
 	}
 }
@@ -313,7 +313,7 @@ func TestChangesOnDiskAppear(t *testing.T) {
 	if strings.Join(got.UsedIn, ",") != "B" {
 		t.Errorf("the new backlink is missing: %v", got.UsedIn)
 	}
-	if hits := decode[[]apiHit](t, s.get("/api/search?q=longer")); len(hits) != 1 || hits[0].ID != "a" {
+	if hits := decode[apiSearchResult](t, s.get("/api/search?q=longer")).Hits; len(hits) != 1 || hits[0].ID != "a" {
 		t.Errorf("search did not see the change: %+v", hits)
 	}
 	for _, target := range []string{"/o/a", "/api/doc/a", "/api/state"} {
