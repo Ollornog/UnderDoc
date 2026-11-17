@@ -3,8 +3,7 @@
 `demo.js` draws the workspace, `theme.js` sets light or dark before the page shows, `blockdrag.js` drags a block of a
 page by its handle. All are UnderDoc's own (MIT).
 `editor/` holds the web editor, built from `web/editor` (docs/editor.md): its own code is MIT, and `editor/LICENSES.txt`
-has the licence of every package bundled into it. `editor-trial/` holds the editor trial of M-8, built from
-`web/editor-trial`, with its licences in `editor-trial/LICENSES.txt`.
+has the licence of every package bundled into it.
 
 | Part | From | Licence |
 |---|---|---|

@@ -81,11 +81,12 @@ All notable changes to this project are documented in this file. The format foll
   Markdown.
 - The bar of the editor is a row of the window while a page is written, between the head and the page, full width and
   flat, and stays in place while the page scrolls.
-- The editor trial of M-8 (Milkdown, TipTap and CodeMirror side by side) stays for comparison until M-8 closes, at
-  `/dev/editor-trial`, with the dev switch or for administrators.
 
 ### Removed
 
+- The editor trial of M-8 (`/dev/editor-trial`, `web/editor-trial`: Milkdown, TipTap and CodeMirror side by side): ADR-21
+  kept it until M-8 closes. Its packages leave the build, the image and the licences with it, among them the KaTeX of
+  Milkdown that Dependabot reported. It lives on in the history of the repository, last in commit `d9b5bdb`.
 - The block editing of M-28, one Markdown field per block with a bar floating above it and a plus beside it: the editor
   carries all of it (ADR-21). Reading, the handles, their menus and comments stay.
 

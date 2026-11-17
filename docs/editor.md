@@ -158,8 +158,8 @@ The versions are exact, stable and were at least two weeks old when chosen (`npm
 installs from the lockfile in a temporary copy, runs the tests and builds into the assets the binary embeds, and the
 Dockerfile does the same in a stage of its own. So an update of the lockfile, for example from Dependabot, is built and
 tested by the checks as it is, and merges by itself when they are green. After pulling a changed lockfile, run
-`scripts/build-js.sh` once before `go build`. The editor trial of M-8 (`web/editor-trial`, `/dev/editor-trial` with the
-dev switch or for administrators) is built the same way until M-8 closes.
+`scripts/build-js.sh` once before `go build`. The editor trial of M-8 (`web/editor-trial`, `/dev/editor-trial`) went
+when M-8 closed (ADR-21); it lives on in the history of the repository, last in commit `d9b5bdb`.
 
 **Loading:** the workspace does not load the editor with every page. It comes when it is needed — on the way into
 editing, when the pointer reaches the reading/editing button, or in an idle moment when editing is likely (the setting

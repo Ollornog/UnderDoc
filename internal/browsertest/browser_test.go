@@ -959,3 +959,61 @@ func TestBlockTextStaysText(t *testing.T) {
 		t.Errorf("the editor shows it as text: %q", got)
 	}
 }
+
+// typeKeys types key by key, unlike typeText: every character is a keyDown with its text, a newline is Enter. Input
+// rules of an editor see what a keyboard would send.
+func (b *browser) typeKeys(text string) {
+	b.t.Helper()
+	for _, r := range text {
+		if r == '\n' {
+			for _, kind := range []string{"keyDown", "keyUp"} {
+				params := map[string]any{"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}
+				if kind == "keyDown" {
+					params["text"] = "\r"
+				}
+				b.call("Input.dispatchKeyEvent", params, nil)
+			}
+			continue
+		}
+		ch := string(r)
+		down := map[string]any{"type": "keyDown", "key": ch, "text": ch, "unmodifiedText": ch}
+		up := map[string]any{"type": "keyUp", "key": ch}
+		if r == ' ' {
+			for _, p := range []map[string]any{down, up} {
+				p["code"], p["windowsVirtualKeyCode"] = "Space", 32
+			}
+		}
+		b.call("Input.dispatchKeyEvent", down, nil)
+		b.call("Input.dispatchKeyEvent", up, nil)
+		// A quick typist, not a machine: some editors finish their work on a key in a later task.
+		time.Sleep(15 * time.Millisecond)
+	}
+}
+
+// drain reads the events that came after the page loaded, without waiting.
+func (b *browser) drain() (csp, errors []string) {
+	for {
+		select {
+		case m, open := <-b.events:
+			if !open {
+				return
+			}
+			switch m.Method {
+			case "Log.entryAdded":
+				var p struct {
+					Entry struct{ Source, Level, Text string }
+				}
+				_ = json.Unmarshal(m.Params, &p)
+				if p.Entry.Source == "security" || strings.Contains(p.Entry.Text, "Content Security Policy") {
+					csp = append(csp, p.Entry.Text)
+				} else if p.Entry.Level == "error" {
+					errors = append(errors, p.Entry.Source+": "+p.Entry.Text)
+				}
+			case "Runtime.exceptionThrown":
+				errors = append(errors, "exception: "+string(m.Params))
+			}
+		default:
+			return
+		}
+	}
+}
