@@ -250,3 +250,10 @@ export function embedFor(text) {
 
 /** EMBED reads an embedding line. */
 export const EMBED = /^::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8}))?"\}\s*$/;
+
+// The line that shows a pasted or dropped image (ADR-28): its name without the extension as the text, which no character
+// of it can end early, and the address of the attachment.
+export function imageLine(name, url) {
+  const alt = String(name).replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[[\]\\]/g, '').replace(/\s+/g, ' ').trim() || 'image';
+  return `![${alt}](${url})`;
+}

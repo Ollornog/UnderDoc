@@ -67,6 +67,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Images pasted or dropped into the editor become attachments of the page (ADR-28): uploaded in chunks, shown on a line
+  of their own in the editor and in reading, listed in the facts of the page, where "Move to the files" makes one a file
+  in the files of the space or the user's own folder, and the page shows the file from then on.
 - The text of files for the search (ADR-24, docs/files.md), three ways, each allowed by the hoster
   (`UNDERDOC_TEXT_WAYS`) and switched by the tenant and each user: the uploader's browser reads PDF with pdf.js, a queue
   on the server reads PDF, Office and text files in Go (zip bombs refused before unpacking, limits on size, time and

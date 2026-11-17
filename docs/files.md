@@ -128,10 +128,12 @@ The text of files reaches the search three ways (ADR-24), each switched on in la
 
 ## Attachments of pages
 
-Images pasted into a page belong to it like its blocks and live only in the store
-(`/api/pages/<page>/attachments/<id>`). A copy of the page has copies of them. "Move to the files"
+Images pasted or dropped into the editor of a page are uploaded as attachments of the page and appear on a line of their
+own, `![name](/api/pages/<page>/attachments/<id>)`. They belong to the page like its blocks and live only in the store.
+The facts of the page list them. A copy of the page has copies of them. "Move to the files"
 (`POST /api/pages/<page>/attachments/<id>/move` with `{"parent": "<folder>"}`) makes one a file in a folder, and every
-block of the page shows the file from then on, as a new version of the block.
+block of the page shows the file from then on, as a new version of the block. The workspace moves it into the files
+linked to the space of the page, or else into the user's own folder.
 
 ## Spaces and their files
 

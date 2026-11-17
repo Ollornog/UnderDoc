@@ -240,6 +240,8 @@ func TestFilesWaitForTheirRoots(t *testing.T) {
 	b.call("Fetch.disable", map[string]any{}, nil)
 	if !b.waitFor(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
 		t.Fatalf("the roots: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+	}
+}
 
 // minimalPDF is a PDF of one page with one line of text, with its cross-reference table.
 func minimalPDF(text string) []byte {
@@ -298,5 +300,53 @@ func TestPDFPreview(t *testing.T) {
 	}
 	if got := b.eval(`performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin)).join(' ')`); got != "" {
 		t.Errorf("loaded from elsewhere: %s", got)
+	}
+}
+
+// An image dropped from the desktop into the editor of a page becomes an attachment of the page, on a line of its own that
+// shows it; "Move to the files" makes it a file in the user's own folder, and the page shows the file from then on.
+func TestImagesInTheEditor(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.eval(`window.made = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Team"}'}).then(r => r.json()).then(j => { window.made = j.id; })`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the collection for the test was not made")
+	}
+	team := b.eval(`window.made`)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
+		t.Fatal("the new page is not in the editor")
+	}
+	b.typeKeys("Rack photo:")
+	picture, _ := base64.StdEncoding.DecodeString(pixel)
+	photo := writeTemp(t, "rack photo.png", picture)
+	r := b.rect(`.cm-content`)
+	for _, kind := range []string{"dragEnter", "dragOver", "drop"} {
+		b.call("Input.dispatchDragEvent", map[string]any{"type": kind, "x": r.X, "y": r.Top + 8,
+			"data": map[string]any{"items": []any{}, "files": []string{photo}, "dragOperationsMask": 1}}, nil)
+	}
+	if !b.waitFor(`/!\[rack photo\]\(\/api\/pages\/[0-9a-z]{10}\/attachments\/a1\)/.test(EDS[at(0).d]?.ed.text()) && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the image is not in the page: %q", b.eval(`EDS[at(0).d]?.ed.text()`))
+	}
+	if !b.waitFor(`[...document.querySelectorAll('.cm-content img.cm-lp-image')].some(i => i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("the editor does not show the image: %s", b.eval(`document.querySelector('.cm-content')?.innerHTML.slice(0, 400)`))
+	}
+	b.shot("image-in-editor")
+	b.clickOn(`[data-act="edit"]`, 1)
+	if !b.waitFor(`!document.querySelector('.cm-editor') && [...document.querySelectorAll('article.doc img')].some(i => i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("reading does not show the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	}
+	b.clickOn(`[data-act="gear"]`, 1)
+	b.clickOn(probe(b, `[data-act="fatt"]`, "Move to the files"), 1)
+	if !b.waitFor(`[...document.querySelectorAll('article.doc img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("the page does not show the file: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	}
+	b.openMyFiles()
+	if !b.waitFor(fileRows + ` === 'rack photo.png'`) {
+		t.Fatalf("the file is not in my files: %q", b.eval(fileRows))
 	}
 }

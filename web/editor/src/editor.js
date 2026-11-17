@@ -13,7 +13,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { classHighlighter } from '@lezer/highlight';
-import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, EMBED } from './blocks.js';
+import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, EMBED, imageLine } from './blocks.js';
 import { run, Conflict } from './save.js';
 import * as tables from './tables.js';
 import './editor.css';
@@ -1046,6 +1046,50 @@ const pasteAddress = EditorView.domEventHandlers({
   },
 });
 
+// ---- Pasted and dropped images become attachments of the page (ADR-28): the workspace uploads each, and the editor
+// puts a line that shows it where it was pasted or dropped. Other files are left to the browser.
+function insertImages(view, files, pos) {
+  const images = [...(files || [])].filter((f) => /^image\//.test(f.type));
+  if (!images.length || !callbacks.get(view) || !callbacks.get(view).upload) return false;
+  let at = pos;
+  (async () => {
+    for (const f of images) {
+      let done;
+      try {
+        done = await call(view, 'upload', f);
+      } catch (err) {
+        call(view, 'hint', `${f.name} could not be uploaded: ${err && err.message ? err.message : err}`);
+        continue;
+      }
+      const line = view.state.doc.lineAt(Math.min(at, view.state.doc.length));
+      const text = imageLine(f.name, done.url);
+      // On a line of its own: after the line where it landed, or in its place when that line is empty.
+      const insert = line.text.trim() === '' ? text : '\n' + text;
+      const from = line.text.trim() === '' ? line.from : line.to;
+      view.dispatch({ changes: { from, to: line.text.trim() === '' ? line.to : from, insert }, userEvent: 'input.paste', scrollIntoView: true });
+      at = from + insert.length;
+    }
+  })();
+  return true;
+}
+
+const pasteImages = EditorView.domEventHandlers({
+  paste(event, view) {
+    const files = event.clipboardData && event.clipboardData.files;
+    if (!insertImages(view, files, view.state.selection.main.head)) return false;
+    event.preventDefault();
+    return true;
+  },
+  drop(event, view) {
+    const files = event.dataTransfer && event.dataTransfer.files;
+    if (!files || !files.length) return false;
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false) ?? view.state.selection.main.head;
+    if (!insertImages(view, files, pos)) return false;
+    event.preventDefault();
+    return true;
+  },
+});
+
 // ---- Calling back into the workspace.
 const callbacks = new WeakMap();
 function call(view, name, ...args) {
@@ -1121,6 +1165,7 @@ class PageEditor {
           ),
           keymap.of([...markdownKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           todoShortcut,
+          pasteImages,
           pasteAddress,
           atomicMarkers,
           keepOutOfMarkers,
@@ -1509,4 +1554,5 @@ window.UnderDocEditor = {
   // For the tests and the documentation: the pure parts.
   joinBlocks,
   markerLine,
+  imageLine,
 };

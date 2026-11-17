@@ -66,6 +66,8 @@ loaded again with a notice, which offers to copy what was written since the last
   it touched.
 - `/` at the start of an empty line opens the kinds; typing filters them, arrows choose, Enter takes one, Escape closes.
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
+- Pasting or dropping an image uploads it as an attachment of the page and puts `![name](address)` on a line of its own
+  where it landed ([files.md](files.md#attachments-of-pages)).
 - The handle of a block: Copy address, Move up, Move down, Delete, Comment, the alignment of the block (left, center,
   right; ADR-16), and where the block is used. The alignment is kept with the block, not in its Markdown, through
   `PUT /api/pages/{id}/blocks/{block}/align`; it makes no version, and the editor shows it on the block's lines. Its menu is as

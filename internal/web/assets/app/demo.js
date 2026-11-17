@@ -399,7 +399,7 @@ function factsHtml(d){
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
     <h3>Versions</h3>${d.blocks?versionsHtml(d):`<ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`}`:''}
-    <h3>Later</h3><div class="lab">Export, save as (M-17) and share (M-5).</div></div>`;
+    ${attachmentsHtml(d)}<h3>Later</h3><div class="lab">Export, save as (M-17) and share (M-5).</div></div>`;
 }
 /* Comments belong to an element of the page: a paragraph, heading, list or table, through its ID (ADR-18). */
 function cmtHtml(t,i){
@@ -895,6 +895,7 @@ document.addEventListener('click',e=>{
     case 'aiask':S.chat.push({q:a.id,a:aiAnswer()});break;
     case 'focus':S.focus=+a.id;break;
     case 'fdir':case 'fopen':case 'fnewdir':case 'fup':case 'frestore':case 'ftrash':if(!filesAct(act,a))return;break;
+    case 'fatt':moveAttachment(a.id,a.att);break;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
@@ -1287,7 +1288,7 @@ async function loadDoc(id){
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
     d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
-    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);}
+    if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(FS.on||S.canCreate)loadAttachments(id);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
 }
@@ -1478,6 +1479,8 @@ function makeEditor(key){
       table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
+      /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
+      upload:f=>uploadAttachment(key,f),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
       conflict:text=>{S.edNote=S.edNote||{};S.edNote[key]=text;if(EDS[key]===e){delete EDS[key];e.ed.discard();}d.loaded=false;loadDoc(key);},
       saved:edSaved(key),
@@ -1934,6 +1937,29 @@ function mountPDFs(){
     else if(p.state==='failed'&&!el.dataset.failed){el.dataset.failed='1';el.innerHTML='<div class="note">The preview could not be drawn. Download the file to open it.</div>';}});
 }
 new MutationObserver(()=>{if(document.querySelector('[data-pdf]'))mountPDFs();}).observe(document.documentElement,{childList:true,subtree:true});
+/* Attachments of a page: images pasted into it (ADR-28). They belong to the page; "Move to the files" makes one a file
+   in the files of the space, or the user's own, and the page shows the file from then on. */
+async function uploadAttachment(key,f){
+  const up={name:f.name,size:f.size,done:0,state:'uploading',dir:null};
+  const done=await uploadOne(f,{page:D[key].sid},up);loadAttachments(key);return {url:done.url,name:f.name};
+}
+async function loadAttachments(key){
+  try{const r=await fetch('/api/pages/'+encodeURIComponent(D[key].sid)+'/attachments',{credentials:'same-origin',headers:{Accept:'application/json'}});
+    if(!r.ok)return;D[key].atts=await r.json();render();}catch(e){}
+}
+function attachmentsHtml(d){
+  if(!d.atts||!d.atts.length)return '';const key=Object.keys(D).find(k=>D[k]===d);
+  return `<h3>Attachments</h3><ul>${d.atts.map(a=>`<li><small>${fsize(a.size)}</small><span><a class="l" href="${a.url}" target="_blank" rel="noopener">${esc(a.name)}</a>${d.canEdit?` <button class="l" data-act="fatt" data-id="${key}" data-att="${a.id}">Move to the files</button>`:''}</span></li>`).join('')}</ul>`;
+}
+async function moveAttachment(key,att){
+  const sid=D[key].sid,top=COLL[key]&&D[COLL[key].id].sid;
+  try{let parent=null;
+    if(top){const l=await fget('/api/spaces/'+encodeURIComponent(top)+'/files');if(l.root)parent=l.root.id;}
+    if(!parent){const a=await fget('/api/files');parent=(a.roots.find(r=>r.role==='user')||{}).id;}
+    const f=await fsend('/api/pages/'+encodeURIComponent(sid)+'/attachments/'+encodeURIComponent(att)+'/move','POST',{parent});
+    toast(`Moved to the files as ${f.n}.`);D[key].loaded=false;loadDoc(key);}
+  catch(e){toast(e.message);}
+}
 /* Uploads go in chunks, and a broken one resumes where the server says it stands: the browser keeps the ID of each
    upload under its target, name, size and date, so choosing the same file again continues it. */
 const upKey=(target,f)=>'ud-upload:'+JSON.stringify([target.parent||target.file||target.page,f.name,f.size,f.lastModified]);
