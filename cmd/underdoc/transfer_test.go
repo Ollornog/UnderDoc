@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -307,5 +308,29 @@ func TestTransferPerTenant(t *testing.T) {
 		if c.Title == "Back" || c.Title == "Acme only" {
 			t.Errorf("the import into acme landed in Main: %+v", c)
 		}
+	}
+}
+
+// TestInvite: the command line invites the first administrator of a tenant, as a link that works once.
+func TestInvite(t *testing.T) {
+	first, url := database(t)
+	t.Setenv("UNDERDOC_DATABASE_URL", url)
+	code, stdout, errOut := runCommand(t, "invite", "--admin", "kim", "Kim Lee")
+	if code != 0 || !strings.HasPrefix(stdout, "open /invite/") {
+		t.Fatalf("%d %q %q", code, stdout, errOut)
+	}
+	token := strings.Fields(strings.TrimPrefix(stdout, "open /invite/"))[0]
+	inv, err := first.OpenInvite(inMain(), auth.HashToken(token))
+	if err != nil || inv.Login != "kim" || inv.Name != "Kim Lee" || !inv.Admin {
+		t.Errorf("%+v %v", inv, err)
+	}
+	if code, _, errOut := runCommand(t, "invite", "kim", "Again"); code != 1 || !strings.Contains(errOut, "taken") {
+		t.Errorf("the same login again: %d %q", code, errOut)
+	}
+	if code, _, _ := runCommand(t, "invite", "--tenant", "nobody", "x", "X"); code != 1 {
+		t.Errorf("an unknown tenant: %d", code)
+	}
+	if code, _, _ := runCommand(t, "invite", "only-login"); code != 2 {
+		t.Errorf("usage: %d", code)
 	}
 }

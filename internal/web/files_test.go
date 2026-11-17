@@ -40,6 +40,7 @@ func withFiles(t *testing.T) *filesSite {
 		t.Fatal(err)
 	}
 	database.SetLimits(db.Limits{MaxFile: 1 << 20, User: 2 << 20})
+	behindGate(t, database, tenant.Main)
 	return &filesSite{site: newSite(t, Options{DB: database, Store: s, AdminGroup: "underdoc-admins"}, sample), db: database, store: s}
 }
 
@@ -398,6 +399,7 @@ func TestTenantsShareNoFiles(t *testing.T) {
 	if _, err := database.CreateTenant(context.Background(), "acme", "Acme Ltd"); err != nil {
 		t.Fatal(err)
 	}
+	behindGate(t, database, tenant.Main, "acme")
 	st, _ := store.Open(t.TempDir())
 	s := &filesSite{site: newSite(t, Options{DB: database, Store: st, AdminGroup: "underdoc-admins", Tenants: tenant.ModeMany, TenantDomain: tenantDomain}, sample),
 		db: database, store: st}

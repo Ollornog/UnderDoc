@@ -96,7 +96,7 @@ func prepare(ctx context.Context, config *pgx.ConnConfig) (bool, error) {
 		return false, err
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
-	if err := migrate(ctx, conn); err != nil {
+	if err := migrate(ctx, conn, 0); err != nil {
 		return false, err
 	}
 	var super, bypass bool
@@ -145,9 +145,9 @@ func (db *DB) Healthy(ctx context.Context) bool {
 	return db.pool.Ping(ctx) == nil
 }
 
-// migrate applies every migration not applied yet, in the order of their numbers, each in its own transaction. An
-// advisory lock keeps two starting instances from doing it at once.
-func migrate(ctx context.Context, conn *pgx.Conn) error {
+// migrate applies every migration not applied yet, in the order of their numbers, each in its own transaction, up to
+// the number upTo, or all with 0. An advisory lock keeps two starting instances from doing it at once.
+func migrate(ctx context.Context, conn *pgx.Conn, upTo int) error {
 	const lock = 7272822 // any number, the same for every instance
 	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", lock); err != nil {
 		return err
@@ -165,6 +165,9 @@ func migrate(ctx context.Context, conn *pgx.Conn) error {
 		version, err := strconv.Atoi(strings.SplitN(strings.TrimPrefix(name, "migrations/"), "_", 2)[0])
 		if err != nil {
 			return fmt.Errorf("%s: a migration starts with its number", name)
+		}
+		if upTo > 0 && version > upTo {
+			break
 		}
 		var done bool
 		if err := conn.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)", version).Scan(&done); err != nil {
@@ -198,19 +201,7 @@ const MyNotes = "My notes"
 
 // SeeAccount records a user from the gate: new on the first sign-in, with a private collection, and up to date after.
 func (db *DB) SeeAccount(ctx context.Context, user account.User) error {
-	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		var inserted bool
-		err := tx.QueryRow(ctx, `
-			INSERT INTO accounts (id, login, name, email, groups) VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (tenant, id) DO UPDATE SET login = EXCLUDED.login, name = EXCLUDED.name, email = EXCLUDED.email,
-				groups = EXCLUDED.groups, last_seen = now()
-			RETURNING (xmax = 0)`, user.ID, user.Login, user.Name, user.Email, nonNil(user.Groups)).Scan(&inserted)
-		if err != nil || !inserted {
-			return err
-		}
-		_, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: MyNotes, Owner: user.ID, Private: true})
-		return err
-	})
+	return db.SeeExternal(ctx, user, SourceGate)
 }
 
 func nonNil(list []string) []string {

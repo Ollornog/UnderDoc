@@ -17,6 +17,8 @@
 //	UNDERDOC_STORE_DIR      the content store of the files, with the database (none: no files; docs/files.md)
 //	UNDERDOC_FILES_MAX_SIZE, _QUOTA, _USER_QUOTA, _COLLECTION_QUOTA, _KEEP_ALL_DAYS, _KEEP_DAILY_DAYS, _KEEP_WEEKLY_DAYS
 //	                        limits and how long versions are kept (docs/files.md)
+//	UNDERDOC_GATE           "on" lets tenants trust the headers of a sign-in gate, "off" never; empty keeps it where it is
+//	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC (none: not offered)
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -25,9 +27,11 @@
 //	underdoc import [--tenant <id>] --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
 //	underdoc import [--tenant <id>] --files --owner <login> <dir>  the files/ of an export, with UNDERDOC_STORE_DIR (docs/files.md)
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
+//	underdoc invite [--tenant <id>] [--admin] <login> <name>       an invitation to a local account, as a link path
 //
-// There is no sign-in in the application: it must only be reachable through a sign-in gate, which passes the user on in
-// request headers. That is why it binds to loopback unless told otherwise, and answers nothing without those headers.
+// Each tenant chooses how people sign in (docs/sign-in.md): passkeys, password and code, password, OIDC, or a sign-in gate
+// in front that passes the user on in request headers. An instance that ran behind a gate keeps it. It binds to loopback
+// unless told otherwise.
 package main
 
 import (
@@ -42,17 +46,19 @@ import (
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
+	"github.com/Ollornog/UnderDoc/internal/vault"
 	"github.com/Ollornog/UnderDoc/internal/version"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -106,6 +112,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = importTree(ctx, owner, rest[0], rest[1], stdout, stderr)
 	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":
 		err = addTenant(context.Background(), args[2], args[3], stdout)
+	case args[0] == "invite":
+		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		admin := false
+		if i := slices.Index(rest, "--admin"); i >= 0 {
+			admin, rest = true, slices.Delete(rest, i, i+1)
+		}
+		if terr != nil || len(rest) != 2 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = inviteAccount(ctx, rest[0], rest[1], admin, stdout)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -135,6 +152,15 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		AdminGroup:   env("UNDERDOC_ADMIN_GROUP", "underdoc-admins"),
 		Tenants:      env("UNDERDOC_TENANTS", tenant.ModeOne),
 		TenantDomain: os.Getenv("UNDERDOC_TENANT_DOMAIN"),
+		Gate:         os.Getenv("UNDERDOC_GATE"),
+	}
+	keys, err := vault.New(os.Getenv(vault.KeyEnv))
+	if err != nil {
+		return err
+	}
+	options.Vault = keys
+	if !keys.Ready() {
+		log.Info(vault.KeyEnv + " is not set: password and code, and the client secret of OIDC, are not offered")
 	}
 	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
 		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")
@@ -195,5 +221,24 @@ func addTenant(ctx context.Context, tenantID, name string, stdout io.Writer) err
 		return err
 	}
 	fmt.Fprintf(stdout, "tenant %s (%s) is there\n", t.ID, t.Name)
+	return nil
+}
+
+// inviteAccount makes an invitation to a local account and prints its path, valid for a week: the way to the first
+// administrator of a tenant that has no way in yet.
+func inviteAccount(ctx context.Context, login, name string, admin bool, stdout io.Writer) error {
+	database, err := openDatabase(ctx)
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	token, hash, err := auth.NewToken()
+	if err != nil {
+		return err
+	}
+	if err := database.CreateInvite(ctx, hash, db.Invite{Login: login, Name: name, Admin: admin, Expires: time.Now().Add(7 * 24 * time.Hour)}); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "open /invite/%s on the host of the tenant within a week; it works once\n", token)
 	return nil
 }

@@ -8,6 +8,20 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Sign-in built in (ADR-23, [docs/sign-in.md](docs/sign-in.md)), chosen per tenant: local accounts with a passkey
+  (WebAuthn, the default), with a password and a TOTP code, or with a password alone; OIDC with any provider (PKCE,
+  state, nonce; the account named by `preferred_username`, groups from a claim); and the gate in front. Registration is
+  off by default; administrators invite with a link that works once, also from `underdoc invite`. Passwords as Argon2id,
+  a limit against guessing, sessions as `__Host-` cookies (`HttpOnly`, `Secure`, `SameSite=Lax`) whose hash the database
+  keeps, every sign-in logged. Pages: sign in, invitation, register, "Sign-in and security" of an account, and
+  "Sign-in" of the administration.
+- `UNDERDOC_GATE` decides whether the headers of a gate may count: an instance that ran behind a gate keeps it, unchanged,
+  a new one starts with passkeys, and only whoever runs the instance lets tenants switch a gate on.
+- A vault for secrets of other systems (package `vault`): AES-256-GCM under `UNDERDOC_SECRET_KEY`, bound to tenant and
+  name, written and used but never shown or logged. It holds TOTP secrets and the client secret of OIDC.
+
+### Added
+
 - Tenants (ADR-23, [docs/tenants.md](docs/tenants.md)): every table carries its tenant, and PostgreSQL row-level
   security keeps tenants apart; a query without a tenant sees nothing. `UNDERDOC_TENANTS=one` (the default) keeps
   everything in the tenant Main, where the existing data moves; `many` finds the tenant by the host name, a subdomain of

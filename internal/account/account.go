@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Package account knows who is signed in. The sign-in gate in front of the application checks the user and passes them
-// on in request headers (ADR-9). The proxy that runs the gate removes these headers from every request before it sets
-// them, so the application only trusts them because it is reachable through that proxy alone.
+// Package account knows who is signed in. One way in is the sign-in gate in front of the application, which checks the
+// user and passes them on in request headers (ADR-9). The proxy that runs the gate removes these headers from every
+// request before it sets them, so the application only trusts them because it is reachable through that proxy alone,
+// and only where a tenant uses the gate (ADR-23).
 package account
 
 import (
@@ -30,6 +31,10 @@ type User struct {
 	Name   string
 	Email  string
 	Groups []string
+	// Admin tells that the user administers the tenant: a local account marked so, or a member of its admin group.
+	Admin bool
+	// Method is the way the user signed in (db.Method*), set by the web.
+	Method string
 }
 
 // FromRequest reads the user from the headers of the gate. It reports false if there is none.

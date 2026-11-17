@@ -50,3 +50,7 @@ The third option, settled with the maintainer on 2026-11-16. This replaces ADR-5
   key from the environment, can only be written, never shown again, and never reach a log (2026-11-16).
 - Search indexes, the content store and caches are separated per tenant as well.
 - Starting with one instance per customer stays possible: the mode *one tenant* is exactly that.
+- Built on 2026-11-17 ([docs/tenants.md](../docs/tenants.md), [docs/sign-in.md](../docs/sign-in.md)). Settled in the
+  build: whether the headers of a gate may count is decided by whoever runs the instance (`UNDERDOC_GATE`), never by the
+  administrator of a tenant, since anyone who reaches UnderDoc without the gate could forge them; an instance that had
+  accounts before keeps its gate. The folder source belongs to the tenant Main.

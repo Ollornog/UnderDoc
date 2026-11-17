@@ -17,13 +17,13 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Ollornog/UnderDoc/docs"
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/id"
@@ -31,6 +31,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
+	"github.com/Ollornog/UnderDoc/internal/vault"
 )
 
 //go:embed templates/*.html
@@ -61,8 +62,14 @@ type Options struct {
 	DevUI bool
 	// DevUser stands in for the gate when the application runs on its own, for development only.
 	DevUser *account.User
-	// AdminGroup is the group of the gate whose members see the administration.
+	// AdminGroup is the group of the gate or of OIDC whose members administer a tenant, unless the tenant names another.
 	AdminGroup string
+	// Gate says whether the headers of a sign-in gate may count: GateKeep, GateOn or GateOff.
+	Gate string
+	// Vault seals secrets such as TOTP secrets and the client secret of OIDC. Without a key, these are not offered.
+	Vault *vault.Vault
+	// HTTPClient talks to identity providers; nil is a client with a timeout.
+	HTTPClient *http.Client
 	// DB keeps accounts and the objects made in the web (ADR-19). Without it, the folder source is all there is.
 	DB *db.DB
 	// Tenants is the mode of the instance (ADR-23): tenant.ModeOne, the default, or tenant.ModeMany, which needs DB.
@@ -86,11 +93,20 @@ type handler struct {
 	noFolder *library.Library
 	// uploads are the uploads a request is writing right now.
 	uploads uploadBusy
+	// throttle is the limit against guessing passwords.
+	throttle *auth.Throttle
+	oidc     oidcProviders
 }
 
 // New returns the complete handler with logging and security headers.
 func New(store *library.Store, log *slog.Logger, options Options) (http.Handler, error) {
-	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{})}
+	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
+		throttle: auth.NewThrottle()}
+	switch options.Gate {
+	case GateKeep, GateOn, GateOff:
+	default:
+		return nil, fmt.Errorf("unknown setting of the gate %q: on, off or empty", options.Gate)
+	}
 	switch options.Tenants {
 	case "":
 		h.options.Tenants = tenant.ModeOne
@@ -178,6 +194,31 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("GET /files/{path...}", h.file)
+	// Sign-in (ADR-23).
+	mux.HandleFunc("GET /sign-in", h.signIn)
+	mux.HandleFunc("POST /sign-in/password", h.signInPassword)
+	mux.HandleFunc("POST /sign-in/passkey/options", h.passkeyOptions)
+	mux.HandleFunc("POST /sign-in/passkey", h.passkeySignIn)
+	mux.HandleFunc("GET /sign-in/oidc", h.oidcStart)
+	mux.HandleFunc("GET /sign-in/oidc/callback", h.oidcCallback)
+	mux.HandleFunc("POST /sign-out", h.signOut)
+	mux.HandleFunc("GET /invite/{token}", h.invite)
+	mux.HandleFunc("POST /invite/{token}/password", h.invitePassword)
+	mux.HandleFunc("POST /invite/{token}/passkey/options", h.invitePasskeyOptions)
+	mux.HandleFunc("POST /invite/{token}/passkey", h.invitePasskey)
+	mux.HandleFunc("GET /register", h.register)
+	mux.HandleFunc("POST /register", h.register)
+	mux.HandleFunc("GET /account/security", h.security)
+	mux.HandleFunc("POST /account/password", h.changePassword)
+	mux.HandleFunc("POST /account/totp", h.setTOTP)
+	mux.HandleFunc("POST /account/totp/remove", h.removeTOTP)
+	mux.HandleFunc("POST /account/passkeys/options", h.addPasskeyOptions)
+	mux.HandleFunc("POST /account/passkeys", h.addPasskey)
+	mux.HandleFunc("POST /account/passkeys/{id}/remove", h.removePasskey)
+	mux.HandleFunc("POST /account/sessions/end", h.endOtherSessions)
+	mux.HandleFunc("GET /admin/sign-in", h.adminSignIn)
+	mux.HandleFunc("POST /admin/sign-in", h.saveSignIn)
+	mux.HandleFunc("POST /admin/invites", h.createInvite)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(h.assetVersion, http.FileServerFS(assets))))
 	mux.HandleFunc("GET /assets/logo.svg", serveBytes("image/svg+xml", docs.Logo))
 	mux.HandleFunc("GET /favicon.ico", serveBytes("image/vnd.microsoft.icon", docs.Favicon))
@@ -241,27 +282,28 @@ func (h *handler) library(ctx context.Context) *library.Library {
 	return h.noFolder
 }
 
-// signedIn lets a request through only with a user from the gate. Assets stay open, so the page that says so has its
-// styles. Without the gate in front, nothing else answers (M-28).
+// signedIn lets a request through only with a signed-in user: from the gate where the tenant trusts it, or with a
+// session (ADR-23). Assets and the pages to sign in stay open. Where the gate is the only way in, a request without it
+// gets the page that says so, as before.
 func (h *handler) signedIn(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if open(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, ok := account.FromRequest(r)
-		if !ok && h.options.DevUser != nil {
-			user, ok = *h.options.DevUser, true
-		}
-		if !ok {
-			h.message(w, http.StatusUnauthorized, message{
-				Title: "Not signed in",
-				Text:  "UnderDoc is reached through its sign-in gate, which tells it who you are. This request came without it.",
-				Link:  "Try again",
-			})
+		if public(r) {
+			next.ServeHTTP(w, r)
 			return
 		}
-		h.seeAccount(r.Context(), user)
+		s := h.signInSettings(r.Context())
+		user, ok := h.identify(r, s)
+		if !ok {
+			h.notSignedIn(w, r, s)
+			return
+		}
+		if user.Method == db.MethodGate {
+			h.seeAccount(r.Context(), user)
+		}
 		next.ServeHTTP(w, r.WithContext(account.With(r.Context(), user)))
 	})
 }
@@ -363,12 +405,6 @@ func (h *handler) app(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(out.Bytes())
-}
-
-// isAdmin tells whether the viewer is in the administrators' group of the gate.
-func (h *handler) isAdmin(r *http.Request) bool {
-	user, _ := account.From(r.Context())
-	return h.options.AdminGroup != "" && slices.Contains(user.Groups, h.options.AdminGroup)
 }
 
 // exists tells whether the address of the workspace names something the viewer may see, so an unknown address is a 404

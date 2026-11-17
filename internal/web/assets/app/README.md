@@ -1,6 +1,7 @@
 # The workspace in the browser
 
-`demo.js` draws the workspace, `theme.js` sets light or dark before the page shows, `blockdrag.js` drags a block of a
+`demo.js` draws the workspace, `theme.js` sets light or dark before the page shows, `signin.js` drives passkeys on the
+pages of signing in, `blockdrag.js` drags a block of a
 page by its handle. All are UnderDoc's own (MIT).
 `editor/` holds the web editor, built from `web/editor` (docs/editor.md): its own code is MIT, and `editor/LICENSES.txt`
 has the licence of every package bundled into it.
