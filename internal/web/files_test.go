@@ -401,7 +401,7 @@ func TestTenantsShareNoFiles(t *testing.T) {
 	}
 	behindGate(t, database, tenant.Main, "acme")
 	st, _ := store.Open(t.TempDir())
-	s := &filesSite{site: newSite(t, Options{DB: database, Store: st, AdminGroup: "underdoc-admins", Tenants: tenant.ModeMany, TenantDomain: tenantDomain}, sample),
+	s := &filesSite{site: newSite(t, Options{DB: database, Store: st, AdminGroup: "underdoc-admins", Tenants: tenant.ModeMany, TenantDomain: tenantDomain, TextWays: db.Ways{Browser: true, Server: true}}, sample),
 		db: database, store: st}
 	type made struct{ root, file, folder, upload, page, attachment string }
 	build := func(host string) made {
@@ -434,7 +434,8 @@ func TestTenantsShareNoFiles(t *testing.T) {
 			}
 			for _, target := range []string{"/api/files/" + c.other.file, db.FilePath(c.other.file), "/api/files/" + c.other.root + "/list",
 				"/api/files/" + c.other.folder + "/list", "/api/uploads/" + c.other.upload, c.other.attachment, "/api/pages/" + c.other.page + "/attachments",
-				"/api/spaces/" + c.other.page + "/files", "/o/" + c.other.file} {
+				"/api/spaces/" + c.other.page + "/files", "/o/" + c.other.file, "/api/files/" + c.other.file + "/text",
+				"/api/files/" + c.other.file + "/thumb?size=256", "/api/files/" + c.other.file + "/pdf", c.other.attachment + "/thumb?size=256"} {
 				if got := s.getWith(target, h); got.Code != http.StatusNotFound {
 					t.Errorf("%s: %d %s", target, got.Code, got.Body)
 				}
@@ -447,6 +448,7 @@ func TestTenantsShareNoFiles(t *testing.T) {
 				{http.MethodDelete, "/api/uploads/" + c.other.upload, ""},
 				{http.MethodPost, "/api/files/" + c.other.file + "/versions/1/restore", ""},
 				{http.MethodDelete, "/api/objects/" + c.other.file, ""},
+				{http.MethodPut, "/api/files/" + c.other.file + "/text", `{"text":"planted"}`},
 			} {
 				if got := s.send(w.method, w.target, w.body, h); got.Code != http.StatusNotFound {
 					t.Errorf("%s %s: %d %s", w.method, w.target, got.Code, got.Body)

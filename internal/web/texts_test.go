@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func TestTextOfFiles(t *testing.T) {
@@ -18,7 +19,7 @@ func TestTextOfFiles(t *testing.T) {
 	mine := s.root(nil, db.RootUser)
 	done := decode[finished](t, s.put(nil, fmt.Sprintf(`"parent":%q`, mine.ID), "notes.md", []byte("# Card payment"), 10))
 	// The upload put the reading on the queue of the server.
-	job, err := s.db.ClaimTextJob(context.Background(), time.Minute)
+	job, err := s.db.ClaimTextJob(tenant.With(context.Background(), tenant.Main), time.Minute)
 	if err != nil || job.Way != "server" || job.ContentType != "text/markdown" {
 		t.Fatalf("%+v %v", job, err)
 	}
@@ -52,7 +53,7 @@ func TestTextOfFiles(t *testing.T) {
 		t.Fatalf("%d", got.Code)
 	}
 	decode[finished](t, s.put(nil, fmt.Sprintf(`"parent":%q`, mine.ID), "more.txt", []byte("more"), 10))
-	if job, err := s.db.ClaimTextJob(context.Background(), time.Minute); err == nil {
+	if job, err := s.db.ClaimTextJob(tenant.With(context.Background(), tenant.Main), time.Minute); err == nil {
 		t.Errorf("a job for a user who switched the server off: %+v", job)
 	}
 }

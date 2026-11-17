@@ -55,7 +55,7 @@ func (f *fakeModel) Recognize(_ context.Context, in io.Reader, _ string) (string
 // The queue of the server: a PDF with text is read in Go, a scanned PDF goes on to the model of the uploader's tenant, an
 // image to Tesseract, and the search is told which files have new text.
 func TestTextWorker(t *testing.T) {
-	ctx := context.Background()
+	ctx := inMain()
 	d, _ := database(t)
 	anna := account.User{ID: "u-anna", Login: "anna"}
 	s, _ := store.Open(t.TempDir())

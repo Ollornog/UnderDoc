@@ -18,6 +18,7 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func testPNG(t *testing.T, w, h int) []byte {
@@ -65,7 +66,7 @@ func TestPreviews(t *testing.T) {
 		}
 	}
 	// The preview is kept beside its blob.
-	f, _ := s.db.File(context.Background(), picture.ID, "u-7")
+	f, _ := s.db.File(tenant.With(context.Background(), tenant.Main), picture.ID, "u-7")
 	kept, _ := s.store.DerivedPath(store.DefaultTenant, f.Blob+"-thumb-256.jpg")
 	if _, err := os.Stat(kept); err != nil {
 		t.Errorf("the preview is not kept: %v", err)

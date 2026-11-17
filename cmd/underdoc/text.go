@@ -15,6 +15,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	filetype "github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // textConfig is how the text of files is read for the search (ADR-24, docs/files.md), from the environment.
@@ -70,12 +71,20 @@ type textWorker struct {
 	log *slog.Logger
 }
 
-// run takes jobs until ctx ends, and looks again every poll when there is none.
+// run takes the jobs of every tenant in turn until ctx ends, and looks again every poll when no tenant had one.
 func (t textWorker) run(ctx context.Context, poll time.Duration) {
 	for ctx.Err() == nil {
-		did, err := t.once(ctx)
+		tenants, err := t.db.TenantIDs(ctx)
 		if err != nil && ctx.Err() == nil {
-			t.log.Error("reading the text of a file failed", slog.String("error", err.Error()))
+			t.log.Error("reading the text of files failed", slog.String("error", err.Error()))
+		}
+		did := false
+		for _, id := range tenants {
+			one, err := t.once(tenant.With(ctx, id))
+			if err != nil && ctx.Err() == nil {
+				t.log.Error("reading the text of a file failed", slog.String("tenant", id), slog.String("error", err.Error()))
+			}
+			did = did || one
 		}
 		if !did {
 			select {
@@ -114,8 +123,8 @@ func (t textWorker) once(ctx context.Context) (bool, error) {
 
 // read does one job. A PDF without text is a scan: it goes on to OCR, the ways the uploader has on.
 func (t textWorker) read(ctx context.Context, job db.TextJob) (string, string, error) {
-	tenant := store.DefaultTenant
-	f, err := t.store.Open(tenant, job.Blob)
+	owner, _ := tenant.From(ctx)
+	f, err := t.store.Open(owner, job.Blob)
 	if err != nil {
 		return "", "", err
 	}

@@ -47,7 +47,7 @@ func (db *DB) TextSettings(ctx context.Context, account string) (WaySettings, er
 // SetTextSettings keeps what the tenant ("" for account) or a user switched on or off.
 func (db *DB) SetTextSettings(ctx context.Context, account string, s WaySettings) error {
 	_, err := db.pool.Exec(ctx, `INSERT INTO text_settings (account, browser, server, ai) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (account) DO UPDATE SET browser = EXCLUDED.browser, server = EXCLUDED.server, ai = EXCLUDED.ai`, account, s.Browser, s.Server, s.AI)
+		ON CONFLICT (tenant, account) DO UPDATE SET browser = EXCLUDED.browser, server = EXCLUDED.server, ai = EXCLUDED.ai`, account, s.Browser, s.Server, s.AI)
 	return err
 }
 
@@ -78,7 +78,7 @@ func (db *DB) TextWays(ctx context.Context, hoster Ways, user string) (Ways, err
 func (db *DB) QueueText(ctx context.Context, sha, contentType, account string, ways ...string) error {
 	for _, way := range ways {
 		if _, err := db.pool.Exec(ctx, `INSERT INTO text_jobs (blob, way, account, content_type) VALUES ($1, $2, $3, $4)
-			ON CONFLICT (blob, way) DO NOTHING`, sha, way, account, contentType); err != nil {
+			ON CONFLICT (tenant, blob, way) DO NOTHING`, sha, way, account, contentType); err != nil {
 			return err
 		}
 	}
@@ -136,7 +136,7 @@ func saveText(ctx context.Context, tx pgx.Tx, sha, source, text, author string) 
 		text = strings.ToValidUTF8(text[:MaxFileText], "")
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO file_texts (blob, source, text, author) VALUES ($1, $2, $3, nullif($4, ''))
-		ON CONFLICT (blob, source) DO UPDATE SET text = EXCLUDED.text, author = EXCLUDED.author, at = now()`, sha, source, text, author)
+		ON CONFLICT (tenant, blob, source) DO UPDATE SET text = EXCLUDED.text, author = EXCLUDED.author, at = now()`, sha, source, text, author)
 	return err
 }
 
@@ -209,7 +209,7 @@ func (db *DB) UseAIPages(ctx context.Context, account string, pages, userQuota, 
 			return ErrQuota
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO ai_ocr_usage (account, month, pages) VALUES ($1, $2, $3)
-			ON CONFLICT (account, month) DO UPDATE SET pages = ai_ocr_usage.pages + EXCLUDED.pages`, account, month, pages)
+			ON CONFLICT (tenant, account, month) DO UPDATE SET pages = ai_ocr_usage.pages + EXCLUDED.pages`, account, month, pages)
 		return err
 	})
 }

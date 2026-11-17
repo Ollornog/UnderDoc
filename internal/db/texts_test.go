@@ -3,7 +3,6 @@
 package db
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -12,7 +11,7 @@ import (
 
 func TestTextWaysAreLayered(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	off, on := false, true
 	all := Ways{Browser: true, Server: true, AI: true}
 	if got, _ := db.TextWays(ctx, Ways{Browser: true}, anna.ID); got != (Ways{Browser: true}) {
@@ -34,7 +33,7 @@ func TestTextWaysAreLayered(t *testing.T) {
 
 func TestTextQueueAndTexts(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if err := db.EnsureRoots(ctx, anna, false, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +94,7 @@ func TestTextQueueAndTexts(t *testing.T) {
 
 func TestAIQuota(t *testing.T) {
 	db := open(t)
-	ctx := context.Background()
+	ctx := inMain()
 	if err := db.UseAIPages(ctx, anna.ID, 3, 5, 8); err != nil {
 		t.Fatal(err)
 	}
