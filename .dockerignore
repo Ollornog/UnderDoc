@@ -9,4 +9,3 @@
 !web
 web/*/node_modules
 internal/web/assets/app/editor
-internal/web/assets/app/editor-trial

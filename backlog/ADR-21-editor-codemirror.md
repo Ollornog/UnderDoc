@@ -34,7 +34,8 @@ A rich-text engine of our own from scratch was ruled out: selection, undo, paste
 ## Decision
 
 CodeMirror 6 with a live preview, chosen by the maintainer on 2026-11-09. The other two stay on the trial page for
-comparison until M-8 closes.
+comparison until M-8 closes. **Done on 2026-11-17:** M-8 closed, and the trial page went with its packages; it lives on in
+the history of the repository, last in commit `d9b5bdb` (`web/editor-trial`, `internal/browsertest/editor_trial_test.go`).
 
 - **One editor per page.** The page is written as one document; each block keeps its ID through a marker line before it,
   `<!-- block bN -->`, the same as in the export (docs/export.md). The editor hides the markers and shows the block handle

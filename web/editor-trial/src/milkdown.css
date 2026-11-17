@@ -1,6 +1,0 @@
-/* SPDX-License-Identifier: MIT */
-/* Crepe sizes itself for a full page; in a column it gets less padding. The doubled class outranks Crepe's own rule,
-   with or without the shadow root the editor lives in (see milkdown.js). */
-.milkdown.milkdown .ProseMirror {
-  padding: 24px 40px;
-}

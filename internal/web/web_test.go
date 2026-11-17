@@ -368,26 +368,18 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 	}
 }
 
-// The editor trial stays for comparison until M-8 closes (ADR-21): with the dev switch, or for an administrator.
-func TestEditorTrialIsADevPage(t *testing.T) {
-	plain := map[string]string{"Remote-User": "bea", "Remote-Groups": "ops"}
-	if got := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", plain).Code; got != http.StatusNotFound {
-		t.Errorf("/dev/editor-trial without the switch, not an administrator = %d", got)
-	}
-	if got := newSite(t, Options{}, sample).get("/dev/editor-trial").Code; got != http.StatusNotFound {
-		t.Errorf("/dev/editor-trial without the switch and without an administrators' group = %d", got)
-	}
+// The editor trial of M-8 is gone (ADR-21: until M-8 closes): its address finds nothing, also for an administrator or
+// with the dev switch on.
+func TestEditorTrialIsGone(t *testing.T) {
 	admin := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", gateHeaders)
-	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", plain)
+	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", map[string]string{"Remote-User": "bea", "Remote-Groups": "ops"})
 	for name, answer := range map[string]*httptest.ResponseRecorder{"administrator": admin, "dev switch": dev} {
-		if answer.Code != http.StatusOK {
-			t.Errorf("%s: %d", name, answer.Code)
+		if answer.Code != http.StatusNotFound {
+			t.Errorf("%s: /dev/editor-trial = %d, want 404", name, answer.Code)
 		}
-		for _, editor := range []string{"milkdown", "tiptap", "codemirror"} {
-			if got := answer.Body.String(); !strings.Contains(got, `data-editor="`+editor+`"`) || !strings.Contains(got, `/assets/app/editor-trial/`+editor+`.js?v=`) {
-				t.Errorf("%s: the trial page lacks %s", name, editor)
-			}
-		}
+	}
+	if _, err := assetFiles.ReadFile("assets/app/editor-trial/trial.css"); err == nil {
+		t.Error("the bundle of the editor trial is still embedded")
 	}
 }
 
@@ -409,14 +401,6 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		if known[control] {
 			t.Fatalf("control class %q found, the check itself is broken", control)
 		}
-	}
-	// The editor trial of M-8 brings its own small stylesheet for its frame.
-	trial, err := assetFiles.ReadFile("assets/app/editor-trial/trial.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, match := range regexp.MustCompile(`\.([\w-]+)`).FindAllStringSubmatch(string(trial), -1) {
-		known[match[1]] = true
 	}
 	used := map[string]string{}
 	for _, class := range markdown.Classes() {

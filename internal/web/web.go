@@ -56,8 +56,7 @@ var imageTypes = map[string]string{
 
 // Options configures the handler.
 type Options struct {
-	// DevUI turns on /dev/ui, the workspace with only the made-up content of the mockup, every component in use, and
-	// /dev/editor-trial, the editor candidates of M-8 side by side, which administrators see without it.
+	// DevUI turns on /dev/ui, the workspace with only the made-up content of the mockup, every component in use.
 	DevUI bool
 	// DevUser stands in for the gate when the application runs on its own, for development only.
 	DevUser *account.User
@@ -161,7 +160,6 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	if options.DevUI {
 		mux.HandleFunc("GET /dev/ui", h.app)
 	}
-	mux.HandleFunc("GET /dev/editor-trial", h.editorTrial)
 	mux.HandleFunc("GET /", h.notFound)
 	return accessLog(log, secure(h.tenanted(h.signedIn(mux)))), nil
 }
@@ -335,25 +333,6 @@ func (h *handler) app(w http.ResponseWriter, r *http.Request) {
 	var out bytes.Buffer
 	if err := h.pages.ExecuteTemplate(&out, "app", appView{Version: h.assetVersion, Demo: r.URL.Path == "/dev/ui"}); err != nil {
 		h.log.Error("template failed", slog.String("template", "app"), slog.String("error", err.Error()))
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	_, _ = w.Write(out.Bytes())
-}
-
-// editorTrial shows the three editor candidates of M-8 side by side, for comparison until M-8 closes (ADR-21). It is a
-// trial page: the bundles come from web/editor-trial and are not part of the workspace. Only with the dev switch on or
-// for an administrator; anyone else finds nothing here.
-func (h *handler) editorTrial(w http.ResponseWriter, r *http.Request) {
-	if !h.options.DevUI && !h.isAdmin(r) {
-		h.notFound(w, r)
-		return
-	}
-	var out bytes.Buffer
-	if err := h.pages.ExecuteTemplate(&out, "editortrial", appView{Version: h.assetVersion}); err != nil {
-		h.log.Error("template failed", slog.String("template", "editortrial"), slog.String("error", err.Error()))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

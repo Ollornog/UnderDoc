@@ -22,7 +22,6 @@ trap 'rm -rf -- "$fresh"' EXIT
 # package directory, and the directory of its bundle in the repository
 packages=(
     "web/editor internal/web/assets/app/editor"
-    "web/editor-trial internal/web/assets/app/editor-trial"
 )
 for entry in "${packages[@]}"; do
     read -r dir bundle <<<"$entry"

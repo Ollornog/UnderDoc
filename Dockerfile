@@ -2,12 +2,12 @@
 # The build stages run on the build platform; the Go stage cross-compiles for the target (GOARCH), so an arm64 image needs
 # no emulation (.github/workflows/image.yml builds amd64 and arm64).
 
-# The JavaScript of the web editor and its trial, built from the sources and their lockfiles (ADR-21, scripts/build-js.sh);
+# The JavaScript of the web editor, built from the sources and their lockfiles (ADR-21, scripts/build-js.sh);
 # the bundles are not in the repository. --ignore-scripts: no install script of a package runs.
 FROM --platform=$BUILDPLATFORM node:26.13.1-alpine3.24@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS js
 WORKDIR /src
 COPY web ./web
-RUN for p in editor editor-trial; do \
+RUN for p in editor; do \
       npm ci --prefix "web/$p" --ignore-scripts --no-audit --no-fund --loglevel=error && \
       node "web/$p/build.mjs" --out "/out/$p" || exit 1; \
     done
@@ -20,7 +20,6 @@ COPY cmd ./cmd
 COPY internal ./internal
 COPY docs/embed.go docs/logo.svg docs/favicon.ico ./docs/
 COPY --from=js /out/editor ./internal/web/assets/app/editor
-COPY --from=js /out/editor-trial ./internal/web/assets/app/editor-trial
 # Reproducible: no cgo, no paths in the binary, no toolchain download.
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath GOTOOLCHAIN=local
 ARG TARGETOS=linux
