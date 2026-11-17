@@ -361,7 +361,12 @@ func TestImagesInTheEditor(t *testing.T) {
 		return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === x; })()`) {
 		t.Fatal("Move to the files is not in reach")
 	}
-	b.clickOn(probe(b, `[data-act="fatt"]`, "Move to the files"), 1)
+	// The drawer of the facts may move while it fills in under load; the button is taken by the keyboard, focused and
+	// pressed in one go, which a moving layout cannot misdirect.
+	b.eval(`document.querySelector('[data-act="fatt"]').focus()`)
+	for _, kind := range []string{"keyDown", "keyUp"} {
+		b.call("Input.dispatchKeyEvent", map[string]any{"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
+	}
 	if !b.waitFor(`[...document.querySelectorAll('article.doc img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
 		t.Fatalf("the page does not show the file: %s; %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`), b.eval(`(() => { const sid = D[at(0).d].sid, x = new XMLHttpRequest(); x.open('GET', '/api/pages/' + sid + '/attachments', false); x.send(); const y = new XMLHttpRequest(); y.open('GET', '/api/doc/' + sid, false); y.send(); return x.responseText + ' || ' + y.responseText.slice(0, 300) + ' || ' + JSON.stringify(D[at(0).d].atts) })()`))
 	}
