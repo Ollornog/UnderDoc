@@ -1,4 +1,5 @@
 # What a run of scripts/check.sh may leave in the tree (residue check).
-# The bundle of the web editor: scripts/build-js.sh builds it from the lockfile into the assets the binary embeds, on
-# purpose and ignored by git (ADR-21). The next run builds it again from scratch.
+# The bundles of the web editor and the PDF preview: scripts/build-js.sh builds them from the lockfiles into the assets
+# the binary embeds, on purpose and ignored by git (ADR-21). The next run builds them again from scratch.
 internal/web/assets/app/editor/
+internal/web/assets/app/pdfjs/

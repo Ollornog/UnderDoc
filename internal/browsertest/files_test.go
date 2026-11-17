@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func setupWithFiles(t *testing.T) (*browser, string, *db.DB, *store.Store) {
 	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
 		t.Fatal(err)
 	}
-	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops"}, nil)
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops", TextWays: db.Ways{Browser: true}}, nil)
 	return b, base, database, s
 }
 
@@ -239,5 +240,63 @@ func TestFilesWaitForTheirRoots(t *testing.T) {
 	b.call("Fetch.disable", map[string]any{}, nil)
 	if !b.waitFor(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
 		t.Fatalf("the roots: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+
+// minimalPDF is a PDF of one page with one line of text, with its cross-reference table.
+func minimalPDF(text string) []byte {
+	objects := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+		"",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+	}
+	stream := "BT /F1 24 Tf 20 60 Td (" + text + ") Tj ET"
+	objects[3] = fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream)
+	var b strings.Builder
+	b.WriteString("%PDF-1.4\n")
+	offsets := []int{}
+	for i, o := range objects {
+		offsets = append(offsets, b.Len())
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", i+1, o)
+	}
+	xref := b.Len()
+	fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for _, off := range offsets {
+		fmt.Fprintf(&b, "%010d 00000 n \n", off)
+	}
+	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return []byte(b.String())
+}
+
+// A PDF shows in the window through pdf.js, served by UnderDoc itself and under its policy: the page is drawn into a
+// canvas, and nothing is loaded from elsewhere.
+func TestPDFPreview(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.openMyFiles()
+	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "report.pdf", minimalPDF("Card payment")))
+	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "report.pdf"), 1)
+	b.ready("report.pdf")
+	drawn := `(() => { const c = document.querySelector('article.doc [data-pdf] canvas'); if (!c) return false;
+		const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+		for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0 && d[i] < 128) return true; return false; })()`
+	if !b.waitFor(drawn) {
+		t.Fatalf("the page is not drawn: %s; %s", b.eval(`document.querySelector('article.doc [data-pdf]')?.outerHTML.slice(0, 300)`), b.eval(`JSON.stringify(PDFS)`))
+	}
+	b.shot("pdf-preview")
+	// The browser of the uploader read the text of the PDF for the search (ADR-24).
+	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'report.pdf' && D[k].sid)].sid;
+		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
+	if !b.waitFor(`JSON.parse(` + textOf + `).some(t => t.source === 'browser' && t.text.includes('Card payment'))`) {
+		t.Fatalf("the browser gave no text: %s", b.eval(textOf))
+	}
+	// It stays drawn when the window draws itself again.
+	b.eval(`render()`)
+	if !b.waitFor(drawn) {
+		t.Fatal("the canvas is gone after a redraw")
+	}
+	if got := b.eval(`performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin)).join(' ')`); got != "" {
+		t.Errorf("loaded from elsewhere: %s", got)
 	}
 }

@@ -1873,7 +1873,7 @@ const fsend=async(url,method,body)=>{const r=await fetch(url,{...same,method,bod
   const a=r.status===204?{}:await r.json().catch(()=>({}));if(!r.ok)throw new Error(a.error||String(r.status));return a;};
 async function loadRoots(){
   let a;try{const r=await fetch('/api/files',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
-  FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;
+  FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;FS.text=a.text||{};
   if(!FS.roots.some(x=>x.id===S.sec.files)&&!['ext','newfcoll'].includes(S.sec.files))S.sec.files=(FS.roots.find(x=>x.role==='user')||FS.roots[0]||{id:'ext'}).id;
   render();
 }
@@ -1911,14 +1911,29 @@ async function openFile(sid){
   if(!D[key])pseudo(key,{t:'file',n:'…',path:'the content store',vis:'',stat:'',html:'<p class="lab">Loading…</p>'});
   D[key].sid=sid;openDoc(key);render();
   let f;try{f=await fget('/api/files/'+encodeURIComponent(sid));}catch(e){D[key].html='<p class="lab">This file could not be loaded.</p>';render();return;}
-  const url=f.content,dl=url+'?download=1',img=f.inline&&f.type.startsWith('image/'),vid=f.inline&&f.type.startsWith('video/');
-  const preview=img?`<img src="${url}" alt="${esc(f.n)}">`:vid?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)} yet. Download it to open it.</div>`;
+  const url=f.content,dl=url+'?download=1';
+  const preview=f.preview==='image'?`<a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a>`
+    :f.preview==='pdf'?`<div data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></div>`
+    :f.preview==='video'?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
   Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
     html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
       <h2>Versions</h2>${tableHtml(['Version','When','Who','Size',''],vrows)}`});
   render();
 }
+/* PDF, and Office files through the optional Office module, show in pdf.js, served by UnderDoc itself
+   (assets/app/pdfjs). The pages are drawn once; each redraw of the window takes the same canvases again. */
+const PDFS={};
+function mountPDFs(){
+  document.querySelectorAll('[data-pdf]').forEach(el=>{const url=el.dataset.pdf,p=PDFS[url];
+    if(!p){PDFS[url]={state:'loading',nodes:[]};const box=document.createElement('div');
+      const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+      import('/assets/app/pdfjs/viewer.mjs?v='+v).then(m=>m.show(box,url)).then(r=>{PDFS[url]={state:'done',nodes:[...box.children],pages:r.pages,shown:r.shown};render();})
+        .catch(e=>{PDFS[url]={state:'failed',nodes:[],error:String(e)};render();});return;}
+    if(p.state==='done'&&!el.querySelector('canvas')){el.replaceChildren(...p.nodes);if(p.pages>p.shown){const n=document.createElement('p');n.className='hint';n.textContent=`The first ${p.shown} of ${p.pages} pages. Download the file for all of them.`;el.append(n);}}
+    else if(p.state==='failed'&&!el.dataset.failed){el.dataset.failed='1';el.innerHTML='<div class="note">The preview could not be drawn. Download the file to open it.</div>';}});
+}
+new MutationObserver(()=>{if(document.querySelector('[data-pdf]'))mountPDFs();}).observe(document.documentElement,{childList:true,subtree:true});
 /* Uploads go in chunks, and a broken one resumes where the server says it stands: the browser keeps the ID of each
    upload under its target, name, size and date, so choosing the same file again continues it. */
 const upKey=(target,f)=>'ud-upload:'+JSON.stringify([target.parent||target.file||target.page,f.name,f.size,f.lastModified]);
@@ -1942,10 +1957,18 @@ async function uploadOne(f,target,up){
   up.state='finishing';render();
   const done=await fsend('/api/uploads/'+encodeURIComponent(u.id)+'/finish','POST');keep.del(k);return done;
 }
+/* The way of the browser (ADR-24): the uploader's browser reads the text of a PDF with pdf.js and gives it to the search;
+   the server reads it as well where its way is on, and the search knows which text came from where. */
+async function browserText(id){
+  try{const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+    const m=await import('/assets/app/pdfjs/viewer.mjs?v='+v),pages=await m.text('/api/files/'+encodeURIComponent(id)+'/pdf');
+    const text=pages.join('\n').trim();if(text)await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
+  catch(e){/* the server reads it too, where its way is on */}
+}
 async function uploadFiles(files,target,dir){
   for(const f of files){
     const up={name:f.name,size:f.size,done:0,state:'uploading',dir};FS.ups.push(up);render();
-    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;}catch(e){up.err=e.message;}
+    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;if(done.id&&done.type==='application/pdf'&&FS.text.browser)browserText(done.id);}catch(e){up.err=e.message;}
     render();
   }
   setTimeout(()=>{FS.ups=FS.ups.filter(u=>u.err);render();},2500);

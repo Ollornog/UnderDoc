@@ -86,6 +86,46 @@ plain text. Raster images, plain text, sound and video are shown in the browser;
 all HTML, SVG and XML, which can carry scripts. Everything served from the store has a policy under which nothing runs
 (`sandbox`), and its type is never sniffed. Content is only served through a file or attachment the viewer may see.
 
+## Previews
+
+- **Images** (PNG, JPEG, GIF, WebP, BMP): a small picture is made on the server with Go alone, the first time it is
+  asked for (`/api/files/<id>/thumb?size=256` or `1024`), and kept beside the blob. An image says its size in its
+  header; one of more than 50 million pixels, such as a decompression bomb, gets no preview and is never decoded. At most
+  two previews are made at once.
+- **PDF** shows in the window through pdf.js, built from its lockfile in `web/pdfjs` and served by UnderDoc itself with
+  its fonts, character maps and decoders. Only the pages are drawn, the first 30; no layer of links or forms, no scripts
+  of the PDF, and no `eval`.
+- **Office files** (Word, Excel, PowerPoint, OpenDocument) show the same way once an Office module converts them to PDF.
+  LibreOffice is far larger than UnderDoc, so it is not in the image: a Gotenberg service (MIT) next
+  to UnderDoc does it (`UNDERDOC_OFFICE_URL`, for example `http://127.0.0.1:3000`), and the PDF is kept beside the blob.
+  Without the module, Office files are downloaded.
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_OFFICE_URL` | The Office module for previews, a Gotenberg service | none: no Office previews |
+
+## Text for the search
+
+The text of files reaches the search three ways (ADR-24), each switched on in layers: the hoster allows it
+(`UNDERDOC_TEXT_WAYS`), the tenant leaves it on or switches it off, and each user does the same for their own uploads
+(`GET`/`PUT /api/files/text-settings`; the tenant's part only administrators). Each text is kept with where it came from.
+
+- **Browser:** after an upload, the uploader's browser reads the text of a PDF with pdf.js and sends it
+  (`PUT /api/files/<id>/text`).
+- **Server:** a queue reads the text of PDF, Word, Excel, PowerPoint, OpenDocument and text files in Go, one job at a
+  time, at most two minutes and `UNDERDOC_TEXT_MAX_SIZE` each, three tries. An Office file is checked part by part
+  against its packed size before anything is unpacked, so a zip bomb is refused. Images, and scanned PDF with
+  `UNDERDOC_TESSERACT` set, go to the program tesseract (deu+eng), which the image of UnderDoc does not bring.
+- **AI:** a model for OCR of difficult scans comes with M-13; the interface is there. A scanned PDF goes to it when the
+  uploader has this way on, and the pages it reads count against a quota per user and per tenant and month.
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_TEXT_WAYS` | The ways the hoster allows: `browser`, `server`, `ai`, or `none` | `browser,server` |
+| `UNDERDOC_TEXT_MAX_SIZE` | Largest file the server reads | `100M` |
+| `UNDERDOC_TESSERACT` | The program tesseract for OCR on the server | none |
+| `UNDERDOC_AI_OCR_PAGES_USER`, `UNDERDOC_AI_OCR_PAGES_TENANT` | Pages a model may read per month, `0` for no limit | `0` |
+
 ## Attachments of pages
 
 Images pasted into a page belong to it like its blocks and live only in the store

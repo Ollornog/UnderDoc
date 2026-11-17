@@ -1,0 +1,14 @@
+{
+  "name": "underdoc-pdfjs",
+  "private": true,
+  "description": "The PDF preview of UnderDoc: pdf.js, served by UnderDoc itself (ADR-28).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.5.438"
+  }
+}
