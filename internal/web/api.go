@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/tree"
 )
@@ -62,6 +64,8 @@ type apiState struct {
 	Collections []apiNode `json:"collections"`
 	CanCreate   bool      `json:"canCreate"`
 	Problems    int       `json:"problems"`
+	// Modules are all modules with their state for this user (ADR-25).
+	Modules []apiModule `json:"modules"`
 	// Settings are the account's settings of the workspace, as the browser saved them; absent without the database.
 	Settings json.RawMessage `json:"settings,omitempty"`
 	// Files tells that the view Files has the database and the content store behind it (ADR-28).
@@ -116,18 +120,30 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := account.From(ctx)
 	lib := h.library(r.Context())
+	modules := h.moduleStates(r)
+	documents := slices.ContainsFunc(modules, func(m module.State) bool { return m.ID == module.Documents && m.On && !m.Hidden })
+	if !documents {
+		// Switched off or hidden: no entry of Documents in the workspace (ADR-25).
+		lib = h.noFolder
+	}
 	state := apiState{
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
 			Admin: user.Admin, Method: user.Method},
-		CanCreate: h.options.DB != nil,
+		CanCreate: h.options.DB != nil && documents,
 		Problems:  len(lib.Problems()),
-		Files:     h.options.DB != nil && h.options.Store != nil,
+		Files: h.options.DB != nil && h.options.Store != nil &&
+			slices.ContainsFunc(modules, func(m module.State) bool { return m.ID == module.Files && m.On && !m.Hidden }),
+		Modules: apiModules(modules),
 	}
 	if state.User.Groups == nil {
 		state.User.Groups = []string{}
 	}
 	if h.options.DB != nil {
-		collections, err := h.options.DB.Collections(ctx, user.ID)
+		var collections []db.Object
+		var err error
+		if documents {
+			collections, err = h.options.DB.Collections(ctx, user.ID)
+		}
 		if err != nil {
 			h.log.Error("collections failed", slog.String("error", err.Error()))
 		}

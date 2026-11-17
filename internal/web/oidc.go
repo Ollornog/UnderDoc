@@ -189,6 +189,11 @@ func (h *handler) oidcCallback(w http.ResponseWriter, r *http.Request) {
 			refuse(user.Login, "a local account has this name")
 			return
 		}
+		if errors.Is(err, db.ErrQuota) {
+			h.logSignIn(ctx, user.Login, db.MethodOIDC, false, "workspace full")
+			h.signInPage(w, r, http.StatusForbidden, quotaText)
+			return
+		}
 		h.passkeyFailed(w, err, "OIDC")
 		return
 	}

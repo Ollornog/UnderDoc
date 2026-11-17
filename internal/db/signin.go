@@ -166,6 +166,15 @@ func (db *DB) SeeExternal(ctx context.Context, user account.User, source string)
 		if local {
 			return ErrSource
 		}
+		var known bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", user.ID).Scan(&known); err != nil {
+			return err
+		}
+		if !known {
+			if err := roomForUser(ctx, tx); err != nil {
+				return err
+			}
+		}
 		var inserted bool
 		err := tx.QueryRow(ctx, `
 			INSERT INTO accounts (id, login, name, email, groups, source) VALUES ($1, $2, $3, $4, $5, $6)
@@ -225,6 +234,9 @@ func (db *DB) AcceptInvite(ctx context.Context, hash []byte, in NewLocal) (Accou
 		}
 		if taken {
 			return ErrLoginTaken
+		}
+		if err := roomForUser(ctx, tx); err != nil {
+			return err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO accounts (id, login, name, source, admin, password_hash, totp_sealed, totp_step)
 			VALUES ($1, $2, $3, 'local', $4, nullif($5, ''), $6, $7)`, in.ID, inv.Login, inv.Name, inv.Admin, in.PasswordHash, in.TOTPSealed, in.TOTPStep)

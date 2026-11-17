@@ -180,9 +180,11 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if top, err = write(tree, parent, title); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, "UPDATE objects SET position = $2 WHERE id = $1", top.ID, position)
+		if _, err = tx.Exec(ctx, "UPDATE objects SET position = $2 WHERE id = $1", top.ID, position); err != nil {
+			return err
+		}
 		top.Position = position
-		return err
+		return withinStorage(ctx, tx)
 	})
 	return top, err
 }

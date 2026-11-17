@@ -19,6 +19,8 @@
 //	                        limits and how long versions are kept (docs/files.md)
 //	UNDERDOC_GATE           "on" lets tenants trust the headers of a sign-in gate, "off" never; empty keeps it where it is
 //	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC (none: not offered)
+//	UNDERDOC_MODULES        the modules allowed, each on by default or with ":off" off by default (none: every module)
+//	UNDERDOC_HOSTER_HOST    with many tenants, the host name of the hoster administration (none: no such page)
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -50,6 +52,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -153,6 +156,10 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		Tenants:      env("UNDERDOC_TENANTS", tenant.ModeOne),
 		TenantDomain: os.Getenv("UNDERDOC_TENANT_DOMAIN"),
 		Gate:         os.Getenv("UNDERDOC_GATE"),
+		HosterHost:   os.Getenv("UNDERDOC_HOSTER_HOST"),
+	}
+	if options.Modules, err = module.ParsePolicy(os.Getenv("UNDERDOC_MODULES")); err != nil {
+		return err
 	}
 	keys, err := vault.New(os.Getenv(vault.KeyEnv))
 	if err != nil {
@@ -174,7 +181,8 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		defer database.Close()
 		options.DB = database
 		healthy = func() bool { return lib.Healthy() && database.Healthy(context.Background()) }
-		go database.KeepTrash(ctx, time.Hour, func(err error) { log.Error("emptying the trash failed", slog.String("error", err.Error())) })
+		// The trash belongs to Documents: where that is off, its job does not run either (ADR-25).
+		go database.KeepTrash(ctx, time.Hour, web.ModuleOn(database, options.Modules, module.Documents), func(err error) { log.Error("emptying the trash failed", slog.String("error", err.Error())) })
 		files, err := readFilesConfig()
 		if err != nil {
 			return err
@@ -184,7 +192,7 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 				return fmt.Errorf("content store: %w", err)
 			}
 			database.SetLimits(files.Limits)
-			go keepFiles(ctx, database, options.Store, files.Retention, time.Hour, log)
+			go keepFiles(ctx, database, options.Store, files.Retention, time.Hour, web.ModuleOn(database, options.Modules, module.Files), log)
 		}
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {

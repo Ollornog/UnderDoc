@@ -91,7 +91,7 @@ func parseSize(s string) (int64, error) {
 // keepFiles keeps the store clean for every tenant, at once and then every so often until ctx ends: uploads that got
 // nothing for a day go, versions are thinned, blobs nothing refers to leave the store, and blobs the database does not
 // know go after a day.
-func keepFiles(ctx context.Context, database *db.DB, s *store.Store, retention db.Retention, every time.Duration, log *slog.Logger) {
+func keepFiles(ctx context.Context, database *db.DB, s *store.Store, retention db.Retention, every time.Duration, on func(context.Context) bool, log *slog.Logger) {
 	swept := map[string]time.Time{}
 	round := func(ctx context.Context, t string) error {
 		if _, err := database.ExpireUploads(ctx, time.Now().Add(-24*time.Hour), func(id string) error { return s.RemoveUpload(t, id) }); err != nil {
@@ -119,6 +119,10 @@ func keepFiles(ctx context.Context, database *db.DB, s *store.Store, retention d
 	for {
 		tenants, err := database.TenantIDs(ctx)
 		for _, t := range tenants {
+			// Where Files is switched off, its job leaves everything as it is (ADR-25).
+			if on != nil && !on(tenant.With(ctx, t)) {
+				continue
+			}
 			if err := round(tenant.With(ctx, t), t); err != nil && ctx.Err() == nil {
 				log.Error("keeping the files failed", slog.String("tenant", t), slog.String("error", err.Error()))
 			}

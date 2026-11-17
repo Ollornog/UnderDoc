@@ -375,8 +375,14 @@ func TestTrashExpiresForEveryTenant(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	gone, err := db.ExpireAllTrash(context.Background(), time.Now().Add(time.Minute))
-	if err != nil || gone != 2 {
+	// A tenant with the trash switched off keeps it (ADR-25).
+	acmeOff := func(ctx context.Context) bool { t, _ := tenant.From(ctx); return t != "acme" }
+	gone, err := db.ExpireAllTrash(context.Background(), time.Now().Add(time.Minute), acmeOff)
+	if err != nil || gone != 1 {
+		t.Errorf("%d gone, %v", gone, err)
+	}
+	gone, err = db.ExpireAllTrash(context.Background(), time.Now().Add(time.Minute), nil)
+	if err != nil || gone != 1 {
 		t.Errorf("%d gone, %v", gone, err)
 	}
 }

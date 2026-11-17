@@ -69,6 +69,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |
 | `UNDERDOC_GATE` | `on` lets tenants trust the headers of a sign-in gate, `off` never; empty keeps it where a tenant has it | empty |
 | `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (TOTP, the client secret of OIDC); without it, these are not offered | none |
+| `UNDERDOC_MODULES` | Modules allowed, each on by default or with `:off` off by default ([docs/modules.md](docs/modules.md)) | every module |
+| `UNDERDOC_HOSTER_HOST` | With many tenants, the host name of the hoster administration | none |
 | `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
 | `UNDERDOC_STORE_DIR` | The content store of the files, with the database; limits and versions in [docs/files.md](docs/files.md) | none: no files |
 

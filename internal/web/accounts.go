@@ -140,6 +140,8 @@ func (h *handler) invitePassword(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, db.ErrLoginTaken):
 			again("This login is taken by now. Ask for a new invitation.")
+		case errors.Is(err, db.ErrQuota):
+			again(quotaText)
 		case errors.Is(err, db.ErrNotFound):
 			again("This invitation is used or has run out.")
 		default:

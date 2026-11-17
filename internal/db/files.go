@@ -378,6 +378,10 @@ func (db *DB) checkRoom(ctx context.Context, tx pgx.Tx, rootID string, size int6
 	if err := db.checkRootRoom(ctx, tx, rootID, size); err != nil {
 		return err
 	}
+	// The storage limit the hoster set for the tenant counts pages and files together (ADR-23).
+	if err := roomForBytes(ctx, tx, size); err != nil {
+		return err
+	}
 	if db.limits.Tenant > 0 {
 		n, err := tenantUsed(ctx, tx)
 		if err != nil {

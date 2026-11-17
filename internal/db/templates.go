@@ -147,8 +147,10 @@ func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, par
 				return err
 			}
 		}
-		_, err = tx.Exec(ctx, "UPDATE objects SET next_block = $2 WHERE id = $1", made.ID, len(bodies)+1)
-		return err
+		if _, err = tx.Exec(ctx, "UPDATE objects SET next_block = $2 WHERE id = $1", made.ID, len(bodies)+1); err != nil {
+			return err
+		}
+		return withinStorage(ctx, tx)
 	})
 	return made, err
 }

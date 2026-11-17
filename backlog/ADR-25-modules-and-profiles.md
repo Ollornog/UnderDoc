@@ -27,3 +27,6 @@ companies (the maintainer, 2026-11-16), and hosters offer it to many tenants (AD
 - Each module has its own tests with the module on and off.
 - The private area serves single users and companies: time and leave can run purely privately, or with the full company
   function of M-24, which a company switches on itself.
+- Built on 2026-11-17 ([docs/modules.md](../docs/modules.md)): Documents is the first module; hiding is not switching
+  off, so what a user hides stays reachable by address and embedding. The modules hook into the interface of M-14 once
+  it exists; until then `module.All`, the guard of the routes and `web.ModuleOn` for jobs are that interface.

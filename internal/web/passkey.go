@@ -307,6 +307,8 @@ func (h *handler) inviteFailed(w http.ResponseWriter, err error) bool {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "This invitation is used or has run out."})
 	case errors.Is(err, db.ErrLoginTaken):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "This login is taken by now. Ask for a new invitation."})
+	case errors.Is(err, db.ErrQuota):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": quotaText})
 	default:
 		h.passkeyFailed(w, err, "invitation")
 	}

@@ -191,7 +191,7 @@ function rowHtml(id){
 }
 const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','notes','excel','slides','video','images','view','db','ipnet','devices'];
 /* The first build: switched-off modules disappear, but what is not built yet stays in sight, greyed out. */
-const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','mods','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
+const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
 const later=(kind,id)=>S.first&&LATER[kind].includes(id);
 /* Why a document cannot be edited, for the greyed pencil: nothing that is not built or not allowed simply goes missing. */
 /* Whether a tab shows its document for editing: what was chosen for this document, else the setting "open for editing". */
@@ -621,6 +621,7 @@ function settingsHtml(sec){
 const ADMINTXT={users:['Users and groups','Who exists, who is in which group, who may administer. Comes with M-5.'],src:['Sources','Connections to databases and other systems. Comes with M-4.'],store:['Storage and backup','Where documents lie, the share, the export. Comes with M-2.'],signin:['Sign-in','How people sign in. The gate in front decides today.'],audit:['Audit log','Who did what. Comes with M-2 and M-5.']};
 function adminHtml(sec){
   if(sec==='signin') return `<div class="spanel"><div class="shead">Sign-in</div><p class="hint">How people sign in, who is invited, and who signed in.</p>${S.user.admin?'<a class="chip" href="/admin/sign-in">Open the sign-in settings</a>':''}</div>`;
+  if(sec==='mods'&&!document.getElementById('root').hasAttribute('data-demo')) return `<div class="spanel"><div class="shead">Modules</div>${(S.modules||[]).map(m=>`<div class="modrow"><span>${esc(m.name)}<small>${esc(m.description)}</small></span><em>${m.on?'✓ On':'✗ Off'}</em></div>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched.</p>${S.user.admin?'<a class="chip" href="/admin/modules">Switch modules</a>':''}<a class="chip" href="/account/modules">Hide modules for me</a></div>`;
   if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;
   return `<div class="spanel"><div class="shead">Modules</div>${MODS.map(m=>`<button class="modrow" data-act="mod" data-id="${m[0]}" aria-pressed="${S.mods[m[0]]}"><span>${m[1]}<small>${m[2]}</small></span><em>${S.mods[m[0]]?'✓ On':'Off'}</em></button>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched. Only administrators see this part of the profile.</p></div>`;
 }
@@ -1982,7 +1983,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.canCreate=st.canCreate;loadTemplates();
+    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;loadTemplates();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

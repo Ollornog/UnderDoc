@@ -135,6 +135,9 @@ func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) 
 	}
 	var b Block
 	err := db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
+		if err := roomForBytes(ctx, tx, int64(len(body))); err != nil {
+			return err
+		}
 		position := 0
 		if after != "" {
 			if err := tx.QueryRow(ctx, "SELECT position + 1 FROM blocks WHERE page = $1 AND id = $2", pageID, after).Scan(&position); err != nil {
@@ -209,6 +212,9 @@ func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body strin
 		}
 		if old == body {
 			return nil
+		}
+		if err := roomForBytes(ctx, tx, int64(len(body)-len(old))); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, "UPDATE blocks SET body = $3 WHERE page = $1 AND id = $2", pageID, blockID, body); err != nil {
 			return err
