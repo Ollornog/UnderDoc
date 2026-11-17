@@ -98,12 +98,16 @@ func (b *browser) openMyFiles() {
 	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
 }
 
-// filesSettled waits until the uploads are done and their list has gone, and no folder is loading: until then nav3 draws
-// itself again, and a mark put on one of its entries goes with it.
+// filesSettled waits until nothing is left that draws the workspace again on its own: the uploads are done and their list
+// has gone, no request of the view is under way, and no toast waits to go. Each of them redraws everything when it comes,
+// which drops a mark put on an entry, swallows a click whose press and release it falls between, and (before the form
+// kept it) put the first name back into a field being typed into. The toast of a restore went 2.6 s after it, the list
+// of the uploads after a drop that came right after it 2.5 s after the upload: in CI the toast went last, while the test
+// was already typing the name of a new folder (2026-11-17).
 func (b *browser) filesSettled() {
 	b.t.Helper()
-	if !b.waitFor(`FS.ups.length === 0 && !Object.values(FS.dirs).some(d => d.loading)`) {
-		b.t.Fatalf("the files did not settle: %s", b.eval(`JSON.stringify(FS.ups)`))
+	if !b.waitFor(`FS.ups.length === 0 && FS.busy === 0 && !S.toast && !Object.values(FS.dirs).some(d => d.loading)`) {
+		b.t.Fatalf("the files did not settle: %s", b.eval(`JSON.stringify({ups: FS.ups, busy: FS.busy, toast: S.toast})`))
 	}
 }
 
@@ -135,6 +139,7 @@ func TestFilesByHand(t *testing.T) {
 	}
 	b.shot("file-in-window")
 	// A new version through its button, then the first one back.
+	b.filesSettled()
 	b.choose(probe(b, `article.doc button.chip`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
 	versions := `document.querySelectorAll('article.doc table tr').length - 1`
 	if !b.waitFor(versions + ` === 2`) {
@@ -146,6 +151,7 @@ func TestFilesByHand(t *testing.T) {
 		t.Fatalf("after the restore: %s", b.eval(versions))
 	}
 	// Files dropped from the desktop onto the list land in the folder shown.
+	b.filesSettled()
 	notes := writeTemp(t, "notes.txt", []byte("hello"))
 	list := b.rect(`.nav3 #tree`)
 	for _, kind := range []string{"dragEnter", "dragOver", "drop"} {
@@ -158,8 +164,17 @@ func TestFilesByHand(t *testing.T) {
 	// A new folder is named in place and opens with its path.
 	b.filesSettled()
 	b.clickOn(`.nav3 [data-act="fnewdir"]`, 1)
+	field := `document.querySelector('.nav3 form[data-fform="dir"] input')`
 	b.clickOn(`.nav3 form[data-fform="dir"] input`, 3)
+	if !b.waitFor(`document.activeElement === ` + field + ` && ` + field + `.selectionStart === 0 && ` + field + `.selectionEnd === ` + field + `.value.length`) {
+		t.Fatalf("the name of the folder does not wait for the typing: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
+	}
 	b.typeText("Scans")
+	// What is typed stays, with the focus, when the workspace draws itself again meanwhile.
+	b.eval(`render()`)
+	if got := b.eval(field + `.value + ' ' + (document.activeElement === ` + field + `)`); got != "Scans true" {
+		t.Fatalf("the name typed after a redraw: %q", got)
+	}
 	b.clickOn(`.nav3 form[data-fform="dir"] button`, 1)
 	if !b.waitFor(fileRows + ` === 'Scans, notes.txt, photo.png'`) {
 		t.Fatalf("the new folder: %q", b.eval(fileRows))
@@ -362,8 +377,13 @@ func TestImagesInTheEditor(t *testing.T) {
 		t.Fatal("Move to the files is not in reach")
 	}
 	// The drawer of the facts may move while it fills in under load; the button is taken by the keyboard, focused and
-	// pressed in one go, which a moving layout cannot misdirect.
+	// pressed in one go, which a moving layout cannot misdirect. A redraw between the two keeps the focus on the button
+	// (before, the Enter went nowhere then: a red run under load, 2026-11-17).
 	b.eval(`document.querySelector('[data-act="fatt"]').focus()`)
+	b.eval(`render()`)
+	if got := b.eval(`document.activeElement?.dataset.act`); got != "fatt" {
+		t.Fatalf("after a redraw the focus is on %q, not on Move to the files", got)
+	}
 	for _, kind := range []string{"keyDown", "keyUp"} {
 		b.call("Input.dispatchKeyEvent", map[string]any{"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
 	}

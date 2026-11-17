@@ -692,6 +692,7 @@ function render(){
   if(S.booted)saveSettings();
   /* The editor of a page keeps the focus through a render; S.focusNext asks for it, at a block if it names one. */
   const ae=document.activeElement,ren=ae&&ae.dataset&&ae.dataset.ren!==undefined?{v:ae.value,a:ae.selectionStart,b:ae.selectionEnd}:null,want=S.focusNext,edFocus=Object.keys(EDS).find(k=>EDS[k].ed.hasFocus);S.focusNext=null;
+  const kept=[...document.querySelectorAll('[data-keep]')].map(n=>({k:n.dataset.keep,field:n.tagName==='INPUT',v:n.value,f:n===ae,a:n.selectionStart,b:n.selectionEnd}));
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -718,6 +719,11 @@ function render(){
   rendering=false;
   /* A name being written keeps its text and the focus through a render. */
   const rn=ren&&document.querySelector('[data-ren]');if(rn){rn.value=ren.v;rn.focus();rn.setSelectionRange(ren.a,ren.b);}
+  /* So does a name being typed into a form of the files, and a button of the files reached by the keyboard keeps the
+     focus: a redraw of anything else (a toast going, an upload ending) would otherwise put the first name back and drop
+     the focus, and the typing or the Enter after it would go nowhere (2026-11-17). */
+  kept.forEach(x=>{const n=[...document.querySelectorAll('[data-keep]')].find(m=>m.dataset.keep===x.k);if(!n)return;if(x.field)n.value=x.v;
+    if(x.f){n.focus({preventScroll:true});if(x.field)n.setSelectionRange(x.a,x.b);}});
   const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
   /* A menu with no room below its heading opens above it. */
   /* A menu stays inside the window: at the edge it moves in, and a long one scrolls (2026-11-09). Its place lives in
@@ -1942,31 +1948,33 @@ function loadSettings(server){
    nav2 lists the roots: the folder of the tenant, the user's own folder and collections. nav3 shows one folder at a
    time with its path, and takes uploads by its button or by dropping files on it; a file opens in the window with its
    preview, its versions and a download. Without the store on the server, the view keeps the made-up content. */
-const FS={on:false,pending:false,roots:[],dirs:{},cur:{},ups:[],chunk:8<<20,admin:false,form:null};
+/* busy counts the requests of the view under way: each draws the view again when its answer comes. */
+const FS={on:false,pending:false,roots:[],dirs:{},cur:{},ups:[],chunk:8<<20,admin:false,form:null,busy:0};
+const fbusy=async work=>{FS.busy++;try{return await work();}finally{FS.busy--;}};
 TYPE.file=['page','File'];TYPE.fdir=['folder','Folder'];
 const fsize=n=>n<1024?n+' B':n<1<<20?Math.round(n/1024)+' KB':n<1<<30?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(1)+' GB';
 const fget=async url=>{const r=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return r.json();};
 const fsend=async(url,method,body)=>{const r=await fetch(url,{...same,method,body:body===undefined?undefined:JSON.stringify(body)});
   const a=r.status===204?{}:await r.json().catch(()=>({}));if(!r.ok)throw new Error(a.error||String(r.status));return a;};
-async function loadRoots(){
+const loadRoots=()=>fbusy(async()=>{
   let a;try{const r=await fetch('/api/files',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
   FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;FS.text=a.text||{};
   if(!FS.roots.some(x=>x.id===S.sec.files)&&!['ext','newfcoll'].includes(S.sec.files))S.sec.files=(FS.roots.find(x=>x.role==='user')||FS.roots[0]||{id:'ext'}).id;
   render();
-}
-async function loadDir(id){
+});
+const loadDir=id=>fbusy(async()=>{
   FS.dirs[id]=FS.dirs[id]||{loading:true,entries:[]};
   try{const a=await fget('/api/files/'+encodeURIComponent(id)+'/list');FS.dirs[id]={...a,loading:false};}
   catch(e){FS.dirs[id]={failed:true,entries:[]};}
   render();
-}
+});
 const froot=()=>FS.roots.find(x=>x.id===S.sec.files);
 /* The path from the root to the folder shown: each step was opened from the one before, so all of them are known. */
 function fcrumbs(root,cur){const out=[];for(let x=cur;x;x=FS.dirs[x]&&FS.dirs[x].parent){out.unshift(x);if(x===root)break;}
   return out.map((x,k)=>k===out.length-1?`<span>${esc(FS.dirs[x]&&FS.dirs[x].n||'')}</span>`:`<button class="l" data-act="fdir" data-id="${x}">${esc(FS.dirs[x].n)}</button>`).join(' › ');}
 function filesNav3(){
   const sec=S.sec.files;
-  if(sec==='newfcoll')return `<div class="spanel"><div class="shead">New collection</div><form data-fform="coll"><input name="title" value="Files" aria-label="Name of the collection" required maxlength="200"><button class="chip" type="submit">Make</button></form><p class="hint">A collection of files with its own members; until roles come (ADR-29), others may do what you let them.</p></div>`;
+  if(sec==='newfcoll')return `<div class="spanel"><div class="shead">New collection</div><form data-fform="coll"><input name="title" value="Files" data-keep="fcoll" aria-label="Name of the collection" required maxlength="200"><button class="chip" type="submit">Make</button></form><p class="hint">A collection of files with its own members; until roles come (ADR-29), others may do what you let them.</p></div>`;
   const r=froot();if(!r)return '<p class="lab pad">Loading…</p>';
   const cur=FS.cur[r.id]||r.id,d=FS.dirs[cur];
   if(!d){loadDir(cur);return '<p class="lab pad">Loading…</p>';}
@@ -1977,13 +1985,14 @@ function filesNav3(){
   const ups=FS.ups.filter(u=>u.dir===cur).map(u=>`<li class="lab" data-fup="${esc(u.name)}"><small>${esc(u.name)}</small> <progress max="${u.size||1}" value="${u.done}"></progress> <small>${u.err?esc(u.err):u.state}</small></li>`).join('');
   const tools=d.canEdit?`<div class="tagrow"><button class="chip" data-act="fup" data-id="${cur}">${ic('plus')} Upload</button><button class="chip" data-act="fnewdir" data-id="${cur}">${ic('folder')} New folder</button></div>
     <input type="file" multiple hidden data-fpick="${cur}" aria-label="Files to upload">`:`<p class="hint">${r.role==='tenant'?'Everyone reads this folder; its writers change it.':'You may only read here.'}</p>`;
-  const form=FS.form===cur?`<form data-fform="dir" data-id="${cur}"><input name="title" value="New folder" aria-label="Name of the folder" required maxlength="200"><button class="chip" type="submit">Make</button></form>`:'';
+  const form=FS.form===cur?`<form data-fform="dir" data-id="${cur}"><input name="title" value="New folder" data-keep="fdir:${cur}" aria-label="Name of the folder" required maxlength="200"><button class="chip" type="submit">Make</button></form>`:'';
   return `<div class="tree" id="tree" data-fdrop="${d.canEdit?cur:''}"><div class="chead first">${esc(r.n)}</div><p class="hint">${fcrumbs(r.id,cur)} · ${room}</p>${tools}${form}
     <ul class="t top">${rows||(d.loading?'':'<li class="lab pad">Empty. Upload files or drop them here.</li>')}${ups}</ul></div>`;
 }
 /* A file opens in the window like any document: what the browser may show inline is shown, everything else is a
    download; the versions list who changed it and when, and an older one comes back as a new version. */
-async function openFile(sid){
+const openFile=sid=>fbusy(()=>showFile(sid));
+async function showFile(sid){
   const key=keyOf(sid);
   if(!D[key])pseudo(key,{t:'file',n:'…',path:'the content store',vis:'',stat:'',html:'<p class="lab">Loading…</p>'});
   D[key].sid=sid;openDoc(key);render();
@@ -2023,7 +2032,7 @@ async function loadAttachments(key){
 }
 function attachmentsHtml(d){
   if(!d.atts||!d.atts.length)return '';const key=Object.keys(D).find(k=>D[k]===d);
-  return `<h3>Attachments</h3><ul>${d.atts.map(a=>`<li><small>${fsize(a.size)}</small><span><a class="l" href="${a.url}" target="_blank" rel="noopener">${esc(a.name)}</a>${d.canEdit?` <button class="l" data-act="fatt" data-id="${key}" data-att="${a.id}">Move to the files</button>`:''}</span></li>`).join('')}</ul>`;
+  return `<h3>Attachments</h3><ul>${d.atts.map(a=>`<li><small>${fsize(a.size)}</small><span><a class="l" href="${a.url}" target="_blank" rel="noopener">${esc(a.name)}</a>${d.canEdit?` <button class="l" data-act="fatt" data-id="${key}" data-att="${a.id}" data-keep="fatt:${key}:${a.id}">Move to the files</button>`:''}</span></li>`).join('')}</ul>`;
 }
 async function moveAttachment(key,att){
   const sid=D[key].sid,top=COLL[key]&&D[COLL[key].id].sid;

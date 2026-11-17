@@ -169,6 +169,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A name being typed for a new folder or a new collection of files kept neither its text nor the focus when the
+  workspace drew anew meanwhile (a toast going, an upload ending): the field showed "New folder" again, and what was typed
+  next went nowhere. The field now keeps both, and "Move to the files" of an attachment keeps the focus for the keyboard.
+  Found by `TestFilesByHand` in CI, whose toast of a restore went just after the test had started typing.
+- The browser tests of the files waited only for the uploads and the folders; they now also wait until no request of the
+  view is under way (`FS.busy`) and no toast waits to go, since each of them draws the workspace anew and can swallow a
+  click whose press and release it falls between.
 - On a touch screen, a finger on a table in the editor puts the cursor into the cell it touched, so the table tools show;
   before, the caret stayed outside the drawn table.
 - Browser tests measured an element found by its text in a second step; when the workspace drew anew in between, the
