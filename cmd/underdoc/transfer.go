@@ -17,8 +17,8 @@ import (
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/transfer"
 )
 

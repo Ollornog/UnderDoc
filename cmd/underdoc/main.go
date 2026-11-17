@@ -45,8 +45,8 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/version"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )

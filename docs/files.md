@@ -38,7 +38,8 @@ is stored once. Each tenant has a directory of its own (ADR-23):
 <store>/<tenant>/derived/<sha256>…      previews and other things made from a blob
 ```
 
-No name a user gives ever becomes a path in the store. The database knows which blob belongs to what: the file object
+The tables of the files carry their tenant and are kept apart by row-level security like all others (ADR-23,
+[tenants.md](tenants.md)); the upkeep runs for each tenant. No name a user gives ever becomes a path in the store. The database knows which blob belongs to what: the file object
 with its ID (ADR-18), place, owner, tags, comments and versions. Once an hour UnderDoc ends uploads that got nothing for a
 day, thins the versions, and takes blobs nothing refers to any more out of the store; once a day it also removes blobs
 older than a day that the database does not know, such as one whose upload failed at its last step.
@@ -110,7 +111,7 @@ backup/
     .blobs/<sha256>             older versions and attachments, each once
 ```
 
-`underdoc import --files --owner <login> <dir>/files` brings them back: every copy of every content is checked against its
+`underdoc import [--tenant <id>] --files --owner <login> <dir>/files` brings them back: every copy of every content is checked against its
 hash first, then everything comes in one transaction. IDs are kept where they are free. Owners and authors are found by
 their login, else the owner given; a user's folder comes back as that user's folder if they have signed in once and have
 none yet, else as a collection. Import the documents first, so attachments find their pages.

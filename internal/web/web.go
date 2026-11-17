@@ -29,8 +29,8 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/route"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/store"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 //go:embed templates/*.html

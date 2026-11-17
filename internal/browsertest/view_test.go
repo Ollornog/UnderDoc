@@ -5,8 +5,10 @@
 package browsertest
 
 import (
+	"encoding/json"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // The gear of a page of the database keeps its width and where its contents show (ADR-16, M-8): chosen with the pointer,
@@ -26,14 +28,27 @@ func TestTheGearKeepsWidthAndContents(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('.fdrawer [data-act="settoc"]')].map(x => x.textContent).join(',') + ' | ' + document.querySelector('.fdrawer .hint').textContent`); got != "marker,side,hidden | Both are kept with this document, for everyone who opens it." {
 		t.Errorf("the gear of a page of the database: %q", got)
 	}
+	// The second choice is held on its way to the server: the page must not be read again before it is stored, which
+	// under load made this test red (2026-11-17).
+	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/view", "requestStage": "Request"}}}, nil)
 	b.clickOn(`.fdrawer [data-act="setw"][data-id="full"]`, 1)
+	var paused struct{ RequestID string }
+	_ = json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &paused)
+	b.call("Fetch.continueRequest", map[string]any{"requestId": paused.RequestID}, nil)
 	b.clickOn(`.fdrawer [data-act="settoc"][data-id="side"]`, 1)
+	_ = json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &paused)
+	if !b.waitFor(`window.written.filter(w => w.endsWith('/view')).length === 1`) {
+		t.Errorf("the first choice is stored: %s", b.eval(`window.written.join(', ')`))
+	}
+	time.Sleep(300 * time.Millisecond)
+	b.call("Fetch.continueRequest", map[string]any{"requestId": paused.RequestID}, nil)
+	b.call("Fetch.disable", map[string]any{}, nil)
 	if !b.waitFor(`document.querySelector('article.doc').classList.contains('full') && [...document.querySelectorAll('nav.toc button')].map(x => x.textContent).join(',') === 'Switches,Routers'`) {
 		t.Errorf("full width and the contents at the side: %s", b.eval(`document.querySelector('article.doc').className + ' ' + document.querySelector('nav.toc')?.textContent`))
 	}
 	b.shot("gear-view")
-	if !b.waitFor(`window.writes.filter(w => w.endsWith('/view')).length === 2`) {
-		t.Errorf("each choice is stored: %s", b.eval(`window.writes.join(', ')`))
+	if !b.waitFor(`window.written.filter(w => w.endsWith('/view')).length === 2`) {
+		t.Errorf("each choice is stored: %s", b.eval(`window.written.join(', ')`))
 	}
 	b.open(base + "/o/" + page)
 	b.ready("Viewed")
