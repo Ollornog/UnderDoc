@@ -25,6 +25,26 @@ underdoc export --tenant acme ./acme-backup                # everything of one t
 underdoc import --tenant acme --owner anna ./dir "Team"    # into one tenant; without --tenant, Main
 ```
 
+## The hoster administration
+
+With many tenants, `UNDERDOC_HOSTER_HOST` names a host of its own for the hoster. Its administrators are accounts of the
+reserved tenant `hoster`; the first one comes from `underdoc invite --tenant hoster --admin <login> <name>`, and they
+sign in as `/admin/sign-in` of that host sets (a passkey by default). On that host `/hoster` lists the tenants with what
+they use, and nothing of a workspace answers there.
+
+- **Make a tenant**: its ID (the subdomain), its name, and the login and name of its first administrator, who gets a
+  link that works once, for seven days. A new tenant signs in with passkeys and has no registration.
+- **Lock** lets nobody of the tenant in; nothing is lost. **Archive** is the delete of the hoster: the tenant is gone
+  from every host, its data stays, and **Restore** brings it back whole. There is no purge in the web.
+- **Limits**: users at most and storage at most (the bytes of the current blocks of its pages, plus its files with all
+  their versions, attachments and running uploads; versions of blocks are not counted). Past the limit, no new account comes in, from the gate, OIDC or an invitation, while the accounts there keep
+  signing in; and no block, copy, import, template or upload grows the storage, while shrinking always works. The quotas of the files
+(docs/files.md) hold next to it.
+- **Modules** it may use, of those the instance allows ([docs/modules.md](modules.md)).
+- **Domains of its own**, next to the subdomain, and more administrators by invitation.
+- The hoster sees names, states and counts, never content. Its session is one of the tenant `hoster`, which row-level
+  security keeps from every other, and its cookie belongs to its host.
+
 ## How the separation works
 
 - Every table but `tenants`, `tenant_hosts` and `schema_migrations` has a column `tenant`. Its default is the setting

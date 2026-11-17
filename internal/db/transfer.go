@@ -272,7 +272,7 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 				return err
 			}
 		}
-		return nil
+		return withinStorage(ctx, tx)
 	})
 	return result, err
 }

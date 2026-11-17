@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // Deleting puts an object into the trash with everything below it, so a slip of the hand costs nothing (2026-11-09).
@@ -224,31 +222,30 @@ func (db *DB) ExpireTrash(ctx context.Context, before time.Time) (int64, error) 
 	return tag.RowsAffected(), nil
 }
 
-// ExpireAllTrash runs ExpireTrash for every tenant, each as itself. An archived tenant keeps its trash as it is.
-// It returns how many objects went in all.
-func (db *DB) ExpireAllTrash(ctx context.Context, before time.Time) (int64, error) {
-	ids, err := db.TenantIDs(ctx)
-	if err != nil {
-		return 0, err
-	}
+// ExpireAllTrash runs ExpireTrash for every tenant, each as itself, where on says the trash is on for that tenant (nil:
+// everywhere). An archived tenant keeps its trash as it is, and so does one with Documents switched off (ADR-25). It
+// returns how many objects went in all.
+func (db *DB) ExpireAllTrash(ctx context.Context, before time.Time, on func(context.Context) bool) (int64, error) {
 	var gone int64
-	var failed error
-	for _, t := range ids {
-		n, err := db.ExpireTrash(tenant.With(ctx, t), before)
+	err := db.ForEachTenant(ctx, func(ctx context.Context) error {
+		if on != nil && !on(ctx) {
+			return nil
+		}
+		n, err := db.ExpireTrash(ctx, before)
 		gone += n
-		failed = errors.Join(failed, err)
-	}
-	return gone, failed
+		return err
+	})
+	return gone, err
 }
 
-// KeepTrash empties the trash of every tenant of what lies there longer than TrashDays, and removes what has run out of
-// signing in (ExpireSignIns), at once and then every so often, until ctx ends. What fails is told to onError and tried
+// KeepTrash empties the trash of every tenant where on says it is on (nil: everywhere) of what lies there longer than
+// TrashDays, and removes what has run out of signing in (ExpireSignIns), at once and then every so often, until ctx ends. What fails is told to onError and tried
 // again next time.
-func (db *DB) KeepTrash(ctx context.Context, every time.Duration, onError func(error)) {
+func (db *DB) KeepTrash(ctx context.Context, every time.Duration, on func(context.Context) bool, onError func(error)) {
 	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
-		if _, err := db.ExpireAllTrash(ctx, time.Now().Add(-TrashDays*24*time.Hour)); err != nil && ctx.Err() == nil {
+		if _, err := db.ExpireAllTrash(ctx, time.Now().Add(-TrashDays*24*time.Hour), on); err != nil && ctx.Err() == nil {
 			onError(err)
 		}
 		if err := db.ForEachTenant(ctx, db.ExpireSignIns); err != nil && ctx.Err() == nil {

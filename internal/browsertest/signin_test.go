@@ -232,3 +232,10 @@ func TestAdministratorsSetUpTheSignIn(t *testing.T) {
 		t.Errorf("the link: %q", link)
 	}
 }
+
+func newInviteToken(t *testing.T) (string, []byte, error) {
+	t.Helper()
+	return auth.NewToken()
+}
+
+func inAnHour() time.Time { return time.Now().Add(time.Hour) }

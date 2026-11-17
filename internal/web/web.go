@@ -28,6 +28,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/library"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -70,6 +71,11 @@ type Options struct {
 	Vault *vault.Vault
 	// HTTPClient talks to identity providers; nil is a client with a timeout.
 	HTTPClient *http.Client
+	// Modules is what the instance allows of the modules and has on by default (UNDERDOC_MODULES); the zero value
+	// allows every module with its own default.
+	Modules module.Policy
+	// HosterHost is the host name of the hoster administration, with many tenants (ADR-23).
+	HosterHost string
 	// DB keeps accounts and the objects made in the web (ADR-19). Without it, the folder source is all there is.
 	DB *db.DB
 	// Tenants is the mode of the instance (ADR-23): tenant.ModeOne, the default, or tenant.ModeMany, which needs DB.
@@ -102,6 +108,9 @@ type handler struct {
 func New(store *library.Store, log *slog.Logger, options Options) (http.Handler, error) {
 	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
 		throttle: auth.NewThrottle()}
+	if h.options.Modules.IsZero() {
+		h.options.Modules, _ = module.ParsePolicy("")
+	}
 	switch options.Gate {
 	case GateKeep, GateOn, GateOff:
 	default:
@@ -131,69 +140,75 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	}
 	mux := http.NewServeMux()
 	// The workspace renders itself in the browser, as the approved mockup does, and reads its data from the API (ADR-16).
-	for _, pattern := range []string{"GET /{$}", "GET /o/{id...}", "GET /f/{path...}", "GET /profile"} {
+	// Everything of the module Documents answers only while it is on for the tenant (ADR-25).
+	doc := func(pattern string, f http.HandlerFunc) { mux.HandleFunc(pattern, h.guard(module.Documents, f)) }
+	fil := func(pattern string, f http.HandlerFunc) { mux.HandleFunc(pattern, h.guard(module.Files, f)) }
+	for _, pattern := range []string{"GET /{$}", "GET /profile"} {
 		mux.HandleFunc(pattern, h.app)
 	}
+	for _, pattern := range []string{"GET /o/{id...}", "GET /f/{path...}"} {
+		doc(pattern, h.app)
+	}
 	mux.HandleFunc("GET /api/state", h.apiState)
-	mux.HandleFunc("GET /api/doc/{id...}", h.apiDocument)
-	mux.HandleFunc("GET /api/search", h.apiSearch)
-	mux.HandleFunc("POST /api/collections", h.apiCreateCollection)
-	mux.HandleFunc("PATCH /api/objects/{id}", h.apiRename)
-	mux.HandleFunc("PUT /api/objects/{id}/tags", h.apiTags)
-	mux.HandleFunc("PUT /api/objects/{id}/view", h.apiView)
-	mux.HandleFunc("PUT /api/objects/{id}/template", h.apiTemplate)
-	mux.HandleFunc("GET /api/templates", h.apiTemplates)
-	mux.HandleFunc("GET /api/objects/{id}/uses", h.apiUses)
-	mux.HandleFunc("POST /api/pages", h.apiCreatePage)
-	mux.HandleFunc("POST /api/notes", h.apiAddNote)
-	mux.HandleFunc("POST /api/folders", h.apiCreateFolder)
+	doc("GET /api/doc/{id...}", h.apiDocument)
+	doc("GET /api/search", h.apiSearch)
+	doc("POST /api/collections", h.apiCreateCollection)
+	doc("PATCH /api/objects/{id}", h.apiRename)
+	doc("PUT /api/objects/{id}/tags", h.apiTags)
+	doc("PUT /api/objects/{id}/view", h.apiView)
+	doc("PUT /api/objects/{id}/template", h.apiTemplate)
+	doc("GET /api/templates", h.apiTemplates)
+	doc("GET /api/objects/{id}/uses", h.apiUses)
+	doc("POST /api/pages", h.apiCreatePage)
+	doc("POST /api/notes", h.apiAddNote)
+	doc("POST /api/folders", h.apiCreateFolder)
 	mux.HandleFunc("PUT /api/settings", h.apiSettings)
-	mux.HandleFunc("POST /api/objects/{id}/access", h.apiAccess)
-	mux.HandleFunc("POST /api/objects/{id}/kind", h.apiConvert)
-	mux.HandleFunc("POST /api/pages/{id}/blocks", h.apiAddBlock)
-	mux.HandleFunc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)
-	mux.HandleFunc("DELETE /api/pages/{id}/blocks/{block}", h.apiDeleteBlock)
-	mux.HandleFunc("POST /api/pages/{id}/blocks/{block}/move", h.apiMoveBlock)
-	mux.HandleFunc("PUT /api/pages/{id}/blocks/{block}/align", h.apiAlignBlock)
-	mux.HandleFunc("GET /api/pages/{id}/versions", h.apiVersions)
-	mux.HandleFunc("GET /api/pages/{id}/comments", h.apiComments)
-	mux.HandleFunc("POST /api/pages/{id}/comments", h.apiAddComment)
-	mux.HandleFunc("PATCH /api/comments/{id}", h.apiChangeComment)
-	mux.HandleFunc("DELETE /api/comments/{id}", h.apiDeleteComment)
-	mux.HandleFunc("POST /api/dividers", h.apiCreateDivider)
-	mux.HandleFunc("DELETE /api/objects/{id}", h.apiDeleteObject)
-	mux.HandleFunc("POST /api/objects/{id}/move", h.apiMove)
-	mux.HandleFunc("POST /api/objects/{id}/copy", h.apiCopy)
-	mux.HandleFunc("GET /api/objects/{id}/export", h.apiExport)
-	mux.HandleFunc("GET /api/trash", h.apiTrash)
-	mux.HandleFunc("GET /api/problems", h.apiProblems)
-	mux.HandleFunc("POST /api/trash/{id}/restore", h.apiRestore)
-	mux.HandleFunc("DELETE /api/trash/{id}", h.apiPurge)
-	mux.HandleFunc("DELETE /api/trash", h.apiEmptyTrash)
+	doc("POST /api/objects/{id}/access", h.apiAccess)
+	doc("POST /api/objects/{id}/kind", h.apiConvert)
+	doc("POST /api/pages/{id}/blocks", h.apiAddBlock)
+	doc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)
+	doc("DELETE /api/pages/{id}/blocks/{block}", h.apiDeleteBlock)
+	doc("POST /api/pages/{id}/blocks/{block}/move", h.apiMoveBlock)
+	doc("PUT /api/pages/{id}/blocks/{block}/align", h.apiAlignBlock)
+	doc("GET /api/pages/{id}/versions", h.apiVersions)
+	doc("GET /api/pages/{id}/comments", h.apiComments)
+	doc("POST /api/pages/{id}/comments", h.apiAddComment)
+	doc("PATCH /api/comments/{id}", h.apiChangeComment)
+	doc("DELETE /api/comments/{id}", h.apiDeleteComment)
+	doc("POST /api/dividers", h.apiCreateDivider)
+	doc("DELETE /api/objects/{id}", h.apiDeleteObject)
+	doc("POST /api/objects/{id}/move", h.apiMove)
+	doc("POST /api/objects/{id}/copy", h.apiCopy)
+	doc("GET /api/objects/{id}/export", h.apiExport)
+	doc("GET /api/trash", h.apiTrash)
+	doc("GET /api/problems", h.apiProblems)
+	doc("POST /api/trash/{id}/restore", h.apiRestore)
+	doc("DELETE /api/trash/{id}", h.apiPurge)
+	doc("DELETE /api/trash", h.apiEmptyTrash)
 	// The view Files (ADR-28).
-	mux.HandleFunc("GET /api/files", h.apiFileRoots)
-	mux.HandleFunc("POST /api/files/collections", h.apiCreateFileCollection)
-	mux.HandleFunc("PUT /api/files/roots/{id}/quota", h.apiSetQuota)
-	mux.HandleFunc("PUT /api/files/writers", h.apiSetWriters)
-	mux.HandleFunc("GET /api/files/{id}/list", h.apiFileList)
-	mux.HandleFunc("GET /api/files/{id}", h.apiFile)
-	mux.HandleFunc("GET /api/files/{id}/content", h.apiFileContent)
-	mux.HandleFunc("POST /api/files/{id}/versions/{n}/restore", h.apiRestoreFileVersion)
-	mux.HandleFunc("POST /api/uploads", h.apiStartUpload)
-	mux.HandleFunc("GET /api/uploads/{id}", h.apiUploadState)
-	mux.HandleFunc("PATCH /api/uploads/{id}", h.apiUploadChunk)
-	mux.HandleFunc("POST /api/uploads/{id}/finish", h.apiFinishUpload)
-	mux.HandleFunc("DELETE /api/uploads/{id}", h.apiCancelUpload)
-	mux.HandleFunc("GET /api/pages/{id}/attachments", h.apiAttachments)
-	mux.HandleFunc("GET /api/pages/{id}/attachments/{attachment}", h.apiAttachmentContent)
-	mux.HandleFunc("POST /api/pages/{id}/attachments/{attachment}/move", h.apiMoveAttachment)
-	mux.HandleFunc("GET /api/spaces/{id}/files", h.apiSpaceFiles)
-	mux.HandleFunc("PUT /api/spaces/{id}/files", h.apiLinkSpaceFiles)
+	fil("GET /api/files", h.apiFileRoots)
+	fil("POST /api/files/collections", h.apiCreateFileCollection)
+	fil("PUT /api/files/roots/{id}/quota", h.apiSetQuota)
+	fil("PUT /api/files/writers", h.apiSetWriters)
+	fil("GET /api/files/{id}/list", h.apiFileList)
+	fil("GET /api/files/{id}", h.apiFile)
+	fil("GET /api/files/{id}/content", h.apiFileContent)
+	fil("POST /api/files/{id}/versions/{n}/restore", h.apiRestoreFileVersion)
+	fil("POST /api/uploads", h.apiStartUpload)
+	fil("GET /api/uploads/{id}", h.apiUploadState)
+	fil("PATCH /api/uploads/{id}", h.apiUploadChunk)
+	fil("POST /api/uploads/{id}/finish", h.apiFinishUpload)
+	fil("DELETE /api/uploads/{id}", h.apiCancelUpload)
+	doc("GET /api/pages/{id}/attachments", h.apiAttachments)
+	doc("GET /api/pages/{id}/attachments/{attachment}", h.apiAttachmentContent)
+	doc("POST /api/pages/{id}/attachments/{attachment}/move", h.apiMoveAttachment)
+	fil("GET /api/spaces/{id}/files", h.apiSpaceFiles)
+	fil("PUT /api/spaces/{id}/files", h.apiLinkSpaceFiles)
 	// Links from before the object addresses of ADR-18 keep working.
-	mux.HandleFunc("GET /d/{id...}", func(w http.ResponseWriter, r *http.Request) {
+	doc("GET /d/{id...}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
-	mux.HandleFunc("GET /files/{path...}", h.file)
+	doc("GET /files/{path...}", h.file)
 	// Sign-in (ADR-23).
 	mux.HandleFunc("GET /sign-in", h.signIn)
 	mux.HandleFunc("POST /sign-in/password", h.signInPassword)
@@ -219,6 +234,15 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /admin/sign-in", h.adminSignIn)
 	mux.HandleFunc("POST /admin/sign-in", h.saveSignIn)
 	mux.HandleFunc("POST /admin/invites", h.createInvite)
+	// Modules (ADR-25) and the hoster administration (ADR-23).
+	mux.HandleFunc("GET /admin/modules", h.adminModules)
+	mux.HandleFunc("POST /admin/modules", h.saveModules)
+	mux.HandleFunc("GET /account/modules", h.myModules)
+	mux.HandleFunc("POST /account/modules", h.saveMyModules)
+	mux.HandleFunc("GET /hoster", h.hoster)
+	mux.HandleFunc("POST /hoster/tenants", h.createTenant)
+	mux.HandleFunc("GET /hoster/tenants/{id}", h.hosterTenant)
+	mux.HandleFunc("POST /hoster/tenants/{id}", h.changeTenant)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(h.assetVersion, http.FileServerFS(assets))))
 	mux.HandleFunc("GET /assets/logo.svg", serveBytes("image/svg+xml", docs.Logo))
 	mux.HandleFunc("GET /favicon.ico", serveBytes("image/vnd.microsoft.icon", docs.Favicon))
@@ -246,6 +270,18 @@ func (h *handler) tenanted(next http.Handler) http.Handler {
 		}
 		if h.options.Tenants != tenant.ModeMany {
 			next.ServeHTTP(w, r.WithContext(tenant.With(r.Context(), tenant.Main)))
+			return
+		}
+		if h.options.HosterHost != "" && tenant.Host(r.Host) == tenant.Host(h.options.HosterHost) {
+			// The hoster administration answers on its own host, and nothing of a workspace does.
+			switch {
+			case r.URL.Path == "/":
+				http.Redirect(w, r, "/hoster", http.StatusSeeOther)
+			case hosterPath(r):
+				next.ServeHTTP(w, r.WithContext(tenant.With(r.Context(), tenant.Hoster)))
+			default:
+				h.notFound(w, r)
+			}
 			return
 		}
 		t, err := h.options.DB.TenantByHost(r.Context(), r.Host, h.options.TenantDomain)
@@ -301,18 +337,20 @@ func (h *handler) signedIn(next http.Handler) http.Handler {
 			h.notSignedIn(w, r, s)
 			return
 		}
-		if user.Method == db.MethodGate {
-			h.seeAccount(r.Context(), user)
+		if user.Method == db.MethodGate && errors.Is(h.seeAccount(r.Context(), user), db.ErrQuota) {
+			h.message(w, http.StatusForbidden, message{Title: "Workspace full", Text: quotaText, Link: "Try again"})
+			return
 		}
 		next.ServeHTTP(w, r.WithContext(account.With(r.Context(), user)))
 	})
 }
 
 // seeAccount writes the account at its first request and then at most every few minutes (ADR-20: the owner of what
-// someone makes must exist). A database that does not answer is logged; reading goes on.
-func (h *handler) seeAccount(ctx context.Context, user account.User) {
+// someone makes must exist). A database that does not answer is logged and reading goes on; a tenant that has as many
+// accounts as its hoster allows lets no new one in (ErrQuota).
+func (h *handler) seeAccount(ctx context.Context, user account.User) error {
 	if h.options.DB == nil {
-		return
+		return nil
 	}
 	t, _ := tenant.From(ctx)
 	key := t + "\x00" + user.ID
@@ -320,16 +358,20 @@ func (h *handler) seeAccount(ctx context.Context, user account.User) {
 	last, ok := h.seen[key]
 	if ok && time.Since(last) < 5*time.Minute {
 		h.seenMu.Unlock()
-		return
+		return nil
 	}
 	h.seen[key] = time.Now()
 	h.seenMu.Unlock()
-	if err := h.options.DB.SeeAccount(ctx, user); err != nil {
-		h.log.Error("account not written", slog.String("error", err.Error()))
+	err := h.options.DB.SeeAccount(ctx, user)
+	if err != nil {
+		if !errors.Is(err, db.ErrQuota) {
+			h.log.Error("account not written", slog.String("error", err.Error()))
+		}
 		h.seenMu.Lock()
 		delete(h.seen, key)
 		h.seenMu.Unlock()
 	}
+	return err
 }
 
 // sameOrigin lets a change through only from a page of this application. The gate signs in with a cookie, so a page on

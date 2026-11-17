@@ -138,6 +138,9 @@ func (h *handler) notSignedIn(w http.ResponseWriter, r *http.Request, s db.SignI
 	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not signed in"})
 }
 
+// quotaText says that a tenant has as many accounts as its hoster allows.
+const quotaText = "This workspace has as many accounts as its hoster allows. Ask its administrator."
+
 // safeNext keeps an address to go on to after signing in only if it stays on this host.
 func safeNext(next string) string {
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") || strings.ContainsAny(next, "\r\n") {

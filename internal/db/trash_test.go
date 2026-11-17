@@ -298,7 +298,7 @@ func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 	}
 	keep, stop := context.WithCancel(ctx)
 	done := make(chan struct{})
-	go func() { db.KeepTrash(keep, 10*time.Millisecond, func(err error) { t.Error(err) }); close(done) }()
+	go func() { db.KeepTrash(keep, 10*time.Millisecond, nil, func(err error) { t.Error(err) }); close(done) }()
 	// It keeps at it: C turns old only after the first round.
 	time.Sleep(50 * time.Millisecond)
 	if _, err := db.pool.Exec(ctx, "UPDATE objects SET deleted_at = now() - interval '31 days' WHERE id = $1", c.ID); err != nil {

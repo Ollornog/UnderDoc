@@ -8,6 +8,17 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Modules (ADR-25, [docs/modules.md](docs/modules.md)): `UNDERDOC_MODULES` allows modules and sets their defaults, the
+  hoster narrows them per tenant, the administrator of a tenant switches them (`/admin/modules`), and each user hides
+  what is on (`/account/modules`). Off means no route, no entry and no job, and never deletes data. Documents and Files
+  are the first modules; `module.All` is the registry the later ones join.
+- The hoster administration (ADR-23, [docs/tenants.md](docs/tenants.md)) on `UNDERDOC_HOSTER_HOST`: make tenants with
+  the invitation of their first administrator, lock, archive and restore them, set limits on users and storage (pages and
+  files together), the modules they may use and domains of their own. It sees counts, never content. Limits hold for
+  every way an account, a block or a file comes in.
+
+### Added
+
 - Sign-in built in (ADR-23, [docs/sign-in.md](docs/sign-in.md)), chosen per tenant: local accounts with a passkey
   (WebAuthn, the default), with a password and a TOTP code, or with a password alone; OIDC with any provider (PKCE,
   state, nonce; the account named by `preferred_username`, groups from a claim); and the gate in front. Registration is
