@@ -24,6 +24,7 @@
 //	UNDERDOC_OFFICE_URL     the optional Office module for previews, a Gotenberg service (none: no Office previews)
 //	UNDERDOC_TEXT_WAYS, _TEXT_MAX_SIZE, UNDERDOC_TESSERACT, UNDERDOC_AI_OCR_PAGES_USER, _TENANT
 //	                        how the text of files is read for the search (docs/files.md)
+//	UNDERDOC_SEARCH_*       the search service, see search.go and docs/search.md
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -33,6 +34,7 @@
 //	underdoc import [--tenant <id>] --files --owner <login> <dir>  the files/ of an export, with UNDERDOC_STORE_DIR (docs/files.md)
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
 //	underdoc invite [--tenant <id>] [--admin] <login> <name>       an invitation to a local account, as a link path
+//	underdoc reindex [--tenant <id>]                               everything of a tenant queued for the search service again
 //
 // Each tenant chooses how people sign in (docs/sign-in.md): passkeys, password and code, password, OIDC, or a sign-in gate
 // in front that passes the user on in request headers. An instance that ran behind a gate keeps it. It binds to loopback
@@ -65,7 +67,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc reindex [--tenant <id>] | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -102,6 +104,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		err = importFiles(ctx, owner, rest[0], stdout, stderr)
+	case args[0] == "reindex":
+		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		if terr != nil || len(rest) != 0 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = reindex(ctx, stdout)
 	case args[0] == "export":
 		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
 		if terr != nil || len(rest) != 1 {
@@ -176,6 +185,10 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
 		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")
 	}
+	searching, err := readSearchConfig()
+	if err != nil {
+		return err
+	}
 	healthy := lib.Healthy
 	if url := os.Getenv("UNDERDOC_DATABASE_URL"); url != "" {
 		database, err := db.Open(ctx, url)
@@ -215,6 +228,9 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 				go worker.run(ctx, 5*time.Second)
 			}
 		}
+		options.Search = startSearch(ctx, searching, database, lib, log)
+	} else if searching.engine != "" {
+		log.Warn("the search service needs the database (UNDERDOC_DATABASE_URL); the folder is searched in memory")
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
 		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}

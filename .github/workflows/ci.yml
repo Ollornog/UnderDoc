@@ -43,6 +43,7 @@ jobs:
           node --version
           npm --version
           command -v google-chrome || command -v chromium
+          docker info --format '{{.ServerVersion}}'
       - name: check.sh
         run: scripts/check.sh
       # A test that fails on the second run is broken. Proven here, not claimed.

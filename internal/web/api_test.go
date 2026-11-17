@@ -72,7 +72,7 @@ func TestStateAndDocument(t *testing.T) {
 	if got := s.get("/api/doc/gone").Code; got != http.StatusNotFound {
 		t.Errorf("unknown page = %d", got)
 	}
-	hits := decode[[]apiHit](t, s.get("/api/search?q=router"))
+	hits := decode[apiSearchResult](t, s.get("/api/search?q=router")).Hits
 	if len(hits) != 1 || hits[0].ID != "plan" || !strings.Contains(hits[0].Snippet, "<mark>") {
 		t.Errorf("search %+v", hits)
 	}

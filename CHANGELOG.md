@@ -125,6 +125,26 @@ All notable changes to this project are documented in this file. The format foll
 - Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
   left or right of it, a row or a column goes, and a column is aligned left, center or right. Each tool writes the table
   again as plain Markdown, and the cursor goes to the cell it names. See docs/editor.md.
+- Proper search, M-12 part one (ADR-24): through a search service, Meilisearch v1.56.2 by default, behind one interface
+  for engines (`internal/search`). Error codes such as `E-1042`, `0x80070005`, `ORA-00942`, `HTTP 503` or `KB5034441`
+  go into fields of their own and are looked up exactly, never through a typing error, and come first; then the full
+  text ranks title before headings before text, exact words before typing errors, newer only on a tie. German compounds
+  are split, and title and heading stand a second time unsplit, so typing errors in whole words are still found. Pages
+  are indexed in sections (ADR-22): a hit opens at its block or heading, scrolled there, the matching words marked.
+  Readers are a filter in the index, every tenant has an index of its own (ADR-23), and passwords (ADR-7) never reach
+  it. The index is fed from a queue in the database, filled by triggers on objects, blocks and accounts, so a lost index
+  is built again from the queue (`underdoc reindex [--tenant <id>]`). Queue and index are per tenant, with row-level
+  security like every table, and one indexer runs for each tenant. Without a search service, or while it does not answer, titles are
+  searched and the answer says so. Settings: `UNDERDOC_SEARCH_ENGINE`, `UNDERDOC_SEARCH_URL`,
+  `UNDERDOC_SEARCH_KEY_FILE`, `UNDERDOC_SEARCH_INDEX` (docs/search.md).
+- Ctrl+K opens a quick search anywhere but in the editor: pages and folders by title at once, hits of the full text as
+  you type with place, section and a marked snippet. The results page has filters by type, collection, author, the time
+  of the last change and tags, and the strategy *exact words*.
+- A German test corpus of 201 pages and 179 questions measures the search (hit@1, hit@5, MRR); every code being the
+  first hit is a hard gate. Meilisearch: all codes first, hit@1 93 %, MRR 0.951 (table in docs/search.md). The search
+  tests run against real engines in throwaway containers (`scripts/search-engines.sh`, images pinned by digest in
+  `scripts/search/`, moved by Dependabot); `scripts/check.sh` fails without Docker instead of skipping them.
+
 - Every state on `main` is published as a container image, `ghcr.io/ollornog/underdoc:main-<commit>`, for amd64 and
   arm64 (`.github/workflows/image.yml`; after a Dependabot auto-merge the merge job starts it, too). The same check as in the CI (`scripts/check-image.sh`) runs first; a manual run
   on another branch builds both platforms and pushes nothing. The build stage of the `Dockerfile` cross-compiles
@@ -176,6 +196,9 @@ All notable changes to this project are documented in this file. The format foll
 - The browser tests of the files waited only for the uploads and the folders; they now also wait until no request of the
   view is under way (`FS.busy`) and no toast waits to go, since each of them draws the workspace anew and can swallow a
   click whose press and release it falls between.
+- A test holds the browser-test helper `rect` to putting the mark of a probe back in the step that measures: it redraws a
+  button every two milliseconds and measures it fifty times (TestFilesByHand had failed in the CI when a redraw came
+  between finding and measuring, 2026-11-17).
 - On a touch screen, a finger on a table in the editor puts the cursor into the cell it touched, so the table tools show;
   before, the caret stayed outside the drawn table.
 - Browser tests measured an element found by its text in a second step; when the workspace drew anew in between, the

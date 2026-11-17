@@ -1026,3 +1026,21 @@ func (b *browser) drain() (csp, errors []string) {
 		}
 	}
 }
+
+// The workspace draws its lists anew at any time, which drops the mark a probe sets. A pointer that measures a probed
+// element must still find it then (CI 2026-11-17: TestFilesByHand lost "Restore" between finding and measuring it).
+func TestAProbeSurvivesARedraw(t *testing.T) {
+	b, base := setup(t)
+	b.open(base + "/dev/ui")
+	b.ready("")
+	// A button outside the workspace, drawn anew every few milliseconds, as a busy workspace does.
+	b.eval(`window.redraws = setInterval(() => { const n = document.createElement('button'); n.className = 'redrawn'; n.textContent = 'Restore';
+		const old = document.querySelector('button.redrawn'); if (old) old.replaceWith(n); else document.body.append(n); }, 2)`)
+	target := probe(b, "button.redrawn", "Restore")
+	for range 50 {
+		if r := b.rect(target); r.Width == 0 {
+			t.Fatalf("the probed button has no size: %+v", r)
+		}
+	}
+	b.eval(`clearInterval(window.redraws)`)
+}

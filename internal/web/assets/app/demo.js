@@ -354,11 +354,12 @@ function hits(){
 const hitsWithServer=()=>{const local=hits();const q=S.sq.trim();if(local===null||!q||S.apiQ!==q||!S.apiHits)return local;
   const real=S.apiHits.map(h=>SID[h.id]).filter(id=>D[id]&&!local.includes(id)&&(!S.ftype||D[id].t===S.ftype));return [...real,...local];};
 let searchTimer=null;
-function searchServer(){clearTimeout(searchTimer);const q=S.sq.trim();if(!q)return;searchTimer=setTimeout(async()=>{
+function searchServer(){if(udSearch.real()){udSearch.results();return;}clearTimeout(searchTimer);const q=S.sq.trim();if(!q)return;searchTimer=setTimeout(async()=>{
   try{const r=await fetch('/api/search?q='+encodeURIComponent(q),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;
     const hs=await r.json();if(S.sq.trim()!==q)return;S.apiQ=q;S.apiHits=hs;S.apiSnip={};hs.forEach(h=>{if(SID[h.id])S.apiSnip[SID[h.id]]=h.snippet;});refreshHits();}catch(e){}},180);}
 function snippet(d,q){const t=docText(d),i=t.toLowerCase().indexOf(q.toLowerCase());if(!q||i<0)return '';const a=Math.max(0,i-28);return (a?'… ':'')+esc(t.slice(a,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length,i+q.length+46))+' …';}
 function resultsHtml(){
+  if(udSearch.real())return udSearch.resultsHtml();
   const h=hitsWithServer(),q=S.sq.trim();
   const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort();
   if(h===null) return `<div class="chead first">Recent</div>${['radio link','tower','on-call'].map(x=>`<button class="hit" data-act="recent" data-id="${x}">${ic('search')}<span>${x}</span></button>`).join('')}
@@ -368,6 +369,7 @@ function resultsHtml(){
   return `${answer}<div class="chead first">${h.length} ${h.length===1?'hit':'hits'}</div>${note}${h.map(x=>`<button class="hit" data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}<span>${D[x].n}<small>${placeOf(x)}</small>${q?`<small class="snip">${((S.apiSnip&&S.apiQ===q&&S.apiSnip[x])||snippet(D[x],q))}</small>`:''}</span></button>`).join('')||'<p class="hint">Nothing found. Another strategy may help.</p>'}`;
 }
 function searchHtml(){
+  if(udSearch.real())return udSearch.pageHtml();
   const allTags=[...new Set(Object.values(D).flatMap(d=>d.tags))].sort(),n=S.ftags.length+(S.ftype?1:0);
   return `<div class="spanel"><button class="chip filterbtn" data-act="filters" aria-expanded="${S.filters}">${ic('view')}Filter${n?' ('+n+')':''}</button>
     ${S.filters?`<div class="filters"><select id="stype" aria-label="Type"><option value="">All types</option>${Object.keys(TYPE).filter(k=>!['dir','res','mail'].includes(k)).map(k=>`<option value="${k}"${S.ftype===k?' selected':''}>${TYPE[k][1]}</option>`).join('')}</select><div class="tagrow">${allTags.map(t=>`<button class="tagc" data-act="ftag" data-tag="${t}" aria-pressed="${S.ftags.includes(t)}">#${t}</button>`).join('')}</div></div>`:''}
@@ -701,7 +703,7 @@ function render(){
   /* No bar of its own: name, New and search sit above the columns, the tabs of each window in the same row beside them. */
   const wide=S.rail&&!ph;
   const bar=`<div class="brandrow${wide?'':' tight'}"><span class="brand" title="UnderDoc"><img src="${LOGO}" alt=""><span>UnderDoc</span></span>
-    ${wide?`<input class="search" type="search" id="search" value="${esc(S.sq)}" placeholder="Search /" aria-label="Search">`:''}
+    ${wide?`<input class="search" type="search" id="search" value="${esc(S.sq)}" placeholder="Search · Ctrl+K" aria-label="Search" title="Search: / here, Ctrl+K anywhere">`:''}
     <button class="ic newbtn" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${ic('plus')}</button>${solo()?`<button class="ic newbtn winbtn" data-act="winmenu" aria-expanded="${!!S.ctx&&S.ctx.kind==='win'}" aria-label="Window and tabs" title="Window and tabs: keep as a tab, a new column, opened before">${ic('win')}</button>`:''}${S.newAt==='bar'?newMenuHtml('bar'):''}</div>`;
   const n1=(v,n,i)=>navItem('view',v,n,i,S.view===v);
   const privs=S.mods.private?`<span class="sep"></span><span class="n1lab" title="Only you see this">${ic('lock')}<span class="lbl">Private</span></span>${PRIVV.map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
@@ -713,9 +715,10 @@ function render(){
   const name=w=>{const t=w.tabs[w.a];return t&&t.d?D[t.d].n:'Empty';};
   const winbar=S.wins.length>1?`<div class="winbar">${S.wins.map((w,i)=>`<button class="chip" data-act="focus" data-id="${i}" aria-pressed="${i===S.focus}">${name(w)}</button>`).join('')}</div>`:'';
   const work=`<div class="work">${winbar}<div class="wins${S.wins.length>1?' many':''}" data-style="grid-template-columns:repeat(${S.wins.length},minmax(0,1fr))">${S.wins.map(winHtml).join('')}</div></div>`;
-  rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}${waysHtml()}`;
+  rendering=true;document.getElementById('root').innerHTML=help+`<div class="main"><div class="side">${bar}<div class="navs">${strip}${rail}</div></div>${work}${S.aid&&S.mods.ai?aiHtml():''}</div>${S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:''}${ctxHtml()}${addPop()}${waysHtml()}${udSearch.palHtml()}`;
   mountEditors(edFocus,want);
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
+  udSearch.after();
   rendering=false;
   /* A name being written keeps its text and the focus through a render. */
   const rn=ren&&document.querySelector('[data-ren]');if(rn){rn.value=ren.v;rn.focus();rn.setSelectionRange(ren.a,ren.b);}
@@ -956,7 +959,7 @@ document.addEventListener('click',e=>{
     case 'recent':S.sq=a.id;break;
     case 'ftag':{const g=esc(a.tag);S.ftags=S.ftags.includes(g)?S.ftags.filter(x=>x!==g):[...S.ftags,g];break;}
     case 'tagdel':{const id=t.d,d=D[id];saveTags(id,d.tags.filter(x=>x!==a.tag).map(unesc));return;}
-    case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[esc(a.tag)];S.filters=true;break;
+    case 'tagsearch':if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq='';S.ftype='';S.ftags=[esc(a.tag)];S.filters=true;if(udSearch.real())udSearch.tag(a.tag);break;
     case 'sel':w.a=tk;S.focus=i;break;
     case 'keep':{const c=take(w,0);w.tabs.push(c);w.a=w.tabs.length-1;break;}
     case 'close':if(w.tabs[tk].general)popGeneral(w);else{w.tabs.splice(tk,1);if(w.a>=tk&&w.a>0)w.a--;}compact();break;
@@ -1055,6 +1058,7 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Enter')return;
   if(x.dataset.quick!==undefined){const v=x.value.trim();if(!v)return;S.newAt=null;if(S.into==='qn'&&S.canCreate){quickNote(v);render();return;}else if(S.into==='qn'){D.qn.notes.unshift({h:'',b:v});openDoc('qn');}else if(D[S.into]&&D[S.into].db)createPage(S.into,v.split('\n')[0].slice(0,200));else if(madeHere(S.into)){toast(madeHere(S.into)+'.');return;}else openDoc(createIn(S.into,'page',v));render();return;}
   if(x.dataset.aiq!==undefined){const v=x.value.trim();if(!v)return;S.chat.push({q:v,a:aiAnswer()});render();const n=document.querySelector('[data-aiq]');if(n)n.focus();return;}
+  if(x.id==='search'&&udSearch.real()){const h=udSearch.first();if(h)udSearch.openHit(h.id,h.anchor,h.heading,h.snippet,S.sq);return;}
   if(x.id==='search'){const h=hitsWithServer();if(h&&h.length){openDoc(h[0]);render();const f=document.getElementById('search');if(f)f.focus();}}
   if(x.dataset.addtag!==undefined&&x.dataset.cname===undefined){const v=x.value.trim().toLowerCase().replace(/^#/,''),id=at(+x.dataset.addtag).d,d=D[id];
     if(d.db){if(v&&!d.tags.includes(esc(v)))saveTags(id,[...d.tags.map(unesc),v]);return;}

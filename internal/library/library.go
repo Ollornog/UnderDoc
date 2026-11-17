@@ -54,6 +54,8 @@ type Library struct {
 	index     []indexEntry
 	byPath    map[string]*document.Document
 	byName    map[string][]*document.Document
+	// outlines keep the top-level elements of each page as text, for the search service (ADR-24).
+	outlines map[document.ID][]markdown.Piece
 }
 
 // Build creates a snapshot from the input of a source.
@@ -65,6 +67,7 @@ func Build(in Input) *Library {
 		byPath:    map[string]*document.Document{},
 		byName:    map[string][]*document.Document{},
 		problems:  slices.Clone(in.Problems),
+		outlines:  map[document.ID][]markdown.Piece{},
 	}
 	for _, image := range in.Images {
 		lib.images[image] = true
@@ -75,6 +78,7 @@ func Build(in Input) *Library {
 		doc, parsedPage := lib.identify(page)
 		lib.documents[doc.ID] = doc
 		parsed[doc.ID] = parsedPage
+		lib.outlines[doc.ID] = parsedPage.Outline()
 		lib.tree.Place(doc.ID, path.Dir(page.Source))
 		lib.byPath[pathKey(page.Source)] = doc
 		lib.addName(doc.Title, doc)
@@ -120,6 +124,9 @@ func (lib *Library) identify(page Page) (*document.Document, *markdown.Page) {
 	}
 	return doc, parsed
 }
+
+// Outline returns the top-level elements of a document as text, before rendering.
+func (lib *Library) Outline(id document.ID) []markdown.Piece { return lib.outlines[id] }
 
 // Tagged returns the documents that carry a tag, sorted by title.
 func (lib *Library) Tagged(tag string) []*document.Document {
@@ -230,6 +237,11 @@ func (lib *Library) addName(name string, doc *document.Document) {
 func (lib *Library) Document(id document.ID) (*document.Document, bool) {
 	doc, ok := lib.documents[id]
 	return doc, ok
+}
+
+// Documents returns every document, in no particular order.
+func (lib *Library) Documents() []*document.Document {
+	return slices.Collect(maps.Values(lib.documents))
 }
 
 // Tree returns the folder tree.
