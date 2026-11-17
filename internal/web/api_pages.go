@@ -357,9 +357,20 @@ func (h *handler) apiAddBlock(w http.ResponseWriter, r *http.Request) {
 func (h *handler) apiMoveBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		After string `json:"after"`
+		// Page moves the block into another page (ADR-22): references follow, and the old address redirects.
+		Page string `json:"page"`
 	}
 	user, ok := h.change(w, r, 1<<10, &in)
 	if !ok {
+		return
+	}
+	if in.Page != "" && in.Page != r.PathValue("id") {
+		id, err := h.options.DB.MoveBlockTo(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Page, in.After)
+		if h.failed(w, err, "move block") {
+			return
+		}
+		a := db.Address{Object: in.Page, Block: id}
+		writeJSON(w, http.StatusOK, map[string]string{"ref": a.String(), "url": route.Object(in.Page) + "#" + id})
 		return
 	}
 	if h.failed(w, h.options.DB.MoveBlock(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.After), "move block") {

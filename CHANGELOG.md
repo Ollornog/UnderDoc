@@ -47,7 +47,8 @@ All notable changes to this project are documented in this file. The format foll
   nothing chosen in advance: delete everywhere (each use shows who removed it and when, and Restore brings every use
   back), a copy in every use the viewer may change (others keep a placeholder, their owners a notice and "Keep a copy
   here"), or a new master among the uses, into which the content moves while every other reference is rewritten in the
-  same transaction and the old address redirects. The server refuses such a change without a way (409). New tables
+  same transaction and the old address redirects. The server refuses such a change without a way (409). Moving a block
+  into another page (`POST …/move {"page"}`) rewrites references and redirects the same way. New tables
   `removed`, `redirects` and `notices` with their tenant and row-level security; a version says where a copy came from.
 - A part embedded inside a paragraph reads as the text around it, with a faint dotted line under it.
 - Parts in the editor and while reading (ADR-22): with text marked, the bar copies it as plain text, makes it a part and

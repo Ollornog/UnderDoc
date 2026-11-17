@@ -178,6 +178,33 @@ func TestTheEndOfSomethingInUse(t *testing.T) {
 		t.Errorf("and left Errors: %q", got)
 	}
 
+	// Moving a block into another page: its parts go with it, every reference follows, and the old address redirects.
+	movable := newPage(team.ID, sameSite, "Movable", "Keep <!-- part t1 -->this<!-- /part t1 --> here.")
+	user := newPage(team.ID, sameSite, "User", "::embed{ref=\""+movable+"#b1\"}", "Inline :embed{ref=\""+movable+"#b1.t1\"}.")
+	target := newPage(team.ID, sameSite, "Target", "First.")
+	res = s.send(http.MethodPost, "/api/pages/"+movable+"/blocks/b1/move", `{"page":"`+target+`","after":"b1"}`, sameSite)
+	var movedTo struct{ Ref string }
+	_ = json.Unmarshal(res.Body.Bytes(), &movedTo)
+	if res.Code != http.StatusOK || movedTo.Ref != target+"#b2" {
+		t.Fatalf("move into another page = %d %s", res.Code, res.Body.String())
+	}
+	if got := md(target); !slices.Equal(got, []string{"b1:First.", "b2:Keep <!-- part t1 -->this<!-- /part t1 --> here."}) {
+		t.Errorf("Target: %q", got)
+	}
+	if got := md(user); !slices.Equal(got, []string{`b1:::embed{ref="` + target + `#b2"}`, `b2:Inline :embed{ref="` + target + `#b2.t1"}.`}) {
+		t.Errorf("User follows: %q", got)
+	}
+	if got := md(movable); len(got) != 0 {
+		t.Errorf("Movable is empty: %q", got)
+	}
+	_ = json.Unmarshal(s.get("/api/redirect?ref="+movable+"%23b1.t1").Body.Bytes(), &redirect)
+	if redirect.Ref != target+"#b2.t1" {
+		t.Errorf("the old address of the part redirects: %+v", redirect)
+	}
+	if got := s.send(http.MethodPost, "/api/pages/"+target+"/blocks/b2/move", `{"page":"`+foreign+`"}`, sameSite).Code; got != http.StatusForbidden {
+		t.Errorf("moving into Bob's page = %d", got)
+	}
+
 	// Deleting a whole page asks for what of it is used outside; everywhere puts it into the trash with a placeholder.
 	res = s.send(http.MethodDelete, "/api/objects/"+runbook, "", sameSite)
 	_ = json.Unmarshal(res.Body.Bytes(), &asked)

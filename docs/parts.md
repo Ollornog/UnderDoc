@@ -103,6 +103,9 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
 - Notices (`notices`, `GET /api/notices`) are kept for the inbox of M-16, which shows them; until then the dialog says
   that owners are told.
 - The version history notes where a copy came from and where moved text went (`origin` of a version).
+- **Moving a block into another page** (`POST …/blocks/{block}/move {"page", "after"}`, who may change both pages) takes
+  its parts and its section along under a new block ID there; every reference is rewritten in the same transaction and
+  the old addresses redirect. The editor does not offer it yet.
 
 ## In the editor and while reading
 
@@ -126,4 +129,4 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
 ## Still to come in M-3
 
 The Resources tab of the workspace with real values and snippets, moving a block to another page from the editor (the
-server rewrites and redirects already for a new master), Excel tables in pages, Mermaid (T-3), the facts panel: see M-3.
+server does it, above), Excel tables in pages, Mermaid (T-3), the facts panel: see M-3.

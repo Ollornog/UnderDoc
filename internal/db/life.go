@@ -856,3 +856,59 @@ func (db *DB) Lost(ctx context.Context, pageID, blockID, viewer string, body *st
 	})
 	return refs, err
 }
+
+// MoveBlockTo moves a block into another page, after the block named by after or first (ADR-22). Its text, its parts and
+// the section it opens go with it under a new block ID there; every reference to them is rewritten in the same
+// transaction, and the old addresses redirect. The viewer must be able to change both pages.
+func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, after string) (string, error) {
+	if toPage == pageID {
+		return blockID, db.MoveBlock(ctx, pageID, blockID, viewer, after)
+	}
+	to, err := db.page(ctx, toPage, viewer)
+	if err != nil {
+		return "", err
+	}
+	if err := db.mayEdit(ctx, to, viewer); err != nil {
+		return "", err
+	}
+	var id string
+	err = db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", toPage); err != nil {
+			return err
+		}
+		var b Block
+		if err := tx.QueryRow(ctx, "SELECT body, coalesce(align, '') FROM blocks WHERE page = $1 AND id = $2", pageID, blockID).Scan(&b.Body, &b.Align); err != nil {
+			return ErrNotFound
+		}
+		if after != "" {
+			var n int
+			if err := tx.QueryRow(ctx, "SELECT count(*) FROM blocks WHERE page = $1 AND id = $2", toPage, after).Scan(&n); err != nil || n == 0 {
+				return ErrNotFound
+			}
+		}
+		id, err = insertBlock(ctx, tx, toPage, after, b.Body, viewer, "moved from "+Address{Object: pageID, Block: blockID}.String())
+		if err != nil {
+			return err
+		}
+		if b.Align != "" {
+			if _, err := tx.Exec(ctx, "UPDATE blocks SET align = $3 WHERE page = $1 AND id = $2", toPage, id, b.Align); err != nil {
+				return err
+			}
+		}
+		moved := map[string]Address{
+			blockID:                 {Object: toPage, Block: id},
+			blockID + "." + Section: {Object: toPage, Block: id, Sub: Section},
+		}
+		for _, p := range markdown.Parts(b.Body) {
+			moved[blockID+"."+p.ID] = Address{Object: toPage, Block: id, Sub: p.ID}
+		}
+		if _, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", pageID, blockID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author, origin) VALUES ($1, $2, NULL, $3, $4)", pageID, blockID, viewer, "moved to "+moved[blockID].String()); err != nil {
+			return err
+		}
+		return redirectAll(ctx, tx, pageID, viewer, moved)
+	})
+	return id, err
+}
