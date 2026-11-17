@@ -15,26 +15,28 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/search"
 	"github.com/Ollornog/UnderDoc/internal/search/meili"
+	"github.com/Ollornog/UnderDoc/internal/search/opensearch"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
 // Search settings (docs/search.md):
 //
-//	UNDERDOC_SEARCH_ENGINE    meilisearch or none (meilisearch when a URL is set, none without)
+//	UNDERDOC_SEARCH_ENGINE    meilisearch, opensearch or none (meilisearch when a URL is set, none without)
 //	UNDERDOC_SEARCH_URL       address of the search service, such as http://127.0.0.1:7700
-//	UNDERDOC_SEARCH_KEY_FILE  a file holding the API key of the search service, never the key itself
+//	UNDERDOC_SEARCH_KEY_FILE  a file holding the API key of Meilisearch or the password of OpenSearch, never the key itself
+//	UNDERDOC_SEARCH_USER      the user of OpenSearch for basic authentication (none: no authentication)
 //	UNDERDOC_SEARCH_INDEX     what every index name starts with ("underdoc"), so installations can share a service
 const defaultIndexPrefix = "underdoc"
 
 // searchConfig is the search service as the environment sets it.
 type searchConfig struct {
-	engine, url, key, prefix string
+	engine, url, user, key, prefix string
 }
 
 func readSearchConfig() (searchConfig, error) {
 	c := searchConfig{engine: strings.ToLower(os.Getenv("UNDERDOC_SEARCH_ENGINE")), url: os.Getenv("UNDERDOC_SEARCH_URL"),
-		prefix: env("UNDERDOC_SEARCH_INDEX", defaultIndexPrefix)}
+		user: os.Getenv("UNDERDOC_SEARCH_USER"), prefix: env("UNDERDOC_SEARCH_INDEX", defaultIndexPrefix)}
 	if c.engine == "" && c.url != "" {
 		c.engine = "meilisearch"
 	}
@@ -42,9 +44,9 @@ func readSearchConfig() (searchConfig, error) {
 	case "", "none":
 		c.engine = ""
 		return c, nil
-	case "meilisearch":
+	case "meilisearch", "opensearch":
 	default:
-		return c, fmt.Errorf("UNDERDOC_SEARCH_ENGINE: %q is not known, use meilisearch or none", c.engine)
+		return c, fmt.Errorf("UNDERDOC_SEARCH_ENGINE: %q is not known, use meilisearch, opensearch or none", c.engine)
 	}
 	if c.url == "" {
 		return c, fmt.Errorf("UNDERDOC_SEARCH_URL: the address of %s is missing", c.engine)
@@ -78,6 +80,8 @@ func (c searchConfig) open() search.Engine {
 	switch c.engine {
 	case "meilisearch":
 		return meili.New(c.url, c.key, c.prefix)
+	case "opensearch":
+		return opensearch.New(c.url, c.user, c.key, c.prefix)
 	}
 	return nil
 }

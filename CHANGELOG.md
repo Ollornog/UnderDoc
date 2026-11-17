@@ -125,6 +125,11 @@ All notable changes to this project are documented in this file. The format foll
 - Table tools in the bar of the editor (M-8): while the cursor stands in a table, rows and columns go in above, below,
   left or right of it, a row or a column goes, and a column is aligned left, center or right. Each tool writes the table
   again as plain Markdown, and the cursor goes to the cell it names. See docs/editor.md.
+- OpenSearch 3.9.0 as the second search engine (ADR-24), chosen with `UNDERDOC_SEARCH_ENGINE=opensearch`, with basic
+  authentication (`UNDERDOC_SEARCH_USER`, the password in `UNDERDOC_SEARCH_KEY_FILE`). It passes the same tests as
+  Meilisearch: all 104 code questions first, MRR 0.964 against 0.951 of Meilisearch; better with word forms and typing
+  errors (German stemmer), weaker with compounds. Meilisearch stays the default. The comparison and the variants measured
+  are in docs/search.md; the tests start both engines in throwaway containers.
 - Proper search, M-12 part one (ADR-24): through a search service, Meilisearch v1.56.2 by default, behind one interface
   for engines (`internal/search`). Error codes such as `E-1042`, `0x80070005`, `ORA-00942`, `HTTP 503` or `KB5034441`
   go into fields of their own and are looked up exactly, never through a typing error, and come first; then the full

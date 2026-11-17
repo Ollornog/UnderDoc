@@ -2,7 +2,7 @@
 id: M-12
 type: Milestone
 title: Proper search
-status: offen
+status: in-arbeit
 tags: [search]
 created: 2026-11-06
 ---

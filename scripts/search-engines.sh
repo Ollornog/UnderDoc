@@ -2,7 +2,8 @@
 # Starts the search engines the tests run against (ADR-24), each in a throwaway container with a name and a port of its
 # own, so that parallel runs never meet. The images are pinned in scripts/search/Dockerfile.*.
 #
-#   eval "$(scripts/search-engines.sh start)"   starts them, waits until they answer, prints the variables to export
+#   eval "$(scripts/search-engines.sh start)"   starts Meilisearch and OpenSearch, waits until both answer, prints the
+#                                               variables to export
 #   scripts/search-engines.sh stop <run>        removes the containers of a run (the run is in UNDERDOC_SEARCH_RUN)
 #
 # Without Docker it fails and says so: a skipped search test is not a green one.
@@ -39,17 +40,27 @@ wait_for() {
 port() { dock port "$1" "$2/tcp" | head -1 | sed 's/.*://'; }
 
 start() {
-    dock info >/dev/null 2>&1 || fail "the search tests need Docker for Meilisearch: start Docker, or set UNDERDOC_TEST_MEILISEARCH_URL to a running engine"
+    dock info >/dev/null 2>&1 || fail "the search tests need Docker for Meilisearch and OpenSearch: start Docker, or set UNDERDOC_TEST_MEILISEARCH_URL and UNDERDOC_TEST_OPENSEARCH_URL to running engines"
     local run="ud-search-$$-$RANDOM"
     local meili="$run-meilisearch"
     dock run -d --rm --name "$meili" --label underdoc-search-test="$run" -p 127.0.0.1::7700 \
         -e MEILI_NO_ANALYTICS=true -e MEILI_ENV=development "$(image meilisearch)" >/dev/null ||
         fail "Meilisearch does not start"
-    local meili_url
+    # OpenSearch without its security plugin: it listens on loopback only, for the tests. Half a gigabyte of heap is
+    # plenty for the corpus.
+    local opensearch="$run-opensearch"
+    dock run -d --rm --name "$opensearch" --label underdoc-search-test="$run" -p 127.0.0.1::9200 \
+        -e discovery.type=single-node -e DISABLE_SECURITY_PLUGIN=true -e DISABLE_INSTALL_DEMO_CONFIG=true \
+        -e OPENSEARCH_JAVA_OPTS="-Xms512m -Xmx512m" "$(image opensearch)" >/dev/null ||
+        { stop "$run"; fail "OpenSearch does not start"; }
+    local meili_url opensearch_url
     meili_url="http://127.0.0.1:$(port "$meili" 7700)"
+    opensearch_url="http://127.0.0.1:$(port "$opensearch" 9200)"
     wait_for "$meili" "$meili_url/health" || { stop "$run"; fail "Meilisearch does not answer"; }
+    wait_for "$opensearch" "$opensearch_url/_cluster/health?wait_for_status=yellow&timeout=1s" || { stop "$run"; fail "OpenSearch does not answer"; }
     printf 'export UNDERDOC_SEARCH_RUN=%q\n' "$run"
     printf 'export UNDERDOC_TEST_MEILISEARCH_URL=%q\n' "$meili_url"
+    printf 'export UNDERDOC_TEST_OPENSEARCH_URL=%q\n' "$opensearch_url"
 }
 
 stop() {

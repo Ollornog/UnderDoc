@@ -51,3 +51,21 @@ A search service, chosen by the maintainer on 2026-11-16, behind one interface o
   database, and says so.
 - The index is fed from the database through a queue, so a lost index can be rebuilt at any time.
 - M-12 is updated: the measurement compares the two engines instead of deciding whether a service is needed at all.
+
+## Note, 2026-11-17: measured
+
+Both engines on a German corpus of 201 pages and 179 questions (docs/search.md, `internal/search/searchtest`):
+
+| | Meilisearch v1.56.2 | OpenSearch 3.9.0 |
+|---|---|---|
+| codes, 104 questions: first hit | 100 % | 100 % |
+| hit@1, all questions | 93 % | 94 % |
+| hit@5, all questions | 98 % | 98 % |
+| MRR, all questions | 0.951 | 0.964 |
+
+- Codes are not searched as text at all: they go into fields of their own with their parts and are looked up exactly, in
+  tiers (title, heading, anywhere, by a part), so no engine can match them through a typing error.
+- Meilisearch stays the default: compounds are found best, little memory, nothing to tune. OpenSearch ranks German word
+  forms and questions in sentences better.
+- Settings: `UNDERDOC_SEARCH_ENGINE`, `UNDERDOC_SEARCH_URL`, `UNDERDOC_SEARCH_KEY_FILE`, `UNDERDOC_SEARCH_USER`,
+  `UNDERDOC_SEARCH_INDEX`.
