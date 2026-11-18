@@ -2078,10 +2078,20 @@ async function browserText(id){
     const text=pages.join('\n').trim();if(text)await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
   catch(e){/* the server reads it too, where its way is on */}
 }
+/* The text of an image, read with Tesseract.js (deu+eng) in the same browser; its worker is the one script whose policy
+   allows WebAssembly. A browser without WebAssembly SIMD leaves the text to the server. */
+const OCR_TYPES=['image/png','image/jpeg','image/webp','image/bmp'];
+async function browserOCR(id){
+  try{const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
+    const m=await import('/assets/app/tesseract/ocr.mjs?v='+v),text=(await m.text('/api/files/'+encodeURIComponent(id)+'/content')).trim();
+    if(text)await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
+  catch(e){/* the server reads it too, where its way is on */}
+}
 async function uploadFiles(files,target,dir){
   for(const f of files){
     const up={name:f.name,size:f.size,done:0,state:'uploading',dir};FS.ups.push(up);render();
-    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;if(done.id&&done.type==='application/pdf'&&FS.text.browser)browserText(done.id);}catch(e){up.err=e.message;}
+    try{const done=await uploadOne(f,target,up);up.state='done';up.result=done;
+      if(done.id&&FS.text.browser){if(done.type==='application/pdf')browserText(done.id);else if(OCR_TYPES.includes(done.type))browserOCR(done.id);}}catch(e){up.err=e.message;}
     render();
   }
   setTimeout(()=>{FS.ups=FS.ups.filter(u=>u.err);render();},2500);

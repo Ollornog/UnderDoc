@@ -47,14 +47,21 @@ Everything a reader may read, and nothing else:
 - **Pages, folders and collections** of the database, the cards of the quick notes (by their owner only), and the pages
   of the folder (M-1). Tables in a page are found by
   their cells.
-- Not yet the view Files (ADR-28): it has rights of its own (file roots), so its folders and files are left out until
-  they come with a source of their own that knows those rights.
-- Later sources only register with the indexer (`search.Source`): tables and lists (M-6), cached views of sources (M-4),
-  and the text of files (M-2), which also says where the text came from (`origin`).
+- **Files** of the view Files (M-2, ADR-28) by their name and the text of their current version, and the **attachments
+  of a page**, such as a pasted scan, by their text: a hit on one opens its page at the block that shows it. Of the texts
+  a file has (docs/files.md, "Text for the search"), the one its content gives (server, then browser) comes before what
+  was recognised in pixels (a model, then OCR on the server); each record says where its text came from (`origin`, type
+  `file`). Files follow the rule of the documents for now (whoever may see the file, ADR-20): the folder of a user is read
+  by that user only. The folders and roots of the view Files are places, not content, and are not found themselves.
+- A new version, a text read later and an attachment added or removed put the file or page into the queue by themselves
+  (triggers of the database, migration 020), whichever way the text came.
+- Later sources only register with the indexer (`search.Source`): tables and lists (M-6) and cached views of sources
+  (M-4). A source whose records find more than before raises its version (`Version()`), and the index of every tenant is
+  filled again once, as for new settings of the engine.
 - **Passwords never**: the directives of ADR-7 (`::secret{…}`) and their IDs are cut out before anything is indexed.
 
 **Rights** are a filter in the index, not a check afterwards: every record lists its readers (everyone signed in, or the
-owner of private notes), and every query carries the readers of the person asking. A query without readers is refused.
+owner of private notes and of a user's own files), and every query carries the readers of the person asking. A query without readers is refused.
 The tenant is separated by its own index. When groups and shares of M-5 come, they add reader tokens of their own.
 
 **Sections:** a page is indexed in sections, one per heading and what follows it up to the next heading (ADR-22). A hit

@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Files are found by their text (M-2, ADR-24, [docs/search.md](docs/search.md)): the text of the current version of a
+  file, and of the attachments of a page, goes to the search service with where it came from, read by who may see the
+  file. Triggers of the database (migration 020) queue the file or page when a text, a version or an attachment comes;
+  a source that finds more raises its version, and every index is filled again once.
+- The text of images in the browser (ADR-24, [docs/files.md](docs/files.md)): Tesseract.js with the language data `deu`
+  and `eng`, built from the lockfile in `web/tesseract` and served by UnderDoc itself; only its worker may compile
+  WebAssembly.
 - `deploy/compose.yml` with the services next to UnderDoc ([docs/services.md](docs/services.md)): Meilisearch and
   Mailpit, OpenSearch and Gotenberg as profiles, every port on loopback, the key from `.env`, pinned by digest and moved
   by Dependabot; `scripts/check.sh` checks the file.

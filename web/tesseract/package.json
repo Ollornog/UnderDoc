@@ -1,0 +1,16 @@
+{
+  "name": "underdoc-tesseract",
+  "private": true,
+  "description": "The way of the browser for the text of images (ADR-24): Tesseract.js with the language data deu and eng, served by UnderDoc itself.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@tesseract.js-data/deu": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "tesseract.js": "7.0.0",
+    "tesseract.js-core": "7.0.0"
+  }
+}

@@ -182,16 +182,6 @@ func (db *DB) FileTexts(ctx context.Context, fileID, viewer string) ([]FileText,
 	})
 }
 
-// FilesOfBlob returns the files whose current version is a blob, for telling the search what changed.
-func (db *DB) FilesOfBlob(ctx context.Context, sha string) ([]string, error) {
-	rows, err := db.pool.Query(ctx, `SELECT o.id FROM objects o JOIN LATERAL (SELECT blob FROM file_versions WHERE file = o.id ORDER BY number DESC LIMIT 1) v ON true
-		WHERE v.blob = $1 AND o.deleted_at IS NULL`, sha)
-	if err != nil {
-		return nil, err
-	}
-	return pgx.CollectRows(rows, pgx.RowTo[string])
-}
-
 // UseAIPages counts pages a model for OCR read for an account this month, refused with ErrQuota if that passes the
 // quota of the user or of the tenant (0: none).
 func (db *DB) UseAIPages(ctx context.Context, account string, pages, userQuota, tenantQuota int) error {

@@ -506,7 +506,10 @@ func (b *browser) ready(title string) {
 		check += ` && document.querySelector('.dtitle h1')?.textContent === ` + strconv.Quote(title) + ` && !/^(Loading|This page could not)/.test(document.querySelector('article.doc')?.textContent.trim())`
 	}
 	if !b.waitFor(check) {
-		b.t.Fatalf("the workspace did not show %q: %s", title, b.eval(`document.querySelector('.dtitle h1')?.textContent + ' | ' + location.pathname`))
+		// The state of the document says whether its loading hung or failed (Register 2026-11-19, TestBlocksAreAligned).
+		b.t.Fatalf("the workspace did not show %q: %s", title, b.eval(`document.querySelector('.dtitle h1')?.textContent + ' | ' + location.pathname +
+			' | article: ' + (document.querySelector('article.doc')?.textContent.trim().slice(0, 120) || '-') +
+			' | document: ' + (() => { try { const d = D[at(S.focus).d]; return d ? JSON.stringify({t: d.t, sid: d.sid, loading: !!d.loading, loaded: !!d.loaded, blocks: d.blocks ? d.blocks.length : null}) : 'none'; } catch (e) { return String(e); } })()`))
 	}
 }
 

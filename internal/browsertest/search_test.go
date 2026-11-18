@@ -19,6 +19,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/search"
 	"github.com/Ollornog/UnderDoc/internal/search/meili"
 	"github.com/Ollornog/UnderDoc/internal/search/searchtest"
+	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
@@ -28,6 +29,12 @@ import (
 // real Meilisearch fed by the indexer as serve feeds it.
 
 func setupWithSearch(t *testing.T) (*browser, string) {
+	t.Helper()
+	return setupSearchWith(t, web.Options{})
+}
+
+// setupSearchWith starts the handler with a database, the search as serve feeds it, and the given options besides.
+func setupSearchWith(t *testing.T, options web.Options) (*browser, string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(tenant.With(context.Background(), tenant.Main))
 	t.Cleanup(cancel)
@@ -51,7 +58,8 @@ func setupWithSearch(t *testing.T) (*browser, string) {
 	indexer.Poll = 50 * time.Millisecond
 	go indexer.Run(ctx)
 	service := search.NewService(engine, web.TitleFallback(database, store), tenant.Main, log)
-	return setupWith(t, web.Options{DB: database, Search: service}, nil)
+	options.DB, options.Search = database, service
+	return setupWith(t, options, nil)
 }
 
 // indexed waits until the search finds a word, so the indexer has done its work.
@@ -157,4 +165,41 @@ func TestResultsPageWithFilters(t *testing.T) {
 	if !b.waitFor(`location.pathname === '/o/` + other + `' && document.querySelector('mark.hitmark')?.textContent === 'Kartenzahlung'`) {
 		t.Errorf("a click opens the hit with the heading marked: %s %s %s", b.eval(`location.pathname`), b.eval(`JSON.stringify(S.wins.map(w => w.tabs.map(t => [t.d, t.hl])))`), b.eval(`document.querySelector('[data-art]')?.innerHTML.slice(0, 600)`))
 	}
+}
+
+// A file is found by its text (M-2): the browser of the uploader reads the text of a PDF, the indexer takes it from the
+// queue, and Ctrl+K finds the code in it and opens the file.
+func TestQuickSearchFindsAFileByItsText(t *testing.T) {
+	content, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, base := setupSearchWith(t, web.Options{Store: content, AdminGroup: "ops", TextWays: db.Ways{Browser: true}})
+	b.open(base + "/")
+	b.ready("")
+	b.openMyFiles()
+	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "wartung.pdf", minimalPDF("Schranke meldet E-3301")))
+	b.filesSettled()
+	// The browser of the uploader read the text of the PDF for the search (ADR-24); the file, once opened, says its ID.
+	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "wartung.pdf"), 1)
+	b.ready("wartung.pdf")
+	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'wartung.pdf' && D[k].sid)].sid;
+		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
+	if !b.waitFor(`JSON.parse(` + textOf + `).some(t => t.source === 'browser' && t.text.includes('E-3301'))`) {
+		t.Fatalf("the browser gave no text: %s", b.eval(textOf))
+	}
+	b.indexed("E-3301")
+	b.open(base + "/")
+	b.ready("")
+	b.press("k", "KeyK", 75, ctrl)
+	b.waitFor(`document.activeElement?.dataset.palq !== undefined`)
+	b.typeText("E-3301")
+	if !b.waitFor(`[...document.querySelectorAll('.udpal .hit')].some(h => h.textContent.includes('wartung.pdf') && h.querySelector('mark')?.textContent === 'E-3301')`) {
+		t.Fatalf("the file is a hit, the code marked: %s", b.eval(`document.querySelector('.udpal')?.innerText`))
+	}
+	b.press("Enter", "Enter", 13, 0)
+	if !b.waitFor(`!!document.querySelector('article.doc [data-pdf]')`) {
+		t.Fatalf("Enter opens the file: %s %s", b.eval(`location.pathname`), b.eval(`document.querySelector('article.doc')?.outerHTML.slice(0, 300)`))
+	}
+	b.shot("search-file")
 }

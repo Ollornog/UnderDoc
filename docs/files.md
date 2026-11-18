@@ -110,8 +110,13 @@ The text of files reaches the search three ways (ADR-24), each switched on in la
 (`UNDERDOC_TEXT_WAYS`), the tenant leaves it on or switches it off, and each user does the same for their own uploads
 (`GET`/`PUT /api/files/text-settings`; the tenant's part only administrators). Each text is kept with where it came from.
 
-- **Browser:** after an upload, the uploader's browser reads the text of a PDF with pdf.js and sends it
-  (`PUT /api/files/<id>/text`).
+- **Browser:** after an upload, the uploader's browser reads the text of a PDF with pdf.js, and the text of an image
+  (PNG, JPEG, WebP, BMP) with Tesseract.js in German and English, and sends it (`PUT /api/files/<id>/text`).
+  Tesseract.js, its core (WebAssembly with SIMD, the LSTM engine only) and the language data `deu` and `eng`
+  (tessdata_best, int) are built from the lockfile in `web/tesseract` and served by UnderDoc itself, about 7 MB, loaded
+  only when an image is uploaded; Tesseract.js would fetch them from a CDN by default, the reader names every path
+  instead. Its worker is the one script whose policy allows WebAssembly (`'wasm-unsafe-eval'`); the pages keep theirs.
+  A browser without WebAssembly SIMD leaves the text to the server. Scanned PDF are not read in the browser.
 - **Server:** a queue reads the text of PDF, Word, Excel, PowerPoint, OpenDocument and text files in Go, one job at a
   time, at most two minutes and `UNDERDOC_TEXT_MAX_SIZE` each, three tries. An Office file is checked part by part
   against its packed size before anything is unpacked, so a zip bomb is refused. Images, and scanned PDF with

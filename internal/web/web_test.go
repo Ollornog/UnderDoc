@@ -227,6 +227,20 @@ func TestSecurityHeadersOnEveryAnswer(t *testing.T) {
 			t.Errorf("the CSP allows %s", unsafe)
 		}
 	}
+	// Only the worker of Tesseract.js may compile WebAssembly (ADR-24); its module and everything beside it keep the policy.
+	if got := s.get("/assets/" + ocrWorker).Header().Get("Content-Security-Policy"); got != ocrWorkerCSP {
+		t.Errorf("the worker of Tesseract.js: CSP %q", got)
+	}
+	for _, target := range []string{"/assets/app/tesseract/ocr.mjs", "/assets/app/tesseract/tesseract.esm.min.js", "/assets/app/tesseract/worker.min.js.map", "/assets/app/demo.js?x=/" + ocrWorker} {
+		if got := s.get(target).Header().Get("Content-Security-Policy"); got != CSP {
+			t.Errorf("%s: CSP %q", target, got)
+		}
+	}
+	for _, unsafe := range []string{"unsafe-inline", "'unsafe-eval'", "*", "http:", "https:", "blob:", "data:"} {
+		if strings.Contains(ocrWorkerCSP, unsafe) {
+			t.Errorf("the worker's CSP allows %s", unsafe)
+		}
+	}
 	if got := s.get("/o/start").Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Errorf("content type %q", got)
 	}

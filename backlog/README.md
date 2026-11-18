@@ -8,7 +8,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Meilensteine
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 2/2 erledigt
-* ☐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 0/3 erledigt
+* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 0/3 erledigt
 * ☐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
 * ☐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
@@ -18,7 +18,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-9](M-9-inline-editing.md)** Inline editing — noch keine Aufgaben
 * ☐ **[M-10](M-10-realtime.md)** Working together — noch keine Aufgaben
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
-* ☐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
+* ◐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
 * ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/2 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt

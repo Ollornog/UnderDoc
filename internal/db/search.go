@@ -98,9 +98,14 @@ type objectSource struct{ db *DB }
 
 func (objectSource) Name() string { return SourceObjects }
 
-// Keys lists every object there is to find, outside the trash.
+// Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
+// of files and of the attachments of pages (M-2).
+func (objectSource) Version() string { return "2" }
+
+// Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
-	rows, err := s.db.pool.Query(ctx, `SELECT id FROM objects WHERE deleted_at IS NULL AND area = 'docs' AND kind IN ('collection', 'folder', 'page', 'notes') ORDER BY id`)
+	rows, err := s.db.pool.Query(ctx, `SELECT id FROM objects WHERE deleted_at IS NULL
+		AND ((area = 'docs' AND kind IN ('collection', 'folder', 'page', 'notes')) OR (area = 'files' AND kind = 'file')) ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -137,9 +142,9 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 		return nil, err
 	}
 	self := chain[0]
-	// The view Files keeps its own rights (file roots, ADR-28); its objects come to the search with a source of their
-	// own (M-2), not through the rules of the documents.
-	if self.deleted || IsDivider(self.kind) || self.area != "docs" {
+	// Of the view Files only files are found, by their text; its folders and roots are places, not content. They follow
+	// the same rule of who may read them as the documents (ADR-20) until the rights of M-5 come.
+	if self.deleted || IsDivider(self.kind) || (self.area != "docs" && self.kind != KindFile) {
 		return nil, nil
 	}
 	// Who may read it: everyone, unless it or something above it is private; then only the owner of that, and nobody if
@@ -166,6 +171,23 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 	base := search.Doc{Object: self.id, Type: self.kind, Title: self.title, Tags: self.tags, Path: strings.Join(path, " › "),
 		Collection: top.id, CollectionName: top.title, Author: self.owner, AuthorName: self.ownerName,
 		Changed: self.changed.Unix(), Readers: readers}
+	if self.kind == KindFile {
+		base.Type = search.TypeFile
+		var blob string
+		err := s.db.pool.QueryRow(ctx, `SELECT blob FROM file_versions WHERE file = $1 ORDER BY number DESC LIMIT 1`, objectID).Scan(&blob)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []search.Doc{base}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		text, origin, err := s.bestText(ctx, blob)
+		if err != nil {
+			return nil, err
+		}
+		base.Origin = origin
+		return search.SectionDocs(base, search.Sections(search.TextParts(text, ""))), nil
+	}
 	// A page, and the board of quick notes, whose cards are its blocks (M-8), are found by their text.
 	if self.kind != KindPage && self.kind != KindNotes {
 		return []search.Doc{base}, nil
@@ -182,7 +204,60 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 	if err != nil {
 		return nil, err
 	}
-	return search.SectionDocs(base, search.Sections(search.BlockParts(blocks))), nil
+	docs := search.SectionDocs(base, search.Sections(search.BlockParts(blocks)))
+	if self.kind != KindPage {
+		return docs, nil
+	}
+	// The attachments of a page, such as a pasted scan, are found by their text too, and open the page. They come after
+	// the sections of the page, each under its own name.
+	attachments, err := s.db.pool.Query(ctx, `SELECT id, name, blob FROM attachments WHERE page = $1 ORDER BY at, id`, objectID)
+	if err != nil {
+		return nil, err
+	}
+	type attachment struct{ id, name, blob string }
+	list, err := pgx.CollectRows(attachments, func(row pgx.CollectableRow) (attachment, error) {
+		var a attachment
+		err := row.Scan(&a.id, &a.name, &a.blob)
+		return a, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range list {
+		text, origin, err := s.bestText(ctx, a.blob)
+		if err != nil {
+			return nil, err
+		}
+		if text == "" {
+			continue
+		}
+		// A hit opens the block that shows the attachment, else the top of the page.
+		var anchor string
+		err = s.db.pool.QueryRow(ctx, `SELECT id FROM blocks WHERE page = $1 AND strpos(body, $2) > 0 ORDER BY position LIMIT 1`,
+			objectID, AttachmentPath(objectID, a.id)).Scan(&anchor)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		file := base
+		file.Type, file.Origin = search.TypeFile, origin
+		for _, section := range search.Sections(search.TextParts(text, anchor)) {
+			file.Heading, file.Anchor, file.Body, file.Rank = a.name, section.Anchor, section.Text, len(docs)
+			docs = append(docs, file)
+		}
+	}
+	return docs, nil
+}
+
+// bestText returns the text of a blob the search takes, and where it came from: what the content says itself (server,
+// browser) before what was recognised in pixels (ai, ocr), as FileTexts orders them. None is "".
+func (s objectSource) bestText(ctx context.Context, blob string) (string, string, error) {
+	var text, origin string
+	err := s.db.pool.QueryRow(ctx, `SELECT text, source FROM file_texts WHERE blob = $1 AND text <> ''
+		ORDER BY CASE source WHEN 'server' THEN 0 WHEN 'browser' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1`, blob).Scan(&text, &origin)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", nil
+	}
+	return text, origin, err
 }
 
 // --- The fallback without a search service

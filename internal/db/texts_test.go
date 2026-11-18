@@ -76,9 +76,6 @@ func TestTextQueueAndTexts(t *testing.T) {
 	if err := db.SaveFileText(ctx, file.ID, anna.ID, "mind reading", "x"); !errors.Is(err, ErrText) {
 		t.Fatalf("an unknown source: %v", err)
 	}
-	if ids, _ := db.FilesOfBlob(ctx, sha(1)); len(ids) != 1 || ids[0] != file.ID {
-		t.Fatalf("%v", ids)
-	}
 	// The text goes with its blob.
 	_ = db.Delete(ctx, file.ID, anna.ID)
 	_ = db.Purge(ctx, file.ID, anna.ID)

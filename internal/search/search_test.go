@@ -308,3 +308,42 @@ func TestIndexerBuildsAndKeepsUp(t *testing.T) {
 		t.Errorf("when the engine fails, the keys go back into the queue: %v %v", queue.retried, err)
 	}
 }
+
+// versionedSource is a source whose records carry a version.
+type versionedSource struct {
+	mapSource
+	version string
+}
+
+func (v *versionedSource) Version() string { return v.version }
+
+func TestANewSourceVersionBuildsAgain(t *testing.T) {
+	ctx := context.Background()
+	engine, queue := &fake{}, &memoryQueue{}
+	source := &versionedSource{mapSource{"a": "Erste Seite"}, "1"}
+	ix := NewIndexer(engine, queue, "t", quiet(), source)
+	if err := ix.Prepare(ctx); err != nil || ix.Drain(ctx) != nil {
+		t.Fatal(err)
+	}
+	if queue.versions["fake/t"] != "1+object-1" {
+		t.Errorf("the version names the source's: %q", queue.versions["fake/t"])
+	}
+	if err := ix.Prepare(ctx); err != nil || len(queue.keys) != 0 {
+		t.Fatalf("the same version builds nothing: %v %v", queue.keys, err)
+	}
+	// The source now finds more, such as the text of files: everything is queued again, though the engine's settings stay.
+	source.version = "2"
+	if err := ix.Prepare(ctx); err != nil || !slices.Equal(queue.keys, []Key{{"object", "a"}}) {
+		t.Errorf("a new version of a source queues every key: %v %v", queue.keys, err)
+	}
+}
+
+func TestTextParts(t *testing.T) {
+	parts := TextParts("Erste  Zeile\nnoch erste\n \t\nZweite\n\n\n", "b7")
+	if len(parts) != 2 || parts[0].Piece.Text != "Erste Zeile noch erste" || parts[1].Piece.Text != "Zweite" || parts[1].Anchor != "b7" {
+		t.Errorf("one part per paragraph, spaces made single: %+v", parts)
+	}
+	if sections := Sections(parts); len(sections) != 1 || sections[0].Text != "Erste Zeile noch erste Zweite" {
+		t.Errorf("plain text makes one section while it is short: %+v", sections)
+	}
+}

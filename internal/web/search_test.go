@@ -249,3 +249,51 @@ func TestEveryTenantSearchesItsOwnIndex(t *testing.T) {
 		}
 	}
 }
+
+// TestFilesAreFoundThroughTheService: the text of a file, read in the browser, reaches the index through the queue of the
+// database, and only who may read the file finds it (M-2, ADR-24).
+func TestFilesAreFoundThroughTheService(t *testing.T) {
+	f := withFiles(t)
+	engine := meiliEngine(t)
+	log := slog.New(slog.DiscardHandler)
+	options := Options{DB: f.db, Store: f.store, AdminGroup: "underdoc-admins", TextWays: db.Ways{Browser: true}}
+	f.site = newSite(t, options, sample)
+	options.Search = search.NewService(engine, TitleFallback(f.db, f.site.store), tenant.Main, log)
+	handler, err := New(f.site.store, log, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.http = handler
+	ctx := tenant.With(context.Background(), tenant.Main)
+	indexer := search.NewIndexer(engine, f.db, tenant.Main, log, f.db.SearchSource())
+	if err := indexer.Prepare(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = engine.Drop(context.Background(), tenant.Main) })
+
+	mine := f.root(nil, db.RootUser)
+	done := decode[finished](t, f.put(nil, `"parent":"`+mine.ID+`"`, "Wartungsprotokoll.pdf", []byte("%PDF-1.7 scan"), 64))
+	if got := f.send(http.MethodPut, "/api/files/"+done.ID+"/text", `{"text":"Schranke Nord meldet E-3301 nach dem Regen."}`, sameSite); got.Code != http.StatusNoContent {
+		t.Fatalf("the browser's text: %d %s", got.Code, got.Body)
+	}
+	if err := indexer.Drain(ctx); err != nil {
+		t.Fatal(err)
+	}
+	find := func(q string, headers map[string]string) apiSearchResult {
+		return decode[apiSearchResult](t, f.getWith("/api/search?q="+q, merged(headers)))
+	}
+	got := find("E-3301", nil)
+	if len(got.Hits) != 1 || got.Hits[0].ID != done.ID || got.Hits[0].Kind != search.TypeFile || !got.Hits[0].Code ||
+		!strings.Contains(got.Hits[0].Snippet, "<mark>E-3301</mark>") {
+		t.Fatalf("the code in the text of the file is found: %+v", got.Hits)
+	}
+	if got := find("Schranke", nil); len(got.Hits) != 1 || got.Hits[0].ID != done.ID {
+		t.Errorf("and a word of it: %+v", got.Hits)
+	}
+	if got := find("E-3301", bob); len(got.Hits) != 0 {
+		t.Errorf("bob never finds what lies in Anna's own folder: %+v", got.Hits)
+	}
+	if got := find("E-3301&type=file", nil); len(got.Hits) != 1 {
+		t.Errorf("the filter by type knows files: %+v", got.Hits)
+	}
+}

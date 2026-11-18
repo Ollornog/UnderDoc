@@ -65,7 +65,6 @@ type textWorker struct {
 	store   *store.Store
 	config  textConfig
 	ocr, ai filetype.OCR
-	changed func(ctx context.Context, fileIDs []string)
 	// on tells whether the module Files is on for the tenant of ctx; nil for always.
 	on  func(context.Context) bool
 	log *slog.Logger
@@ -110,13 +109,9 @@ func (t textWorker) once(ctx context.Context) (bool, error) {
 	if errors.Is(failure, filetype.ErrNoText) {
 		failure = nil
 	}
+	// The text saved puts its files into the queue of the search (migration 020).
 	if err := t.db.FinishTextJob(ctx, job, source, text, failure); err != nil {
 		return true, err
-	}
-	if text != "" && t.changed != nil {
-		if ids, err := t.db.FilesOfBlob(ctx, job.Blob); err == nil && len(ids) > 0 {
-			t.changed(ctx, ids)
-		}
 	}
 	return true, failure
 }

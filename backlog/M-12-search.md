@@ -26,3 +26,11 @@ order: this can move forward as soon as there is enough content to search.
 - PostgreSQL full-text search has been measured against real content before any separate search service is added.
 
 **Settled on 2026-11-16 (talk with the maintainer, sprint of that day):** A search service, Meilisearch by default and OpenSearch as a choice (ADR-24). It comes right after M-8. Error codes are a hard gate, ranking weighs title and headings above the text.
+
+**State 2026-11-19:** built: Meilisearch with a queue in the database, an index per tenant, readers as a filter, error
+codes as a hard gate, sections, Ctrl+K, the results page with filters by type, collection, author, date and tags with
+highlighted hits and the strategies exact words and full text (#63); OpenSearch as the choice, measured against
+Meilisearch on a German corpus (#74); the text of files and of attachments of pages, with where it came from, and text
+in images through Tesseract.js in the browser or OCR on the server. Open: tables, native lists and cached views as
+sources (they come with M-6 and M-4), the saved search as a document type, the measurement of PostgreSQL full-text
+search against real content, readers from groups (M-5), semantic search.

@@ -67,6 +67,20 @@ updates:
       minor:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+  # The text of images in the browser (ADR-24): Tesseract.js and its language data, copied from the lockfile into the
+  # assets by scripts/build-js.sh.
+  - package-ecosystem: npm
+    directory: /web/tesseract
+    cooldown:
+      default-days: 14
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"
+    groups:
+      minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
   # The base images of the Dockerfile. scripts/check-image.sh in the CI accepts them.
   - package-ecosystem: docker
     directory: /
