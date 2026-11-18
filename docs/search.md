@@ -11,10 +11,15 @@ folder of M-1 is searched in memory, as before.
 
 | Setting | Meaning | Default |
 |---|---|---|
-| `UNDERDOC_SEARCH_ENGINE` | `meilisearch` or `none` | `meilisearch` when a URL is set, else `none` |
-| `UNDERDOC_SEARCH_URL` | Address of the search service, for example `http://127.0.0.1:7700` | none: titles only |
-| `UNDERDOC_SEARCH_KEY_FILE` | A file that holds the API key of the search service, never the key itself | no key |
+| `UNDERDOC_SEARCH_ENGINE` | `meilisearch`, `opensearch` or `none` | `meilisearch` when a URL is set, else `none` |
+| `UNDERDOC_SEARCH_URL` | Address of the search service, for example `http://127.0.0.1:7700` or `https://127.0.0.1:9200` | none: titles only |
+| `UNDERDOC_SEARCH_KEY_FILE` | A file that holds the API key of Meilisearch, or the password of OpenSearch, never the key itself | no key |
+| `UNDERDOC_SEARCH_USER` | The user of OpenSearch for basic authentication | none: no authentication |
 | `UNDERDOC_SEARCH_INDEX` | What every index name starts with, so installations can share one service: lower case letters, digits, dashes | `underdoc` |
+
+OpenSearch needs a user with the rights to create, delete, write and search the indexes `<prefix>-*`; its TLS
+certificate must be trusted by the system. OpenSearch cannot change the analysis of an index in place, so a new version of
+UnderDoc's mapping drops the index and fills it again from the queue.
 
 The key of Meilisearch needs the rights to manage indexes and documents, to search, and to read tasks; the master key
 works, a key with only the actions `indexes.*`, `settings.*`, `documents.*`, `search` and `tasks.get` on the indexes
@@ -65,7 +70,7 @@ results, with its best section. Very long sections are split, so every word stay
    `0x80070015` does not find `0x80070005`, and a code that is nowhere finds nothing.
 2. **Then the full text** of the words of the query: title before headings before tags before text, exact words before
    words with a typing error, the words close together before far apart, and newer only to break a tie.
-3. **German:** compounds are split (`Warteschlange` finds `Druckerwarteschlange`, `zahlung` finds `Kartenzahlung`), the
+3. **German** (Meilisearch; OpenSearch see below): compounds are split (`Warteschlange` finds `Druckerwarteschlange`, `zahlung` finds `Kartenzahlung`), the
    last word of a query is also a prefix (`Etikett` finds `Etiketten`), and typing errors are forgiven in words of five
    letters and more (one) and nine and more (two), never in numbers. Common words such as `der`, `nicht` or `wie` are
    ignored in a query.
@@ -87,7 +92,7 @@ errors. **Similar meaning** comes with AI (M-13) as a hybrid search of the same 
 
 The search is tested against real engines in throwaway containers, started by `scripts/search-engines.sh` with names and
 ports of their own, so parallel runs never meet. `scripts/check.sh` starts them and fails without Docker: a skipped search
-test is not a green one. Engines that run already can be named with `UNDERDOC_TEST_MEILISEARCH_URL`. The images are
+test is not a green one. Engines that run already can be named with `UNDERDOC_TEST_MEILISEARCH_URL` and `UNDERDOC_TEST_OPENSEARCH_URL`. The images are
 pinned by tag and digest in `scripts/search/Dockerfile.*`, which only carry the pin, and Dependabot moves them.
 
 Every engine passes the same functional tests (`internal/search/searchtest`): readers, tenants, replacing and removing,
@@ -121,6 +126,61 @@ keeps the ranking from getting worse unnoticed.
 | all | 179 | 93 % | 98 % | 0.951 | 16/16 |
 
 *Section* counts the questions with a heading whose hit opened at that heading.
+
+#### OpenSearch 3.9.0 (2026-11-17)
+
+| opensearch | questions | hit@1 | hit@5 | MRR | section |
+|---|---|---|---|---|---|
+| code | 65 | 100 % | 100 % | 1.000 | – |
+| code-variant | 32 | 100 % | 100 % | 1.000 | – |
+| code-absent | 7 | 100 % | 100 % | 1.000 | – |
+| title | 18 | 100 % | 100 % | 1.000 | – |
+| heading | 15 | 93 % | 100 % | 0.967 | 15/15 |
+| wordform | 10 | 100 % | 100 % | 1.000 | – |
+| compound | 10 | 80 % | 90 % | 0.867 | 1/1 |
+| typo | 10 | 90 % | 100 % | 0.950 | – |
+| phrase | 12 | 50 % | 83 % | 0.663 | – |
+| all | 179 | 94 % | 98 % | 0.964 | 16/16 |
+
+OpenSearch analyses German text with a light stemmer (`light_german`), the German normalisation and the same stop words.
+Title, heading and text have a second field of word parts (n-grams of four and five letters) for compounds. It searches
+every word as written, some words, words with one or two typing errors (`AUTO:5,9`, as Meilisearch) on a third field of
+the words unstemmed, the last word as a prefix and the word parts, weighted title 8, heading 4, tags 3, text 1. Variants, MRR of all 179 questions:
+
+| Variant | wordform | compound | typo | phrase | all |
+|---|---|---|---|---|---|
+| no word parts | 0.900 | 0.863 | 0.900 | 0.663 | 0.956 |
+| word parts 4–5, 80 % of them must match | 1.000 | 0.864 | 0.950 | 0.694 | 0.966 |
+| word parts 4–5, 60 %, typing errors on the stems | 1.000 | 0.864 | 0.950 | 0.747 | 0.970 |
+| **the same, typing errors on the words unstemmed (chosen)** | 1.000 | 0.867 | 0.950 | 0.663 | **0.964** |
+| the same, typing errors on both | 1.000 | 0.864 | 0.950 | 0.622 | 0.961 |
+| word parts 4–5, 80 %, weight 1 | 1.000 | 0.870 | 0.950 | 0.694 | 0.961 |
+| word parts 3–5, 80 % | 1.000 | 0.864 | 0.933 | 0.652 | 0.963 |
+
+Typing errors on the stems scored best on the corpus, but missed a typing error in a short word: the stemmer cuts `Wagen`
+to a stem too short for one, so `Wafen` found nothing (a test of the shared suite now). The chosen variant gives up 0.006
+of MRR, all of it in the questions in many words, for that.
+
+Not measured: the `hyphenation_decompounder` and `hunspell` need a German hyphenation grammar or dictionary installed in
+the cluster, which the image does not bring.
+
+#### The two compared
+
+| | Meilisearch v1.56.2 | OpenSearch 3.9.0 |
+|---|---|---|
+| codes (104 questions, hard gate) | 100 % first | 100 % first |
+| MRR of all 179 questions | 0.951 | 0.964 |
+| word forms (`Wareneingänge buchen`) | 0.808 | 1.000 |
+| compounds (`Warteschlange`) | 1.000 | 0.867 |
+| typing errors | 0.775 | 0.950 |
+| questions in words | 0.611 | 0.663 |
+| memory in the tests | about 100 MB | 512 MB heap, a JVM |
+| licence | MIT | Apache-2.0 |
+
+Both are good enough for German: every code comes first, and nine of ten questions find their page first. OpenSearch is
+better with word forms, typing errors and questions in many words, because it stems German; Meilisearch is better with
+compounds, because it splits them, and needs a fraction of the memory and no tuning. Meilisearch stays the default
+(ADR-24); a hoster who runs OpenSearch already, or whose users ask in sentences, chooses OpenSearch.
 
 How the settings were chosen, MRR of all 179 questions (codes were 100 % in every variant, they do not depend on these
 settings):

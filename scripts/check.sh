@@ -42,12 +42,12 @@ scripts/build-js.sh || fail "JavaScript"
 
 # The search tests run against real engines in throwaway containers (ADR-24). Without Docker this fails: a skipped
 # search test is not a green one. Engines already running can be named instead (scripts/search-engines.sh).
-if [[ -z "${UNDERDOC_TEST_MEILISEARCH_URL:-}" ]]; then
+if [[ -z "${UNDERDOC_TEST_MEILISEARCH_URL:-}" || -z "${UNDERDOC_TEST_OPENSEARCH_URL:-}" ]]; then
     step "Search engines in containers"
     engines="$(scripts/search-engines.sh start)" || fail "search engines (they need Docker, see scripts/search-engines.sh)"
     eval "$engines"
     trap 'scripts/search-engines.sh stop "$UNDERDOC_SEARCH_RUN"' EXIT
-    echo "  Meilisearch at $UNDERDOC_TEST_MEILISEARCH_URL"
+    echo "  Meilisearch at $UNDERDOC_TEST_MEILISEARCH_URL, OpenSearch at $UNDERDOC_TEST_OPENSEARCH_URL"
 fi
 
 # The browser test sits behind a tag, so it also has to pass vet and staticcheck explicitly.

@@ -58,7 +58,7 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_SCAN_INTERVAL` | Wie oft der Ordner geprüft wird | `2s` |
 | `UNDERDOC_DEV_UI` | `1` zeigt alle Bausteine unter `/dev/ui` | aus |
 
-**Die Suche** (ADR-24) läuft über einen Suchdienst, als Vorgabe Meilisearch: Fehlercodes werden genau so gefunden, wie
+**Die Suche** (ADR-24) läuft über einen Suchdienst, als Vorgabe Meilisearch, wahlweise OpenSearch: Fehlercodes werden genau so gefunden, wie
 sie geschrieben sind, und zuerst, danach Titel vor Überschriften vor Text, mit deutschen Komposita und Tippfehlern, und ein
 Treffer öffnet an seinem Abschnitt. Strg+K sucht von überall. Ohne Suchdienst werden nur Titel durchsucht. Einstellungen,
 Rangfolge und die Messung an einem deutschen Testkorpus stehen (englisch) in [docs/search.md](../docs/search.md).

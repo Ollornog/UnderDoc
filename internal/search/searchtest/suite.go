@@ -199,6 +199,27 @@ func testOnePerObject(t *testing.T, ctx context.Context, engine search.Engine, t
 	if result.Hits[0].Heading != "Kartenzahlung" || result.Hits[0].Anchor != "b2" {
 		t.Errorf("the hit opens at the section with the heading: %q #%s", result.Hits[0].Heading, result.Hits[0].Anchor)
 	}
+	// The engine keeps one record per object itself, so the sections of one page do not take the places of other pages.
+	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "many"}, page("many", "Kartenzahlung",
+		"Ablauf", "Kartenzahlung Schritt eins.", "Fehler", "Kartenzahlung Fehler.", "Storno", "Kartenzahlung Storno.", "Belege", "Kartenzahlung Belege."))
+	result, err = serviceOf(engine, tenant).Search(ctx, search.Request{Text: "Kartenzahlung", Account: "anna", Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Hits) != 2 {
+		t.Errorf("two places, two pages: %d", len(result.Hits))
+	}
+	answer, err := engine.Search(ctx, tenant, search.Query{Text: "Kartenzahlung", Readers: search.Readers("anna"), Limit: 10, OnePerObject: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, f := range answer.Found {
+		if seen[f.Doc.Object] {
+			t.Errorf("the engine returns %s twice", f.Doc.Object)
+		}
+		seen[f.Doc.Object] = true
+	}
 }
 
 func testCodes(t *testing.T, ctx context.Context, engine search.Engine, tenant string) {
@@ -233,6 +254,11 @@ func testTypos(t *testing.T, ctx context.Context, engine search.Engine, tenant s
 	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "z"}, page("z", "Zertifikat erneuern",
 		"Vorgehen", "Das Zertifikat des Webservers läuft jährlich ab."))
 	service := serviceOf(engine, tenant)
+	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "w"}, page("w", "Hof", "Parken", "Der Wagen steht im Hof."))
+	// One letter off in a word of five: no part of it is left to match, only a typing error finds it.
+	if got := objects(t, ctx, service, "anna", "Wafen", search.Filters{}); !slices.Equal(got, []string{"w"}) {
+		t.Errorf("%q finds the page: %v", "Wafen", got)
+	}
 	for _, query := range []string{"Zertifkat", "Zertifikat erneuern", "Webservers"} {
 		if got := objects(t, ctx, service, "anna", query, search.Filters{}); !slices.Equal(got, []string{"z"}) {
 			t.Errorf("%q finds the page: %v", query, got)
