@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- `deploy/compose.yml` with the services next to UnderDoc ([docs/services.md](docs/services.md)): Meilisearch and
+  Mailpit, OpenSearch and Gotenberg as profiles, every port on loopback, the key from `.env`, pinned by digest and moved
+  by Dependabot; `scripts/check.sh` checks the file.
+- `UNDERDOC_SEARCH_KEY`: the key of the search service from the environment, for a container that gets it from a `.env`
+  file; with `UNDERDOC_SEARCH_KEY_FILE` as well, UnderDoc refuses to start.
+
 - Modules (ADR-25, [docs/modules.md](docs/modules.md)): `UNDERDOC_MODULES` allows modules and sets their defaults, the
   hoster narrows them per tenant, the administrator of a tenant switches them (`/admin/modules`), and each user hides
   what is on (`/account/modules`). Off means no route, no entry and no job, and never deletes data. Documents and Files

@@ -24,7 +24,8 @@ import (
 //
 //	UNDERDOC_SEARCH_ENGINE    meilisearch, opensearch or none (meilisearch when a URL is set, none without)
 //	UNDERDOC_SEARCH_URL       address of the search service, such as http://127.0.0.1:7700
-//	UNDERDOC_SEARCH_KEY_FILE  a file holding the API key of Meilisearch or the password of OpenSearch, never the key itself
+//	UNDERDOC_SEARCH_KEY_FILE  a file holding the API key of Meilisearch or the password of OpenSearch
+//	UNDERDOC_SEARCH_KEY       the same, from the environment, for a container that gets it from a .env; not both
 //	UNDERDOC_SEARCH_USER      the user of OpenSearch for basic authentication (none: no authentication)
 //	UNDERDOC_SEARCH_INDEX     what every index name starts with ("underdoc"), so installations can share a service
 const defaultIndexPrefix = "underdoc"
@@ -54,12 +55,19 @@ func readSearchConfig() (searchConfig, error) {
 	if !validPrefix(c.prefix) {
 		return c, fmt.Errorf("UNDERDOC_SEARCH_INDEX: lower case letters, digits and dashes, 1 to 40")
 	}
-	if path := os.Getenv("UNDERDOC_SEARCH_KEY_FILE"); path != "" {
+	path, inline := os.Getenv("UNDERDOC_SEARCH_KEY_FILE"), strings.TrimSpace(os.Getenv("UNDERDOC_SEARCH_KEY"))
+	switch {
+	case path != "" && inline != "":
+		// Two places for one key: which one counts would be a guess.
+		return c, fmt.Errorf("UNDERDOC_SEARCH_KEY and UNDERDOC_SEARCH_KEY_FILE are both set; set one")
+	case path != "":
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return c, fmt.Errorf("UNDERDOC_SEARCH_KEY_FILE: %w", err)
 		}
 		c.key = strings.TrimSpace(string(raw))
+	default:
+		c.key = inline
 	}
 	return c, nil
 }

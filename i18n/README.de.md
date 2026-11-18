@@ -61,7 +61,9 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 **Die Suche** (ADR-24) läuft über einen Suchdienst, als Vorgabe Meilisearch, wahlweise OpenSearch: Fehlercodes werden genau so gefunden, wie
 sie geschrieben sind, und zuerst, danach Titel vor Überschriften vor Text, mit deutschen Komposita und Tippfehlern, und ein
 Treffer öffnet an seinem Abschnitt. Strg+K sucht von überall. Ohne Suchdienst werden nur Titel durchsucht. Einstellungen,
-Rangfolge und die Messung an einem deutschen Testkorpus stehen (englisch) in [docs/search.md](../docs/search.md).
+Rangfolge und die Messung an einem deutschen Testkorpus stehen (englisch) in [docs/search.md](../docs/search.md). Die
+Dienste neben UnderDoc (Meilisearch, OpenSearch, Mailpit, Gotenberg) startet [`deploy/compose.yml`](../deploy/compose.yml),
+siehe (englisch) [docs/services.md](../docs/services.md).
 
 **Export und Import** brauchen die Datenbank (`UNDERDOC_DATABASE_URL`). `underdoc export <ordner>` schreibt jede Sammlung als
 normale Dateien: Ordner, Markdown-Dateien mit Kopfbereich und vor jedem Block ein unsichtbarer Kommentar, der seine ID hält.

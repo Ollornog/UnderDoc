@@ -1,0 +1,92 @@
+# The services that run next to UnderDoc (docs/services.md): the search service, a mail catcher for development, and the
+# optional ones. UnderDoc itself and PostgreSQL are not in here: they run however the installation runs them.
+#
+#   docker compose -f deploy/compose.yml up -d                          Meilisearch and Mailpit
+#   docker compose -f deploy/compose.yml --profile opensearch up -d     OpenSearch as well (ADR-24: the choice)
+#   docker compose -f deploy/compose.yml --profile office up -d         Gotenberg as well (previews of Office files)
+#
+# Every port listens on loopback only: nobody but UnderDoc talks to these services (docs/search.md). Secrets come from a
+# file `.env` next to this one (mode 0600), never from here: MEILI_MASTER_KEY. The images are pinned by tag and digest,
+# and Dependabot moves them (.github/dependabot.yml).
+name: underdoc-services
+
+services:
+  # The search service by default (ADR-24). UNDERDOC_SEARCH_URL=http://127.0.0.1:7700, and the key in the file named by
+  # UNDERDOC_SEARCH_KEY_FILE.
+  meilisearch:
+    image: getmeili/meilisearch:v1.56.2@sha256:9600db22be3fcbf3d506176d3a73dd70a65c5719d9aa1d2837355b75afb8f4fb
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env (at least 16 bytes)}
+    ports:
+      - "127.0.0.1:7700:7700"
+    volumes:
+      - meilisearch:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # The search service as a choice (ADR-24): UNDERDOC_SEARCH_ENGINE=opensearch, UNDERDOC_SEARCH_URL=http://127.0.0.1:9200.
+  # Without its security plugin, as in the tests: it listens only on loopback and in the network of these services, and has
+  # no user. Beyond a test, switch the plugin on with a certificate the system trusts and a user (docs/search.md). It needs
+  # about a gigabyte of memory more than Meilisearch.
+  opensearch:
+    profiles: [opensearch]
+    image: opensearchproject/opensearch:3.9.0@sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Catches every mail UnderDoc sends, for development and tests (M-7, M-22): SMTP on 1025, the web view on 8025. Never
+  # in front of real people: it delivers nothing.
+  mailpit:
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - mailpit:/data
+
+  # Previews of Office files (ADR-28, docs/files.md): UNDERDOC_OFFICE_URL=http://127.0.0.1:3000. LibreOffice is far larger
+  # than UnderDoc, so it is a module of its own.
+  gotenberg:
+    profiles: [office]
+    image: gotenberg/gotenberg:9.5.1@sha256:a0f596c2aeee6391c24ccf2953737971f13976b14d4240525a447f209185e2c8
+    restart: unless-stopped
+    command: ["gotenberg", "--api-timeout=60s", "--chromium-disable-javascript=true", "--chromium-allow-list=file:///tmp/.*"]
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  meilisearch:
+  opensearch:
+  mailpit:
+
+# One network with a fixed name, so UnderDoc running in a container of another Compose project can join it
+# (`networks: {underdoc-services: {external: true}}`) and reach the services by their names, such as http://meilisearch:7700.
+networks:
+  default:
+    name: underdoc-services

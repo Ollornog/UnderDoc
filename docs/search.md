@@ -13,7 +13,8 @@ folder of M-1 is searched in memory, as before.
 |---|---|---|
 | `UNDERDOC_SEARCH_ENGINE` | `meilisearch`, `opensearch` or `none` | `meilisearch` when a URL is set, else `none` |
 | `UNDERDOC_SEARCH_URL` | Address of the search service, for example `http://127.0.0.1:7700` or `https://127.0.0.1:9200` | none: titles only |
-| `UNDERDOC_SEARCH_KEY_FILE` | A file that holds the API key of Meilisearch, or the password of OpenSearch, never the key itself | no key |
+| `UNDERDOC_SEARCH_KEY_FILE` | A file that holds the API key of Meilisearch, or the password of OpenSearch | no key |
+| `UNDERDOC_SEARCH_KEY` | The same key from the environment, for a container that gets it from a `.env` file; never both | no key |
 | `UNDERDOC_SEARCH_USER` | The user of OpenSearch for basic authentication | none: no authentication |
 | `UNDERDOC_SEARCH_INDEX` | What every index name starts with, so installations can share one service: lower case letters, digits, dashes | `underdoc` |
 
@@ -23,7 +24,9 @@ UnderDoc's mapping drops the index and fills it again from the queue.
 
 The key of Meilisearch needs the rights to manage indexes and documents, to search, and to read tasks; the master key
 works, a key with only the actions `indexes.*`, `settings.*`, `documents.*`, `search` and `tasks.get` on the indexes
-`<prefix>-*` is better. The key is read from the file once at start; it never reaches a log.
+`<prefix>-*` is better. The key is read once at start, from the file or the environment, and never reaches a log. A file
+is the better place where the installation can give one: a variable of the environment is visible to whoever may inspect
+the container.
 
 UnderDoc keeps one index per tenant (ADR-23), named `<prefix>-<tenant>`; with one tenant that is `underdoc-main`. Each
 tenant has its own queue in the database, kept apart by row-level security like every table, and its own indexer, also

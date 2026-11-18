@@ -73,12 +73,13 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_HOSTER_HOST` | With many tenants, the host name of the hoster administration | none |
 | `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
 | `UNDERDOC_STORE_DIR` | The content store of the files, with the database; limits and versions in [docs/files.md](docs/files.md) | none: no files |
-| `UNDERDOC_SEARCH_URL` | The search service, Meilisearch by default or OpenSearch (`UNDERDOC_SEARCH_ENGINE`), with its key in `UNDERDOC_SEARCH_KEY_FILE` | none: titles only |
+| `UNDERDOC_SEARCH_URL` | The search service, Meilisearch by default or OpenSearch (`UNDERDOC_SEARCH_ENGINE`), with its key in `UNDERDOC_SEARCH_KEY_FILE` or `UNDERDOC_SEARCH_KEY` | none: titles only |
 
 **Search** (ADR-24) goes through a search service, Meilisearch by default, OpenSearch as a choice: error codes are found exactly as written and
 first, then titles before headings before text, German compounds and typing errors included, and a hit opens at its
 section. Ctrl+K searches from anywhere. Without a search service only titles are searched. Settings, ranking and the
-measurement on a German test corpus are in [docs/search.md](docs/search.md).
+measurement on a German test corpus are in [docs/search.md](docs/search.md). The services next to UnderDoc (Meilisearch,
+OpenSearch, Mailpit, Gotenberg) start from [`deploy/compose.yml`](deploy/compose.yml), see [docs/services.md](docs/services.md).
 
 **Export and import** need the database and work on one tenant, Main unless `--tenant <id>` names another.
 `underdoc export <dir>` writes every collection as normal files: directories,

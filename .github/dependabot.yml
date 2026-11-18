@@ -85,3 +85,13 @@ updates:
       interval: weekly
     commit-message:
       prefix: "deps"
+  # The services next to UnderDoc (deploy/compose.yml). scripts/check.sh only checks that the file is valid; nothing
+  # starts them, so this ecosystem is not in the auto-merge and an update is looked at by hand.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    cooldown:
+      default-days: 3
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"

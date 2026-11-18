@@ -27,12 +27,16 @@ func TestSearchConfig(t *testing.T) {
 		{"none switches it off", map[string]string{"UNDERDOC_SEARCH_ENGINE": "none", "UNDERDOC_SEARCH_URL": "http://x"}, "", "", "", false},
 		{"an engine without a URL", map[string]string{"UNDERDOC_SEARCH_ENGINE": "opensearch"}, "", "", "", true},
 		{"an unknown engine", map[string]string{"UNDERDOC_SEARCH_ENGINE": "solr", "UNDERDOC_SEARCH_URL": "http://x"}, "", "", "", true},
+		{"the key from the environment", map[string]string{"UNDERDOC_SEARCH_URL": "http://x", "UNDERDOC_SEARCH_KEY": " env-key\n"},
+			"meilisearch", "env-key", "", false},
+		{"a key from both places", map[string]string{"UNDERDOC_SEARCH_URL": "http://x", "UNDERDOC_SEARCH_KEY": "env-key",
+			"UNDERDOC_SEARCH_KEY_FILE": keyFile}, "", "", "", true},
 		{"a key file that is not there", map[string]string{"UNDERDOC_SEARCH_URL": "http://x", "UNDERDOC_SEARCH_KEY_FILE": keyFile + ".gone"}, "", "", "", true},
 		{"an index name engines refuse", map[string]string{"UNDERDOC_SEARCH_URL": "http://x", "UNDERDOC_SEARCH_INDEX": "Under Doc"}, "", "", "", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			for _, name := range []string{"UNDERDOC_SEARCH_ENGINE", "UNDERDOC_SEARCH_URL", "UNDERDOC_SEARCH_USER", "UNDERDOC_SEARCH_KEY_FILE", "UNDERDOC_SEARCH_INDEX"} {
+			for _, name := range []string{"UNDERDOC_SEARCH_ENGINE", "UNDERDOC_SEARCH_URL", "UNDERDOC_SEARCH_USER", "UNDERDOC_SEARCH_KEY_FILE", "UNDERDOC_SEARCH_KEY", "UNDERDOC_SEARCH_INDEX"} {
 				t.Setenv(name, c.env[name])
 			}
 			got, err := readSearchConfig()
