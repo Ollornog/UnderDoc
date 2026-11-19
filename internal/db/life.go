@@ -785,6 +785,7 @@ func (db *DB) DeleteWays(ctx context.Context, objectID, viewer string, ways map[
 			local := map[string]Way{}
 			var gone []lost
 			moving := map[string]bool{}
+			movingParts := map[string][]string{}
 			for _, t := range byPage[page] {
 				ref := Address{Object: page, Block: BlockOf(t), Sub: subOf(t)}.String()
 				w, ok := ways[ref]
@@ -810,8 +811,11 @@ func (db *DB) DeleteWays(ctx context.Context, objectID, viewer string, ways map[
 				for _, l := range found {
 					if l.target == t {
 						gone = append(gone, l)
-						if w.Way == WayMaster && !l.isPart() {
+						switch {
+						case w.Way == WayMaster && !l.isPart():
 							moving[BlockOf(t)] = true
+						case w.Way == WayMaster:
+							movingParts[BlockOf(t)] = append(movingParts[BlockOf(t)], subOf(t))
 						}
 					}
 				}
@@ -819,14 +823,49 @@ func (db *DB) DeleteWays(ctx context.Context, objectID, viewer string, ways map[
 			if err := db.settle(ctx, tx, page, viewer, gone, local); err != nil {
 				return err
 			}
-			// What moved to a new master leaves the page in the trash, so restoring it does not bring it twice.
+			// What moved to a new master leaves the page in the trash, so restoring it does not bring it twice: a block
+			// goes, a part leaves its block with its markers, and the version says where it went.
 			for block := range moving {
 				if _, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", page, block); err != nil {
 					return err
 				}
 			}
+			for block, parts := range movingParts {
+				if moving[block] {
+					continue
+				}
+				if err := cutMovedParts(ctx, tx, page, block, viewer, parts); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
+	})
+}
+
+// cutMovedParts takes parts that moved to a new master out of their block, text and markers, one at a time and found
+// again after each cut, since parts can lie inside each other. The version of the block names where they went.
+func cutMovedParts(ctx context.Context, tx pgx.Tx, page, block, viewer string, ids []string) error {
+	var went []string
+	for _, id := range ids {
+		var toPage, toTarget string
+		err := tx.QueryRow(ctx, "SELECT to_page, to_target FROM redirects WHERE from_page = $1 AND from_target = $2",
+			page, block+"."+id).Scan(&toPage, &toTarget)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			went = append(went, Address{Object: toPage, Block: BlockOf(toTarget), Sub: subOf(toTarget)}.String())
+		}
+	}
+	slices.Sort(went)
+	return rewriteBlock(ctx, tx, page, block, viewer, "moved to "+strings.Join(went, ", "), func(body string) string {
+		for _, id := range ids {
+			if p, ok := markdown.FindPart(body, id); ok {
+				body = body[:p.Open[0]] + body[p.Close[1]:]
+			}
+		}
+		return body
 	})
 }
 

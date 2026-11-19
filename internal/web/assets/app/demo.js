@@ -392,9 +392,11 @@ function statusHtml(d){
   else left=`<span>${d.kids.length} children</span>`;
   return `<div class="status">${left}<span class="spacer"></span><span>${d.doc?'Markdown · UTF-8':TYPE[d.t][1]}</span></div>`;
 }
+const EMBED_KINDS={part:'Part',section:'Section',block:'Block',page:'Page'};
 function factsHtml(d){
   const u=d.uses||{},rows=(k,l)=>(u[k]||[]).map(x=>`<li><small>${l}</small><span>${x}</span></li>`).join('');
-  const useRows=rows('ext','External')+rows('int','Internal')+rows('data','Data')+rows('vals','Value')+rows('db','Database');
+  const useRows=rows('ext','External')+rows('int','Internal')+rows('data','Data')+rows('vals','Value')+rows('db','Database')+
+    (u.emb||[]).map(e=>`<li><small>${e.l}</small><span>${e.x}</span></li>`).join('');
   return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
     ${d.desc?`<dt>Description</dt><dd>${d.desc}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
     ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>${attachmentsHtml(d)}
@@ -586,12 +588,32 @@ const RES=[
  {id:'dbs',n:'Databases and views',m:'M-4',i:'db',head:['Name','Type','Placed in workspace','Used in','Tags'],rows:[['Inventory','Database','Projects','1 view','#hardware'],['Open tickets','Database view','Operations › Network','1 document','#network'],['Weekly export','Database view','△ not placed','0 documents','']]},
  {id:'ext',n:'External sources',m:'M-4',i:'box',head:['Name','Kind','Data age','State'],rows:[['Ticket system','REST','4 min','✓ working'],['Supplier list','CSV','2 d','△ last good state']]}];
 const RESDOC={Inventory:'inv','Open tickets':'tickets'};
-const resTarget=(g,r)=>RESDOC[r[0]]||`res:${g.id}/${r[0]}`;
-RES.forEach(g=>{
-  pseudo('res:'+g.id,{t:'res',n:g.n,path:'not a file',place:'Resources',vis:'Everyone with access to this workspace',stat:`${g.rows.length} entries`,
-    html:`<div class="note">What has no place in a folder. Comes with ${g.m}.</div>`+tableHtml(g.head,g.rows.map(r=>[openBtn(resTarget(g,r),r[0]),...r.slice(1)]))});
-  g.rows.forEach(r=>{if(!RESDOC[r[0]])pseudo(`res:${g.id}/${r[0]}`,{t:'res',n:r[0],path:'not a file',place:'Resources › '+g.n,vis:'Everyone with access to this workspace',stat:g.n,html:tableHtml(['Field','Content'],g.head.map((h,k)=>[h,r[k]]))});});
-});
+/* A row of a real group carries its own key and a link to where it lives. */
+const resTarget=(g,r)=>r.key||RESDOC[r[0]]||`res:${g.id}/${r[0]}`;
+function resPseudos(g){
+  const note=g.real?g.note:`<div class="note">What has no place in a folder. Comes with ${g.m}.</div>`;
+  pseudo('res:'+g.id,{t:'res',n:g.n,path:'not a file',place:'Resources',vis:g.real?'What you may read':'Everyone with access to this workspace',stat:`${g.rows.length} entries`,
+    html:note+tableHtml(g.head,g.rows.map(r=>[openBtn(resTarget(g,r),r[0]),...r.slice(1)]))});
+  g.rows.forEach(r=>{if(!RESDOC[r[0]])pseudo(resTarget(g,r),{t:'res',n:r[0],path:'not a file',place:'Resources › '+g.n,vis:g.real?'What you may read':'Everyone with access to this workspace',stat:g.n,
+    html:tableHtml(['Field','Content'],g.head.map((h,k)=>[h,r[k]]))+(r.link?`<p>Lives in ${r.link}</p>`:'')});});
+}
+RES.forEach(resPseudos);
+/* With a database, values and snippets are real (M-3): what the viewer may read, from /api/values and /api/snippets.
+   Databases and external sources stay the mock-up of the first build until M-4, and say so. */
+const SNIPKIND={part:'Part',section:'Section',block:'Block'};
+async function loadResources(){
+  const get=async u=>{const r=await fetch(u,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return r.json();};
+  try{
+    const [vals,snips]=await Promise.all([get('/api/values'),get('/api/snippets')]);
+    const used=n=>n?(n===1?'1 place':n+' places'):'not used yet',link=x=>`<a href="${esc(x.url)}">${esc(x.title)}</a>`;
+    const real=(id,head,note,list,cells)=>{const g=RES.find(x=>x.id===id);g.real=true;g.head=head;g.note=`<div class="note">${note}</div>`;
+      g.rows=list.map((x,i)=>{const r=cells(x);r.key=`res:${id}/${i}`;r.link=link(x);return r;});resPseudos(g);};
+    real('values',['Name','Value','Page','Used in'],'Parts with a name. Mark text in a page and name it to make one.',vals,x=>[esc(x.name),esc(x.text),esc(x.title),used(x.uses)]);
+    real('snippets',['Text','Kind','Page','Used in'],'Parts, sections and blocks that other pages embed.',snips,x=>[esc(x.text)||'#'+esc(x.ref.split('#')[1]),SNIPKIND[x.kind]||'',esc(x.title),used(x.uses)]);
+    RES.filter(g=>!g.real&&!g.n.endsWith(' (demo)')).forEach(g=>{g.n+=' (demo)';resPseudos(g);});
+    render();
+  }catch(e){/* the mock-up stays */}
+}
 /* A window goes when only its empty general tab is left, unless it is the last window. */
 function compact(){
   const f=S.wins[S.focus],gone=w=>w.tabs.length<=1&&!(w.tabs[0]&&w.tabs[0].d);
@@ -694,7 +716,7 @@ function render(){
   if(S.booted)saveSettings();
   /* The editor of a page keeps the focus through a render; S.focusNext asks for it, at a block if it names one. */
   const ae=document.activeElement,ren=ae&&ae.dataset&&ae.dataset.ren!==undefined?{v:ae.value,a:ae.selectionStart,b:ae.selectionEnd}:null,want=S.focusNext,edFocus=Object.keys(EDS).find(k=>EDS[k].ed.hasFocus);S.focusNext=null;
-  const kept=[...document.querySelectorAll('[data-keep]')].map(n=>({k:n.dataset.keep,field:n.tagName==='INPUT',v:n.value,f:n===ae,a:n.selectionStart,b:n.selectionEnd}));
+  const kept=[...document.querySelectorAll('[data-keep]')].map(n=>({k:n.dataset.keep,field:n.tagName==='INPUT',pick:n.tagName==='SELECT',v:n.value,f:n===ae,a:n.selectionStart,b:n.selectionEnd}));
   const root=document.documentElement,ph=phone();
   if(window.udSetTheme&&window.udTheme&&window.udTheme()!==S.theme)window.udSetTheme(S.theme);
   root.style.zoom=S.scale/100;
@@ -725,7 +747,7 @@ function render(){
   /* So does a name being typed into a form of the files, and a button of the files reached by the keyboard keeps the
      focus: a redraw of anything else (a toast going, an upload ending) would otherwise put the first name back and drop
      the focus, and the typing or the Enter after it would go nowhere (2026-11-17). */
-  kept.forEach(x=>{const n=[...document.querySelectorAll('[data-keep]')].find(m=>m.dataset.keep===x.k);if(!n)return;if(x.field)n.value=x.v;
+  kept.forEach(x=>{const n=[...document.querySelectorAll('[data-keep]')].find(m=>m.dataset.keep===x.k);if(!n)return;if(x.field||x.pick)n.value=x.v;
     if(x.f){n.focus({preventScroll:true});if(x.field)n.setSelectionRange(x.a,x.b);}});
   const tr=document.getElementById('tree');if(tr)tr.scrollTop=S.treeTop;
   /* A menu with no room below its heading opens above it. */
@@ -986,7 +1008,10 @@ document.addEventListener('click',e=>{
     case 'edcopy':{const text=S.edNote&&S.edNote[t.d];if(text)(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast('What you wrote is on the clipboard.'),()=>toast('The clipboard could not be written.'));return;}
     case 'ednote':if(S.edNote)delete S.edNote[t.d];break;
     case 'bcmt':commentOn(t.d,a.id);return;
-    case 'bmenu':if(!(hadBm&&hadBm.w===i&&hadBm.id===a.id))S.bmenu={w:i,id:a.id};break;
+    case 'bmenu':if(!(hadBm&&hadBm.w===i&&hadBm.id===a.id))S.bmenu={w:i,id:a.id};S.bmove=null;break;
+    case 'bmoveto':S.bmenu={w:i,id:a.id};S.bmove={w:i,id:a.id};break;
+    case 'bmovego':{const sel=document.getElementById('bmovesel'),target=sel&&sel.value;if(!target){toast('Choose a page first.');S.bmenu={w:i,id:a.id};return;}
+      moveToPage(i,t.d,a.id,target);return;}
     case 'blkedit':setEdit(t,true);t.src=false;S.focusNext={d:t.d,id:a.id};break;
     case 'blkaddr':{const addr=location.origin+'/o/'+encodeURIComponent(D[t.d].sid)+'#'+a.id;
       (navigator.clipboard?navigator.clipboard.writeText(addr):Promise.reject()).then(()=>toast('Address copied. Paste it alone into a block to embed this one.'),()=>toast(addr));return;}
@@ -1308,7 +1333,10 @@ async function loadDoc(id){
     delete d.html;
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
     d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
-    d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[]};d.loaded=true;
+    d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[],emb:[]};d.loaded=true;
+    /* What a page of the database embeds (M-3): a value by its name, everything else by its kind and where it lives. */
+    (a.embeds||[]).forEach(e=>{const at=esc(e.title)+(e.ref.includes('#')?' #'+esc(e.ref.split('#')[1]):'');
+      if(e.kind==='value')d.uses.vals.push(`${esc(e.name)} <small>${at}</small>`);else d.uses.emb.push({l:EMBED_KINDS[e.kind]||'Embedded',x:at});});
     if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(S.files)loadAttachments(id);}
   }catch(e){d.html='<p class="lab">This page could not be loaded.</p>';}
   d.loading=false;render();
@@ -1416,10 +1444,37 @@ function handleHtml(d,w,i,b,inEditor){
   const menu=open?`<div class="bmenu" role="menu" aria-label="Block ${b.id}">
     <button role="menuitem" data-act="blkaddr" data-w="${i}" data-id="${b.id}">${ic('link')}<span>Copy address</span><small>#${b.id}</small></button>
     ${edit}
+    ${may?moveToHtml(d,i,b):''}
     <button role="menuitem" data-act="bcmt" data-w="${i}" data-id="${b.id}"${cmt?'':' disabled title="Only read here"'}>${ic('chat')}<span>Comment</span>${b.cmts?`<small>${b.cmts}</small>`:''}</button>
     ${may?`<span class="seg" role="group" aria-label="Align the block">${[['left','alleft','Align left'],['center','alcenter','Center'],['right','alright','Align right']].map(x=>`<button data-act="balign" data-w="${i}" data-id="${b.id}" data-k="${x[0]}" aria-pressed="${(b.align||'left')===x[0]}" aria-label="${x[2]}" title="${x[2]}">${ic(x[1])}</button>`).join('')}</span>`:''}
     <div class="bused">${used.length?'Used in '+used.join(', '):'Not used elsewhere'}</div></div>`:'';
   return `<button class="bhandle" data-act="bmenu" data-w="${i}" data-id="${b.id}"${may?' data-drag':''} aria-expanded="${open}" aria-label="Block ${b.id}" title="Block #${b.id}: address, ${inEditor?'moving':'editing'}, comments">${ic('grip')}</button>${menu}`;
+}
+/* Moving a block into another page of the database (M-3, ADR-22): its parts and section go along, every reference
+   follows and the old address redirects. The pages offered are those of the database the workspace knows; the server
+   refuses one the viewer may not change. It goes to the end of the other page. */
+function moveToHtml(d,i,b){
+  if(!(S.bmove&&S.bmove.w===i&&S.bmove.id===b.id))return `<button role="menuitem" data-act="bmoveto" data-w="${i}" data-id="${b.id}">${ic('send')}<span>Move to page</span></button>`;
+  const here=Object.keys(D).find(k=>D[k]===d),pages=Object.keys(D).filter(k=>k!==here&&D[k].t==='page'&&D[k].db&&D[k].real&&D[k].sid)
+    .sort((x,y)=>String(D[x].n).localeCompare(String(D[y].n)));
+  return `<div class="setrow"><span>Move #${b.id} to</span><select id="bmovesel" data-keep="bmovesel" aria-label="Page to move the block to"><option value="">Choose a page</option>${pages.map(k=>`<option value="${k}">${D[k].n}</option>`).join('')}</select>
+    <button data-act="bmovego" data-w="${i}" data-id="${b.id}">Move</button></div>`;
+}
+async function moveToPage(i,key,block,target){
+  const d=D[key],to=D[target];if(!d||!to||!d.sid||!to.sid)return;
+  const e=EDS[key];
+  if(e){await e.ed.flush();if(e.ed.dirty){toast('The page is not saved yet. Try again in a moment.');return;}}
+  const blocks=await fetch('/api/doc/'+pathOf(to.sid),{credentials:'same-origin',headers:{Accept:'application/json'}}).then(r=>r.ok?r.json():null).catch(()=>null);
+  const last=blocks&&blocks.blocks&&blocks.blocks.length?blocks.blocks[blocks.blocks.length-1].id:'';
+  const r=await fetch('/api/pages/'+pathOf(d.sid)+'/blocks/'+encodeURIComponent(block)+'/move',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({page:to.sid,after:last})}).catch(()=>null);
+  if(!r||!r.ok){toast(r&&r.status===403?'You may not change '+to.n+'.':'The block could not be moved.');return;}
+  S.bmove=null;S.bmenu=null;
+  /* The block leaves the page here too, at once: an editor made again before the page is loaded starts from d.blocks. */
+  if(d.blocks)d.blocks=d.blocks.filter(x=>x.id!==block);
+  if(EDS[key]===e&&e){delete EDS[key];e.ed.discard();}
+  d.loaded=false;to.loaded=false;loadDoc(key);if(S.wins.some(w=>w.tabs.some(x=>x.d===target)))loadDoc(target);
+  toast('Moved to '+to.n+'. Its old address leads there.');
 }
 function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
@@ -2129,7 +2184,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();
+    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

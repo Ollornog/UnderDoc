@@ -87,7 +87,9 @@ type apiDocument struct {
 	Links       []string   `json:"links"`
 	Stable      bool       `json:"stable"`
 	// Blocks, CanEdit and Owner belong to pages of the database.
-	Blocks  []apiBlock `json:"blocks,omitempty"`
+	Blocks []apiBlock `json:"blocks,omitempty"`
+	// Embeds lists what a page of the database embeds, for its facts panel (M-3).
+	Embeds  []apiEmbed `json:"embeds,omitempty"`
 	CanEdit bool       `json:"canEdit,omitempty"`
 	Owner   string     `json:"owner,omitempty"`
 	Created string     `json:"created,omitempty"`
@@ -95,6 +97,15 @@ type apiDocument struct {
 	// that are gone; CanComment tells whether the viewer may add some (ADR-20).
 	Comments   int  `json:"comments,omitempty"`
 	CanComment bool `json:"canComment,omitempty"`
+}
+
+// apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.
+type apiEmbed struct {
+	Kind  string `json:"kind"`
+	Name  string `json:"name,omitempty"`
+	Title string `json:"title"`
+	Ref   string `json:"ref"`
+	URL   string `json:"url"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

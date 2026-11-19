@@ -144,6 +144,83 @@ type apiValue struct {
 	Page  string `json:"page"`
 	Title string `json:"title"`
 	Text  string `json:"text"`
+	// Uses counts the places that embed it, in pages the viewer sees.
+	Uses int `json:"uses"`
+}
+
+// maxReused bounds the list of what is embedded elsewhere, like the blocks of the list of problems.
+const maxReused = 2000
+
+// reusedByRef returns what pages embed, by address, for the counts of the Resources tab.
+func (h *handler) reusedByRef(r *http.Request, viewer string) (map[string]db.Reused, []db.Reused, error) {
+	list, err := h.options.DB.Reused(r.Context(), viewer, maxReused)
+	if err != nil {
+		return nil, nil, err
+	}
+	by := make(map[string]db.Reused, len(list))
+	for _, x := range list {
+		by[x.Address.String()] = x
+	}
+	return by, list, nil
+}
+
+// apiSnippet is a snippet of the Resources tab (M-3, ADR-15): a part without a name, a section or a block that other pages
+// embed, with a short text and how many places use it.
+type apiSnippet struct {
+	Kind  string `json:"kind"`
+	Ref   string `json:"ref"`
+	URL   string `json:"url"`
+	Page  string `json:"page"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
+	Uses  int    `json:"uses"`
+}
+
+// maxSnippetText is how much of a snippet the list shows, in runes.
+const maxSnippetText = 160
+
+// apiSnippets lists what pages embed of other pages, except values, which have their own list: by page and address.
+func (h *handler) apiSnippets(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	_, list, err := h.reusedByRef(r, user.ID)
+	if h.failed(w, err, "snippets") {
+		return
+	}
+	out := []apiSnippet{}
+	for _, x := range list {
+		a := x.Address
+		snippet := apiSnippet{Kind: "block", Ref: a.String(), URL: route.Object(a.Object) + "#" + a.Target(), Page: a.Object, Title: x.Title, Uses: x.Uses}
+		text := x.Body
+		switch {
+		case a.Sub == db.Section:
+			snippet.Kind = "section" // named by its heading
+			text = strings.TrimLeft(strings.TrimSpace(text), "# ")
+		case a.Sub != "":
+			p, ok := markdown.FindPart(x.Body, a.Sub)
+			if !ok || p.Name != "" {
+				continue // gone, or a value
+			}
+			snippet.Kind = "part"
+			if text, err = markdown.PartMarkdown(x.Body, a.Sub); err != nil {
+				continue
+			}
+		}
+		snippet.Text = shorten(strings.Join(strings.Fields(markdown.StripParts(text)), " "), maxSnippetText)
+		out = append(out, snippet)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// shorten cuts a text after n runes, with an ellipsis.
+func shorten(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
 }
 
 // apiValues lists the values (M-3), parts with a name, in the pages the viewer sees, by name: for the Resources tab and
@@ -155,6 +232,10 @@ func (h *handler) apiValues(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := account.From(r.Context())
 	blocks, err := h.options.DB.AllBlocks(r.Context(), user.ID, maxProblemBlocks)
+	if h.failed(w, err, "values") {
+		return
+	}
+	used, _, err := h.reusedByRef(r, user.ID)
 	if h.failed(w, err, "values") {
 		return
 	}
@@ -172,7 +253,8 @@ func (h *handler) apiValues(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			a := db.Address{Object: b.Page, Block: b.Block, Sub: p.ID}
-			out = append(out, apiValue{Name: p.Name, Ref: a.String(), URL: route.Object(b.Page) + "#" + a.Target(), Page: b.Page, Title: b.Title, Text: markdown.StripParts(md)})
+			out = append(out, apiValue{Name: p.Name, Ref: a.String(), URL: route.Object(b.Page) + "#" + a.Target(), Page: b.Page, Title: b.Title,
+				Text: markdown.StripParts(md), Uses: used[a.String()].Uses})
 		}
 	}
 	slices.SortStableFunc(out, func(x, y apiValue) int { return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })

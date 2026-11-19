@@ -326,7 +326,7 @@ func TestTheHandleInTheEditor(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .bmenu')`) {
 		t.Fatal("the menu of the handle did not open")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? '(off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused').textContent`); got != "Copy address#b3, Move up, Move down(off), Delete, Comment | Not used elsewhere" {
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? '(off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused').textContent`); got != "Copy address#b3, Move up, Move down(off), Delete, Move to page, Comment | Not used elsewhere" {
 		t.Errorf("the menu in the editor: %q", got)
 	}
 	b.shot("editor-handle")

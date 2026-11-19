@@ -105,7 +105,11 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
 - The version history notes where a copy came from and where moved text went (`origin` of a version).
 - **Moving a block into another page** (`POST …/blocks/{block}/move {"page", "after"}`, who may change both pages) takes
   its parts and its section along under a new block ID there; every reference is rewritten in the same transaction and
-  the old addresses redirect. The editor does not offer it yet.
+  the old addresses redirect. The menu of a block offers it while reading and while editing (**Move to page**,
+  then a page of the database): it goes to the end of that page. While editing, the page is saved first and the editor
+  opens again on what is left.
+- **A page in the trash** keeps nothing that moved to a new master when it went: a block goes, a part leaves its block
+  with its markers, and the version of the block says where it went. Restoring the page does not bring it a second time.
 
 ## In the editor and while reading
 
@@ -123,10 +127,16 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
   label, "Used in N places" or "Not used elsewhere", with "Value <name>" in front for a value. While reading, the pointer
   over the text of a part, or a finger on it on a touch screen, shows the same outline and label (`parts.js`, over the
   boxes of the range between the two markers, so parts that cut through formatting or overlap show whole).
-- **Values:** `GET /api/values` lists every part with a name in the pages the viewer sees, with its text and address,
-  for the Resources tab (ADR-15), which in the workspace is still a mock-up of the first build.
+- **Values:** `GET /api/values` lists every part with a name in the pages the viewer sees, with its text, its address
+  and how many places use it (`uses`, counted in pages the viewer sees).
+- **Snippets:** `GET /api/snippets` lists the parts without a name, sections and blocks that pages the viewer sees embed,
+  with a short text and the same count. Pages the viewer may not see are neither counted nor named.
+- **The Resources tab** (ADR-15) shows both with a database: Values and Snippets list them, and each opens with its page.
+  Databases and external sources stay the mock-up of the first build until M-4 and say "(demo)".
+- **The facts panel** of a page names what it embeds, in the order of its blocks: a value by its name and the page it
+  lives in, a part, a section, a block or a whole page by its kind (`embeds` of `GET /api/doc/{id}`).
 
 ## Still to come in M-3
 
-The Resources tab of the workspace with real values and snippets, moving a block to another page from the editor (the
-server does it, above), Excel tables in pages, Mermaid (T-3), the facts panel: see M-3.
+Excel tables in pages, Mermaid (T-3), and where a text copied through the clipboard came from (the excerpt knows it,
+the editor does not hand it on to the version of the block it lands in yet): see M-3.

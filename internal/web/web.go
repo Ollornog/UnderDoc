@@ -191,6 +191,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("GET /api/redirect", h.apiRedirect)
 	doc("GET /api/notices", h.apiNotices)
 	doc("GET /api/values", h.apiValues)
+	doc("GET /api/snippets", h.apiSnippets)
 	doc("GET /api/pages/{id}/versions", h.apiVersions)
 	doc("GET /api/pages/{id}/comments", h.apiComments)
 	doc("POST /api/pages/{id}/comments", h.apiAddComment)

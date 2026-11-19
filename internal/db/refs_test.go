@@ -97,3 +97,63 @@ func TestUsesBeforeDeleting(t *testing.T) {
 		t.Errorf("Rack is used nowhere: %q", titles)
 	}
 }
+
+// What is embedded elsewhere, for the Resources tab: only what the viewer sees, counted in pages the viewer sees and not
+// in the trash; and what a page embeds, for its facts, in the order of its blocks.
+func TestReusedAndEmbeds(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	rates, _ := db.CreatePage(ctx, anna, "Rates", team.ID)
+	if _, err := db.AddBlock(ctx, rates.ID, anna.ID, "", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`); err != nil {
+		t.Fatal(err)
+	}
+	notes, _ := db.Collections(ctx, anna.ID)
+	mine, _ := db.CreatePage(ctx, anna, "Mine", notes[0].ID)
+	if _, err := db.AddBlock(ctx, mine.ID, anna.ID, "", `Also :embed{ref="`+rates.ID+`#b1.t1"}.`); err != nil {
+		t.Fatal(err)
+	}
+	hidden, _ := db.CreatePage(ctx, anna, "Hidden", notes[0].ID)
+	if _, err := db.AddBlock(ctx, hidden.ID, anna.ID, "", "Kept to myself."); err != nil {
+		t.Fatal(err)
+	}
+	invoice, _ := db.CreatePage(ctx, anna, "Invoice", team.ID)
+	after := ""
+	for _, md := range []string{"::embed{ref=\"" + hidden.ID + "#b1\"}", `Net plus :embed{ref="` + rates.ID + `#b1.t1"}.`, "::embed{ref=\"" + rates.ID + "\"}"} {
+		b, err := db.AddBlock(ctx, invoice.ID, anna.ID, after, md)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after = b.ID
+	}
+	gone, _ := db.CreatePage(ctx, anna, "Gone", team.ID)
+	db.AddBlock(ctx, gone.ID, anna.ID, "", `Old :embed{ref="`+rates.ID+`#b1.t1"}.`)
+	if err := db.Delete(ctx, gone.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	count := func(viewer string) map[string]int {
+		list, err := db.Reused(ctx, viewer, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]int{}
+		for _, x := range list {
+			out[x.Address.String()] = x.Uses
+		}
+		return out
+	}
+	if got := count(anna.ID); got[rates.ID+"#b1.t1"] != 2 || got[hidden.ID+"#b1"] != 1 || len(got) != 2 {
+		t.Errorf("Anna sees the value used in Mine and Invoice, and her hidden block: %v", got)
+	}
+	if got := count(bob.ID); got[rates.ID+"#b1.t1"] != 1 || len(got) != 1 {
+		t.Errorf("Bob sees the value used once, and nothing of Anna's notes: %v", got)
+	}
+	embeds, err := db.Embeds(ctx, invoice.ID, bob.ID)
+	var got []string
+	for _, e := range embeds {
+		got = append(got, e.Address.String()+":"+e.Name+":"+e.Title)
+	}
+	if err != nil || !slices.Equal(got, []string{rates.ID + "#b1.t1:vat:Rates", rates.ID + "::Rates"}) {
+		t.Errorf("for Bob, Invoice embeds the value and Rates, not Anna's hidden block: %q %v", got, err)
+	}
+}

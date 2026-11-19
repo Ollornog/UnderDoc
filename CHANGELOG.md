@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The Resources tab is real for values and snippets (M-3, [docs/parts.md](docs/parts.md)): `GET /api/snippets` and a
+  count of uses on `GET /api/values`, both counted in pages the reader sees; databases and external sources say "(demo)".
+- The facts panel of a page names what it embeds: values by name, parts, sections, blocks and pages (`embeds`).
+- **Move to page** in the menu of a block, while reading and while editing.
+
 - Files are found by their text (M-2, ADR-24, [docs/search.md](docs/search.md)): the text of the current version of a
   file, and of the attachments of a page, goes to the search service with where it came from, read by who may see the
   file. Triggers of the database (migration 020) queue the file or page when a text, a version or an attachment comes;
@@ -29,6 +34,11 @@ All notable changes to this project are documented in this file. The format foll
   the invitation of their first administrator, lock, archive and restore them, set limits on users and storage (pages and
   files together), the modules they may use and domains of their own. It sees counts, never content. Limits hold for
   every way an account, a block or a file comes in.
+
+### Fixed
+
+- A page that went into the trash while one of its parts got a new master brought the part back a second time when it
+  was restored: the part now leaves the page in the trash, and the version says where it went.
 
 ### Added
 

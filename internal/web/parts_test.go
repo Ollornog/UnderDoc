@@ -4,6 +4,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -164,6 +165,45 @@ func TestPartsThroughTheAPI(t *testing.T) {
 	_ = json.Unmarshal(s.get("/api/values").Body.Bytes(), &values)
 	if len(values) != 1 || values[0].Name != "vat" || values[0].Text != "19 %" || values[0].Ref != vat+"#b1.t1" || values[0].Title != "Rates" {
 		t.Errorf("the values: %+v", values)
+	}
+
+	// The facts panel of a page lists what it embeds, in the order of its blocks: a value by its name, a part, a section,
+	// a block and a whole page.
+	invoice := newPage("Invoice", "Net plus :embed{ref=\""+vat+"#b1.t1\"}.", "::embed{ref=\""+vat+"#b1.t2\"}",
+		"::embed{ref=\""+catalogue+"#b1.section\"}", "::embed{ref=\""+catalogue+"#b2\"}", "::embed{ref=\""+vat+"\"}",
+		"Again :embed{ref=\""+vat+"#b1.t1\"}.")
+	var embeds []string
+	for _, e := range decode[apiDocument](t, s.get("/api/doc/"+invoice)).Embeds {
+		embeds = append(embeds, e.Kind+":"+e.Name+":"+e.Title+":"+e.Ref+":"+e.URL)
+	}
+	want := []string{"value:vat:Rates:" + vat + "#b1.t1:/o/" + vat + "#b1.t1", "part::Rates:" + vat + "#b1.t2:/o/" + vat + "#b1.t2",
+		"section::Errors:" + catalogue + "#b1.section:/o/" + catalogue + "#b1.section", "block::Errors:" + catalogue + "#b2:/o/" + catalogue + "#b2",
+		"page::Rates:" + vat + ":/o/" + vat}
+	if !slices.Equal(embeds, want) {
+		t.Errorf("what Invoice embeds:\n got %q\nwant %q", embeds, want)
+	}
+
+	// The Resources tab: the value says how often it is used, and the snippets are what pages embed, values aside.
+	values = nil
+	_ = json.Unmarshal(s.get("/api/values").Body.Bytes(), &values)
+	if len(values) != 1 || values[0].Uses != 2 {
+		t.Errorf("the value is used in two places of Invoice: %+v", values)
+	}
+	var snippets []apiSnippet
+	_ = json.Unmarshal(s.get("/api/snippets").Body.Bytes(), &snippets)
+	var listed []string
+	for _, x := range snippets {
+		if x.Page == vat || x.Page == catalogue {
+			listed = append(listed, fmt.Sprintf("%s:%s:%d:%s", x.Kind, x.Ref, x.Uses, x.Text))
+		}
+	}
+	for _, w := range []string{"part:" + vat + "#b1.t2:1:VAT", "section:" + catalogue + "#b1.section:1:", "block:" + catalogue + "#b2:1:"} {
+		if !slices.ContainsFunc(listed, func(g string) bool { return strings.HasPrefix(g, w) }) {
+			t.Errorf("snippet %q missing in %q", w, listed)
+		}
+	}
+	if slices.ContainsFunc(listed, func(g string) bool { return strings.Contains(g, vat+"#b1.t1:") }) {
+		t.Errorf("a value is no snippet: %q", listed)
 	}
 
 	// Marking refuses what is more than a paragraph, and a name that does not fit.

@@ -3,8 +3,10 @@
 package db
 
 import (
+	"cmp"
 	"context"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -119,6 +121,83 @@ func (db *DB) UsedIn(ctx context.Context, objectID, viewer string) ([]Ref, error
 		var r Ref
 		err := row.Scan(&r.Page, &r.Block, &r.Target, &r.TargetBlock, &r.Title)
 		return r, err
+	})
+}
+
+// Embed is one thing a page embeds, for its facts panel (M-3): the address, the title of the page it lives in, and for a
+// part the name it carries if it is a value.
+type Embed struct {
+	Address Address
+	Title   string
+	// Name is the name of a part that is a value; empty for everything else.
+	Name string
+}
+
+// Embeds returns what a page embeds, each once, in the order of its blocks, from pages the viewer sees that are not in the
+// trash. A part that is gone, or a block, has no name.
+func (db *DB) Embeds(ctx context.Context, pageID, viewer string) ([]Embed, error) {
+	rows, err := db.pool.Query(ctx, `SELECT DISTINCT ON (r.target, r.target_block) r.target, r.target_block, o.title, coalesce(b.body, ''), p.position
+		FROM refs r JOIN objects o ON o.id = r.target JOIN blocks p ON p.page = r.page AND p.id = r.block
+		LEFT JOIN blocks b ON b.page = r.target AND b.id = split_part(r.target_block, '.', 1)
+		WHERE r.page = $2 AND o.deleted_at IS NULL AND `+visible+`
+		ORDER BY r.target, r.target_block, p.position`, viewer, pageID)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		embed    Embed
+		position int64
+	}
+	found, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (row, error) {
+		var x row
+		var target, body string
+		err := r.Scan(&x.embed.Address.Object, &target, &x.embed.Title, &body, &x.position)
+		x.embed.Address.Block, x.embed.Address.Sub = BlockOf(target), subOf(target)
+		if sub := x.embed.Address.Sub; sub != "" && sub != Section {
+			if p, ok := markdown.FindPart(body, sub); ok {
+				x.embed.Name = p.Name
+			}
+		}
+		return x, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(found, func(a, b row) int { return cmp.Compare(a.position, b.position) })
+	out := make([]Embed, len(found))
+	for i, x := range found {
+		out[i] = x.embed
+	}
+	return out, nil
+}
+
+// Reused is something of a page that other pages embed, for the Resources tab (M-3): its address, the page it lives in,
+// how many places use it in pages the viewer sees, and the Markdown of its block.
+type Reused struct {
+	Address Address
+	Title   string
+	Uses    int
+	Body    string
+}
+
+// Reused lists the blocks, sections and parts the viewer sees that pages the viewer sees embed, by page title and address.
+// Pages the viewer may not see are not counted, nor told.
+func (db *DB) Reused(ctx context.Context, viewer string, limit int) ([]Reused, error) {
+	rows, err := db.pool.Query(ctx, `SELECT r.target, r.target_block, min(o.title), count(*), coalesce(min(b.body), '')
+		FROM refs r JOIN objects o ON o.id = r.target
+		LEFT JOIN blocks b ON b.page = r.target AND b.id = split_part(r.target_block, '.', 1)
+		WHERE r.target_block <> '' AND `+alive+` AND `+visible+`
+		  AND r.page IN (SELECT o.id FROM objects o WHERE `+alive+` AND `+visible+`)
+		GROUP BY r.target, r.target_block ORDER BY lower(min(o.title)), r.target, r.target_block LIMIT $2`, viewer, limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Reused, error) {
+		var x Reused
+		var target string
+		err := row.Scan(&x.Address.Object, &target, &x.Title, &x.Uses, &x.Body)
+		x.Address.Block, x.Address.Sub = BlockOf(target), subOf(target)
+		return x, err
 	})
 }
 
