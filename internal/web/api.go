@@ -259,6 +259,9 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 	objectID := r.PathValue("id")
 	if h.options.DB != nil && id.Valid(objectID) {
 		o, err := h.options.DB.Object(ctx, objectID, user.ID)
+		if err == nil {
+			h.noteOpen(r, o)
+		}
 		if err == nil && db.HasBlocks(o.Kind) {
 			h.pageDocument(w, r, o)
 			return
@@ -325,6 +328,7 @@ func (h *handler) apiCreateCollection(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "collection") {
 		return
 	}
+	h.noteMade(r, created.ID)
 	writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
 }
 

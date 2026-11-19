@@ -165,6 +165,7 @@ func (h *handler) apiCreateFileCollection(w http.ResponseWriter, r *http.Request
 	if h.failed(w, err, "file collection") {
 		return
 	}
+	h.noteMade(r, o.ID)
 	writeJSON(w, http.StatusCreated, map[string]string{"id": o.ID})
 }
 
@@ -290,6 +291,9 @@ func (h *handler) apiFileContent(w http.ResponseWriter, r *http.Request) {
 	v, err := h.options.DB.FileVersion(r.Context(), r.PathValue("id"), user.ID, number)
 	if h.failed(w, err, "file content") {
 		return
+	}
+	if private, err := h.options.DB.Private(r.Context(), r.PathValue("id")); err == nil && !private {
+		h.note(r, db.LogOpen, r.PathValue("id"), "")
 	}
 	h.serveBlob(w, r, v.Blob, v.Name, v.ContentType)
 }
@@ -549,6 +553,13 @@ func (h *handler) apiFinishUpload(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("upload not removed", slog.String("error", err.Error()))
 	}
 	h.queueText(r.Context(), user, done, sha, contentType)
+	changed := done.Page
+	if changed == "" {
+		changed = done.File.ID
+	}
+	if private, err := h.options.DB.Private(r.Context(), changed); err == nil && !private {
+		h.note(r, db.LogChange, changed, "upload "+u.Name)
+	}
 	if done.Page != "" {
 		writeJSON(w, http.StatusCreated, map[string]string{"page": done.Page, "attachment": done.Attachment,
 			"url": db.AttachmentPath(done.Page, done.Attachment), "type": contentType})

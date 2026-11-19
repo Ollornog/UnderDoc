@@ -141,7 +141,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := at(c.host)
-			reads := []string{"/api/state", "/api/trash", "/api/problems", "/api/search?q=secret", "/api/search?q=plan", "/api/people", "/api/groups"}
+			reads := []string{"/api/state", "/api/trash", "/api/problems", "/api/search?q=secret", "/api/search?q=plan", "/api/people", "/api/groups", "/api/log"}
 			for _, target := range reads {
 				body := s.getWith(target, h).Body.String()
 				for _, id := range c.other.ids {

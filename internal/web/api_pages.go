@@ -3,6 +3,7 @@
 package web
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"html"
@@ -356,6 +357,7 @@ func (h *handler) apiCreatePage(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "page") {
 		return
 	}
+	h.noteMade(r, created.ID)
 	writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
 }
 
@@ -697,6 +699,7 @@ func (h *handler) apiCreateFolder(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "folder") {
 		return
 	}
+	h.noteMade(r, created.ID)
 	writeJSON(w, http.StatusCreated, apiNode{ID: created.ID, Title: created.Title, Kind: created.Kind, Kids: []apiNode{}, Path: route.Object(created.ID)})
 }
 
@@ -742,6 +745,7 @@ func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "access") {
 		return
 	}
+	h.note(r, db.LogGrant, o.ID, "everyone "+cmp.Or(in.Access, "as above"))
 	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Access: o.Access, Kids: []apiNode{}})
 }
 

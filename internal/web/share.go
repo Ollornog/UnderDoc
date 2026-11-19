@@ -220,6 +220,7 @@ func (h *handler) apiCreateLink(w http.ResponseWriter, r *http.Request) {
 	if h.linkFailed(w, err) {
 		return
 	}
+	h.note(r, db.LogLinkMade, o.ID, made.ID+" "+made.Mode)
 	out := linkOut(made)
 	out.URL = requestOrigin(r) + sharePath(token)
 	writeJSON(w, http.StatusCreated, out)
@@ -263,9 +264,11 @@ func (h *handler) apiRevokeLink(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.change(w, r, 0, nil); !ok {
 		return
 	}
-	if _, err := h.options.DB.RevokeLink(r.Context(), r.PathValue("id"), h.actor(r)); h.failed(w, err, "revoke") {
+	revoked, err := h.options.DB.RevokeLink(r.Context(), r.PathValue("id"), h.actor(r))
+	if h.failed(w, err, "revoke") {
 		return
 	}
+	h.note(r, db.LogLinkRevoked, revoked.Object, revoked.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -297,6 +300,7 @@ func (h *handler) apiRenewLink(w http.ResponseWriter, r *http.Request) {
 	if h.linkFailed(w, h.options.DB.RenewLink(r.Context(), links[i].ID, h.actor(r), frozen, released)) {
 		return
 	}
+	h.note(r, db.LogLinkRenewed, links[i].Object, links[i].ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -397,6 +401,9 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 				if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
 					h.log.Error("link not used", slog.String("error", err.Error()))
 				} else {
+					if err := h.options.DB.Log(r.Context(), user.ID, db.LogLinkUsed, l.Object, l.ID+" "+l.Mode); err != nil {
+						h.log.Error("log not written", slog.String("error", err.Error()))
+					}
 					http.Redirect(w, r, "/o/"+l.Object, http.StatusSeeOther)
 					return
 				}
@@ -404,6 +411,7 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 		}
 		v.SignIn = "/sign-in?next=" + sharePath(token)
 	}
+	h.note(r, db.LogLinkOpened, l.Object, l.ID)
 	switch {
 	case l.Mode == db.LinkUpload:
 		v.Kind = "upload"
@@ -482,6 +490,7 @@ func (h *handler) sharePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	if !auth.VerifyPassword(l.PasswordHash, r.PostFormValue("password")) {
 		h.throttle.Failed(key)
+		h.note(r, db.LogLinkPassword, l.Object, l.ID)
 		v.Problem = "That is not the password of this link."
 		h.sharePage(w, http.StatusUnauthorized, v)
 		return
@@ -573,6 +582,7 @@ func (h *handler) shareUpload(w http.ResponseWriter, r *http.Request) {
 			v.Problem = "The file did not arrive. Try again."
 			h.sharePage(w, http.StatusInternalServerError, v)
 		default:
+			h.note(r, db.LogLinkUpload, l.Object, l.ID+" "+part.FileName())
 			http.Redirect(w, r, sharePath(token)+"?sent=1", http.StatusSeeOther)
 		}
 		return

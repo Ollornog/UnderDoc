@@ -68,6 +68,19 @@ GET  /api/users                                    administrators: every account
 PUT  /api/users/<id>/admin                         {"admin": false}   administrators, local accounts, not oneself
 ```
 
+## The log
+
+Access and changes are logged ([ADR-29](../backlog/ADR-29-roles-on-groups-and-persons.md), migration 024, table
+`audit_log`): opening an object and changing it (each change of the API that went through, an upload, making something)
+once per account, object and hour; roles, the inheritance, owners, groups, members, administrators and links each time,
+with what was done; a link opened, used, a wrong password of a link and an upload through a link, with an empty actor for
+someone without an account. Nothing that lies in something private is logged. An entry keeps the plain IDs, so it outlives
+what it names.
+
+Administrators read the whole log in the tab Rights (and under Audit log in the administration of the profile), everyone
+else what they did and what happened to what they manage. `GET /api/log[?object=<id>&actor=<id>&before=<entry>&limit=<n>]`
+answers the newest entries first. The log is kept as long as the tenant; a retention period is still open.
+
 ## One check
 
 One function in the database, `object_role`, decides the role of an account on an object, and every query that lists, finds
@@ -75,7 +88,7 @@ or opens objects asks it: the tree, search, embeddings, references, the trash, e
 who may read a record as tokens (`all` for the tenant, `account:<id>`, `group:<id>`, from `object_readers`); a change of
 roles, of the inheritance or of the owner queues the object and everything below it.
 
-The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users` and `share_link_passes` carry their tenant under row-level security like all others
+The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users`, `share_link_passes` and `audit_log` carry their tenant under row-level security like all others
 ([tenants.md](tenants.md)). The column `objects.inherit` says whether an object takes roles from above.
 
 ## API

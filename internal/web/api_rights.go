@@ -3,10 +3,12 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/module"
@@ -85,6 +87,7 @@ func (h *handler) apiSetGrant(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.SetGrant(r.Context(), r.PathValue("id"), h.actor(r), in.Kind, in.Who, in.Role), "grant") {
 		return
 	}
+	h.note(r, db.LogGrant, r.PathValue("id"), strings.TrimSpace(in.Kind+" "+in.Who)+" "+cmp.Or(in.Role, "taken back"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -99,6 +102,7 @@ func (h *handler) apiSetInherit(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.SetInherit(r.Context(), r.PathValue("id"), h.actor(r), in.Inherit), "inherit") {
 		return
 	}
+	h.note(r, db.LogInherit, r.PathValue("id"), map[bool]string{true: "restored", false: "broken"}[in.Inherit])
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -113,6 +117,7 @@ func (h *handler) apiSetOwner(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.TransferOwner(r.Context(), r.PathValue("id"), h.actor(r), in.To), "owner") {
 		return
 	}
+	h.note(r, db.LogOwner, r.PathValue("id"), "to "+in.To)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -211,6 +216,7 @@ func (h *handler) apiCreateGroup(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "group") {
 		return
 	}
+	h.note(r, db.LogGroup, "", "made "+g.ID+" "+g.Name)
 	writeJSON(w, http.StatusCreated, apiGroup{ID: g.ID, Name: g.Name, Source: g.Source, Description: g.Description})
 }
 
@@ -226,6 +232,7 @@ func (h *handler) apiChangeGroup(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.RenameGroup(r.Context(), r.PathValue("id"), in.Name, in.Description), "group") {
 		return
 	}
+	h.note(r, db.LogGroup, "", "renamed "+r.PathValue("id")+" to "+in.Name)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -237,6 +244,7 @@ func (h *handler) apiDeleteGroup(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.DeleteGroup(r.Context(), r.PathValue("id")), "group") {
 		return
 	}
+	h.note(r, db.LogGroup, "", "deleted "+r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -283,6 +291,7 @@ func (h *handler) apiSetMember(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, h.options.DB.SetMember(r.Context(), r.PathValue("id"), r.PathValue("account"), in.Member), "member") {
 		return
 	}
+	h.note(r, db.LogMember, "", r.PathValue("account")+map[bool]string{true: " into ", false: " out of "}[in.Member]+r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -449,6 +458,7 @@ func (h *handler) apiSetAdmin(w http.ResponseWriter, r *http.Request) {
 	case h.failed(w, err, "admin"):
 		return
 	}
+	h.note(r, db.LogAdmin, "", accountID+map[bool]string{true: " made an administrator", false: " no longer an administrator"}[in.Admin])
 	if !in.Admin && h.moduleOn(r.Context(), module.Time) {
 		if err := h.options.DB.MapTenant(r.Context(), accountID, false); err != nil {
 			h.log.Error("time tracking: administrator not taken back", slog.String("error", err.Error()))

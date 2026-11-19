@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The log of access and changes (ADR-29, M-5, [docs/rights.md](docs/rights.md), migration 024): opening and changing
+  objects once per account, object and hour; roles, inheritance, owners, groups, members, administrators and links each
+  time; share links opened, used, a wrong password and uploads through them. Nothing private is logged. Administrators read
+  all of it in the tab Rights and in the administration of the profile, everyone else what they did and what happened to
+  what they manage (`GET /api/log`).
+
 - The rights in the workspace (ADR-29, M-5, [docs/rights.md](docs/rights.md)): the rights dialog of pages and
   collections (owner and transfer, inheritance, roles for everyone, groups and persons, share links with the embedded
   pages to release), owner and who sees a page in its facts panel, and the tab Rights in nav1 with groups, users, share

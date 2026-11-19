@@ -8,7 +8,7 @@ window.UDRights = (() => {
   const ROLEWORD = { read: "read", comment: "comment", edit: "edit", manage: "manage", owner: "owner" };
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
   const VIA = { owner: "owns it", "owner above": "owns what lies above", person: "as a person", group: "through a group", tenant: "as everyone", link: "through a link" };
-  const st = { people: null, groups: null, links: null, users: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
+  const st = { people: null, groups: null, links: null, users: null, log: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
   let redraw = () => {};
   let me = { id: "", admin: false };
 
@@ -72,7 +72,7 @@ window.UDRights = (() => {
 
   // --- The tab Rights
 
-  const SECTIONS = [["groups", "Groups", "user"], ["users", "Users", "user"], ["links", "Share links", "link"], ["check", "Access check", "search"]];
+  const SECTIONS = [["groups", "Groups", "user"], ["users", "Users", "user"], ["links", "Share links", "link"], ["check", "Access check", "search"], ["log", "Log", "list"]];
 
   function nav3(sec, user) {
     me = user || me;
@@ -81,6 +81,7 @@ window.UDRights = (() => {
     if (sec === "groups") body = groupsHtml();
     else if (sec === "users") body = usersHtml();
     else if (sec === "links") body = linksHtml();
+    else if (sec === "log") body = logHtml();
     else body = checkHtml();
     return `<div class="spanel" data-rights="${esc(sec)}">${problem()}${body}</div>`;
   }
@@ -134,6 +135,27 @@ window.UDRights = (() => {
           `<tr data-link="${esc(l.id)}">${withTitle ? `<td>${esc(l.title)}</td>` : ""}<td>${MODEWORD[l.mode] || esc(l.mode)}${l.password ? " · 🔒 password" : ""}${l.users ? ` · ${l.users} opened` : ""}</td><td>${esc(l.creator)}<br><small>${when(l.created)}</small></td><td>${day(l.expires)}</td><td>${small(`data-ract="revoke" data-id="${esc(l.id)}"`, "Revoke", inDialog)}</td></tr>`,
       )
       .join("")}</tbody></table>`;
+  }
+
+  const ACTION = { open: "opened", change: "changed", grant: "role", inherit: "inheritance", owner: "owner", group: "group", member: "member", admin: "administrator",
+    "link made": "link made", "link revoked": "link revoked", "link renewed": "link renewed", "link opened": "link opened", "link used": "link used",
+    "link wrong password": "✗ wrong password of a link", "link upload": "upload through a link" };
+  // named turns the IDs of accounts and groups in a line of the log into their names, where they are known.
+  function named(text) {
+    const p = st.people || { people: [], groups: [] };
+    let out = esc(text);
+    p.people.forEach((x) => (out = out.split(esc(x.id)).join(esc(x.name))));
+    p.groups.forEach((g) => (out = out.split(esc(g.id)).join(esc(g.name))));
+    return out;
+  }
+  function logHtml() {
+    load("log", "/api/log?limit=200");
+    if (st.log === null) return '<p class="lab">Loading…</p>';
+    return `<div class="shead">Log</div><p class="hint">${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.</p>${
+      st.log.length
+        ? `<ul class="pad" data-log>${st.log.map((e) => `<li class="modrow" data-entry="${esc(e.action)}"><span>${ACTION[e.action] || esc(e.action)}${e.objectTitle ? ": " + esc(e.objectTitle) : ""}<small>${when(e.at)} · ${e.actor ? esc(e.actorName) : "someone with a link"}${e.detail ? " · " + named(e.detail) : ""}</small></span></li>`).join("")}</ul><button class="chip" data-ract="reloadlog">Newer entries</button>`
+        : '<p class="lab">Nothing logged yet.</p>'
+    }`;
   }
 
   function checkHtml() {
@@ -249,6 +271,7 @@ window.UDRights = (() => {
     } catch (e) {
       st.error = e.message;
     }
+    st.log = null;
     if (keys.length) reload(...keys);
     else redraw();
     if (dialogEl().open) await refreshDialog();
@@ -306,6 +329,9 @@ window.UDRights = (() => {
         act(async () => {
           st.held = await api("GET", `/api/rights/held?account=${encodeURIComponent(a.id)}`);
         });
+        return;
+      case "reloadlog":
+        reload("log");
         return;
       case "revoke":
         if (!window.confirm("Revoke this link? It leads nowhere from then on.")) return;
