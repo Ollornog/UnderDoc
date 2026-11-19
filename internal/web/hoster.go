@@ -60,13 +60,34 @@ type hosterRow struct {
 	Allowed             map[string]bool
 	AllModules          bool
 	Reserved            bool
+	// UsersMeter and StorageMeter show what is used of a limit; nil without one.
+	UsersMeter, StorageMeter *meter
+}
+
+// meter is a use against its limit, for a bar (progress.progress of C22): a warning from nine tenths on, full at the
+// limit. Values are whole numbers, as the element takes them; storage counts in kilobytes.
+type meter struct {
+	Value, Max int64
+	Variant    string
+}
+
+func newMeter(used, limit int64) *meter {
+	m := &meter{Value: min(used, limit), Max: limit}
+	switch {
+	case limit <= 0 || used >= limit:
+		m.Variant, m.Value, m.Max = "destructive", 1, 1
+	case used*10 >= limit*9:
+		m.Variant = "warning"
+	}
+	return m
 }
 
 func megabytes(n int64) string { return strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64) + " MB" }
 
 func (h *handler) hosterRow(ctx context.Context, t db.Tenant) hosterRow {
 	row := hosterRow{Tenant: t, MaxUsers: "no limit", MaxStorage: "no limit", AllModules: true, Reserved: t.ID == tenant.Main}
-	if u, err := h.options.DB.TenantUsage(ctx, t.ID); err == nil {
+	u, err := h.options.DB.TenantUsage(ctx, t.ID)
+	if err == nil {
 		row.Users, row.Storage = strconv.Itoa(u.Users), megabytes(u.Storage)
 	} else {
 		h.log.Error("usage failed", slog.String("tenant", t.ID), slog.String("error", err.Error()))
@@ -74,10 +95,12 @@ func (h *handler) hosterRow(ctx context.Context, t db.Tenant) hosterRow {
 	if l, err := h.options.DB.TenantLimits(ctx, t.ID); err == nil {
 		if l.MaxUsers != nil {
 			row.MaxUsers, row.MaxUsersValue = strconv.Itoa(*l.MaxUsers), strconv.Itoa(*l.MaxUsers)
+			row.UsersMeter = newMeter(int64(u.Users), int64(*l.MaxUsers))
 		}
 		if l.MaxStorage != nil {
 			row.MaxStorage = megabytes(*l.MaxStorage)
 			row.MaxStorageMB = strconv.FormatInt(*l.MaxStorage/1_000_000, 10)
+			row.StorageMeter = newMeter(u.Storage/1000, *l.MaxStorage/1000)
 		}
 		row.AllModules, row.Allowed = l.Modules == nil, map[string]bool{}
 		for _, m := range l.Modules {

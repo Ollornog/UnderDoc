@@ -222,14 +222,18 @@ func TestAdministratorsSetUpTheSignIn(t *testing.T) {
 	b.typeInto(`#invite-login`, "sam")
 	b.typeInto(`#invite-name`, "Sam Berg")
 	b.pressOn(`form[action="/admin/invites"] button`)
-	if !b.waitFor(`(document.querySelector('[data-test="invite-link"]')?.textContent || '').includes('/invite/')`) {
+	if !b.waitFor(`(document.querySelector('[data-test="invite-link"]')?.value || '').includes('/invite/')`) {
 		t.Fatalf("no invitation link: %s | %s | %s", b.eval(`location.href`), b.eval(`document.querySelector('[data-test="error"]')?.textContent`),
 			b.eval(`document.querySelector('#invite-login').value + '/' + document.querySelector('#invite-name').value`))
 	}
 	b.shot("signin-admin")
-	link := b.eval(`document.querySelector('[data-test="invite-link"]').textContent`)
+	link := b.eval(`document.querySelector('[data-test="invite-link"]').value`)
 	if !strings.HasPrefix(link, base+"/invite/") {
 		t.Errorf("the link: %q", link)
+	}
+	// C22 takes over the button that copies it (input-group with data-copy).
+	if !b.waitFor(`document.querySelector('#invite-link + [data-copy]')?.dataset.c22CopyWired === '1'`) {
+		t.Error("the button to copy the link is not C22's")
 	}
 }
 

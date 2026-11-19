@@ -102,10 +102,10 @@ func TestTheHosterWithTheMouse(t *testing.T) {
 	b.typeInto(`#new-admin-login`, "bea")
 	b.typeInto(`#new-admin-name`, "Bea")
 	b.pressOn(`form[action="/hoster/tenants"] button[type="submit"]`)
-	if !b.waitFor(`(document.querySelector('[data-test="invite-link"]')?.textContent || '').includes('beta.localhost')`) {
+	if !b.waitFor(`(document.querySelector('[data-test="invite-link"]')?.value || '').includes('beta.localhost')`) {
 		t.Fatalf("the link for the first administrator: %s", b.eval(`document.querySelector('[data-test="error"]')?.textContent`))
 	}
-	link := b.eval(`document.querySelector('[data-test="invite-link"]').textContent`)
+	link := b.eval(`document.querySelector('[data-test="invite-link"]').value`)
 	b.pressOn(`form input[value="lock"] + button`)
 	if !b.waitFor(`(document.querySelector('.card-description')?.textContent || '').includes('✗ locked')`) {
 		t.Fatal("locked")

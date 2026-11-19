@@ -141,7 +141,11 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		return nil, fmt.Errorf("unknown mode of tenants %q: %s or %s", options.Tenants, tenant.ModeOne, tenant.ModeMany)
 	}
 	var err error
-	if h.pages, err = template.ParseFS(templateFiles, "templates/*.html"); err != nil {
+	funcs := template.FuncMap{
+		// meterOf hands the template "meter" a use against its limit and the label of its bar.
+		"meterOf": func(m *meter, label string) map[string]any { return map[string]any{"M": m, "Label": label} },
+	}
+	if h.pages, err = template.New("").Funcs(funcs).ParseFS(templateFiles, "templates/*.html"); err != nil {
 		return nil, err
 	}
 	if h.assetVersion, err = hashAssets(); err != nil {

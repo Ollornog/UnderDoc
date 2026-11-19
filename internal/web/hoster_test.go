@@ -71,7 +71,10 @@ func TestTheHosterManagesTenants(t *testing.T) {
 		}
 	}
 	made := h.form("/hoster/tenants", url.Values{"id": {"beta"}, "name": {"Beta GmbH"}, "admin_login": {"bea"}, "admin_name": {"Bea"}})
-	link := between(made.Body.String(), `data-test="invite-link">`, "<")
+	link := inviteLink(made.Body.String())
+	if !strings.Contains(made.Body.String(), `data-copy data-copy-done="Copied" aria-label="Copy the link"`) {
+		t.Error("the link has no button to copy it")
+	}
 	if made.Code != http.StatusOK || !strings.HasPrefix(link, "https://"+betaHost+"/invite/") {
 		t.Fatalf("a new tenant: %d %q", made.Code, link)
 	}
@@ -107,6 +110,15 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	}
 	if got := change("beta", url.Values{"do": {"limits"}, "max_users": {"5"}, "max_storage_mb": {"2"}}); got != http.StatusOK {
 		t.Fatalf("limits: %d", got)
+	}
+	// What is used of a limit shows as C22's bar, used / limit beside it; no user of five yet, nothing stored.
+	listed := h.get("/hoster").Body.String()
+	if !strings.Contains(listed, `<progress class="progress mt-1" value="0" max="5" aria-label="Users of the limit" data-test="meter">`) ||
+		!strings.Contains(listed, "0 / 5") || !strings.Contains(listed, `max="2000" aria-label="Storage of the limit"`) {
+		t.Errorf("the bars of the limits: %s", between(listed, `data-id="beta"`, "</tr>"))
+	}
+	if page := h.get("/hoster/tenants/beta").Body.String(); !strings.Contains(page, `data-test="usage"`) || strings.Count(page, `data-test="meter"`) != 2 {
+		t.Error("the page of the tenant shows its use against its limits")
 	}
 	l, _ := database.TenantLimits(context.Background(), "beta")
 	if l.MaxUsers == nil || *l.MaxUsers != 5 || l.MaxStorage == nil || *l.MaxStorage != 2_000_000 || l.Modules == nil || len(l.Modules) != 0 {
@@ -246,5 +258,18 @@ func TestLimitsShowInTheWeb(t *testing.T) {
 	}
 	if got := anna.post("/api/pages/"+plan.ID+"/blocks", `{"md":"fits"}`); got.Code != http.StatusCreated && got.Code != http.StatusOK {
 		t.Errorf("a block that fits: %d", got.Code)
+	}
+}
+
+func TestMeters(t *testing.T) {
+	for _, c := range []struct {
+		used, limit int64
+		value, max  int64
+		variant     string
+	}{{1, 5, 1, 5, ""}, {9, 10, 9, 10, "warning"}, {10, 10, 1, 1, "destructive"}, {12, 10, 1, 1, "destructive"}, {0, 0, 1, 1, "destructive"}} {
+		m := newMeter(c.used, c.limit)
+		if m.Value != c.value || m.Max != c.max || m.Variant != c.variant {
+			t.Errorf("%d of %d: %+v", c.used, c.limit, m)
+		}
 	}
 }

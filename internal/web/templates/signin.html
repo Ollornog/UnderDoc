@@ -8,6 +8,7 @@
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.Version}}">
   <script src="/assets/app/theme.js?v={{.Version}}"></script>
+  <script src="/assets/c22/js/c22.js?v={{.Version}}" defer></script>
   <script src="/assets/app/signin.js?v={{.Version}}" defer></script>
 </head>
 {{- end}}
@@ -18,39 +19,56 @@
 <div class="alert hidden" data-variant="destructive" role="alert" data-passkey-error><section></section></div>
 {{- end}}
 
+{{/* A link that works once, in C22's field to copy (input-group with data-copy); data-test carries the link. */}}
+{{define "invite-link" -}}
+{{if .}}<div class="field" role="group"><label for="invite-link">Link for the invited person, it works once</label>
+  <div class="input-group">
+    <input class="input font-mono" id="invite-link" type="text" value="{{.}}" readonly data-test="invite-link">
+    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-align="inline-end" data-copy data-copy-done="Copied" aria-label="Copy the link" title="Copy the link"><svg data-icon-lu="copy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+  </div>
+  <p class="text-xs text-muted-foreground">It is shown only now. Send it to the person yourself.</p>
+</div>{{end}}
+{{- end}}
+
 {{define "signin" -}}
 {{template "auth-head" .}}
 <body>
+  {{/* C22's sign-in card (blocks/login-signup): the card is the form of the password, the other ways sit above it,
+       set apart by "or". Without a password it is a card of buttons. */}}
   <main class="grid min-h-svh place-items-center p-4">
-    <div class="card w-full max-w-md">
+    {{if .Password}}<form class="card w-full max-w-sm" method="post" action="/sign-in/password" data-test="signin-card">{{else}}<div class="card w-full max-w-sm" data-test="signin-card">{{end}}
       <header>
         <h1 class="card-title">Sign in to {{.Tenant}}</h1>
+        <p class="card-description">{{if and .Passkey .Password}}With a passkey, or with your login and password.{{else if .Passkey}}With a passkey on this device or your phone.{{else if .Password}}With your login and password.{{else}}With the sign-in of your organization.{{end}}</p>
+        {{if .Register}}<div class="card-action"><a class="btn" data-variant="link" href="/register">Register</a></div>{{end}}
       </header>
-      <section class="grid gap-4">
+      <section class="grid gap-6">
         {{template "auth-alerts" .}}
-        {{if .Passkey}}
-        <button class="btn w-full" type="button" data-passkey-sign-in data-next="{{.Next}}">Sign in with a passkey</button>
-        {{end}}
-        {{if .OIDC}}
-        <a class="btn w-full" data-variant="outline" href="/sign-in/oidc?next={{.Next}}">Sign in with {{.OIDC}}</a>
+        {{if or .Passkey .OIDC}}
+        <div class="grid gap-2">
+          {{if .Passkey}}<button class="btn w-full" type="button" data-passkey-sign-in data-next="{{.Next}}">Sign in with a passkey</button>{{end}}
+          {{if .OIDC}}<a class="btn w-full" data-variant="outline" href="/sign-in/oidc?next={{.Next}}">Sign in with {{.OIDC}}</a>{{end}}
+        </div>
+        {{if .Password}}<div class="field-separator"><hr role="separator"><span>or</span></div>{{end}}
         {{end}}
         {{if .Password}}
-        <form class="grid gap-4" method="post" action="/sign-in/password">
-          <input type="hidden" name="next" value="{{.Next}}">
-          <div class="field"><label for="login">Login</label>
-            <input class="input" id="login" name="login" autocomplete="username" autocapitalize="none" required value="{{.Login}}"></div>
-          <div class="field"><label for="password">Password</label>
-            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
-          {{if .TOTP}}
-          <div class="field"><label for="code">Code from your app</label>
-            <input class="input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></div>
-          {{end}}
-          <button class="btn" data-variant="{{if .Passkey}}outline{{else}}primary{{end}}" type="submit">Sign in with a password</button>
-        </form>
+        <input type="hidden" name="next" value="{{.Next}}">
+        <div class="field" role="group"><label for="login">Login</label>
+          <input class="input" id="login" name="login" autocomplete="username" autocapitalize="none" required value="{{.Login}}"></div>
+        <div class="field" role="group"><label for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
+        {{if .TOTP}}
+        <div class="field" role="group"><label for="code">Code from your app</label>
+          <input class="input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></div>
         {{end}}
-        {{if .Register}}<p class="text-sm text-muted-foreground">No account yet? <a class="underline" href="/register">Register</a>.</p>{{end}}
+        {{end}}
       </section>
-    </div>
+      {{if .Password}}
+      <footer class="flex-col gap-2">
+        <button class="btn w-full" data-variant="{{if .Passkey}}outline{{else}}primary{{end}}" type="submit">Sign in with a password</button>
+      </footer>
+    </form>{{else}}
+    </div>{{end}}
   </main>
 </body>
 </html>
@@ -216,7 +234,7 @@
       </header>
       <section class="grid gap-6">
         {{template "auth-alerts" .}}
-        {{if .Link}}<p class="text-sm font-mono" data-test="invite-link">{{.Link}}</p>{{end}}
+        {{template "invite-link" .Link}}
         <form class="grid gap-4" method="post" action="/admin/sign-in">
           <h2 class="font-semibold">Ways in</h2>
           {{range .Methods}}
@@ -256,7 +274,8 @@
           {{if .Log}}
           <div class="table-container"><table class="table">
             <thead><tr><th>When (UTC)</th><th>Login</th><th>Way</th><th>Result</th></tr></thead>
-            <tbody>{{range .Log}}<tr data-test="log"><td class="whitespace-nowrap">{{.At}}</td><td>{{.Login}}</td><td>{{.Method}}</td><td>{{if .OK}}✓ in{{else}}✗ {{.Reason}}{{end}}</td></tr>{{end}}</tbody>
+            <tbody>{{range .Log}}<tr data-test="log"><td class="whitespace-nowrap tabular-nums">{{.At}}</td><td>{{.Login}}</td><td>{{.Method}}</td>
+              <td>{{if .OK}}<span class="badge" data-variant="secondary">✓ in</span>{{else}}<span class="badge" data-variant="destructive">✗ {{.Reason}}</span>{{end}}</td></tr>{{end}}</tbody>
           </table></div>
           {{else}}<p class="text-sm text-muted-foreground">None yet.</p>{{end}}
         </div>
