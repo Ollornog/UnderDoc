@@ -5,6 +5,7 @@ package store
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -116,6 +117,35 @@ func TestNamesAreNeverPaths(t *testing.T) {
 	for _, name := range []string{"../x", sha + "/../../x", sha + "_X"} {
 		if err := s.WriteDerived(DefaultTenant, name, nil); !errors.Is(err, ErrName) {
 			t.Errorf("derived %q: %v", name, err)
+		}
+	}
+}
+
+func TestRemoveTenant(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tenant := range []string{"acme", "beta"} {
+		if _, _, err := s.Put(tenant, strings.NewReader("content of "+tenant), 1<<20); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.RemoveTenant("acme"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.Root(), "acme")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the directory of acme is still there: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(s.Root(), "beta")); err != nil || len(entries) == 0 {
+		t.Errorf("beta keeps its files: %v %v", entries, err)
+	}
+	if err := s.RemoveTenant("acme"); err != nil {
+		t.Errorf("a tenant without a directory: %v", err)
+	}
+	for _, bad := range []string{"", "..", "../beta", "a/b", "Beta"} {
+		if err := s.RemoveTenant(bad); !errors.Is(err, ErrName) {
+			t.Errorf("%q: %v", bad, err)
 		}
 	}
 }

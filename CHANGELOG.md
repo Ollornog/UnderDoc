@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The hoster renames a tenant, and deletes an archived one for good with its ID typed: its rows in every table, its
+  addresses, its files and its search index ([docs/tenants.md](docs/tenants.md)).
+
 - The Resources tab is real for values and snippets (M-3, [docs/parts.md](docs/parts.md)): `GET /api/snippets` and a
   count of uses on `GET /api/values`, both counted in pages the reader sees; databases and external sources say "(demo)".
 - The facts panel of a page names what it embeds: values by name, parts, sections, blocks and pages (`embeds`).

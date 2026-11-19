@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -430,5 +431,112 @@ func TestOpenRefusesARoleThatPassesTheRules(t *testing.T) {
 	}
 	if err := db.pool.QueryRow(main, "SELECT count(*) FROM accounts").Scan(&n); err != nil || n != 1 {
 		t.Errorf("the owner in Main sees %d accounts, %v", n, err)
+	}
+}
+
+// TestRenamingAndPurgingATenant: a tenant gets another name and keeps its ID; deleting it for good needs it archived and
+// its ID typed, takes every row it has in every table and its addresses, and leaves Main as it was.
+func TestRenamingAndPurgingATenant(t *testing.T) {
+	db := open(t)
+	main := inMain()
+	if _, err := db.CreateTenant(main, "acme", "Acme"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AddTenantHost(main, "acme", "wiki.acme.example"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := db.RenameTenant(main, "acme", "  Acme Ltd "); err != nil || got.Name != "Acme Ltd" || got.ID != "acme" {
+		t.Errorf("rename: %+v %v", got, err)
+	}
+	if _, err := db.RenameTenant(main, "acme", " "); !errors.Is(err, ErrTitle) {
+		t.Errorf("an empty name: %v", err)
+	}
+	if _, err := db.RenameTenant(main, tenant.Hoster, "Mine"); !errors.Is(err, ErrReserved) {
+		t.Errorf("the hoster tenant: %v", err)
+	}
+	if _, err := db.RenameTenant(main, "nobody", "X"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a tenant that is not there: %v", err)
+	}
+	// Content in both tenants: pages, blocks, references, comments, the trash, settings.
+	fill := func(ctx context.Context) {
+		t.Helper()
+		if err := db.SeeAccount(ctx, anna); err != nil {
+			t.Fatal(err)
+		}
+		c, err := db.CreateCollection(ctx, anna, "Things", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, _ := db.CreatePage(ctx, anna, "Plan", c.ID)
+		src, _ := db.CreatePage(ctx, anna, "Source", c.ID)
+		if _, err := db.AddBlock(ctx, p.ID, anna.ID, "", "::embed{ref=\""+src.ID+"\"}"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.AddComment(ctx, p.ID, anna.ID, "", "Looks good", 0); err != nil {
+			t.Fatal(err)
+		}
+		gone, _ := db.CreatePage(ctx, anna, "Old", c.ID)
+		if err := db.Delete(ctx, gone.ID, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	acme := tenant.With(context.Background(), "acme")
+	fill(main)
+	fill(acme)
+	names, err := pgx.CollectRows(must(db.pool.Query(main, `SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
+		AND a.attname = 'tenant' WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND c.relname NOT IN ('tenants', 'tenant_hosts')
+		ORDER BY c.relname`)), pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := func(ctx context.Context) map[string]int {
+		out := map[string]int{}
+		for _, name := range names {
+			var n int
+			if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM "+pgx.Identifier{name}.Sanitize()).Scan(&n); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if n > 0 {
+				out[name] = n
+			}
+		}
+		return out
+	}
+	before := counts(main)
+	if len(counts(acme)) < 6 {
+		t.Fatalf("acme has too little to prove anything: %v", counts(acme))
+	}
+	if err := db.PurgeTenant(main, "acme", "acme"); !errors.Is(err, ErrNotArchived) {
+		t.Errorf("an active tenant: %v", err)
+	}
+	if _, err := db.SetTenantState(main, "acme", TenantArchived); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PurgeTenant(main, "acme", "Acme"); !errors.Is(err, ErrConfirm) {
+		t.Errorf("a confirmation that is not the ID: %v", err)
+	}
+	for _, reserved := range []string{tenant.Main, tenant.Hoster} {
+		if err := db.PurgeTenant(main, reserved, reserved); !errors.Is(err, ErrReserved) {
+			t.Errorf("%s: %v", reserved, err)
+		}
+	}
+	if err := db.PurgeTenant(main, "acme", "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got := counts(acme); len(got) != 0 {
+		t.Errorf("rows of acme are left: %v", got)
+	}
+	if _, err := db.Tenant(main, "acme"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the tenant is still there: %v", err)
+	}
+	if _, err := db.TenantByHost(main, "wiki.acme.example", ""); err == nil {
+		t.Error("its address still leads somewhere")
+	}
+	if got := counts(main); !maps.Equal(got, before) {
+		t.Errorf("Main changed:\n got %v\nwant %v", got, before)
+	}
+	// The ID is free again.
+	if _, err := db.CreateTenant(main, "acme", "Acme again"); err != nil {
+		t.Errorf("a new tenant with the ID: %v", err)
 	}
 }

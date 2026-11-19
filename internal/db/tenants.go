@@ -39,6 +39,10 @@ var (
 	ErrHostTaken   = errors.New("this host name leads to another tenant already")
 	ErrHost        = errors.New("not a host name")
 	ErrReserved    = errors.New("this tenant belongs to the instance and cannot be changed")
+	// ErrNotArchived is a purge of a tenant that is not archived: only what was archived first is deleted for good.
+	ErrNotArchived = errors.New("only an archived tenant can be deleted for good")
+	// ErrConfirm is a purge whose confirmation is not the ID of the tenant.
+	ErrConfirm = errors.New("type the ID of the tenant to delete it for good")
 )
 
 const tenantColumns = `t.id, t.name, t.state, t.created, coalesce((SELECT array_agg(h.host ORDER BY h.host) FROM tenant_hosts h WHERE h.tenant = t.id), '{}')`
@@ -123,6 +127,91 @@ func (db *DB) SetTenantState(ctx context.Context, tenantID, state string) (Tenan
 		return Tenant{}, ErrNotFound
 	}
 	return db.Tenant(ctx, tenantID)
+}
+
+// RenameTenant gives a tenant another name; its ID, and with it its addresses, stays. The hoster tenant cannot be renamed.
+func (db *DB) RenameTenant(ctx context.Context, tenantID, name string) (Tenant, error) {
+	if tenantID == tenant.Hoster {
+		return Tenant{}, ErrReserved
+	}
+	name = strings.TrimSpace(name)
+	if n := len([]rune(name)); n < 1 || n > 200 {
+		return Tenant{}, ErrTitle
+	}
+	tag, err := db.pool.Exec(ctx, "UPDATE tenants SET name = $2, changed = now() WHERE id = $1", tenantID, name)
+	if err != nil {
+		return Tenant{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Tenant{}, ErrNotFound
+	}
+	return db.Tenant(ctx, tenantID)
+}
+
+// PurgeTenant deletes an archived tenant for good: every row it has in every table, its addresses and the tenant itself,
+// in one transaction that works as that tenant, so row-level security keeps every other tenant out of reach. confirm
+// must be the ID of the tenant. The files of its content store and its search index are the caller's (store, search).
+// Main and the hoster tenant cannot be deleted.
+func (db *DB) PurgeTenant(ctx context.Context, tenantID, confirm string) error {
+	if tenantID == tenant.Main || tenantID == tenant.Hoster {
+		return ErrReserved
+	}
+	if confirm != tenantID {
+		return ErrConfirm
+	}
+	t, err := db.Tenant(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if t.State != TenantArchived {
+		return ErrNotArchived
+	}
+	rows, err := db.pool.Query(ctx, `SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant'
+		WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND c.relname NOT IN ('tenants', 'tenant_hosts')
+		ORDER BY c.relname`)
+	if err != nil {
+		return err
+	}
+	tables, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return err
+	}
+	return pgx.BeginFunc(tenant.With(ctx, tenantID), db.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT set_config('underdoc.tenant', $1, true)", tenantID); err != nil {
+			return err
+		}
+		// The tables refer to each other; a table whose rows are still referred to waits for the next round.
+		for len(tables) > 0 {
+			var left []string
+			var last error
+			for _, name := range tables {
+				if _, err := tx.Exec(ctx, "SAVEPOINT purge"); err != nil {
+					return err
+				}
+				_, err := tx.Exec(ctx, "DELETE FROM "+pgx.Identifier{name}.Sanitize()+" WHERE tenant = $1", tenantID)
+				var pg *pgconn.PgError
+				if errors.As(err, &pg) && pg.Code == "23503" {
+					if _, err := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT purge"); err != nil {
+						return err
+					}
+					left, last = append(left, name), err
+					continue
+				}
+				if err != nil {
+					return err
+				}
+			}
+			if len(left) == len(tables) {
+				return last
+			}
+			tables = left
+		}
+		if _, err := tx.Exec(ctx, "DELETE FROM tenant_hosts WHERE tenant = $1", tenantID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, "DELETE FROM tenants WHERE id = $1", tenantID)
+		return err
+	})
 }
 
 // AddTenantHost lets a domain of its own lead to a tenant. TLS for it is the job of the proxy in front.

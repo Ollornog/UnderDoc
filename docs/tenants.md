@@ -34,8 +34,13 @@ they use, and nothing of a workspace answers there.
 
 - **Make a tenant**: its ID (the subdomain), its name, and the login and name of its first administrator, who gets a
   link that works once, for seven days. A new tenant signs in with passkeys and has no registration.
+- **Rename** gives it another name; its ID, and with it its subdomain, stays.
 - **Lock** lets nobody of the tenant in; nothing is lost. **Archive** is the delete of the hoster: the tenant is gone
-  from every host, its data stays, and **Restore** brings it back whole. There is no purge in the web.
+  from every host, its data stays, and **Restore** brings it back whole.
+- **Delete for good**, only for an archived tenant and only with its ID typed: every row of it in every table, its
+  addresses, its files in the content store and its search index go, in one transaction that works as that tenant, so
+  row-level security keeps every other one out of reach. Every table refers to `tenants`, so a row left behind would stop
+  the delete instead of staying. Its ID is free again afterwards. Main and the hoster tenant cannot be deleted.
 - **Limits**: users at most and storage at most (the bytes of the current blocks of its pages, plus its files with all
   their versions, attachments and running uploads; versions of blocks are not counted). Past the limit, no new account comes in, from the gate, OIDC or an invitation, while the accounts there keep
   signing in; and no block, copy, import, template or upload grows the storage, while shrinking always works. The quotas of the files

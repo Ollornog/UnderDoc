@@ -96,6 +96,14 @@ func (s *Service) Engine() string {
 	return s.engine.Name()
 }
 
+// DropTenant removes the index of a tenant deleted for good. Without an engine there is none.
+func (s *Service) DropTenant(ctx context.Context, tenantID string) error {
+	if s == nil || s.engine == nil {
+		return nil
+	}
+	return s.engine.Drop(ctx, tenantID)
+}
+
 // ParsedQuery is a query split into its codes and its other words.
 type ParsedQuery struct {
 	// Codes are the canonical codes as written in the query, Parts their parts.
