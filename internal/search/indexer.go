@@ -39,7 +39,8 @@ type Queue interface {
 	SetVersion(ctx context.Context, index, version string) error
 }
 
-// Versioned is an engine whose settings carry a version: when it changes, the index is built anew.
+// Versioned is an engine whose settings carry a version, or a source whose records do: when it changes, the index is
+// built anew. A source raises its version when it finds what it did not find before, such as the text of files.
 type Versioned interface {
 	Version() string
 }
@@ -70,11 +71,18 @@ func NewIndexer(engine Engine, queue Queue, tenant string, log *slog.Logger, sou
 
 func (ix *Indexer) versionKey() string { return ix.engine.Name() + "/" + ix.tenant }
 
+// version is the version of the engine's settings, followed by the version of each source that has one.
 func (ix *Indexer) version() string {
+	version := "1"
 	if v, ok := ix.engine.(Versioned); ok {
-		return v.Version()
+		version = v.Version()
 	}
-	return "1"
+	for _, name := range ix.order {
+		if v, ok := ix.sources[name].(Versioned); ok {
+			version += "+" + name + "-" + v.Version()
+		}
+	}
+	return version
 }
 
 // Prepare readies the index. When it is new, or was built by another version of the settings, every key of every source

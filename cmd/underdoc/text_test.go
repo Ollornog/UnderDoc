@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -53,7 +54,7 @@ func (f *fakeModel) Recognize(_ context.Context, in io.Reader, _ string) (string
 }
 
 // The queue of the server: a PDF with text is read in Go, a scanned PDF goes on to the model of the uploader's tenant, an
-// image to Tesseract, and the search is told which files have new text.
+// image to Tesseract, and the files with a new text go into the queue of the search.
 func TestTextWorker(t *testing.T) {
 	ctx := inMain()
 	d, _ := database(t)
@@ -75,9 +76,11 @@ func TestTextWorker(t *testing.T) {
 	scan := put("scan.pdf", pdfWith("0 0 m 100 100 l S"), "application/pdf", "server")
 	photo := put("board.png", "\x89PNG fake", "image/png", "ocr")
 	ocr, model := &fakeModel{text: "whiteboard notes", pages: 1}, &fakeModel{text: "scanned contract", pages: 3}
-	var told []string
+	if _, err := d.Claim(ctx, 1000); err != nil { // what the uploads queued
+		t.Fatal(err)
+	}
 	w := textWorker{db: d, store: s, config: textConfig{Ways: db.Ways{Server: true, AI: true}, MaxSize: 1 << 20, AIUser: 10}, ocr: ocr, ai: model,
-		changed: func(_ context.Context, ids []string) { told = append(told, ids...) }, log: slog.New(slog.DiscardHandler)}
+		log: slog.New(slog.DiscardHandler)}
 	for range 10 {
 		if did, err := w.once(ctx); err != nil {
 			t.Fatal(err)
@@ -92,8 +95,16 @@ func TestTextWorker(t *testing.T) {
 			t.Errorf("%s: %+v %v, want %s", id, texts, err, w)
 		}
 	}
-	if len(told) != 3 || model.calls != 1 || ocr.calls != 1 {
-		t.Errorf("told the search %v; model %d, tesseract %d calls", told, model.calls, ocr.calls)
+	queued, err := d.Claim(ctx, 1000)
+	var told []string
+	for _, k := range queued {
+		told = append(told, k.Key)
+	}
+	slices.Sort(told)
+	files := []string{text.File.ID, scan.File.ID, photo.File.ID}
+	slices.Sort(files)
+	if err != nil || !slices.Equal(told, files) || model.calls != 1 || ocr.calls != 1 {
+		t.Errorf("the search queued %v, want %v (%v); model %d, tesseract %d calls", told, files, err, model.calls, ocr.calls)
 	}
 	// The quota of the model counts every page it read.
 	if err := d.UseAIPages(ctx, anna.ID, 7, 10, 0); err != nil {

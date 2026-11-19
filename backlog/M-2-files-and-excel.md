@@ -2,7 +2,7 @@
 id: M-2
 type: Milestone
 title: "Files and Excel: the share appears in the web"
-status: offen
+status: in-arbeit
 tags: [read, excel, samba]
 created: 2026-11-06
 ---
@@ -33,5 +33,7 @@ files, attachments of pages and "move to the files", and the link from a space t
 Also built on 2026-11-17: previews of images (on the server) and PDF (pdf.js), Office through an optional Gotenberg
 module, the text of files for the search on three ways (browser, server queue, a model of M-13 behind an interface),
 each switched by hoster, tenant and user, and images pasted or dropped into the editor as attachments of the page.
-Open in M-2: Tesseract.js in the browser with the language data deu and eng, handing the text of files to the search
-service once it is on main, Excel as native tables, Samba and the watcher (T-1).
+**Built on 2026-11-19:** Tesseract.js in the browser with the language data deu and eng, served by UnderDoc itself, and
+the text of files and of attachments handed to the search service (M-12). Open in M-2: Excel as native tables (and search
+over tables), the facts panel, tags on files, the document types for PowerPoint, video and image collections, Samba and
+the watcher (T-1), the acceptance with real Excel.

@@ -48,6 +48,12 @@ viewer="$(curl -fsS "${gate[@]}" "$base/assets/app/pdfjs/viewer.mjs")" || fail "
 [[ "$viewer" == *'pdf.min.mjs'* ]] || fail "the PDF preview in the image is not the viewer"
 curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/pdfjs/pdf.worker.min.mjs" || fail "the worker of pdf.js is not in the image"
 curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/pdfjs/LICENSES.txt" || fail "the licences of pdf.js are not in the image"
+# The text of images in the browser (ADR-24): the reader, Tesseract.js with its core, the language data and the licences.
+ocr="$(curl -fsS "${gate[@]}" "$base/assets/app/tesseract/ocr.mjs")" || fail "the reader of images is not in the image"
+[[ "$ocr" == *'tesseract.esm.min.js'* ]] || fail "the reader of images in the image is not the reader"
+for f in worker.min.js tesseract-core-simd-lstm.js tesseract-core-simd-lstm.wasm lang/deu.traineddata.gz lang/eng.traineddata.gz LICENSES.txt; do
+    curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/tesseract/$f" || fail "tesseract/$f is not in the image"
+done
 
 printf -- '---\nid: first\n---\n# Second, longer version\n' >"$notes/page.md"
 for _ in $(seq 1 40); do

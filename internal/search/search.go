@@ -20,11 +20,13 @@ import (
 	"time"
 )
 
-// Types of what is found. Sources of later milestones add theirs (table, list, database, file).
+// Types of what is found. Sources of later milestones add theirs (table, list, database).
 const (
 	TypePage       = "page"
 	TypeFolder     = "folder"
 	TypeCollection = "collection"
+	// TypeFile is a file of the view Files, or an attachment of a page, found by the text taken out of it (M-2).
+	TypeFile = "file"
 )
 
 // Everyone is the reader every signed-in account of a tenant counts as. A record that only some may read lists them as

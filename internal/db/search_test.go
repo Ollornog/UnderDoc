@@ -180,7 +180,7 @@ func TestSearchDocsKnowWhoReads(t *testing.T) {
 		!slices.Equal(docs[0].Readers, []string{search.ReaderAccount(anna.ID)}) {
 		t.Errorf("the cards of the quick notes are found, by their owner only: %+v %v", docs, err)
 	}
-	// What lies in the view Files has rights of its own (ADR-28): it is not searched through the rules of the documents.
+	// The folders of the view Files are places, not content: only its files are found, by their text (below).
 	files, err := db.CreateFolder(ctx, anna, "Kartenzahlung Dateien", notes[0].ID)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +189,7 @@ func TestSearchDocsKnowWhoReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	if docs, err := db.SearchSource().Docs(ctx, files.ID); err != nil || len(docs) != 0 {
-		t.Errorf("the view Files is not indexed as documents: %v %v", docs, err)
+		t.Errorf("a folder of the view Files has no records: %v %v", docs, err)
 	}
 	if hits, _ := db.SearchTitles(ctx, "Kartenzahlung Dateien", anna.ID, nil, 10); len(hits) != 0 {
 		t.Errorf("nor found by its title: %v", hits)
@@ -238,5 +238,118 @@ func TestSearchTitles(t *testing.T) {
 	}
 	if hits, _ := db.SearchTitles(ctx, "Kartenzahlung", bob.ID, []string{"kasse", "rack"}, 10); len(hits) != 0 {
 		t.Errorf("every tag must be there: %v", hits)
+	}
+}
+
+func TestFilesAreFoundByTheirText(t *testing.T) {
+	ctx := inMain()
+	db := open(t)
+	if err := db.EnsureRoots(ctx, anna, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	mine := rootOfRole(t, db, anna.ID, RootUser)
+	claimAll(t, db)
+	done := upload(t, db, anna.ID, UploadTarget{Parent: mine.ID}, "Wartung.pdf", 10, sha(41))
+	if got := claimAll(t, db); !slices.Contains(got, done.File.ID) {
+		t.Errorf("a new file queues itself: %v", got)
+	}
+	keys, err := db.SearchSource().Keys(ctx)
+	if err != nil || !slices.Contains(keys, done.File.ID) || slices.Contains(keys, mine.ID) {
+		t.Errorf("a rebuild takes the files, not their roots: %v %v", keys, err)
+	}
+	docs, err := db.SearchSource().Docs(ctx, done.File.ID)
+	if err != nil || len(docs) != 1 || docs[0].Type != search.TypeFile || docs[0].Title != "Wartung.pdf" || docs[0].Body != "" {
+		t.Fatalf("before its text is read a file is found by its name: %+v %v", docs, err)
+	}
+	if !slices.Equal(docs[0].Readers, []string{search.ReaderAccount(anna.ID)}) || docs[0].Collection != mine.ID {
+		t.Errorf("the folder of a user is read by that user only: %+v", docs[0])
+	}
+
+	// The text read on the server reaches the index, and the file is queued when it arrives.
+	if err := db.QueueText(ctx, sha(41), "application/pdf", anna.ID, "server"); err != nil {
+		t.Fatal(err)
+	}
+	job, err := db.ClaimTextJob(ctx, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := strings.Repeat("Pumpe ", 1600)
+	if err := db.FinishTextJob(ctx, job, "server", "Fehler E-2207 an der Schranke\n\nDanach "+long, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := claimAll(t, db); !slices.Equal(got, []string{done.File.ID}) {
+		t.Errorf("a text read later queues the file: %v", got)
+	}
+	docs, err = db.SearchSource().Docs(ctx, done.File.ID)
+	if err != nil || len(docs) != 2 || !strings.Contains(docs[0].Body, "E-2207") || docs[0].Origin != "server" || docs[1].Rank != 1 {
+		t.Fatalf("the text is found, split where it is long, and says where it came from: %d %v", len(docs), err)
+	}
+	// What the content says itself comes before what was seen in pixels.
+	if err := db.SaveFileText(ctx, done.File.ID, anna.ID, "ocr", "Fehler E-9999 erkannt"); err != nil {
+		t.Fatal(err)
+	}
+	if docs, _ := db.SearchSource().Docs(ctx, done.File.ID); strings.Contains(docs[0].Body, "E-9999") {
+		t.Errorf("recognised text does not push out the text of the content: %q", docs[0].Body)
+	}
+
+	// A new version is the file as it is now: its text, not the old one.
+	claimAll(t, db)
+	upload(t, db, anna.ID, UploadTarget{File: done.File.ID}, "Wartung.pdf", 11, sha(42))
+	if got := claimAll(t, db); !slices.Contains(got, done.File.ID) {
+		t.Errorf("a new version queues the file: %v", got)
+	}
+	if docs, _ := db.SearchSource().Docs(ctx, done.File.ID); len(docs) != 1 || docs[0].Body != "" {
+		t.Errorf("the text of an old version is not found: %+v", docs)
+	}
+	// A version made any other way than by an upload, which also touches the file, still queues it.
+	if _, err := db.pool.Exec(ctx, `INSERT INTO file_versions (file, number, blob, size, name, content_type, author)
+		SELECT file, number + 1, $2, size, name, content_type, author FROM file_versions WHERE file = $1 ORDER BY number DESC LIMIT 1`,
+		done.File.ID, sha(41)); err != nil {
+		t.Fatal(err)
+	}
+	if got := claimAll(t, db); !slices.Equal(got, []string{done.File.ID}) {
+		t.Errorf("a version made by hand queues its file: %v", got)
+	}
+	if docs, _ := db.SearchSource().Docs(ctx, done.File.ID); !strings.Contains(docs[0].Body, "E-2207") {
+		t.Errorf("back on the first content, its text is found again: %+v", docs)
+	}
+	if err := db.Delete(ctx, done.File.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	if docs, err := db.SearchSource().Docs(ctx, done.File.ID); err != nil || len(docs) != 0 {
+		t.Errorf("a file in the trash is not found: %v %v", docs, err)
+	}
+
+	// An attachment is found by its text and opens its page at the block that shows it; bob reads the page, so he finds it.
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
+	db.AddBlock(ctx, page.ID, anna.ID, "", "Vorne")
+	scan := upload(t, db, anna.ID, UploadTarget{Page: page.ID}, "scan.png", 12, sha(43))
+	block, err := db.AddBlock(ctx, page.ID, anna.ID, "", "![scan]("+AttachmentPath(page.ID, scan.Attachment)+")")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimAll(t, db)
+	if err := db.QueueText(ctx, sha(43), "image/png", anna.ID, "server"); err != nil {
+		t.Fatal(err)
+	}
+	job, _ = db.ClaimTextJob(ctx, time.Minute)
+	if err := db.FinishTextJob(ctx, job, "ocr", "Lieferschein 4711", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := claimAll(t, db); !slices.Equal(got, []string{page.ID}) {
+		t.Errorf("the text of an attachment queues its page: %v", got)
+	}
+	docs, err = db.SearchSource().Docs(ctx, page.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := docs[len(docs)-1]
+	if last.Type != search.TypeFile || last.Heading != "scan.png" || last.Anchor != block.ID || last.Object != page.ID ||
+		!strings.Contains(last.Body, "4711") || last.Origin != "ocr" || !slices.Equal(last.Readers, []string{search.Everyone}) {
+		t.Errorf("the attachment is a record of its page: %+v", last)
+	}
+	if docs[0].Type != search.TypePage {
+		t.Errorf("the page itself comes first: %+v", docs[0])
 	}
 }

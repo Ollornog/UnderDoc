@@ -5,6 +5,8 @@
 __pycache__/
 /web/editor/node_modules/
 /web/pdfjs/node_modules/
+/web/tesseract/node_modules/
 # Built from web/* by scripts/build-js.sh (ADR-21), never committed.
 /internal/web/assets/app/editor/
 /internal/web/assets/app/pdfjs/
+/internal/web/assets/app/tesseract/

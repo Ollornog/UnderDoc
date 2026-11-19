@@ -395,3 +395,37 @@ func TestImagesInTheEditor(t *testing.T) {
 		t.Fatalf("the file is not in my files: %q", b.eval(fileRows))
 	}
 }
+
+// An image uploaded is read in the same browser with Tesseract.js (ADR-24): the words in it become the text of the file,
+// and everything comes from UnderDoc itself, the language data too. The image is drawn by the browser, so its letters are
+// what a scan of a printed page looks like.
+func TestTextOfAnImageInTheBrowser(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	drawn := b.eval(`(() => { const c = document.createElement('canvas'); c.width = 900; c.height = 200;
+		const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#000';
+		g.font = '48px sans-serif'; g.fillText('Lieferschein 4711', 30, 80); g.fillText('Größe und Gewicht', 30, 160);
+		return c.toDataURL('image/png').split(',')[1]; })()`)
+	png, err := base64.StdEncoding.DecodeString(drawn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.openMyFiles()
+	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "lieferschein.png", png))
+	b.filesSettled()
+	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "lieferschein.png"), 1)
+	b.ready("lieferschein.png")
+	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'lieferschein.png' && D[k].sid)].sid;
+		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
+	read := `JSON.parse(` + textOf + `).some(t => t.source === 'browser' && t.text.includes('Lieferschein 4711') && t.text.includes('Größe'))`
+	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline) && b.eval(read) != "true"; {
+		time.Sleep(200 * time.Millisecond)
+	}
+	if b.eval(read) != "true" {
+		t.Fatalf("the browser read no text, or the wrong one: %s", b.eval(textOf))
+	}
+	if got := b.eval(`performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin)).join(' ')`); got != "" {
+		t.Errorf("loaded from elsewhere: %s", got)
+	}
+}

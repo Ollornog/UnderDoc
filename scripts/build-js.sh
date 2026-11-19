@@ -23,6 +23,7 @@ trap 'rm -rf -- "$fresh"' EXIT
 packages=(
     "web/editor internal/web/assets/app/editor"
     "web/pdfjs internal/web/assets/app/pdfjs"
+    "web/tesseract internal/web/assets/app/tesseract"
 )
 for entry in "${packages[@]}"; do
     read -r dir bundle <<<"$entry"

@@ -99,15 +99,8 @@ func (h *handler) apiPutFileText(w http.ResponseWriter, r *http.Request) {
 		h.failed(w, err, "file text")
 		return
 	}
-	h.textChanged(r.Context(), r.PathValue("id"))
+	// The search learns of the text from the database itself (migration 020): the file goes into its queue.
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// textChanged tells the search that the text of files changed (Options.TextChanged).
-func (h *handler) textChanged(ctx context.Context, fileIDs ...string) {
-	if h.options.TextChanged != nil {
-		h.options.TextChanged(ctx, fileIDs)
-	}
 }
 
 // apiTextSettings tells which ways are on: what the hoster allows, what the tenant and the user set, and what holds.

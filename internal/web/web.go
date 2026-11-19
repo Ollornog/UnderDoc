@@ -92,8 +92,6 @@ type Options struct {
 	TextWays db.Ways
 	// OCR reads the text of images on the server, as part of its way, and AIOCR through a model (M-13); nil for none.
 	OCR, AIOCR files.OCR
-	// TextChanged tells the search that the text of these files changed; nil until the search takes it.
-	TextChanged func(ctx context.Context, fileIDs []string)
 	// Search answers /api/search when there is a database (ADR-24). Without it, the folder is searched in memory.
 	Search *search.Service
 }
@@ -434,8 +432,14 @@ func hashAssets() (string, error) {
 // staticAssets lets the browser keep an asset for a year when its URL names the version of this release (?v=…): the URL
 // changes with every release, so nothing stale is kept, and the editor, once loaded, comes from the cache (2026-11-09).
 // Without the current version a day.
+//
+// The worker of Tesseract.js is the one script that may compile WebAssembly (ocrWorkerCSP): a dedicated worker takes the
+// policy of its own script, so the pages keep theirs.
 func staticAssets(version string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == ocrWorker {
+			w.Header().Set("Content-Security-Policy", ocrWorkerCSP)
+		}
 		if version != "" && r.URL.Query().Get("v") == version {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else {

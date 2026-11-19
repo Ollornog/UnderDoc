@@ -16,6 +16,13 @@ import (
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
+// ocrWorkerCSP is the policy of the worker of Tesseract.js, which reads the text of images in the browser (ADR-24): it may
+// load the core from UnderDoc, compile its WebAssembly and fetch the language data from UnderDoc, and nothing else.
+const ocrWorkerCSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'"
+
+// ocrWorker is the path of that worker below /assets/.
+const ocrWorker = "app/tesseract/worker.min.js"
+
 // imageCSP is for images opened directly. An SVG is a document that can carry scripts, so it runs sandboxed, and its
 // own styles stay allowed because the logo needs them.
 const imageCSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"

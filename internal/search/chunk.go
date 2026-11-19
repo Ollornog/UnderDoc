@@ -53,6 +53,20 @@ func BlockParts(blocks []Block) []Part {
 	return parts
 }
 
+// TextParts turns plain text, such as the text taken out of a file (M-2), into parts: one per paragraph, a paragraph
+// ending at an empty line, all with the same anchor. The text has no headings, so Sections only splits it where it is long.
+func TextParts(text, anchor string) []Part {
+	var parts []Part
+	for _, paragraph := range paragraphBreak.Split(text, -1) {
+		if line := strings.Join(strings.Fields(paragraph), " "); line != "" {
+			parts = append(parts, Part{Anchor: anchor, Piece: markdown.Piece{Kind: "paragraph", Text: line}})
+		}
+	}
+	return parts
+}
+
+var paragraphBreak = regexp.MustCompile(`\n[ \t\r\f\v]*\n`)
+
 // Block is a block of a page of the database: its ID and its Markdown.
 type Block struct {
 	ID   string
