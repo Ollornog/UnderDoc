@@ -38,6 +38,11 @@ All notable changes to this project are documented in this file. The format foll
   files together), the modules they may use and domains of their own. It sees counts, never content. Limits hold for
   every way an account, a block or a file comes in.
 
+### Changed
+
+- The storage a tenant uses is a counter that triggers keep (migration 021), no longer summed over every block and file
+  on each write; what each tenant used before is counted once by the migration.
+
 ### Fixed
 
 - A page that went into the trash while one of its parts got a new master brought the part back a second time when it
