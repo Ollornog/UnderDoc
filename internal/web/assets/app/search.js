@@ -143,7 +143,7 @@ const udSearch=(()=>{
     const re=new RegExp([...words].sort((a,b)=>b.length-a.length).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'gi');
     nodes.forEach(root=>{const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),texts=[];while(tw.nextNode())if(!tw.currentNode.parentElement.closest('mark,button'))texts.push(tw.currentNode);
       texts.forEach(n=>{const s=n.nodeValue;re.lastIndex=0;if(!re.test(s))return;re.lastIndex=0;const f=document.createDocumentFragment();let last=0,m;
-        while((m=re.exec(s))){f.append(s.slice(last,m.index));const k=document.createElement('mark');k.className='hitmark';k.textContent=m[0];f.append(k);last=m.index+m[0].length;}
+        while((m=re.exec(s))){f.append(s.slice(last,m.index));const k=document.createElement('mark');k.className='hitmark cur';k.textContent=m[0];f.append(k);last=m.index+m[0].length;}
         f.append(s.slice(last));n.replaceWith(f);});});
   }
   function after(){

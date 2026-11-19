@@ -44,6 +44,13 @@ All notable changes to this project are documented in this file. The format foll
   on each write; what each tenant used before is counted once by the migration.
 - The CI runs Meilisearch and OpenSearch as services of its job (also started by ci-local); the hygiene test holds their
   images to the pins of `scripts/search/Dockerfile.*`.
+- C22 vendored from 0508dbf (C22 #126, #127), which takes over the rules UnderDoc had kept
+  "until C22 has them" (ADR-22): the question before something in use goes (`.wayspop`, `.wayitem`, `.wayrow`,
+  `.waysame`), a part in running text and its boundary while reading and in the editor (`.partedge`, `.partlabel`,
+  `.cm-ud-part`), and the note where something embedded was removed, with its chips. They are gone from the editor's
+  stylesheet. The preview of a file sits in C22's frame (`figure.preview`), an upload shows C22's bar
+  (`progress.progress`), and the place a search jumped to is C22's current mark (`mark.cur`). The class check now also
+  covers these classes, which the script and the editor draw.
 
 ### Fixed
 

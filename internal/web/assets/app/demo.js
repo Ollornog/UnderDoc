@@ -2041,7 +2041,7 @@ function filesNav3(){
   const rows=d.entries.map(e=>{const t=at(S.focus),key=SID[e.id],sel=t&&key&&t.d===key;
     return e.t==='file'?`<li><div class="row${sel?' cur':''}" data-frow="${e.id}"><button class="arrow none" aria-hidden="true" tabindex="-1">${ic('chev')}</button><button class="name" data-act="fopen" data-id="${e.id}" title="${esc(e.n)}">${ic('page')}<span>${esc(e.n)}</span></button><span class="count" title="${e.versions} versions">${fsize(e.size)}</span></div></li>`
       :`<li><div class="row" data-frow="${e.id}"><button class="arrow" data-act="fdir" data-id="${e.id}" aria-label="Open ${esc(e.n)}">${ic('chev')}</button><button class="name" data-act="fdir" data-id="${e.id}" title="${esc(e.n)}">${ic('folder')}<span>${esc(e.n)}</span></button></div></li>`;}).join('');
-  const ups=FS.ups.filter(u=>u.dir===cur).map(u=>`<li class="lab" data-fup="${esc(u.name)}"><small>${esc(u.name)}</small> <progress max="${u.size||1}" value="${u.done}"></progress> <small>${u.err?esc(u.err):u.state}</small></li>`).join('');
+  const ups=FS.ups.filter(u=>u.dir===cur).map(u=>`<li class="lab" data-fup="${esc(u.name)}"><small>${esc(u.name)}</small> <progress class="progress" max="${u.size||1}" value="${u.done}"></progress> <small>${u.err?esc(u.err):u.state}</small></li>`).join('');
   const tools=d.canEdit?`<div class="tagrow"><button class="chip" data-act="fup" data-id="${cur}">${ic('plus')} Upload</button><button class="chip" data-act="fnewdir" data-id="${cur}">${ic('folder')} New folder</button></div>
     <input type="file" multiple hidden data-fpick="${cur}" aria-label="Files to upload">`:`<p class="hint">${r.role==='tenant'?'Everyone reads this folder; its writers change it.':'You may only read here.'}</p>`;
   const form=FS.form===cur?`<form data-fform="dir" data-id="${cur}"><input name="title" value="New folder" data-keep="fdir:${cur}" aria-label="Name of the folder" required maxlength="200"><button class="chip" type="submit">Make</button></form>`:'';
@@ -2057,9 +2057,10 @@ async function showFile(sid){
   D[key].sid=sid;openDoc(key);render();
   let f;try{f=await fget('/api/files/'+encodeURIComponent(sid));}catch(e){D[key].html='<p class="lab">This file could not be loaded.</p>';render();return;}
   const url=f.content,dl=url+'?download=1';
-  const preview=f.preview==='image'?`<a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a>`
-    :f.preview==='pdf'?`<div data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></div>`
-    :f.preview==='video'?`<video src="${url}" controls preload="metadata"></video>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
+  /* The preview sits in C22's frame (figure.preview): never wider than the window, on a quiet ground. */
+  const preview=f.preview==='image'?`<figure class="preview"><a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a></figure>`
+    :f.preview==='pdf'?`<figure class="preview" data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></figure>`
+    :f.preview==='video'?`<figure class="preview"><video src="${url}" controls preload="metadata"></video></figure>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
   Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
     html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
