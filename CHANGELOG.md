@@ -83,6 +83,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The time tracking runs EightPerDay `de9f1ea` (was `338593b`): hours of half a day (`4v`, `4n`) and half a day of
+  leave next to work, pay for half days, and standby with its pay and as working time
+  ([docs/time-tracking.md](docs/time-tracking.md)). The embedding stays as it was.
 - The access log names the address of a share link or an invitation without its token.
 
 - The level for all others of ADR-20 is now the role of the whole tenant (migration 022): a narrower level below breaks
