@@ -193,6 +193,10 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("DELETE /api/groups/{id}", h.apiDeleteGroup)
 	mux.HandleFunc("GET /api/groups/{id}/members", h.apiGroupMembers)
 	mux.HandleFunc("PUT /api/groups/{id}/members/{account}", h.apiSetMember)
+	mux.HandleFunc("GET /api/rights/check", h.apiCheck)
+	mux.HandleFunc("GET /api/rights/held", h.apiHeld)
+	mux.HandleFunc("GET /api/users", h.apiUsers)
+	mux.HandleFunc("PUT /api/users/{id}/admin", h.apiSetAdmin)
 	// Share links (ADR-29): made and listed in the workspace, opened at /s/<token> without signing in.
 	mux.HandleFunc("GET /api/objects/{id}/shareables", h.apiShareables)
 	mux.HandleFunc("POST /api/objects/{id}/links", h.apiCreateLink)

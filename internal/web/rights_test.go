@@ -6,11 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
@@ -138,5 +141,134 @@ func TestRightsThroughTheAPI(t *testing.T) {
 	}
 	if got := s.send(http.MethodDelete, "/api/groups/"+board.ID, "", sameSite).Code; got != http.StatusNoContent {
 		t.Errorf("delete = %d", got)
+	}
+}
+
+// adminSite is a site where Anna administers through the group of her gate headers.
+func adminSite(t *testing.T) (*site, *db.DB) {
+	t.Helper()
+	database, err := db.Open(context.Background(), pgtest.URL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(database.Close)
+	behindGate(t, database, tenant.Main)
+	return newSite(t, Options{DB: database, AdminGroup: "underdoc-admins"}, sample), database
+}
+
+// TestCommentingWithoutEditing: the role comment adds comments, on the whole page and on one block, and changes nothing
+// (ADR-29, ADR-18).
+func TestCommentingWithoutEditing(t *testing.T) {
+	s := withDatabase(t)
+	s.send(http.MethodGet, "/api/state", "", plain)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
+	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
+	s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"The plan."}`, sameSite)
+	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/comments", `{"body":"before","block":"b1"}`, plain).Code; got != http.StatusForbidden {
+		t.Fatalf("reading only, no comment: %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"u-bob","role":"comment"}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("grant = %d", got)
+	}
+	doc := decode[apiDocument](t, s.send(http.MethodGet, "/api/doc/"+page.ID, "", plain))
+	if !doc.CanComment || doc.CanEdit {
+		t.Errorf("bob comments and does not edit: %+v", doc)
+	}
+	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/comments", `{"body":"on the block","block":"b1"}`, plain).Code; got != http.StatusCreated {
+		t.Errorf("a comment on a block = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/pages/"+page.ID+"/blocks/b1", `{"md":"changed"}`, plain).Code; got != http.StatusForbidden {
+		t.Errorf("bob edits = %d", got)
+	}
+	if !slices.Contains(doc.SeenBy, "Bob (comment)") || !slices.Contains(doc.SeenBy, "everyone (read)") || !slices.Contains(doc.SeenBy, "Anna Berg (owner)") {
+		t.Errorf("the facts name who sees it: %v", doc.SeenBy)
+	}
+}
+
+// TestTheAccessCheck: what may X do and who sees Y, for administrators about anyone and for everyone about themselves.
+func TestTheAccessCheck(t *testing.T) {
+	s, _ := adminSite(t)
+	s.send(http.MethodGet, "/api/state", "", plain)
+	s.send(http.MethodGet, "/api/state", "", carlOf)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"u-bob","role":"manage"}`, sameSite)
+	check := decode[struct {
+		Role    string      `json:"role"`
+		Reasons []apiReason `json:"reasons"`
+	}](t, s.get("/api/rights/check?object="+team.ID+"&account=u-bob"))
+	if check.Role != "manage" || len(check.Reasons) != 2 {
+		t.Errorf("bob manages Team, as a person, and edits as everyone: %+v", check)
+	}
+	held := decode[[]apiHeld](t, s.get("/api/rights/held?account=u-bob"))
+	if len(held) != 2 {
+		t.Errorf("what bob holds: %+v", held)
+	}
+	if got := s.send(http.MethodGet, "/api/rights/held?account=u-carl", "", plain).Code; got != http.StatusForbidden {
+		t.Errorf("bob asks about carl = %d", got)
+	}
+	if got := s.send(http.MethodGet, "/api/rights/held", "", plain).Code; got != http.StatusOK {
+		t.Errorf("bob asks about himself = %d", got)
+	}
+	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=u-carl", "", carlOf).Code; got != http.StatusOK {
+		t.Errorf("carl asks about himself = %d", got)
+	}
+	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=u-bob", "", carlOf).Code; got != http.StatusForbidden {
+		t.Errorf("carl, who only edits Team, asks about bob = %d", got)
+	}
+	if got := s.send(http.MethodGet, "/api/users", "", plain).Code; got != http.StatusForbidden {
+		t.Errorf("bob lists the users = %d", got)
+	}
+}
+
+// TestTakingBackAnAdministratorThroughTheAPI: taken back, a local administrator stops administering the organization of
+// the time tracking at once (ADR-29).
+func TestTakingBackAnAdministratorThroughTheAPI(t *testing.T) {
+	s, database := adminSite(t)
+	ctx := tenant.With(context.Background(), tenant.Main)
+	if err := database.SetTenantModules(ctx, []string{module.Documents, module.Time}); err != nil {
+		t.Fatal(err)
+	}
+	hash := []byte(strings.Repeat("d", 32))
+	if err := database.CreateInvite(ctx, hash, db.Invite{Login: "dora", Name: "Dora", Admin: true, Expires: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	dora, err := database.AcceptInvite(ctx, hash, db.NewLocal{PasswordHash: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.MapTenant(ctx, dora.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	orgAdmin := func() bool {
+		ms, err := database.TimeStore().Memberships(ctx, tenant.Main, db.Person(dora.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range ms {
+			if m.Role == "admin" && m.Until.IsZero() {
+				return true
+			}
+		}
+		return false
+	}
+	if !orgAdmin() {
+		t.Fatal("dora administers the organization")
+	}
+	users := decode[[]apiAccount](t, s.get("/api/users"))
+	if len(users) != 2 {
+		t.Errorf("the users: %+v", users)
+	}
+	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, plain).Code; got != http.StatusForbidden {
+		t.Errorf("bob takes it back = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/users/u-7/admin", `{"admin":false}`, sameSite).Code; got != http.StatusConflict {
+		t.Errorf("anna is an administrator through her group = %d", got)
+	}
+	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("take back = %d", got)
+	}
+	if orgAdmin() {
+		t.Error("dora still administers the organization")
 	}
 }

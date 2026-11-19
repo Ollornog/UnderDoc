@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -338,5 +340,53 @@ func TestReadersFollowTheRoles(t *testing.T) {
 	var got []string
 	if err := db.pool.QueryRow(ctx, "SELECT object_readers($1)", notes[0].ID).Scan(&got); err != nil || !slices.Equal(got, []string{"account:" + anna.ID}) {
 		t.Errorf("private notes are read by their owner alone: %v %v", got, err)
+	}
+}
+
+// TestTakingBackAnAdministrator: an administrator makes a local account an administrator and takes that back again; the
+// nobody takes their own away, so a tenant keeps one, and accounts of the gate are administrators by their group.
+func TestTakingBackAnAdministrator(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	local := func(login string, admin bool) Account {
+		hash := []byte(login + strings.Repeat("x", 32-len(login)))
+		if err := db.CreateInvite(ctx, hash, Invite{Login: login, Name: login, Admin: admin, Expires: time.Now().Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		a, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	dora, eve := local("dora", true), local("eve", false)
+	boss := Actor{ID: dora.ID, Admin: true}
+	if err := db.SetAdmin(ctx, Actor{ID: eve.ID}, dora.ID, false); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("eve does not administer: %v", err)
+	}
+	if err := db.SetAdmin(ctx, boss, dora.ID, false); !errors.Is(err, ErrLastAdmin) {
+		t.Errorf("dora takes her own away: %v", err)
+	}
+	if err := db.SetAdmin(ctx, boss, anna.ID, true); !errors.Is(err, ErrSource) {
+		t.Errorf("anna comes through the gate: %v", err)
+	}
+	if err := db.SetAdmin(ctx, boss, eve.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := db.AccountByID(ctx, eve.ID); !a.Admin {
+		t.Error("eve administers now")
+	}
+	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, dora.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := db.AccountByID(ctx, dora.ID); a.Admin {
+		t.Error("dora no longer administers")
+	}
+	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, eve.ID, false); !errors.Is(err, ErrLastAdmin) {
+		t.Errorf("eve takes her own away: %v", err)
+	}
+	people, err := db.Everyone(ctx)
+	if err != nil || len(people) != 4 {
+		t.Errorf("everyone: %+v %v", people, err)
 	}
 }

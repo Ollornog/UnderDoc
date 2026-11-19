@@ -127,11 +127,12 @@ function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tag
   get stat(){return `${this.kids.length} entries`;},
   /* The overview holds the settings of the collection too, for whoever may change them (the maintainer, 2026-11-09). */
   get html(){const ac=accOf(id),may=this.db?ac==='edit'||!!this.mine:!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
-    const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[othersOf(id)].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
+    const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[othersOf(id)].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}${this.db&&!this.private?'':`<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd>`}<dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
     const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
       <div class="slab">Others can</div><span class="seg" role="group">${(top?[]:[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?'edit':'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
       <p class="hint">Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this.</p>`:'';
-    return facts+set+(this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>');}};}
+    const rights=this.db?`<p><button class="chip" data-act="rights" data-id="${id}">Rights and sharing</button></p>`:'';
+    return facts+rights+set+(this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>');}};}
 /* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
 function asTop(c){Object.defineProperty(c,'n',{get(){return D[c.id].n;},set(v){D[c.id].n=v;},configurable:true,enumerable:true});Object.defineProperty(c,'top',{get(){return D[c.id].kids;},configurable:true,enumerable:true});return c;}
 C.forEach(c=>{const n=c.n,top=c.top;delete c.n;delete c.top;collDoc(c.id,n,top,c.i);asTop(c);});
@@ -161,7 +162,7 @@ const plain=h=>{const e=document.createElement('div');e.innerHTML=h;return e.tex
 const phone=()=>matchMedia('(max-width: 760px)').matches;
 const W3=300;
 const newTab=(d,general=false)=>({d,general,top:0,fly:false,gear:false,cmt:false,find:false,q:'',cur:0,src:false});
-const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',addIn:null,just:null,prof:false,filters:false,newN:0,
+const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin:false},view:'workspace',prev:'workspace',sec:{files:'share',resources:'values',rights:'groups',mail:'inbox',bookmarks:'bar',news:'all',profile:'acct',todo:'mine',cal:'all',time:'week',vac:'y26',notes:'quick'},landing:false,cq:'',addIn:null,just:null,prof:false,filters:false,newN:0,
   focus:0,rail:!phone(),limit:8,tog:{},treeTop:0,s1:0,s2:3,w3:W3,theme:'system',scale:100,first:false,clock:false,
   ctx:null,newAt:null,tmenu:null,hist:null,tlist:null,toast:'',aid:false,chat:[],into:'qn',tpls:[],
   fav:{ops:true,pro:true,me:true,arc:false},open:{ops:true,pro:true},pin:{ops:true},so:{todo:{mine:true},cal:{all:true},time:{week:true},vac:{y26:true},notes:{quick:true}},spin:{},mods:{mail:true,private:true,bookmarks:true,news:true,ai:true,network:true,lists:true,video:true,slides:true,notes:true},menu:null,
@@ -341,6 +342,8 @@ const SECTIONS={
   vac:()=>timeReal('vac')?[['tl','Leave planning','sun']]:[['y26','2026','sun'],['y27','2027','sun'],['plan','Plan a vacation','plus',1]],
   notes:()=>[...BOARDS.map(b=>[b.id,b.n,b.i]),['newboard','New board','plus',1]],
   resources:()=>RES.map(g=>[g.id,g.n,g.i]),
+  /* The tab Rights (ADR-29) is drawn by rights.js. */
+  rights:()=>window.UDRights?UDRights.SECTIONS:[],
   mail:()=>[['inbox','Inbox','mail'],['sent','Sent','send'],['archive','Archive','box']],
   bookmarks:()=>[...BM.map(f=>[f.id,f.n,f.i]),['import','Import','down',1]],
   news:()=>[...FEEDS.map(f=>[f.id,f.n,f.i]),['sub','Subscribe','plus',1]],
@@ -404,7 +407,7 @@ function factsHtml(d){
     (u.emb||[]).map(e=>`<li><small>${e.l}</small><span>${e.x}</span></li>`).join('');
   return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
     ${d.desc?`<dt>Description</dt><dd>${d.desc}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
-    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}<dt>Visible to</dt><dd>${d.vis}</dd></dl>${attachmentsHtml(d)}
+    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}${d.db&&d.owner?`<dt>Owner</dt><dd>${d.owner}</dd>`:''}<dt>Visible to</dt><dd data-seen-by>${d.vis}</dd></dl>${attachmentsHtml(d)}
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
     <h3>Versions</h3>${d.blocks?versionsHtml(d):`<ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`}`:''}
@@ -432,6 +435,7 @@ function gearHtml(t,i,hasSecs){
     ${d.db&&d.blocks?`<div class="setrow"><span>Template</span>${seg('settpl',['off','offered'],d.tpl?'offered':'off')}</div>`:''}
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[othersOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
+    ${d.db?`<div class="setrow"><span>People, groups and links</span><button class="chip" data-act="rights" data-id="${t.d}">Rights and sharing</button></div>`:''}
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
 }
@@ -649,6 +653,8 @@ function settingsHtml(sec){
 }
 const ADMINTXT={users:['Users and groups','Who exists, who is in which group, who may administer. Comes with M-5.'],src:['Sources','Connections to databases and other systems. Comes with M-4.'],store:['Storage and backup','Where documents lie, the share, the export. Comes with M-2.'],signin:['Sign-in','How people sign in. The gate in front decides today.'],audit:['Audit log','Who did what. Comes with M-2 and M-5.']};
 function adminHtml(sec){
+  /* Users and groups are the tab Rights (rights.js), shown here too for the administration in the profile (ADR-16, ADR-29). */
+  if(sec==='users'&&S.real&&window.UDRights) return UDRights.nav3('users',S.user)+UDRights.nav3('groups',S.user);
   if(sec==='signin') return `<div class="spanel"><div class="shead">Sign-in</div><p class="hint">How people sign in, who is invited, and who signed in.</p>${S.user.admin?'<a class="chip" href="/admin/sign-in">Open the sign-in settings</a>':''}</div>`;
   if(sec==='mods'&&!document.getElementById('root').hasAttribute('data-demo')) return `<div class="spanel"><div class="shead">Modules</div>${(S.modules||[]).map(m=>`<div class="modrow"><span>${esc(m.name)}<small>${esc(m.description)}</small></span><em>${m.on?'✓ On':'✗ Off'}</em></div>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched.</p>${S.user.admin?'<a class="chip" href="/admin/modules">Switch modules</a>':''}<a class="chip" href="/account/modules">Hide modules for me</a></div>`;
   if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;
@@ -715,6 +721,7 @@ function nav3Html(){
   const v=S.view,sec=S.sec[v];
   if(v==='workspace') return `<div class="tree" id="tree">${treeHtml()}</div>`;
   if(v==='search') return searchHtml();
+  if(v==='rights') return window.UDRights?UDRights.nav3(sec,S.user):'';
   if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
   if(timeReal(v)) return timeNav3(v);
   if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
@@ -750,7 +757,7 @@ function render(){
     <button class="ic newbtn" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${ic('plus')}</button>${solo()?`<button class="ic newbtn winbtn" data-act="winmenu" aria-expanded="${!!S.ctx&&S.ctx.kind==='win'}" aria-label="Window and tabs" title="Window and tabs: keep as a tab, a new column, opened before">${ic('win')}</button>`:''}${S.newAt==='bar'?newMenuHtml('bar'):''}</div>`;
   const n1=(v,n,i)=>navItem('view',v,n,i,S.view===v);
   const privs=S.mods.private?`<span class="sep"></span><span class="n1lab" title="Only you see this">${ic('lock')}<span class="lbl">Private</span></span>${PRIVV.filter(x=>!S.real||S.timeOn||!['time','vac'].includes(x[0])).map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
-  const strip=`<nav class="strip col s${ph?1:S.s1}" aria-label="Nav1"><div class="n1top">${n1('workspace','Workspace','panel')}${n1('files','Files','hd')}${n1('resources','Resources','db')}${S.mods.news?n1('news','News','globe'):''}${S.mods.mail?n1('mail','Mail','mail'):''}<span class="sep"></span>${n1('search','Search','search')}<span class="spacer"></span>${privs}</div><div class="n1bot"><span class="sep"></span>
+  const strip=`<nav class="strip col s${ph?1:S.s1}" aria-label="Nav1"><div class="n1top">${n1('workspace','Workspace','panel')}${n1('files','Files','hd')}${n1('resources','Resources','db')}${S.real&&window.UDRights?n1('rights','Rights','shield'):''}${S.mods.news?n1('news','News','globe'):''}${S.mods.mail?n1('mail','Mail','mail'):''}<span class="sep"></span>${n1('search','Search','search')}<span class="spacer"></span>${privs}</div><div class="n1bot"><span class="sep"></span>
     <button class="navitem" data-act="view" data-id="profile" aria-pressed="${S.view==='profile'}" title="Profile, settings and administration"><span class="avatar tiny">${esc(S.user.initials)}</span><span class="lbl">Profile</span></button></div><div class="grip" data-grip="1" role="separator" aria-orientation="vertical" aria-label="Width of nav1" tabindex="0" title="Drag: snaps to the next view"></div></nav>`;
   const prof='';
   const s2=ph?1:S.s2;
@@ -1020,6 +1027,7 @@ document.addEventListener('click',e=>{
     case 'hist':S.hist=hadHist===i?null:i;break;
     case 'tablist':S.tlist=hadTl===i?null:i;break;
     case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
+    case 'rights':if(window.UDRights&&D[a.id]&&D[a.id].db)UDRights.open(D[a.id].sid,D[a.id].n);return;
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
     case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
     case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
@@ -1354,7 +1362,7 @@ async function loadDoc(id){
     const a=await r.json();
     delete d.html;
     /* Names and texts from the server are escaped once, here; the rendered HTML of a page comes clean from the server. */
-    d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis='Everyone signed in';
+    d.doc={intro:a.intro,secs:a.secs.map(x=>[esc(x[0]),x[1]])};d.desc=esc(a.desc);d.tags=a.tags.map(esc);d.path=esc(a.path);d.ch=when(a.ch);d.by=d.by||'—';d.vis=a.seenBy?a.seenBy.map(esc).join(', '):'Everyone signed in';
     d.usedIn=a.usedIn.map(esc);d.uses={ext:[],int:a.links.map(esc),data:[],vals:[],db:[],emb:[]};d.loaded=true;
     /* What a page of the database embeds (M-3): a value by its name, everything else by its kind and where it lives. */
     (a.embeds||[]).forEach(e=>{const at=esc(e.title)+(e.ref.includes('#')?' #'+esc(e.ref.split('#')[1]):'');
@@ -2207,7 +2215,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.modules=st.modules||[];S.real=true;S.timeOn=S.modules.some(m=>m.id==='time'&&m.on&&!m.hidden);if(S.timeOn)timePseudos();S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
+    S.user=st.user;S.modules=st.modules||[];S.real=true;if(window.UDRights)UDRights.setup(render,S.user);S.timeOn=S.modules.some(m=>m.id==='time'&&m.on&&!m.hidden);if(S.timeOn)timePseudos();S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

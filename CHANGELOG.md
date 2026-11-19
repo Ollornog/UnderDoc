@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The rights in the workspace (ADR-29, M-5, [docs/rights.md](docs/rights.md)): the rights dialog of pages and
+  collections (owner and transfer, inheritance, roles for everyone, groups and persons, share links with the embedded
+  pages to release), owner and who sees a page in its facts panel, and the tab Rights in nav1 with groups, users, share
+  links and the access check ("what may someone do", "who sees something"); Users and groups in the administration of the
+  profile. Commenting without editing is a role of its own, on the whole page and on one block.
+- Taking back an administrator: an administrator makes a local account an administrator or takes that back, never their
+  own; whoever stops administering the tenant stops administering its organization in the time tracking where UnderDoc
+  made them do so.
+
 - Share links (ADR-29, M-5, [docs/rights.md](docs/rights.md)): whoever manages an object makes a link with a mode (read,
   upload only, comment, edit), an optional expiry and an optional password; only the hash of the token is kept. A page
   is shown frozen as it was when the link was made or renewed, with only the embedded pages its maker released; a file or

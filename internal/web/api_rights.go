@@ -3,9 +3,13 @@
 package web
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/module"
 )
 
 // The rights of ADR-29 through the API: roles on objects, inheritance, ownership and groups. Package db decides who may
@@ -278,6 +282,177 @@ func (h *handler) apiSetMember(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.failed(w, h.options.DB.SetMember(r.Context(), r.PathValue("id"), r.PathValue("account"), in.Member), "member") {
 		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// roleWords are the roles as the interface names them.
+var roleWords = map[string]string{db.RoleRead: "read", db.RoleComment: "comment", db.RoleEdit: "edit", db.RoleManage: "manage", db.RoleOwner: "owner"}
+
+// seenBy names who sees an object and with which role, the highest of each: the owner, the owners above, and every
+// grant on it and above it while it inherits (ADR-29). Private objects are seen by their owner only.
+func (h *handler) seenBy(r *http.Request, o db.Object) []string {
+	if o.Private {
+		return []string{"only you"}
+	}
+	rights, err := h.options.DB.RightsOf(r.Context(), o.ID, h.actor(r))
+	if err != nil {
+		h.log.Error("rights failed", slog.String("error", err.Error()))
+		return nil
+	}
+	if rights.Private {
+		return []string{"only " + rights.OwnerName}
+	}
+	type who struct{ kind, id, name string }
+	best := map[who]string{{db.ToPerson, rights.Owner, rights.OwnerName}: db.RoleOwner}
+	var order []who
+	order = append(order, who{db.ToPerson, rights.Owner, rights.OwnerName})
+	for _, g := range append(slices.Clone(rights.Own), rights.Inherited...) {
+		k := who{g.Kind, g.Who, g.Name}
+		if _, seen := best[k]; !seen {
+			order = append(order, k)
+		}
+		if db.Rank(g.Role) > db.Rank(best[k]) {
+			best[k] = g.Role
+		}
+	}
+	slices.SortStableFunc(order, func(a, b who) int {
+		rank := func(w who) int { return map[string]int{db.ToTenant: 0, db.ToGroup: 1, db.ToPerson: 2}[w.kind] }
+		return rank(a) - rank(b)
+	})
+	out := []string{}
+	for _, k := range order {
+		name := k.name
+		switch k.kind {
+		case db.ToTenant:
+			name = "everyone"
+		case db.ToGroup:
+			name = "group " + k.name
+		}
+		out = append(out, name+" ("+roleWords[best[k]]+")")
+	}
+	return out
+}
+
+type apiReason struct {
+	Object string `json:"object"`
+	Title  string `json:"title"`
+	Via    string `json:"via"`
+	Name   string `json:"name,omitempty"`
+	Role   string `json:"role"`
+}
+
+// apiCheck answers the access check "what may X do with Y": the role of an account on an object, and why.
+func (h *handler) apiCheck(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	actor := h.actor(r)
+	accountID := r.URL.Query().Get("account")
+	if accountID == "" {
+		accountID = actor.ID
+	}
+	role, reasons, err := h.options.DB.Explain(r.Context(), r.URL.Query().Get("object"), actor, accountID)
+	if h.failed(w, err, "check") {
+		return
+	}
+	out := struct {
+		Role    string      `json:"role"`
+		Reasons []apiReason `json:"reasons"`
+	}{Role: role, Reasons: []apiReason{}}
+	for _, x := range reasons {
+		out.Reasons = append(out.Reasons, apiReason{Object: x.Object, Title: x.Title, Via: x.Via, Name: x.Name, Role: x.Role})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type apiHeld struct {
+	Object string `json:"object"`
+	Title  string `json:"title"`
+	Kind   string `json:"kind"`
+	Area   string `json:"area"`
+	Via    string `json:"via"`
+	Name   string `json:"name,omitempty"`
+	Role   string `json:"role"`
+}
+
+// apiHeld answers "what may X do": where an account holds a role of its own, through a group or as the tenant.
+func (h *handler) apiHeld(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	actor := h.actor(r)
+	accountID := r.URL.Query().Get("account")
+	if accountID == "" {
+		accountID = actor.ID
+	}
+	held, err := h.options.DB.HeldBy(r.Context(), actor, accountID)
+	if h.failed(w, err, "held") {
+		return
+	}
+	out := []apiHeld{}
+	for _, x := range held {
+		out = append(out, apiHeld{Object: x.Object, Title: x.Title, Kind: x.Kind, Area: x.Area, Via: x.Via, Name: x.Name, Role: x.Role})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type apiAccount struct {
+	ID     string   `json:"id"`
+	Login  string   `json:"login"`
+	Name   string   `json:"name"`
+	Source string   `json:"source"`
+	Admin  bool     `json:"admin"`
+	Groups []string `json:"groups"`
+}
+
+// apiUsers lists the accounts of the tenant for the administration of users; only administrators see it.
+func (h *handler) apiUsers(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	if !h.adminAPI(w, r) {
+		return
+	}
+	everyone, err := h.options.DB.Everyone(r.Context())
+	if h.failed(w, err, "users") {
+		return
+	}
+	out := []apiAccount{}
+	for _, u := range everyone {
+		out = append(out, apiAccount{ID: u.ID, Login: u.Login, Name: u.Name, Source: u.Source, Admin: u.Admin, Groups: u.Groups})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// apiSetAdmin makes a local account an administrator or takes that back. Whoever stops administering the tenant stops
+// administering its organization in the time tracking at once, where UnderDoc made them do so (ADR-29).
+func (h *handler) apiSetAdmin(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Admin bool `json:"admin"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok || !h.adminAPI(w, r) {
+		return
+	}
+	accountID := r.PathValue("id")
+	err := h.options.DB.SetAdmin(r.Context(), h.actor(r), accountID, in.Admin)
+	switch {
+	case errors.Is(err, db.ErrSource):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this account is an administrator through its group at the sign-in"})
+		return
+	case errors.Is(err, db.ErrLastAdmin):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	case h.failed(w, err, "admin"):
+		return
+	}
+	if !in.Admin && h.moduleOn(r.Context(), module.Time) {
+		if err := h.options.DB.MapTenant(r.Context(), accountID, false); err != nil {
+			h.log.Error("time tracking: administrator not taken back", slog.String("error", err.Error()))
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

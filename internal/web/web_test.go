@@ -429,6 +429,10 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		"cm-ud-partlabel", "preview", "progress", "cur"} {
 		used[class] = "the workspace script and the editor (demo.js, parts.js, search.js, web/editor)"
 	}
+	// The tab Rights and the rights dialog (rights.js, ADR-29); the dialog lies outside the workspace, so it takes C22's own.
+	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "chip", "flex", "font-medium", "gap-2", "grid", "grid-cols-2", "hint", "input", "input-group", "items-center", "lab", "label", "max-h-[420px]", "modrow", "mt-2", "mt-3", "overflow-y-auto", "pad", "select", "shead", "spanel", "table", "text-muted-foreground", "text-sm"} {
+		used[class] = "the tab Rights and the rights dialog (rights.js)"
+	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
 	if err != nil || len(files) == 0 {

@@ -42,6 +42,32 @@ Administrators of the tenant ([sign-in.md](sign-in.md)) **manage rights, not con
 every object that is not private, break and restore its inheritance and transfer its ownership, and they make local
 groups and manage their members. They read the content of an object only where they hold a role.
 
+## In the workspace
+
+- **Rights and sharing** in the settings of a page and in the overview of a collection opens the rights dialog: the
+  owner and the transfer of ownership, whether it takes the roles from above, the roles granted here (to everyone, a group
+  or a person, changed or taken back in place), what it inherits, and its share links with a form for a new one. Whoever
+  only reads sees the same, without the means to change it.
+- **The facts panel** of a page names its owner and who sees it with which role ("Visible to").
+- **The tab Rights** in nav1: **Groups** (administrators make local groups and take members in and out; groups from the
+  sign-in are marked and read only; everyone else sees the groups they belong to), **Users** (administrators see every
+  account with how it signs in and its groups, make a local account an administrator or take that back, and ask what an
+  account may do), **Share links** (administrators all of them, everyone else theirs and those on what they manage, each
+  revoked in place), and the **Access check** ("what may someone do": where an account holds a role of its own, through a
+  group or as everyone; "who sees something": the roles of an object, and the role of an account on it with why).
+- **The administration in the profile** shows Users and groups the same way (ADR-16).
+- **Taking back an administrator** works for local accounts, by another administrator, so a tenant always keeps one;
+  accounts of the gate or of OIDC administer through their group at the sign-in. Whoever stops administering the tenant
+  stops administering its organization in the time tracking where UnderDoc made them do so
+  ([time-tracking.md](time-tracking.md)).
+
+```text
+GET  /api/rights/check?object=<id>&account=<id>   the role of an account on an object, and why
+GET  /api/rights/held[?account=<id>]               where an account holds a role of its own
+GET  /api/users                                    administrators: every account with its source and administration
+PUT  /api/users/<id>/admin                         {"admin": false}   administrators, local accounts, not oneself
+```
+
 ## One check
 
 One function in the database, `object_role`, decides the role of an account on an object, and every query that lists, finds

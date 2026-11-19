@@ -144,8 +144,9 @@ func Organization(ctx context.Context) string {
 }
 
 // MapTenant keeps the organization of the tenant in the time tracking (M-3 of EightPerDay): it is there with the
-// tenant's name, and an account that administers the tenant administers it. It never takes a membership away: the
-// administrators of the organization change roles in the time tracking itself.
+// tenant's name, and an account that administers the tenant administers it. An account that no longer administers the
+// tenant stops administering the organization where this mapping made it do so; the administrators of the organization
+// change every other role in the time tracking itself.
 func (db *DB) MapTenant(ctx context.Context, accountID string, admin bool) error {
 	t, ok := tenant.From(ctx)
 	if !ok {
@@ -170,9 +171,6 @@ func (db *DB) MapTenant(ctx context.Context, accountID string, admin bool) error
 			return err
 		}
 	}
-	if !admin {
-		return nil
-	}
 	person := Person(accountID)
 	members, err := db.time.Memberships(ctx, t, person)
 	if err != nil {
@@ -183,9 +181,33 @@ func (db *DB) MapTenant(ctx context.Context, accountID string, admin bool) error
 		return err
 	}
 	today := core.DateIn(time.Now(), loc)
+	if !admin {
+		// Whoever stops administering the tenant stops administering the organization where UnderDoc made them do so
+		// (ADR-29); what the organization's own administrators gave them stays.
+		for _, m := range members {
+			if m.Role != core.RoleAdmin || !m.Active(today) || !strings.HasPrefix(m.ID, mappedAdmin(person)) {
+				continue
+			}
+			if m.From.Before(today) {
+				m.Until = today.AddDays(-1)
+			} else {
+				m.Role = core.RoleMember
+			}
+			if err := db.time.PutMembership(ctx, m); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if core.ActorFor(person, t, members, today).Admin {
 		return nil
 	}
-	return db.time.PutMembership(ctx, core.Membership{ID: core.NewID(), Organization: t, Person: person, Role: core.RoleAdmin,
-		From: today})
+	return db.time.PutMembership(ctx, core.Membership{ID: mappedAdmin(person) + strings.ReplaceAll(today.String(), "-", ""),
+		Organization: t, Person: person, Role: core.RoleAdmin, From: today})
+}
+
+// mappedAdmin is the start of the ID of an administrator's membership that UnderDoc made, so it can end it again.
+func mappedAdmin(person string) string {
+	sum := sha256.Sum256([]byte(person))
+	return "ud-admin-" + hex.EncodeToString(sum[:6]) + "-"
 }
