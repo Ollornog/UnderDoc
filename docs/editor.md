@@ -123,7 +123,8 @@ scrolling, and is faintly visible on touch screens). The handles of someone who 
 
 Real pages have long blocks: a whole section of an imported file is one. So the gap shows only the first lines of the
 held block, and the places around it stay in reach; held near the top or bottom edge of the page, the page scrolls by
-itself, and the block goes to places out of view. The places are measured anew as the page scrolls, as if the held block
+itself, and the block goes to places out of view. It scrolls by the time held, not by the frames drawn, so a busy
+browser gets as far in the same time. The places are measured anew as the page scrolls, as if the held block
 were not there. The press on a handle is the module's: it starts no selection of text and no drag of the browser. Before
 (2026-11-10), with text selected over the handle, the browser started its own drag of the selection and cancelled the
 pointer, and a long block could not be moved down past blocks out of view.

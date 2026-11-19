@@ -110,6 +110,8 @@ All notable changes to this project are documented in this file. The format foll
 
 - A page that went into the trash while one of its parts got a new master brought the part back a second time when it
   was restored: the part now leaves the page in the trash, and the version says where it went.
+- A block held at the edge of a page scrolled it by the frames the browser drew, so a busy browser scrolled less in the
+  same time and the block landed short: it now scrolls by the time held.
 
 ### Added
 
