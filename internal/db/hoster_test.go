@@ -46,7 +46,7 @@ func TestLimitsHold(t *testing.T) {
 	if _, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"}); err != nil {
 		t.Errorf("with room again: %v", err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	p, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if _, err := db.AddBlock(ctx, p.ID, anna.ID, "", strings.Repeat("a", 30)); err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestTheStorageLimitCountsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	mine := rootOfRole(t, db, anna.ID, RootUser)
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	p, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if _, err := db.AddBlock(ctx, p.ID, anna.ID, "", strings.Repeat("a", 30)); err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestTheStorageCounterFollowsEveryWay(t *testing.T) {
 		if err := db.EnsureRoots(ctx, anna, false, ""); err != nil {
 			t.Fatal(err)
 		}
-		c, _ := db.CreateCollection(ctx, anna, "Things", "")
+		c, _ := db.createShared(ctx, anna, "Things")
 		p, _ := db.CreatePage(ctx, anna, "Plan", c.ID)
 		b1, err := db.AddBlock(ctx, p.ID, anna.ID, "", "Grüße, a first block")
 		if err != nil {

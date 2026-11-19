@@ -33,7 +33,7 @@ func unzip(t *testing.T, data []byte) map[string]string {
 
 func TestExportAsZip(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team: ops"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team: ops"}`, sameSite)
 	plan := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages/"+plan.ID+"/blocks", `{"md":"## Switches"}`, sameSite)
 	line := decode[apiNode](t, s.send(http.MethodPost, "/api/dividers", `{"kind":"line","parent":"`+team.ID+`","after":"`+plan.ID+`"}`, sameSite))

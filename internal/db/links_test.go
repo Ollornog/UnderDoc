@@ -19,7 +19,7 @@ func TestShareLinks(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if err := db.SetGrant(ctx, team.ID, Actor{ID: anna.ID}, ToTenant, "", RoleRead); err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestShareLinks(t *testing.T) {
 func TestFreeNames(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	for _, title := range []string{"plan.pdf", "Plan (2).pdf"} {
 		if _, err := db.CreatePage(ctx, anna, title, team.ID); err != nil {
 			t.Fatal(err)

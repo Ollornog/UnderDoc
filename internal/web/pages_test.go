@@ -13,7 +13,7 @@ import (
 
 func TestPagesThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	if got := s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
 		t.Errorf("a page from another site = %d", got)
 	}
@@ -95,7 +95,7 @@ func TestPagesFollowAccess(t *testing.T) {
 		t.Errorf("bob makes a page in Anna's notes: %d", got)
 	}
 
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	plan := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages/"+plan.ID+"/blocks", `{"md":"Text."}`, sameSite)
 	if doc := decode[apiDocument](t, s.getWith("/api/doc/"+plan.ID, asBob)); !doc.CanEdit {
@@ -110,7 +110,7 @@ func TestPagesFollowAccess(t *testing.T) {
 // where it is used, and what cannot be shown saying why.
 func TestEmbeddingThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(title string, blocks ...string) string {
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
 		after := ""
@@ -184,7 +184,7 @@ func TestEmbeddingThroughTheAPI(t *testing.T) {
 
 func TestMovingABlockThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	b1 := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"one"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"two","after":"`+b1.ID+`"}`, sameSite)
@@ -203,7 +203,7 @@ func TestMovingABlockThroughTheAPI(t *testing.T) {
 // source ran into.
 func TestTheListOfProblems(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(parent, title string, blocks ...string) string {
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+parent+`"}`, sameSite))
 		after := ""
@@ -275,7 +275,7 @@ func TestTheListOfProblems(t *testing.T) {
 
 func TestTagsThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/tags", `{"tags":["Network","#rack","network"]}`, sameSite)
 	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"tags":["network","rack"]`) {
@@ -308,7 +308,7 @@ func TestTagsThroughTheAPI(t *testing.T) {
 
 func TestViewThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	res := s.send(http.MethodPut, "/api/objects/"+p.ID+"/view", `{"width":"full"}`, sameSite)
 	if res.Code != http.StatusOK || res.Body.String() != `{"contents":"","width":"full"}`+"\n" {
@@ -343,7 +343,7 @@ func TestViewThroughTheAPI(t *testing.T) {
 
 func TestAlignThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	b := decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", `{"md":"Title","after":""}`, sameSite))
 	if got := s.send(http.MethodPut, "/api/pages/"+p.ID+"/blocks/"+b.ID+"/align", `{"align":"center"}`, sameSite).Code; got != http.StatusNoContent {
@@ -362,7 +362,7 @@ func TestAlignThroughTheAPI(t *testing.T) {
 
 func TestTemplatesThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	list := decode[[]apiTemplate](t, s.get("/api/templates"))
 	if len(list) < 2 || list[0].ID != "builtin:meeting" || len(list[0].Blocks) == 0 {
 		t.Fatalf("UnderDoc's own templates: %+v", list)

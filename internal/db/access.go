@@ -7,7 +7,9 @@ import "context"
 // SetAccess sets what the whole tenant may do with an object: edit, comment or read, or "" to take it from above again.
 // It is the level of ADR-20 expressed in the roles of ADR-29: a level narrower than the one above breaks the inheritance
 // (which copies what held from above) and grants the tenant that level; "" takes the tenant's grant away and restores
-// the inheritance, and at the top, where nothing is above, it means edit as in ADR-20. Whoever manages the object sets it, and an administrator; lines and spaces have no level.
+// the inheritance. At the top, where nothing is above, "" leaves the collection to its owner and whoever holds a role of
+// their own, as a new one is (ADR-29, 2026-11-19); until then it meant edit, as in ADR-20. Whoever manages the object
+// sets it, and an administrator; lines and spaces have no level.
 func (db *DB) SetAccess(ctx context.Context, objectID string, actor Actor, access string) (Object, error) {
 	switch access {
 	case "", RoleEdit, RoleComment, RoleRead:
@@ -17,10 +19,6 @@ func (db *DB) SetAccess(ctx context.Context, objectID string, actor Actor, acces
 	o, err := db.forRights(ctx, objectID, actor)
 	if err != nil {
 		return Object{}, err
-	}
-	if access == "" && o.Parent == "" {
-		// At the top nothing is above: "" means the default of ADR-20 there, edit.
-		access = RoleEdit
 	}
 	if access == "" {
 		if err := db.SetGrant(ctx, objectID, actor, ToTenant, "", RoleNone); err != nil {

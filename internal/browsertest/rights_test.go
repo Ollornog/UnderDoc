@@ -169,10 +169,101 @@ func TestTheTabRights(t *testing.T) {
 		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
 	}
 	b.shot("rights-tab")
+	// What bob left behind: a collection of his own, which the administrator transfers without seeing what is in it.
+	b.signInWith("bob", "Bob Kern", "")
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.eval(`window.left = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Left behind"}'}).then(r => r.json()).then(j => { window.left = j.id; })`)
+	if !b.waitFor(`!!window.left`) {
+		t.Fatal("bob's collection was not made")
+	}
+	left := b.eval(`window.left`)
+	b.signIn(true)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
+	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
+	b.clickOn(`[data-rights="users"] [data-user="bob"] [data-ract="heldby"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]')`) {
+		t.Fatalf("what bob owns, with Transfer: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+	}
+	b.eval(`window.confirm = () => true`)
+	b.submit(`[data-held-row="`+left+`"] [data-rform="transfer"]`, map[string]string{"to": "anna"})
+	// Bob keeps edit, as a former owner does.
+	if !b.waitFor(`!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]') && (document.querySelector('[data-held-row="` + left + `"]')?.innerText || '').includes('edit')`) {
+		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+	}
 	// The log names what was done, the group made among it.
 	b.clickOn(`[data-act="sec"][data-id="log"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-rights="log"] [data-log] [data-entry="group"]') && (document.querySelector('[data-rights="log"]')?.innerText || '').includes('Board')`) {
 		t.Errorf("the log: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
 	}
 	b.shot("rights-log")
+}
+
+// TestANewCollectionAsksWithWhomToShare: the dialog of a new collection at the top has the step Share with, through
+// the same roles as the rights dialog. Anna shares hers with bob to comment and makes it; bob comments, carl sees
+// nothing, and its overview says that nobody else may do anything with it (ADR-29, 2026-11-19).
+func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	for _, who := range [][2]string{{"bob", "Bob Kern"}, {"carl", "Carl"}} {
+		b.signInWith(who[0], who[1], "")
+		b.open(base + "/o/plan")
+		b.ready("Network plan")
+	}
+	b.signIn(true)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
+	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] option[value="person:bob"]')`) {
+		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
+	}
+	b.eval(`(() => { const f = document.querySelector('#udrights [data-share-step]'); f.querySelector('select[name="who"]').value = 'person:bob';
+		f.querySelector('select[name="role"]').value = 'comment'; })()`)
+	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
+	if !b.waitFor(`!!document.querySelector('#udrights [data-new-share="person:bob"]') && !document.querySelector('#udrights [data-only-me]')`) {
+		t.Fatalf("bob is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	// Added twice, the same one is listed once, with the role chosen last.
+	b.eval(`document.querySelector('#udrights [data-share-step] select[name="who"]').value = 'tenant:'`)
+	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
+	if !b.waitFor(`document.querySelectorAll('#udrights [data-new-shares] tr').length === 2`) {
+		t.Fatalf("everyone is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	b.clickOn(`#udrights [data-new-share="tenant:"] [data-ract="newunshare"]`, 1)
+	if !b.waitFor(`document.querySelectorAll('#udrights [data-new-shares] tr').length === 1`) {
+		t.Fatalf("everyone is taken out: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	b.eval(`(() => { const f = document.querySelector('#udrights [data-new-title]'); f.value = 'Board'; f.dispatchEvent(new Event('input', {bubbles: true})); })()`)
+	b.shot("new-collection-share")
+	b.clickOn(`#udrights footer button[type="submit"]`, 1)
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Board')`) {
+		t.Fatalf("Board is made: %s", b.eval(`document.getElementById('udrights')?.innerText + ' / ' + document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
+	}
+	board := b.eval(`(() => { const n = [...document.querySelectorAll('.nav2 [data-act="coll"]')].find(n => n.textContent.includes('Board')); return D[n.dataset.id].sid; })()`)
+	b.eval(`window.r = null; fetch('/api/objects/` + board + `/rights').then(r => r.json()).then(j => { window.r = JSON.stringify(j.own.map(g => g.kind + ':' + g.who + ':' + g.role)); }); ''`)
+	if !b.waitFor(`window.r === '["person:bob:comment"]'`) {
+		t.Errorf("only bob is granted, to comment: %s", b.eval(`String(window.r)`))
+	}
+	// Its overview: nobody else, that is, nobody in the workspace without a role of their own.
+	b.open(base + "/o/" + board)
+	b.ready("Board")
+	if got := b.eval(`document.querySelector('[data-act="cacc"][data-id="none"]')?.getAttribute('aria-pressed')`); got != "true" {
+		t.Errorf("the overview says nobody else: %q", got)
+	}
+	b.signInWith("bob", "Bob Kern", "")
+	b.open(base + "/o/" + board)
+	b.ready("Board")
+	b.signInWith("carl", "Carl", "")
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Board')`); got != "false" {
+		t.Errorf("carl sees Board")
+	}
+	b.eval(`window.c = null; fetch('/api/objects/` + board + `/rights').then(r => { window.c = r.status; }); ''`)
+	if !b.waitFor(`window.c === 404`) {
+		t.Errorf("carl reads the rights of Board: %s", b.eval(`String(window.c)`))
+	}
+	b.signIn(true)
 }

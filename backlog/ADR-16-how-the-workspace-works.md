@@ -58,7 +58,8 @@ examples of the principles in [ADR-17](ADR-17-guiding-principles.md).
 - New collection sits at the top of nav2, as New + sits at the heading of a collection in nav3. A right click on the free part of nav2
   offers it too, a right click on the free part of nav3 offers New in each open collection and New collection, and the menu of a
   collection offers a new collection inside it. A new collection is named in place (2026-11-08; before, it opened with its
-  settings).
+  settings). One at the top opens a dialog with its name and the step "Share with", as it belongs to its maker alone until
+  shared (ADR-29, 2026-11-19); one inside a collection is still named in place.
 - A right click on a collection, in nav2 or on its heading in nav3, opens its menu: open, keep open or stop, close, its overview,
   new in it, favorite, and settings. The settings are part of the overview of the collection in the window, which the
   right click opens ready to rename (2026-11-09; before, they took the place of nav3).

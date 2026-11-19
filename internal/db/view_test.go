@@ -11,7 +11,7 @@ func TestView(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
 	text := func(s string) *string { return &s }
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if plan.Width != "" || plan.Contents != "" {
 		t.Errorf("a new page has the defaults of the workspace: %q %q", plan.Width, plan.Contents)
@@ -56,7 +56,7 @@ func TestView(t *testing.T) {
 func TestAlignBlock(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	b1, _ := db.AddBlock(ctx, plan.ID, anna.ID, "", "Title")
 	b2, _ := db.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "Text")

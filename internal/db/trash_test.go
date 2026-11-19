@@ -13,7 +13,7 @@ import (
 func TestDeleteHidesTheTree(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
@@ -80,9 +80,9 @@ func TestDeleteHidesTheTree(t *testing.T) {
 func TestDeleteFollowsAccess(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	inner, _ := db.CreateCollection(ctx, anna, "Inner", team.ID)
-	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	archive, _ := db.createShared(ctx, anna, "Archive")
 	old, _ := db.CreatePage(ctx, anna, "Old", archive.ID)
 	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestDeleteFollowsAccess(t *testing.T) {
 func TestRestore(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	if _, err := db.CreatePage(ctx, anna, "B", team.ID); err != nil {
 		t.Fatal(err)
@@ -218,7 +218,7 @@ func TestRestore(t *testing.T) {
 func TestPurge(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
 	early, _ := db.CreatePage(ctx, anna, "Early", a.ID)
@@ -265,7 +265,7 @@ func TestPurge(t *testing.T) {
 func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
@@ -332,7 +332,7 @@ func TestDeletingStopsAtWhatShutsOneOut(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, bob, "Projects", team.ID)
 	secret, err := db.CreatePage(ctx, carl, "Board only", folder.ID)
 	if err != nil {

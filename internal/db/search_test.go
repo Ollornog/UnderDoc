@@ -31,7 +31,7 @@ func claimAll(t *testing.T, db *DB) []string {
 func TestChangesQueueForTheSearch(t *testing.T) {
 	ctx := inMain()
 	db := open(t)
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Runbooks", team.ID)
 	page, _ := db.CreatePage(ctx, anna, "Restart", folder.ID)
 	claimAll(t, db)
@@ -105,7 +105,7 @@ func TestQueueRetryWaits(t *testing.T) {
 func TestSearchDocsOfAPage(t *testing.T) {
 	ctx := inMain()
 	db := open(t)
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Kasse", team.ID)
 	page, _ := db.CreatePage(ctx, anna, "Kasse bedienen", folder.ID)
 	if _, err := db.SetTags(ctx, page.ID, anna.ID, []string{"kasse"}); err != nil {
@@ -203,7 +203,7 @@ func TestSearchDocsKnowWhoReads(t *testing.T) {
 func TestSearchTitles(t *testing.T) {
 	ctx := inMain()
 	db := open(t)
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Kasse", team.ID)
 	exact, _ := db.CreatePage(ctx, anna, "Kartenzahlung", folder.ID)
 	_, _ = db.CreatePage(ctx, anna, "Störung der Kartenzahlung", folder.ID)
@@ -321,7 +321,7 @@ func TestFilesAreFoundByTheirText(t *testing.T) {
 	}
 
 	// An attachment is found by its text and opens its page at the block that shows it; bob reads the page, so he finds it.
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	db.AddBlock(ctx, page.ID, anna.ID, "", "Vorne")
 	scan := upload(t, db, anna.ID, UploadTarget{Page: page.ID}, "scan.png", 12, sha(43))
@@ -363,7 +363,7 @@ func TestSearchPathHidesLevelsNotEveryReaderSees(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	board, _ := db.CreateCollection(ctx, anna, "Board", "")
+	board, _ := db.createShared(ctx, anna, "Board")
 	if err := db.SetGrant(ctx, board.ID, Actor{ID: anna.ID}, ToTenant, "", RoleNone); err != nil {
 		t.Fatal(err)
 	}

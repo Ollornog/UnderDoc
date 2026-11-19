@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The log keeps an entry 365 days (ADR-29, [docs/rights.md](docs/rights.md), migration 026): per tenant, set by its
+  administrators from 30 to 3650 days in the section Log of the tab Rights (`GET|PUT /api/log/keep`), the change logged.
+  The job that empties the trash deletes older entries of every tenant.
+- Administrators transfer what an account left behind: "what may they do" in the tab Rights lists what it owns by title,
+  each with Transfer; the administrator sees nothing of the content, and the log keeps the transfer.
+
 - The log of access and changes (ADR-29, M-5, [docs/rights.md](docs/rights.md), migration 024): opening and changing
   objects once per account, object and hour; roles, inheritance, owners, groups, members, administrators and links each
   time; share links opened, used, a wrong password and uploads through them. Nothing private is logged. Administrators read
@@ -82,6 +88,13 @@ All notable changes to this project are documented in this file. The format foll
   every way an account, a block or a file comes in.
 
 ### Changed
+
+- **A new collection at the top belongs to its maker alone** until they share it (ADR-29, decided on 2026-11-19,
+  [docs/rights.md](docs/rights.md)): it grants nobody a role, not even the whole tenant, and is still not private. Its
+  dialog asks for the name and has the step "Share with" (everyone, groups, persons, each with a role; by default
+  nobody), granted through the API of the rights dialog. The same for a new collection of Files and a copy made at the
+  top. Collections made before keep what they granted. The level "" at the top (`/access`) now means nobody instead of
+  edit, and the overview of a collection at the top offers "Nobody".
 
 - The time tracking runs EightPerDay `de9f1ea` (was `338593b`): hours of half a day (`4v`, `4n`) and half a day of
   leave next to work, pay for half days, and standby with its pay and as working time

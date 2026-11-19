@@ -12,7 +12,7 @@ import (
 func TestSettingAccess(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if o, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "read"); err != nil || o.Access != "read" {
 		t.Fatalf("the owner makes Team read only: %+v %v", o, err)
@@ -35,8 +35,15 @@ func TestSettingAccess(t *testing.T) {
 	if got, _ := db.Role(ctx, page.ID, bob.ID); got != RoleRead {
 		t.Errorf("inherited again: %q", got)
 	}
-	if o, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, ""); err != nil || o.Access != RoleEdit {
-		t.Fatalf("at the top, \"\" is the default of ADR-20, edit: %+v %v", o, err)
+	// At the top, "" is the default of a new collection since 2026-11-19: its owner's alone (ADR-29).
+	if o, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, ""); err != nil || o.Access != "" {
+		t.Fatalf("at the top, \"\" takes the tenant's grant back: %+v %v", o, err)
+	}
+	if got, _ := db.Role(ctx, page.ID, bob.ID); got != RoleNone {
+		t.Errorf("Team is anna's alone now: %q", got)
+	}
+	if o, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, RoleEdit); err != nil || o.Access != RoleEdit {
+		t.Fatalf("edit for the tenant again: %+v %v", o, err)
 	}
 	// Narrower below: the page breaks the inheritance, and only Anna, who owns it, keeps more than read.
 	if o, err := db.SetAccess(ctx, page.ID, Actor{ID: anna.ID}, "read"); err != nil || !o.Breaks || o.Access != "read" {

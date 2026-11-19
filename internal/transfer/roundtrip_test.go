@@ -41,6 +41,19 @@ func open(t *testing.T) *db.DB {
 	return database
 }
 
+// shared makes a collection at the top that the whole tenant edits, as its owner shares it in the step "Share with":
+// what a new collection at the top did by itself before 2026-11-19 (ADR-29).
+func shared(t *testing.T, database *db.DB, owner account.User, title string) db.Object {
+	t.Helper()
+	ctx := tenant.With(context.Background(), tenant.Main)
+	o := must[db.Object](t)(database.CreateCollection(ctx, owner, title, ""))
+	if err := database.SetGrant(ctx, o.ID, db.Actor{ID: owner.ID}, db.ToTenant, "", db.RoleEdit); err != nil {
+		t.Fatal(err)
+	}
+	o.Access = db.RoleEdit
+	return o
+}
+
 func must[T any](t *testing.T) func(T, error) T {
 	return func(v T, err error) T {
 		t.Helper()
@@ -109,7 +122,7 @@ func fsSub(files fstest.MapFS, dir string) (fstest.MapFS, error) {
 func TestRoundTrip(t *testing.T) {
 	ctx := tenant.With(context.Background(), tenant.Main)
 	first := open(t)
-	team := must[db.Object](t)(first.CreateCollection(ctx, anna, "Team: ops/net", ""))
+	team := shared(t, first, anna, "Team: ops/net")
 	plan := must[db.Object](t)(first.CreatePage(ctx, anna, "Plan", team.ID))
 	b1 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, "", "## Switches\n\nTwo of them."))
 	b2 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "gone"))

@@ -24,7 +24,7 @@ func order(t *testing.T, db *DB, parent string) []string {
 func TestDividersAndMoving(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
 	c, _ := db.CreatePage(ctx, anna, "C", team.ID)
@@ -85,8 +85,8 @@ func TestDividersAndMoving(t *testing.T) {
 func TestMovingFollowsAccess(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
-	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	team, _ := db.createShared(ctx, anna, "Team")
+	archive, _ := db.createShared(ctx, anna, "Archive")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestMovingElsewhereNeedsManage(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, err := db.CreatePage(ctx, anna, "Salaries", team.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestMovingElsewhereNeedsManage(t *testing.T) {
 	if got := role(t, db, page.ID, carl.ID); got != RoleEdit {
 		t.Fatalf("carl edits through the tenant: %q", got)
 	}
-	mine, err := db.CreateCollection(ctx, carl, "Mine", "")
+	mine, err := db.createShared(ctx, carl, "Mine")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestMovingElsewhereNeedsManage(t *testing.T) {
 func TestOnlyWhatIsAllYoursGoesPrivate(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Drafts", team.ID)
 	page, err := db.CreatePage(ctx, bob, "Bob's contract", folder.ID)
 	if err != nil {
@@ -219,7 +219,7 @@ func TestGoingPrivateEndsGrantsAndLinks(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, bob, "Bob resigns on Friday", team.ID)
 	below, _ := db.CreatePage(ctx, bob, "Handover", page.ID)
 	bobActs := Actor{ID: bob.ID}

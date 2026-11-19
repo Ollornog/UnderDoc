@@ -20,7 +20,7 @@ func bodies(blocks []Block) []string {
 func TestPagesAreBlocks(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, err := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if err != nil || page.Kind != KindPage || page.Parent != team.ID {
 		t.Fatalf("page not made: %+v %v", page, err)
@@ -76,7 +76,7 @@ func TestPagesAreBlocks(t *testing.T) {
 func TestBlocksFollowAccess(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	block, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "Text")
 	if err := setLevel(db, team.ID, "comment"); err != nil {
@@ -126,7 +126,7 @@ func TestBlocksFollowAccess(t *testing.T) {
 func TestBlockLimits(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	if _, err := db.AddBlock(ctx, page.ID, anna.ID, "", strings.Repeat("ä", MaxBlock+1)); !errors.Is(err, ErrBlock) {
 		t.Errorf("too long: %v", err)
@@ -148,7 +148,7 @@ func TestBlockLimits(t *testing.T) {
 func TestMovingBlocks(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	after := ""
 	for _, body := range []string{"one", "two", "three"} {
@@ -205,7 +205,7 @@ func TestVersionsAreForEditors(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	if err := db.SetGrant(ctx, team.ID, Actor{ID: anna.ID}, ToTenant, "", RoleNone); err != nil {
 		t.Fatal(err)
 	}

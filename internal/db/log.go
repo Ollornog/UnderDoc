@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +28,7 @@ const (
 	LogLinkUsed     = "link used"
 	LogLinkPassword = "link wrong password"
 	LogLinkUpload   = "link upload"
+	LogKept         = "log kept"
 )
 
 // hourly are the actions kept at most once per account, object and hour.
@@ -85,6 +87,52 @@ func (db *DB) LogEntries(ctx context.Context, actor Actor, f LogFilter) ([]Entry
 		err := row.Scan(&e.ID, &e.At, &e.Actor, &e.ActorName, &e.Action, &e.Object, &e.ObjectTitle, &e.Detail)
 		return e, err
 	})
+}
+
+// Retention of the log (ADR-29, 2026-11-19): each tenant keeps an entry LogKeepDays days unless its administrators set
+// between LogKeepMin and LogKeepMax.
+const (
+	LogKeepDays = 365
+	LogKeepMin  = 30
+	LogKeepMax  = 3650
+)
+
+// ErrLogKeep is a retention of the log outside LogKeepMin to LogKeepMax days.
+var ErrLogKeep = errors.New("the log is kept for 30 to 3650 days")
+
+// LogKeep returns how many days the tenant of ctx keeps an entry of the log.
+func (db *DB) LogKeep(ctx context.Context) (int, error) {
+	days := LogKeepDays
+	err := db.pool.QueryRow(ctx, "SELECT keep_days FROM log_settings").Scan(&days)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LogKeepDays, nil
+	}
+	return days, err
+}
+
+// SetLogKeep sets how many days the tenant of ctx keeps an entry of the log. Only administrators do; the caller checks
+// and logs it.
+func (db *DB) SetLogKeep(ctx context.Context, days int) error {
+	if days < LogKeepMin || days > LogKeepMax {
+		return ErrLogKeep
+	}
+	_, err := db.pool.Exec(ctx, `INSERT INTO log_settings (keep_days) VALUES ($1)
+		ON CONFLICT (tenant) DO UPDATE SET keep_days = EXCLUDED.keep_days, changed = now()`, days)
+	return err
+}
+
+// ExpireLog deletes the entries of the log of the tenant of ctx that are older than it keeps them, as of now, and
+// returns how many went.
+func (db *DB) ExpireLog(ctx context.Context, now time.Time) (int64, error) {
+	days, err := db.LogKeep(ctx)
+	if err != nil {
+		return 0, err
+	}
+	tag, err := db.pool.Exec(ctx, "DELETE FROM audit_log WHERE at < $1", now.AddDate(0, 0, -days))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // Private tells whether an object lies in something private.

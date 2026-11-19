@@ -128,3 +128,42 @@ func (h *handler) apiLog(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+type apiKeep struct {
+	Days int `json:"days"`
+	Min  int `json:"min"`
+	Max  int `json:"max"`
+}
+
+// apiLogKeep tells how many days the tenant keeps an entry of the log, and between which bounds it may be set.
+func (h *handler) apiLogKeep(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	days, err := h.options.DB.LogKeep(r.Context())
+	if h.failed(w, err, "log") {
+		return
+	}
+	writeJSON(w, http.StatusOK, apiKeep{Days: days, Min: db.LogKeepMin, Max: db.LogKeepMax})
+}
+
+// apiSetLogKeep sets how many days the tenant keeps an entry of the log; only administrators do, and the change is
+// logged with what it was before.
+func (h *handler) apiSetLogKeep(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Days int `json:"days"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok || !h.adminAPI(w, r) {
+		return
+	}
+	before, err := h.options.DB.LogKeep(r.Context())
+	if h.failed(w, err, "log") {
+		return
+	}
+	if h.failed(w, h.options.DB.SetLogKeep(r.Context(), in.Days), "log") {
+		return
+	}
+	h.note(r, db.LogKept, "", strconv.Itoa(before)+" days to "+strconv.Itoa(in.Days)+" days")
+	writeJSON(w, http.StatusOK, apiKeep{Days: in.Days, Min: db.LogKeepMin, Max: db.LogKeepMax})
+}

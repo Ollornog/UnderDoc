@@ -39,7 +39,7 @@ func TestRightsThroughTheAPI(t *testing.T) {
 	for _, who := range []map[string]string{plain, carlOf} {
 		s.send(http.MethodGet, "/api/state", "", who)
 	}
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(title string, blocks ...string) string {
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
 		after := ""
@@ -161,7 +161,7 @@ func adminSite(t *testing.T) (*site, *db.DB) {
 func TestCommentingWithoutEditing(t *testing.T) {
 	s := withDatabase(t)
 	s.send(http.MethodGet, "/api/state", "", plain)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"The plan."}`, sameSite)
@@ -191,7 +191,7 @@ func TestTheAccessCheck(t *testing.T) {
 	s, _ := adminSite(t)
 	s.send(http.MethodGet, "/api/state", "", plain)
 	s.send(http.MethodGet, "/api/state", "", carlOf)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"u-bob","role":"manage"}`, sameSite)
 	check := decode[struct {
 		Role    string      `json:"role"`
@@ -271,4 +271,26 @@ func TestTakingBackAnAdministratorThroughTheAPI(t *testing.T) {
 	if orgAdmin() {
 		t.Error("dora still administers the organization")
 	}
+}
+
+// sharedCollection makes a collection at the top and grants the whole tenant edit on it, as its owner does in the step
+// "Share with" of the dialog: what a new collection at the top did by itself before 2026-11-19 (ADR-29). The tests
+// written before that keep their meaning through it.
+func (s *site) sharedCollection(body string, headers map[string]string) apiNode {
+	s.t.Helper()
+	made := decode[apiNode](s.t, s.send(http.MethodPost, "/api/collections", body, headers))
+	if got := s.send(http.MethodPut, "/api/objects/"+made.ID+"/grants", `{"kind":"tenant","role":"edit"}`, headers); got.Code != http.StatusNoContent {
+		s.t.Fatalf("sharing %s with the tenant: %d %s", made.Title, got.Code, got.Body.String())
+	}
+	return made
+}
+
+// sharedCollection is the same for a client of a tenant.
+func (c *client) sharedCollection(body string) apiNode {
+	c.t.Helper()
+	made := decode[apiNode](c.t, c.post("/api/collections", body))
+	if got := c.do(http.MethodPut, "/api/objects/"+made.ID+"/grants", "application/json", `{"kind":"tenant","role":"edit"}`); got.Code != http.StatusNoContent {
+		c.t.Fatalf("sharing %s with the tenant: %d %s", made.Title, got.Code, got.Body.String())
+	}
+	return made
 }

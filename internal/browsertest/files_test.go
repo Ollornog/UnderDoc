@@ -429,3 +429,28 @@ func TestTextOfAnImageInTheBrowser(t *testing.T) {
 		t.Errorf("loaded from elsewhere: %s", got)
 	}
 }
+
+// TestANewCollectionOfFilesAsksWithWhomToShare: New collection in the view Files takes its name, then the same dialog
+// as in the documents asks with whom to share it; made with nobody, it is its maker's alone (ADR-29, 2026-11-19).
+func TestANewCollectionOfFilesAsksWithWhomToShare(t *testing.T) {
+	b, base, _, _ := setupWithFiles(t)
+	b.open(base + "/")
+	b.ready("")
+	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	if !b.waitFor(`FS.on && !FS.pending`) {
+		t.Fatal("the roots of the files did not come")
+	}
+	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "New collection"), 1)
+	b.submit(`.nav3 form[data-fform="coll"]`, map[string]string{"title": "Scans"})
+	if !b.waitFor(`document.getElementById('udrights')?.open && document.querySelector('#udrights [data-new-title]')?.value === 'Scans' && !!document.querySelector('#udrights [data-only-me]')`) {
+		t.Fatalf("the dialog asks with whom to share: %s", b.eval(`document.getElementById('udrights')?.innerText`))
+	}
+	b.clickOn(`#udrights footer button[type="submit"]`, 1)
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].some(n => n.textContent === 'Scans')`) {
+		t.Fatalf("Scans is a root now: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+	}
+	b.eval(`window.r = null; fetch('/api/objects/' + S.sec.files + '/rights').then(r => r.json()).then(j => { window.r = j.own.length + ' ' + j.ownerName; }); ''`)
+	if !b.waitFor(`window.r === '0 Anna Berg'`) {
+		t.Errorf("nothing granted, anna owns it: %s", b.eval(`String(window.r)`))
+	}
+}

@@ -49,5 +49,6 @@ while the attack round on the rights runs after step 4.
 
 **Built on 2026-11-19:** steps 1 to 4 ([docs/rights.md](../docs/rights.md)): roles, inheritance, ownership, groups, the
 one check, share links, the tab Rights with the rights dialog and the access check, administrators in the profile and
-taking them back, and the log. Open: the Samba part (users, rights and the limit of a share, the domain), passwords in
-the text (ADR-7) with their attack round, and a retention period of the log.
+taking them back, and the log. Open: the Samba part (users, rights and the limit of a share, the domain), and passwords in
+the text (ADR-7) with their attack round. The retention of the log (365 days per tenant, set from 30 to 3650) and new
+collections that belong to their maker alone followed the same day (ADR-29).

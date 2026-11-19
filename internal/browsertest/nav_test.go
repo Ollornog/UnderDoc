@@ -60,6 +60,8 @@ func makeTeam(b *browser) string {
 	b.eval(`window.made = null; (async () => {
 		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
 		const team = await post('/api/collections', {title: 'Team'});
+		// Shared with everyone to edit, as its maker does in the step Share with (ADR-29, 2026-11-19).
+		await fetch('/api/objects/' + team.id + '/grants', {method: 'PUT', headers: json, body: JSON.stringify({kind: 'tenant', role: 'edit'})});
 		for (const title of ['A', 'B', 'C']) await post('/api/pages', {title, parent: team.id});
 		window.made = team.id;
 	})()`)

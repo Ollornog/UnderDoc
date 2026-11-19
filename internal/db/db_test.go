@@ -100,12 +100,17 @@ func TestAccountsComeWithPrivateNotes(t *testing.T) {
 func TestCollections(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	ops, err := db.CreateCollection(ctx, anna, "  Operations ", "")
+	ops, err := db.createShared(ctx, anna, "  Operations ")
 	if err != nil || !id.Valid(ops.ID) || ops.Title != "Operations" || ops.Private || ops.Access != RoleEdit {
 		t.Fatalf("%+v %v", ops, err)
 	}
-	if _, err := db.CreateCollection(ctx, bob, "Projects", ""); err != nil {
+	if _, err := db.createShared(ctx, bob, "Projects"); err != nil {
 		t.Fatal(err)
+	}
+	// Bob's drafts are his alone, not shared and not private either (ADR-29, 2026-11-19).
+	drafts, err := db.CreateCollection(ctx, bob, "Drafts", "")
+	if err != nil || drafts.Access != "" || drafts.Private {
+		t.Fatalf("%+v %v", drafts, err)
 	}
 	inner, err := db.CreateCollection(ctx, bob, "Planning 2027", ops.ID)
 	if err != nil || inner.Parent != ops.ID {
@@ -120,7 +125,7 @@ func TestCollections(t *testing.T) {
 	if got, _ := db.Collections(ctx, anna.ID); len(got) != 3 || got[0].Title != MyNotes || got[1].Title != "Operations" || got[2].Title != "Projects" {
 		t.Errorf("anna sees %q", titles(got))
 	}
-	if got, _ := db.Collections(ctx, bob.ID); len(got) != 3 || got[0].Owner != bob.ID {
+	if got, _ := db.Collections(ctx, bob.ID); len(got) != 4 || got[0].Owner != bob.ID || got[3].Title != "Drafts" {
 		t.Errorf("bob sees %q", titles(got))
 	}
 	if got, _ := db.Children(ctx, ops.ID, anna.ID); len(got) != 1 || got[0].Title != "Planning 2027" {
@@ -177,11 +182,11 @@ func TestSchemaRefuses(t *testing.T) {
 func TestAccessIsInherited(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	top, _ := db.createShared(ctx, anna, "Archive")
 	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
 	for _, o := range []Object{top, inner} {
 		if got, err := db.Role(ctx, o.ID, bob.ID); got != RoleEdit || err != nil {
-			t.Errorf("%s: the tenant edits a new collection, got %q %v", o.Title, got, err)
+			t.Errorf("%s: the tenant edits a shared collection and what is inside, got %q %v", o.Title, got, err)
 		}
 	}
 	if _, err := db.pool.Exec(ctx, "UPDATE grants SET role = 'read' WHERE object = $1 AND kind = 'tenant'", top.ID); err != nil {
@@ -201,7 +206,7 @@ func TestAccessIsInherited(t *testing.T) {
 func TestRename(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	top, _ := db.createShared(ctx, anna, "Archive")
 	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
 	if _, err := db.Rename(ctx, inner.ID, anna.ID, " "); !errors.Is(err, ErrTitle) {
 		t.Errorf("an empty title: %v", err)
@@ -222,4 +227,32 @@ func TestRename(t *testing.T) {
 	if _, err := db.Rename(ctx, notes[0].ID, bob.ID, "Mine"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("bob does not see Anna's private notes: %v", err)
 	}
+}
+
+// createShared makes a collection at the top and grants the whole tenant edit on it, as its owner does in the step
+// "Share with": what a new collection at the top did by itself before 2026-11-19 (ADR-29). The tests written before
+// that keep their meaning through it.
+func (db *DB) createShared(ctx context.Context, owner account.User, title string) (Object, error) {
+	o, err := db.CreateCollection(ctx, owner, title, "")
+	if err != nil {
+		return o, err
+	}
+	if err := db.SetGrant(ctx, o.ID, Actor{ID: owner.ID}, ToTenant, "", RoleEdit); err != nil {
+		return Object{}, err
+	}
+	o.Access = RoleEdit
+	return o, nil
+}
+
+// createSharedFiles is createShared for a collection among the roots of the view Files.
+func (db *DB) createSharedFiles(ctx context.Context, owner account.User, title string) (Object, error) {
+	o, err := db.CreateFileCollection(ctx, owner, title)
+	if err != nil {
+		return o, err
+	}
+	if err := db.SetGrant(ctx, o.ID, Actor{ID: owner.ID}, ToTenant, "", RoleEdit); err != nil {
+		return Object{}, err
+	}
+	o.Access = RoleEdit
+	return o, nil
 }

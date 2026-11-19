@@ -29,7 +29,7 @@ func units(s string) int { return len(utf16.Encode([]rune(s))) }
 // paragraph or as a block, cutting through formatting, the section that grows, copies, uses and broken references.
 func TestPartsThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(title string, blocks ...string) string {
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
 		after := ""

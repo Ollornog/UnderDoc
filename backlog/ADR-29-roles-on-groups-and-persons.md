@@ -107,8 +107,8 @@ From the least to the most, each including those below it:
 - **A move** keeps the object's own grants and the owner; what it inherits changes with its new place. Within its parent,
   edit reorders it; to another place it goes only with manage on the object and edit on where it goes (2026-11-19, until
   then edit on both). Only its owner moves an object into something private, and only when everything below it is theirs.
-- **A new collection at the top** grants edit to the whole tenant, as the default of ADR-20 did, and its owner can change
-  that right away. Everything else starts with what it inherits.
+- **A new collection at the top** belongs to its owner alone until they share it (the maintainer, 2026-11-19; until then
+  it granted edit to the whole tenant, as the default of ADR-20 did). Everything else starts with what it inherits.
 
 ### Private stays private
 
@@ -184,8 +184,8 @@ the owner and who sees it.
   - An upload through a link becomes a file of the link's maker under a name nothing in the folder has.
   - Nobody takes their own administration away, so a tenant keeps an administrator. The organization of the time tracking
     follows only for memberships UnderDoc made itself (ID prefix `ud-admin-`), those from before stay.
-  - The log keeps opening and changing once per account, object and hour, keeps nothing private, and has no retention
-    period yet.
+  - The log keeps opening and changing once per account, object and hour, and keeps nothing private. ~~It has no
+    retention period yet.~~ It keeps an entry 365 days (2026-11-19, below).
 - **Settled after an attack round on 2026-11-19** (each with a test that fails without it):
   - **Moving to another place needs manage** on the object and edit on where it goes; reordering within the parent stays
     with edit. Before, edit on both was enough, and whoever only edited a page moved it into a collection of their own,
@@ -212,3 +212,25 @@ the owner and who sees it.
     two administrators who take each other's role at the same moment never leave the tenant without one.
   - **Open, for the maintainer:** whoever reads an object may copy it and owns the copy, and so may share the copy by a
     link. Whether reading should allow copying, or a copy keep the rights of its source, is not decided.
+- **Decided by the maintainer on 2026-11-19** (each with a test that fails without it):
+  - **A new collection at the top belongs to whoever makes it, and to nobody else,** until they share it: it grants no
+    role, not even to the whole tenant. It is not private: it is shared like any other, by roles and links, and
+    administrators manage its rights. The dialog that makes it has the step "Share with" (everyone with a role, groups,
+    persons; by default nobody), which grants through the same API as the rights dialog; a share that fails leaves the
+    collection less shared, never more. The same holds for a collection of the view Files and for a copy made at the top,
+    which no longer takes over what its original granted the tenant. A collection inside another inherits as before.
+  - **Collections made before keep what they granted;** no migration takes a right away. The level of ADR-20 at the top
+    follows the new default: "" there takes the tenant's grant back instead of meaning edit. An import keeps what an
+    export says, and edit at the top of an export from before ADR-29, since that restores what was.
+  - **Nothing reaches such a collection before it is shared:** moving into it or out of it, copying it, what lies in it or
+    into it, an import under its IDs, a share link, the search and the access check all answer as for anything one holds
+    no role on; administrators included.
+  - **Ownership of what someone left behind:** UnderDoc deactivates and deletes no account (the gate or the identity
+    provider ends a sign-in), so there is no list of collections "without an active owner" to compute. An administrator
+    asks "what may they do" for the account that left, sees what it owns by title, and transfers it in place; the log
+    keeps each transfer. Titles, not content: the access check and the log show administrators titles already, since
+    managing rights needs to name the object, while opening it needs a role (above). An ID with a date alone would make
+    the transfer guesswork and protect nothing the log does not show anyway.
+  - **The log is kept 365 days,** per tenant, since the log belongs to the tenant and its administrators read it (ADR-23;
+    with one tenant, per instance). Administrators set 30 to 3650 days in the tab Rights; the change is logged with what
+    it was. The job that empties the trash deletes older entries of every tenant once an hour (migration 026).
