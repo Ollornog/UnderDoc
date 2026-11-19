@@ -307,6 +307,20 @@ window.UDRights = (() => {
     }
   }
 
+  // keepFocus draws the dialog again while the name keeps its focus, its selection and what was typed: the people come
+  // later than the dialog opens, and redrawing it took the focus away while someone typed (CI of #92, 2026-11-19).
+  function keepFocus(draw) {
+    const was = document.activeElement;
+    const focused = was && was.matches && was.matches("[data-new-title]") ? [was.selectionStart, was.selectionEnd] : null;
+    draw();
+    if (!focused) return;
+    const field = document.querySelector("#udrights [data-new-title]");
+    if (field) {
+      field.focus();
+      field.setSelectionRange(focused[0], focused[1]);
+    }
+  }
+
   const shareName = (x) => {
     const p = st.people || { people: [], groups: [] };
     if (x.kind === "tenant") return "Everyone";
@@ -315,6 +329,10 @@ window.UDRights = (() => {
   };
 
   function drawNew() {
+    keepFocus(paintNew);
+  }
+
+  function paintNew() {
     const d = dialogEl();
     const list = nw.shares.length
       ? `<table class="table" data-new-shares><tbody>${nw.shares

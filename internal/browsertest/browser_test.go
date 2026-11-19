@@ -788,9 +788,25 @@ func TestNewCollectionByHand(t *testing.T) {
 			t.Fatalf("the dialog does not ask for the name: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 		}
 	}
+	// The people for the step Share with come after the dialog opens; they are held back here, so drawing them again must
+	// keep the name focused and selected (in the CI of #92 it lost the focus, and what was typed went nowhere).
+	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/api/people", "requestStage": "Request"}}}, nil)
 	newIn()
-	if got := b.eval(`[document.activeElement.value, document.activeElement.selectionStart, document.activeElement.selectionEnd].join('|')`); got != "New collection (1)|0|18" {
+	selected := `[document.activeElement.value, document.activeElement.selectionStart, document.activeElement.selectionEnd].join('|')`
+	if got := b.eval(selected); got != "New collection (1)|0|18" {
 		t.Errorf("the first new collection is numbered, its name selected: %q", got)
+	}
+	var held struct{ RequestID string }
+	if err := json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &held); err != nil {
+		t.Fatal(err)
+	}
+	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
+	b.call("Fetch.disable", map[string]any{}, nil)
+	if !b.waitFor(`!!document.querySelector('#udrights [data-share-step] optgroup[label="People"] option')`) {
+		t.Fatalf("the people came: %s", b.eval(`document.getElementById('udrights').innerHTML.slice(0, 300)`))
+	}
+	if got := b.eval(selected); got != "New collection (1)|0|18" {
+		t.Errorf("drawn again with the people, the name keeps its focus and selection: %q", got)
 	}
 	if got := b.eval(`!!document.querySelector('#udrights [data-only-me]') && !!document.querySelector('#udrights [data-share-step] select[name="who"]')`); got != "true" {
 		t.Errorf("the step Share with starts with only me: %s", b.eval(`document.getElementById('udrights').innerText`))
