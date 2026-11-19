@@ -63,10 +63,9 @@ func (db *DB) TenantUsage(ctx context.Context, tenantID string) (Usage, error) {
 	return u, err
 }
 
-// storageUsed is the storage of the tenant of the connection, as its hoster limits it: blocks and files.
-const storageUsed = `((SELECT coalesce(sum(octet_length(body)), 0) FROM blocks)
-	+ (SELECT coalesce(sum(size), 0) FROM file_versions) + (SELECT coalesce(sum(size), 0) FROM attachments)
-	+ (SELECT coalesce(sum(size), 0) FROM uploads))`
+// storageUsed is the storage of the tenant of the connection, as its hoster limits it: blocks and files. Triggers keep it
+// in tenant_storage (migration 021); the tests hold it to the same counted the long way.
+const storageUsed = `(SELECT coalesce((SELECT bytes FROM tenant_storage WHERE tenant = current_setting('underdoc.tenant', true)), 0))`
 
 type queryer interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row

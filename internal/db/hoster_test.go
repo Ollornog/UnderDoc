@@ -168,3 +168,126 @@ func TestTheStorageLimitCountsFiles(t *testing.T) {
 		t.Errorf("usage %+v", u)
 	}
 }
+
+// storageSummed is the storage of the tenant of the connection counted the long way, which the counter must equal.
+const storageSummed = `((SELECT coalesce(sum(octet_length(body)), 0) FROM blocks)
+	+ (SELECT coalesce(sum(size), 0) FROM file_versions) + (SELECT coalesce(sum(size), 0) FROM attachments)
+	+ (SELECT coalesce(sum(size), 0) FROM uploads))`
+
+// TestTheStorageCounterFollowsEveryWay: blocks written, changed and deleted, pages purged, files with versions,
+// attachments, uploads started and cancelled, in two tenants: the counter of each always equals its storage counted the
+// long way, and one tenant's writes never move the other's.
+func TestTheStorageCounterFollowsEveryWay(t *testing.T) {
+	db := open(t)
+	main := inMain()
+	if _, err := db.CreateTenant(main, "acme", "Acme"); err != nil {
+		t.Fatal(err)
+	}
+	acme := tenant.With(context.Background(), "acme")
+	same := func(ctx context.Context, step string) {
+		t.Helper()
+		var counted, summed int64
+		if err := db.pool.QueryRow(ctx, `SELECT `+storageUsed+`, `+storageSummed).Scan(&counted, &summed); err != nil {
+			t.Fatal(err)
+		}
+		if counted != summed {
+			t.Errorf("%s: counter %d, counted the long way %d", step, counted, summed)
+		}
+	}
+	work := func(ctx context.Context) {
+		t.Helper()
+		if err := db.SeeAccount(ctx, anna); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.EnsureRoots(ctx, anna, false, ""); err != nil {
+			t.Fatal(err)
+		}
+		c, _ := db.CreateCollection(ctx, anna, "Things", "")
+		p, _ := db.CreatePage(ctx, anna, "Plan", c.ID)
+		b1, err := db.AddBlock(ctx, p.ID, anna.ID, "", "Grüße, a first block")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b2, _ := db.AddBlock(ctx, p.ID, anna.ID, b1.ID, "Second")
+		same(ctx, "blocks added")
+		if _, err := db.EditBlock(ctx, p.ID, b2.ID, anna.ID, "Second, now much longer than before"); err != nil {
+			t.Fatal(err)
+		}
+		same(ctx, "a block grown")
+		if err := db.DeleteBlock(ctx, p.ID, b1.ID, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+		same(ctx, "a block deleted")
+		roots, _ := db.FileRoots(ctx, anna.ID)
+		var mine string
+		for _, r := range roots {
+			if r.Role == RootUser {
+				mine = r.ID
+			}
+		}
+		put := func(target UploadTarget, name string, size int64, n int) Finished {
+			u, err := db.StartUpload(ctx, anna.ID, target, name, size)
+			if err != nil {
+				t.Fatal(err)
+			}
+			same(ctx, "an upload started")
+			if err := db.Received(ctx, u.ID, anna.ID, 0, size); err != nil {
+				t.Fatal(err)
+			}
+			done, err := db.FinishUpload(ctx, u.ID, anna.ID, sha(n), size, "application/pdf", func() error { return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			same(ctx, "an upload finished")
+			return done
+		}
+		f := put(UploadTarget{Parent: mine}, "a.pdf", 1000, 1)
+		put(UploadTarget{File: f.File.ID}, "a.pdf", 1500, 2)
+		put(UploadTarget{Page: p.ID}, "shot.png", 300, 3)
+		u, _ := db.StartUpload(ctx, anna.ID, UploadTarget{Parent: mine}, "big.pdf", 5000)
+		same(ctx, "an upload running")
+		if err := db.CancelUpload(ctx, u.ID, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+		same(ctx, "an upload cancelled")
+		if err := db.Delete(ctx, p.ID, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Purge(ctx, p.ID, anna.ID); err != nil {
+			t.Fatal(err)
+		}
+		same(ctx, "a page with its attachment purged")
+	}
+	work(main)
+	var before int64
+	_ = db.pool.QueryRow(main, `SELECT `+storageUsed).Scan(&before)
+	work(acme)
+	var after int64
+	_ = db.pool.QueryRow(main, `SELECT `+storageUsed).Scan(&after)
+	if before == 0 || after != before {
+		t.Errorf("Main used %d before acme worked and %d after", before, after)
+	}
+	same(acme, "acme")
+	same(main, "main")
+
+	// The migration counts what every tenant used before it: its last part, run again on empty counters, comes to the same.
+	sql, err := migrations.ReadFile("migrations/021_storage_counter.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fill := string(sql)[strings.LastIndex(string(sql), "DO $$"):]
+	ids, err := db.TenantIDs(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range append(ids, tenant.Hoster) {
+		if _, err := db.pool.Exec(tenant.With(context.Background(), id), "DELETE FROM tenant_storage"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.pool.Exec(context.Background(), fill); err != nil {
+		t.Fatal(err)
+	}
+	same(main, "main, counted by the migration")
+	same(acme, "acme, counted by the migration")
+}
