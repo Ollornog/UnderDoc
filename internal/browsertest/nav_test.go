@@ -414,6 +414,39 @@ func TestDropOntoAndAcross(t *testing.T) {
 	}
 }
 
+// TestOnlyWhoManagesMovesElsewhere: an entry the viewer may only edit is reordered in its place, but no gap opens for it
+// in another place, since moving it there needs the role manage (ADR-29, 2026-11-19).
+func TestOnlyWhoManagesMovesElsewhere(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	kids := func(name string) string {
+		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > .row') || [])].map(n => n.textContent.trim()).join(' ')`)
+	}
+	tops := func() string {
+		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+	}
+	// C is someone else's page to the workspace, which the viewer may edit.
+	c := rowNamed(b, "C")
+	b.eval(`(() => { const d = D[document.querySelector(` + strconv.Quote(c) + `).dataset.row]; d.role = 'edit'; d.mine = false; })()`)
+	b.dragTo(c, rowNamed(b, "A"), 0.5, func() {
+		time.Sleep(350 * time.Millisecond)
+		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+			t.Errorf("A is framed to take C, which the viewer only edits")
+		}
+	})
+	if got := kids("A"); got != "" {
+		t.Errorf("C went into A: %q", got)
+	}
+	b.dragTo(c, rowNamed(b, "A"), 0.8, nil)
+	if got := tops(); got != "A C B" {
+		t.Errorf("within its place, C is reordered: %q", got)
+	}
+}
+
 // Ctrl and click selects, Shift and click a range; dragging one moves all of them, and on a window they open as tabs.
 func TestSelectSeveralAndMove(t *testing.T) {
 	b, base := setupWithDatabase(t)

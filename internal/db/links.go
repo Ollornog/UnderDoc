@@ -5,8 +5,6 @@ package db
 import (
 	"context"
 	"errors"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -249,14 +247,17 @@ func (db *DB) HasPass(ctx context.Context, linkID, value string) bool {
 	return err == nil && ok
 }
 
-// Below tells whether an object lies at or below another one, outside the trash: what a link to a folder may reach.
-func (db *DB) Below(ctx context.Context, objectID, top string) bool {
+// Below tells whether an object lies at or below another one, outside the trash, and whether the maker of a link sees it
+// now: what a link to a folder may reach. A link never shows more than its maker sees, checked for each object (ADR-29),
+// so a folder below that breaks the inheritance and shuts the maker out stays out of the link.
+func (db *DB) Below(ctx context.Context, objectID, top, maker string) bool {
 	var ok bool
 	err := db.pool.QueryRow(ctx, `WITH RECURSIVE up AS (
 			SELECT id, parent, deleted_at FROM objects WHERE id = $1
 			UNION ALL SELECT p.id, p.parent, p.deleted_at FROM objects p JOIN up ON p.id = up.parent WHERE up.id <> $2
 		)
-		SELECT EXISTS (SELECT 1 FROM up WHERE id = $2) AND NOT EXISTS (SELECT 1 FROM up WHERE deleted_at IS NOT NULL)`, objectID, top).Scan(&ok)
+		SELECT EXISTS (SELECT 1 FROM up WHERE id = $2) AND NOT EXISTS (SELECT 1 FROM up WHERE deleted_at IS NOT NULL)
+			AND object_role($1, $3, false) > 0`, objectID, top, maker).Scan(&ok)
 	return err == nil && ok
 }
 
@@ -267,12 +268,13 @@ type Shared struct {
 	Changed         time.Time
 }
 
-// SharedFiles lists the folders and files directly inside a folder of a link, by name, for whoever holds the link: the
-// caller has checked that the folder lies below the object of the link.
-func (db *DB) SharedFiles(ctx context.Context, folderID string) ([]Shared, error) {
+// SharedFiles lists the folders and files directly inside a folder of a link, by name, for whoever holds the link: those
+// the maker of the link sees now. The caller has checked that the folder lies below the object of the link.
+func (db *DB) SharedFiles(ctx context.Context, folderID, maker string) ([]Shared, error) {
 	rows, err := db.pool.Query(ctx, `SELECT o.id, o.title, o.kind, coalesce((SELECT v.size FROM file_versions v WHERE v.file = o.id
 			ORDER BY v.number DESC LIMIT 1), 0), o.changed
-		FROM objects o WHERE o.parent = $1 AND `+alive+` AND o.kind IN ('folder', 'file') ORDER BY o.kind = 'file', lower(o.title), o.id`, folderID)
+		FROM objects o WHERE o.parent = $1 AND `+alive+` AND o.kind IN ('folder', 'file') AND object_role(o.id, $2, false) > 0
+		ORDER BY o.kind = 'file', lower(o.title), o.id`, folderID, maker)
 	if err != nil {
 		return nil, err
 	}
@@ -294,28 +296,6 @@ func (db *DB) SharedFile(ctx context.Context, fileID string) (FileVersion, error
 		return FileVersion{}, ErrNotFound
 	}
 	return v, err
-}
-
-// FreeName returns a name for a new file in a folder that nothing there has yet: the name itself, or with " (2)" and up
-// before its extension. An upload through a link never becomes a version of what is there.
-func (db *DB) FreeName(ctx context.Context, parentID, name string) (string, error) {
-	stem, ext := name, ""
-	if i := strings.LastIndex(name, "."); i > 0 {
-		stem, ext = name[:i], name[i:]
-	}
-	candidate := name
-	for n := 2; n < 1000; n++ {
-		var taken bool
-		if err := db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM objects o WHERE parent = $1 AND lower(title) = lower($2) AND "+alive+")",
-			parentID, candidate).Scan(&taken); err != nil {
-			return "", err
-		}
-		if !taken {
-			return candidate, nil
-		}
-		candidate = stem + " (" + strconv.Itoa(n) + ")" + ext
-	}
-	return "", ErrPlace
 }
 
 // SettleUpload ends an upload whose size was only known as an upper bound when it began, such as one through a link: it

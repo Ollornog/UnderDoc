@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // TestShareLinks: only who manages makes a link, never on something private; the token is kept as a hash and leads to
@@ -148,7 +150,12 @@ func TestFreeNames(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]string{"report.pdf": "report.pdf", "PLAN.pdf": "PLAN (3).pdf", "notes": "notes"} {
-		if got, err := db.FreeName(ctx, team.ID, name); err != nil || got != want {
+		var got string
+		err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) (err error) {
+			got, err = freeName(ctx, tx, team.ID, name)
+			return err
+		})
+		if err != nil || got != want {
 			t.Errorf("%s: %q %v, want %q", name, got, err, want)
 		}
 	}

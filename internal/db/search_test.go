@@ -353,3 +353,38 @@ func TestFilesAreFoundByTheirText(t *testing.T) {
 		t.Errorf("the page itself comes first: %+v", docs[0])
 	}
 }
+
+// TestSearchPathHidesLevelsNotEveryReaderSees: a page someone reads through a grant of its own is found without the
+// titles of the folders above it that they may not see; those show as "…" (ADR-29). Where every reader sees the levels
+// above, they are named.
+func TestSearchPathHidesLevelsNotEveryReaderSees(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	if err := db.SeeAccount(ctx, carl); err != nil {
+		t.Fatal(err)
+	}
+	board, _ := db.CreateCollection(ctx, anna, "Board", "")
+	if err := db.SetGrant(ctx, board.ID, Actor{ID: anna.ID}, ToTenant, "", RoleNone); err != nil {
+		t.Fatal(err)
+	}
+	folder, _ := db.CreateFolder(ctx, anna, "Layoffs 2027", board.ID)
+	page, _ := db.CreatePage(ctx, anna, "Agenda", folder.ID)
+	if err := db.SetGrant(ctx, page.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, RoleRead); err != nil {
+		t.Fatal(err)
+	}
+	notes, _ := db.CreatePage(ctx, anna, "Notes", folder.ID)
+	doc := func(id string) search.Doc {
+		t.Helper()
+		docs, err := objectSource{db: db}.Docs(ctx, id)
+		if err != nil || len(docs) == 0 {
+			t.Fatalf("docs: %v %v", docs, err)
+		}
+		return docs[0]
+	}
+	if d := doc(page.ID); !slices.Contains(d.Readers, "account:"+carl.ID) || d.Path != "…" || d.CollectionName != "…" {
+		t.Errorf("carl finds the page with the titles above it he may not see: path %q, collection %q, readers %v", d.Path, d.CollectionName, d.Readers)
+	}
+	if d := doc(notes.ID); d.Path != "Board › Layoffs 2027" || d.CollectionName != "Board" {
+		t.Errorf("anna alone reads the notes and every level above: path %q, collection %q", d.Path, d.CollectionName)
+	}
+}

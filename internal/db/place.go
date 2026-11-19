@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
@@ -92,16 +93,26 @@ func place(ctx context.Context, tx pgx.Tx, parent, after string) (int, error) {
 	return position, err
 }
 
-// Move puts an object into parent, after the entry named by after or first. The viewer must be allowed to change the
-// object where it is and the parent it goes to (ADR-20). Only a collection stands at the top, private notes stay there,
-// nothing goes into itself or below itself, and only its owner takes an object into a private collection, where no one
-// else would see it.
+// ErrForeignBelow is a move into something private of an object with something of someone else below it: private
+// stays private, so it would take that away from its owner (ADR-29).
+var ErrForeignBelow = fmt.Errorf("%w: something in it belongs to someone else, and only what is all yours goes into something private", ErrNotAllowed)
+
+// Move puts an object into parent, after the entry named by after or first. Within the parent it lies in, whoever may
+// edit the object and the parent reorders it; to another place it goes only with the role manage on the object and edit
+// on where it goes, since the owner of what is above manages it there (ADR-29, 2026-11-19). Only a collection stands at
+// the top, private notes stay there, and nothing goes into itself or below itself. Only its owner takes an object into
+// something private, and only when everything below it is theirs too; its grants and links end then, and the log keeps
+// that.
 func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) (Object, error) {
 	o, err := db.Object(ctx, objectID, viewer)
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	need := RoleManage
+	if parent == o.Parent {
+		need = RoleEdit
+	}
+	if err := db.may(ctx, o, viewer, need); err != nil {
 		return Object{}, err
 	}
 	if parent == "" && o.Kind != KindCollection {
@@ -120,6 +131,11 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if o.Private && parent != "" {
 		return Object{}, ErrPlace
 	}
+	wasPrivate, err := isPrivate(ctx, db.pool, objectID)
+	if err != nil {
+		return Object{}, err
+	}
+	intoPrivate := false
 	if parent != "" {
 		p, err := db.Object(ctx, parent, viewer)
 		if err != nil {
@@ -147,11 +163,28 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		if top.Private && o.Owner != viewer {
 			return Object{}, ErrNotAllowed
 		}
+		intoPrivate = top.Private && !wasPrivate
 	}
 	var moved Object
 	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		if after == objectID {
 			return ErrPlace
+		}
+		if intoPrivate {
+			// The object is locked, so nothing new lands directly in it while this is checked.
+			if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
+				return err
+			}
+			var foreign bool
+			if err := tx.QueryRow(ctx, `WITH RECURSIVE down AS (
+					SELECT id, owner FROM objects WHERE id = $1
+					UNION ALL SELECT c.id, c.owner FROM objects c JOIN down ON c.parent = down.id
+				) SELECT EXISTS (SELECT 1 FROM down WHERE owner <> $2)`, objectID, viewer).Scan(&foreign); err != nil {
+				return err
+			}
+			if foreign {
+				return ErrForeignBelow
+			}
 		}
 		position, err := place(ctx, tx, parent, after)
 		if err != nil {
@@ -159,7 +192,29 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		}
 		moved, err = scan(tx.QueryRow(ctx, `UPDATE objects SET parent = nullif($2, ''), position = $3, changed = now() WHERE id = $1 RETURNING `+columns,
 			objectID, parent, position))
-		return err
+		if err != nil || !intoPrivate {
+			return err
+		}
+		return endShares(ctx, tx, objectID, viewer)
 	})
 	return moved, err
+}
+
+// endShares takes back every grant and revokes every link on an object and everything below it, as it goes into
+// something private, and logs each (ADR-29). The log of something private shows to its owner alone.
+func endShares(ctx context.Context, tx pgx.Tx, objectID, actor string) error {
+	const down = `WITH RECURSIVE down AS (
+			SELECT id FROM objects WHERE id = $1
+			UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+		) `
+	if _, err := tx.Exec(ctx, down+`, gone AS (DELETE FROM grants WHERE object IN (SELECT id FROM down) RETURNING object, kind, who, role)
+		INSERT INTO audit_log (actor, action, object, detail)
+		SELECT $2, '`+LogGrant+`', object, btrim(kind || ' ' || who) || ' ' || role || ' taken back: moved into something private' FROM gone`,
+		objectID, actor); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, down+`, gone AS (DELETE FROM share_links WHERE object IN (SELECT id FROM down) RETURNING object, id, mode)
+		INSERT INTO audit_log (actor, action, object, detail)
+		SELECT $2, '`+LogLinkRevoked+`', object, id || ' ' || mode || ': moved into something private' FROM gone`, objectID, actor)
+	return err
 }

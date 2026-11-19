@@ -30,7 +30,8 @@ type Trashed struct {
 }
 
 // Delete puts an object and everything below it into the trash, marked with the same moment. Whoever may change the
-// object may delete it (ADR-20), a collection at the top only its owner, since it holds what others made. Private notes
+// object and everything below it may delete it (ADR-29), a collection at the top only its owner, since it holds what
+// others made; something below that breaks the inheritance and shuts the viewer out stops the deletion. Private notes
 // are never deleted, also not with something they were moved into. A line or a space has nothing to restore, so it goes
 // for good, as DeleteDivider does.
 func (db *DB) Delete(ctx context.Context, objectID, viewer string) error {
@@ -76,6 +77,9 @@ func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before 
 		}
 		if private {
 			return ErrNotAllowed
+		}
+		if err := mayTakeAll(ctx, tx, objectID, viewer, "c.deleted_at IS NULL"); err != nil {
+			return err
 		}
 		if before != nil {
 			if err := before(tx); err != nil {
@@ -181,24 +185,49 @@ func (db *DB) Restore(ctx context.Context, objectID, viewer string) (Object, err
 	return back, err
 }
 
+// ErrHeldBelow is a deletion of something with an object below it on which the viewer may not edit: one that breaks the
+// inheritance and shuts them out. It stays where it is; the deletion does not happen (ADR-29, 2026-11-19).
+var ErrHeldBelow = fmt.Errorf("%w: something below it is not open to you, so it cannot go with it; its owner moves it out first", ErrNotAllowed)
+
+// mayTakeAll tells whether the viewer may edit the object and everything below it that the condition on c keeps, so a
+// deletion takes nothing they could not delete on its own.
+func mayTakeAll(ctx context.Context, tx pgx.Tx, objectID, viewer, below string) error {
+	var shut bool
+	if err := tx.QueryRow(ctx, `WITH RECURSIVE down AS (
+			SELECT id FROM objects WHERE id = $1
+			UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id WHERE `+below+`
+		) SELECT EXISTS (SELECT 1 FROM down WHERE object_role(id, $2) < 3)`, objectID, viewer).Scan(&shut); err != nil {
+		return err
+	}
+	if shut {
+		return ErrHeldBelow
+	}
+	return nil
+}
+
 // Purge takes an object of the trash away for good, with everything below it, its blocks and their versions. Whoever
-// owns it or deleted it may.
+// owns it or deleted it may, if they may edit everything that goes with it.
 func (db *DB) Purge(ctx context.Context, objectID, viewer string) error {
 	if _, err := db.inTrash(ctx, objectID, viewer); err != nil {
 		return err
 	}
-	// One statement takes the whole tree, so the parent of each is gone in the same moment as it is.
-	tag, err := db.pool.Exec(ctx, `WITH RECURSIVE down AS (
-			SELECT id FROM objects WHERE id = $1 AND deleted_at IS NOT NULL
-			UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
-		) DELETE FROM objects WHERE id IN (SELECT id FROM down)`, objectID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if err := mayTakeAll(ctx, tx, objectID, viewer, "true"); err != nil {
+			return err
+		}
+		// One statement takes the whole tree, so the parent of each is gone in the same moment as it is.
+		tag, err := tx.Exec(ctx, `WITH RECURSIVE down AS (
+				SELECT id FROM objects WHERE id = $1 AND deleted_at IS NOT NULL
+				UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+			) DELETE FROM objects WHERE id IN (SELECT id FROM down)`, objectID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }
 
 // TrashDays is how long something stays in the trash before it goes for good by itself (2026-11-09).
@@ -213,7 +242,11 @@ func (db *DB) EmptyTrash(ctx context.Context, viewer string) (int, error) {
 	}
 	gone := 0
 	for _, t := range list {
-		if err := db.Purge(ctx, t.ID, viewer); err != nil && !errors.Is(err, ErrNotFound) {
+		err := db.Purge(ctx, t.ID, viewer)
+		if errors.Is(err, ErrHeldBelow) {
+			continue
+		}
+		if err != nil && !errors.Is(err, ErrNotFound) {
 			return gone, err
 		}
 		gone++

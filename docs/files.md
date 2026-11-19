@@ -78,7 +78,9 @@ once cannot pass a quota. The workspace keeps the ID of each upload in the brows
 resumes it.
 
 A file uploaded under the name of a file in the same folder, without regard to case, becomes a new version of that file.
-An older version comes back as a new version, so nothing is lost.
+An older version comes back as a new version, so nothing is lost. The versions are for whoever may edit the file; whoever
+only reads it gets the current one ([rights.md](rights.md)). An upload through a link to upload only never becomes a
+version: it takes a name nothing in the folder has when the file is made, with the folder locked meanwhile.
 
 ## What a file is, and how it is served
 

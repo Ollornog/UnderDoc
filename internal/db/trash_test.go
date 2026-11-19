@@ -322,3 +322,67 @@ func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 		t.Errorf("D, deleted just now, stays: %+v", list)
 	}
 }
+
+// TestDeletingStopsAtWhatShutsOneOut: a page below that breaks the inheritance and shuts out whoever edits the folder
+// above stops the deletion of that folder, and its purge, so nobody deletes what they could not delete on its own
+// (ADR-29, 2026-11-19). Once its owner moved it out, the folder goes.
+func TestDeletingStopsAtWhatShutsOneOut(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	if err := db.SeeAccount(ctx, carl); err != nil {
+		t.Fatal(err)
+	}
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	folder, _ := db.CreateFolder(ctx, bob, "Projects", team.ID)
+	secret, err := db.CreatePage(ctx, carl, "Board only", folder.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	carlActs := Actor{ID: carl.ID}
+	if err := db.SetInherit(ctx, secret.ID, carlActs, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, take := range [][2]string{{ToTenant, ""}, {ToPerson, anna.ID}, {ToPerson, bob.ID}} {
+		if err := db.SetGrant(ctx, secret.ID, carlActs, take[0], take[1], RoleNone); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := role(t, db, secret.ID, bob.ID); got != RoleNone {
+		t.Fatalf("bob is shut out of the page: %q", got)
+	}
+	if err := db.Delete(ctx, folder.ID, bob.ID); !errors.Is(err, ErrHeldBelow) {
+		t.Errorf("bob deleted his folder with carl's page in it: %v", err)
+	}
+	for _, id := range []string{folder.ID, secret.ID} {
+		if _, err := db.Object(ctx, id, carl.ID); err != nil {
+			t.Errorf("%s went: %v", id, err)
+		}
+	}
+	// A deletion from before this rule lies in the trash: its purge stops at the page too.
+	if _, err := db.pool.Exec(ctx, "UPDATE objects SET deleted_at = now(), deleted_by = $2 WHERE id IN ($1, $3)", folder.ID, bob.ID, secret.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Purge(ctx, folder.ID, bob.ID); !errors.Is(err, ErrHeldBelow) {
+		t.Errorf("bob purged carl's page with his folder: %v", err)
+	}
+	if n, err := db.EmptyTrash(ctx, bob.ID); err != nil || n != 0 {
+		t.Errorf("empty the trash: %d %v", n, err)
+	}
+	var left bool
+	if err := db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM objects WHERE id = $1)", secret.ID).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if !left {
+		t.Errorf("carl's page is gone for good")
+	}
+	if _, err := db.Restore(ctx, folder.ID, bob.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Carl takes his page out, and bob deletes the folder.
+	if _, err := db.Move(ctx, secret.ID, carl.ID, team.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Delete(ctx, folder.ID, bob.ID); err != nil {
+		t.Errorf("bob deletes his folder, now without carl's page: %v", err)
+	}
+}

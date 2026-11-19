@@ -390,3 +390,117 @@ func TestTakingBackAnAdministrator(t *testing.T) {
 		t.Errorf("everyone: %+v %v", people, err)
 	}
 }
+
+// TestMigrationKeepsWritersInNarrowerFolders: under ADR-20 the group of writers edited everywhere below the folder of the
+// tenant, whatever level a folder set. Migration 022 broke the inheritance of a narrower folder and copied nothing onto
+// it; migration 025 gives the writers edit there again. A break someone made since stays as it is.
+func TestMigrationKeepsWritersInNarrowerFolders(t *testing.T) {
+	ctx := context.Background()
+	url := pgtest.URL(t)
+	conn, err := pgx.Connect(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(ctx, conn, 21); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(ctx, `SELECT set_config('underdoc.tenant', 'main', false);
+		INSERT INTO accounts (id, login, name, groups) VALUES ('u-anna', 'anna', 'Anna', '{}'), ('u-bob', 'bob', 'Bob', '{writers}');
+		INSERT INTO objects (id, kind, title, owner, parent, access, private, area) VALUES
+			('bbbbbbbbb1', 'collection', 'Company', 'u-anna', NULL, 'comment', false, 'files'),
+			('bbbbbbbbb2', 'folder', 'Contracts', 'u-anna', 'bbbbbbbbb1', 'read', false, 'files'),
+			('bbbbbbbbb3', 'folder', 'Signed', 'u-anna', 'bbbbbbbbb2', NULL, false, 'files');
+		INSERT INTO file_roots (object, role, writers) VALUES ('bbbbbbbbb1', 'tenant', 'writers')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(ctx, conn, 24); err != nil {
+		t.Fatal(err)
+	}
+	// After 022, anna shuts the writers out of a folder of her own making: a break with a granter.
+	if _, err := conn.Exec(ctx, `INSERT INTO objects (id, kind, title, owner, parent, private, area, inherit) VALUES
+			('bbbbbbbbb4', 'folder', 'Board', 'u-anna', 'bbbbbbbbb1', false, 'files', false);
+		INSERT INTO grants (object, kind, who, role, granted_by) VALUES ('bbbbbbbbb4', 'tenant', '', 'read', 'u-anna')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close(ctx)
+	db, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for id, want := range map[string]string{"bbbbbbbbb1": RoleEdit, "bbbbbbbbb2": RoleEdit, "bbbbbbbbb3": RoleEdit, "bbbbbbbbb4": RoleRead} {
+		if got := role(t, db, id, "u-bob"); got != want {
+			t.Errorf("bob, a writer, holds %q on %s, want %q", got, id, want)
+		}
+	}
+}
+
+// TestTwoAdministratorsCannotTakeEachOtherAway: two requests at the same time each found their actor an administrator
+// at the start. The database decides under a lock, so the second, whose actor no longer administers, takes nothing away
+// and the tenant keeps a local administrator. The stale actor here stands for that window.
+func TestTwoAdministratorsCannotTakeEachOtherAway(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	local := func(login string) Account {
+		hash := []byte(login + strings.Repeat("x", 32-len(login)))
+		if err := db.CreateInvite(ctx, hash, Invite{Login: login, Name: login, Admin: true, Expires: time.Now().Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		a, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	dora, eve := local("dora"), local("eve")
+	if err := db.SetAdmin(ctx, Actor{ID: dora.ID, Admin: true}, eve.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, dora.ID, false); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("eve, no longer an administrator: %v", err)
+	}
+	var left int
+	if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM accounts WHERE admin").Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != 1 {
+		t.Errorf("%d local administrators are left", left)
+	}
+	// Both at once: the request of dora has taken eve's administration and not yet ended when eve's begins. Eve's
+	// waits for it, and then finds eve no longer an administrator.
+	if err := db.SetAdmin(ctx, Actor{ID: dora.ID, Admin: true}, eve.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockAdmins); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, "UPDATE accounts SET admin = false WHERE id = $1", eve.ID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, dora.ID, false) }()
+	var eves error
+	select {
+	case eves = <-done:
+		t.Errorf("eve's request did not wait for dora's: %v", eves)
+	case <-time.After(300 * time.Millisecond):
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		eves = <-done
+	}
+	if !errors.Is(eves, ErrNotAllowed) {
+		t.Errorf("eve, no longer an administrator once dora's request ended: %v", eves)
+	}
+	if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM accounts WHERE admin").Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != 1 {
+		t.Errorf("at once: %d administrators left", left)
+	}
+}

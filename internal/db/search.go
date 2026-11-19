@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -99,8 +100,9 @@ type objectSource struct{ db *DB }
 func (objectSource) Name() string { return SourceObjects }
 
 // Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
-// of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29).
-func (objectSource) Version() string { return "3" }
+// of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29), 4 paths without
+// the names of levels not every reader sees (ADR-29).
+func (objectSource) Version() string { return "4" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
@@ -154,13 +156,32 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 		return nil, err
 	}
 	readers = nonNil(readers)
+	// The path names only the levels above that everyone who finds the record may see; the others show as "…", once for
+	// each run of them (ADR-29). A page shared on its own does not give away the folders it lies in.
+	shown := make([]bool, len(chain))
+	for i := 1; i < len(chain); i++ {
+		var above []string
+		if err := s.db.pool.QueryRow(ctx, "SELECT object_readers($1)", chain[i].id).Scan(&above); err != nil {
+			return nil, err
+		}
+		shown[i] = coversReaders(above, readers)
+	}
 	top := chain[len(chain)-1]
+	topName := top.title
+	if len(chain) > 1 && !shown[len(chain)-1] {
+		topName = hiddenLevel
+	}
 	var path []string
 	for i := len(chain) - 1; i > 0; i-- {
-		path = append(path, chain[i].title)
+		switch {
+		case shown[i]:
+			path = append(path, chain[i].title)
+		case len(path) == 0 || path[len(path)-1] != hiddenLevel:
+			path = append(path, hiddenLevel)
+		}
 	}
 	base := search.Doc{Object: self.id, Type: self.kind, Title: self.title, Tags: self.tags, Path: strings.Join(path, " › "),
-		Collection: top.id, CollectionName: top.title, Author: self.owner, AuthorName: self.ownerName,
+		Collection: top.id, CollectionName: topName, Author: self.owner, AuthorName: self.ownerName,
 		Changed: self.changed.Unix(), Readers: readers}
 	if self.kind == KindFile {
 		base.Type = search.TypeFile
@@ -292,4 +313,21 @@ func (db *DB) SearchTitles(ctx context.Context, text, viewer string, tags []stri
 		hits = append(hits, hit)
 	}
 	return hits, nil
+}
+
+// hiddenLevel stands in a path for levels above a record that not everyone who finds it may see.
+const hiddenLevel = "…"
+
+// coversReaders tells whether every reader of a record also reads a level above it: the tenant reads it, or each token of
+// the record is a reader there too.
+func coversReaders(above, record []string) bool {
+	if slices.Contains(above, "all") {
+		return true
+	}
+	for _, r := range record {
+		if !slices.Contains(above, r) {
+			return false
+		}
+	}
+	return true
 }

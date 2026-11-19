@@ -590,3 +590,78 @@ func TestFilesStayInTheirArea(t *testing.T) {
 		t.Fatalf("the link stayed: %v", err)
 	}
 }
+
+// TestFileVersionsAreForEditors: like those of a page, the versions of a file are for whoever may edit it (ADR-29).
+// Whoever only reads it gets the current one.
+func TestFileVersionsAreForEditors(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	if err := db.SeeAccount(ctx, carl); err != nil {
+		t.Fatal(err)
+	}
+	inbox, err := db.CreateFileCollection(ctx, anna, "Inbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetGrant(ctx, inbox.ID, Actor{ID: anna.ID}, ToTenant, "", RoleNone); err != nil {
+		t.Fatal(err)
+	}
+	first := upload(t, db, anna.ID, UploadTarget{Parent: inbox.ID}, "offer.pdf", 10, sha(1))
+	upload(t, db, anna.ID, UploadTarget{File: first.File.ID}, "offer.pdf", 20, sha(2))
+	if err := db.SetGrant(ctx, first.File.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, RoleRead); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := db.FileVersions(ctx, first.File.ID, carl.ID); !errors.Is(err, ErrNotAllowed) || len(v) != 0 {
+		t.Errorf("carl, who only reads, gets the versions: %d %v", len(v), err)
+	}
+	if _, err := db.FileVersion(ctx, first.File.ID, carl.ID, 1); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("carl, who only reads, gets the first version: %v", err)
+	}
+	if v, err := db.FileVersion(ctx, first.File.ID, carl.ID, 0); err != nil || v.Blob != sha(2) {
+		t.Errorf("carl reads the current version: %+v %v", v, err)
+	}
+	if v, err := db.FileVersions(ctx, first.File.ID, anna.ID); err != nil || len(v) != 2 {
+		t.Errorf("anna gets %d versions: %v", len(v), err)
+	}
+}
+
+// TestUploadAsNewNeverBecomesAVersion: an upload that only adds, such as one through a link, takes its name when the file
+// is made. A file that arrived under the same name while its data came stays as it was, with no version of the visitor's.
+func TestUploadAsNewNeverBecomesAVersion(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	inbox, err := db.CreateFileCollection(ctx, anna, "Inbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := func() Upload {
+		u, err := db.StartUpload(ctx, anna.ID, UploadTarget{Parent: inbox.ID}, "contract.pdf", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SettleUpload(ctx, u.ID, anna.ID, 10); err != nil {
+			t.Fatal(err)
+		}
+		return u
+	}
+	visitor, second := start(), start()
+	// While the data comes, the real contract arrives under the same name.
+	real := upload(t, db, anna.ID, UploadTarget{Parent: inbox.ID}, "contract.pdf", 20, sha(1))
+	var made []string
+	for i, u := range []Upload{visitor, second} {
+		done, err := db.FinishUploadAsNew(ctx, u.ID, anna.ID, sha(2+i), 10, "application/pdf", func() error { return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done.File.ID == real.File.ID || done.Version != 1 {
+			t.Errorf("the upload became version %d of %s", done.Version, done.File.ID)
+		}
+		made = append(made, done.File.Title)
+	}
+	if !slices.Equal(made, []string{"contract (2).pdf", "contract (3).pdf"}) {
+		t.Errorf("names = %v", made)
+	}
+	if v, err := db.FileVersions(ctx, real.File.ID, anna.ID); err != nil || len(v) != 1 || v[0].Blob != sha(1) {
+		t.Errorf("the real contract changed: %+v %v", v, err)
+	}
+}

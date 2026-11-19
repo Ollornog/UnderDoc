@@ -9,8 +9,8 @@ It replaces the one level for all others of ADR-20; the owner, the private colle
 |---|---|
 | **Read** | see and open, read comments, embed what it reads |
 | **Comment** | add comments and replies, on the whole page or on one block |
-| **Edit** | change the content, title and tags, make, move and copy children, move to the trash and restore |
-| **Manage** | grant and take back roles up to manage, break and restore the inheritance |
+| **Edit** | change the content, title and tags, make and copy children, reorder within the parent, move to the trash and restore, see the versions |
+| **Manage** | grant and take back roles up to manage, break and restore the inheritance, make share links, move to another place |
 | **Owner** | transfer the ownership; nobody takes the role away |
 
 Each role includes those above it in the table. **The owner** is one person per object, whoever made it; the owner of an
@@ -31,9 +31,18 @@ access by surprise; then take back what shall not hold. Restoring the inheritanc
 object's own grants.
 
 - A new collection at the top grants edit to the whole tenant, as before; its owner can change that.
-- A move keeps the object's own grants and its owner; what it inherits changes with its new place.
+- A move keeps the object's own grants and its owner; what it inherits changes with its new place. **Moving to another
+  place needs manage** on the object and edit on where it goes; within its parent, edit reorders it. The workspace
+  opens no gap for a move one may not make.
 - **Private stays private:** My notes, the folder of each user in Files and everything below them belong to their user
-  alone. Nothing can be granted there, and administrators see nothing of it.
+  alone. Nothing can be granted there, and administrators see nothing of it. Only its owner moves an object into
+  something private, and only when everything below it is theirs too; otherwise the move is refused with a message. Its
+  grants and links end with the move, and the log keeps each for the owner.
+- **Deleting takes nothing one may not edit:** deleting or purging needs edit on the object and everything below it. A
+  page below that breaks the inheritance and shuts the deleter out refuses the deletion with a message; its owner moves
+  it out first.
+- **Versions are for edit:** the history of a page or a file holds what was taken out, so whoever only reads gets the
+  current state, not the versions.
 - **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever holds no role on it.
 
 ## Administrators
@@ -57,6 +66,7 @@ groups and manage their members. They read the content of an object only where t
   group or as everyone; "who sees something": the roles of an object, and the role of an account on it with why).
 - **The administration in the profile** shows Users and groups the same way (ADR-16).
 - **Taking back an administrator** works for local accounts, by another administrator, so a tenant always keeps one;
+  the database decides it under a lock, and a local administrator must still be one when it happens;
   accounts of the gate or of OIDC administer through their group at the sign-in. Whoever stops administering the tenant
   stops administering its organization in the time tracking where UnderDoc made them do so
   ([time-tracking.md](time-tracking.md)).
@@ -74,7 +84,7 @@ Access and changes are logged ([ADR-29](../backlog/ADR-29-roles-on-groups-and-pe
 `audit_log`): opening an object and changing it (each change of the API that went through, an upload, making something)
 once per account, object and hour; roles, the inheritance, owners, groups, members, administrators and links each time,
 with what was done; a link opened, used, a wrong password of a link and an upload through a link, with an empty actor for
-someone without an account. Nothing that lies in something private is logged. An entry keeps the plain IDs, so it outlives
+someone without an account; grants taken back and links revoked by a move into something private, visible to its owner. Nothing that lies in something private is logged. An entry keeps the plain IDs, so it outlives
 what it names.
 
 Administrators read the whole log in the tab Rights (and under Audit log in the administration of the profile), everyone
@@ -86,7 +96,8 @@ answers the newest entries first. The log is kept as long as the tenant; a reten
 One function in the database, `object_role`, decides the role of an account on an object, and every query that lists, finds
 or opens objects asks it: the tree, search, embeddings, references, the trash, exports and the API. The search index keeps
 who may read a record as tokens (`all` for the tenant, `account:<id>`, `group:<id>`, from `object_readers`); a change of
-roles, of the inheritance or of the owner queues the object and everything below it.
+roles, of the inheritance or of the owner queues the object and everything below it. The path of a record names only the
+levels above that every one of its readers sees; the others show as "…".
 
 The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users`, `share_link_passes` and `audit_log` carry their tenant under row-level security like all others
 ([tenants.md](tenants.md)). The column `objects.inherit` says whether an object takes roles from above.
@@ -124,8 +135,8 @@ it does for invitations.
 
 | Mode | For | What it does |
 |---|---|---|
-| **read** | anyone with the link | a page **frozen**; a file, or a folder of the files with what is below it, as it is now |
-| **upload** | anyone with the link | into a folder of the files: each file arrives under a name nothing there has, as a file of whoever made the link; the visitor sees nothing of the folder |
+| **read** | anyone with the link | a page **frozen**; a file, or a folder of the files with what is below it, as it is now, and only what the maker of the link sees now, checked for each folder and file |
+| **upload** | anyone with the link | into a folder of the files: each file arrives under a name nothing there has when it is made, as a file of whoever made the link, never as a version of what is there; the visitor sees nothing of the folder |
 | **comment**, **edit** | accounts of the tenant | whoever opens the link while signed in holds that role on the object and below it, as long as the link lives; without an account, the link asks to sign in |
 
 - **Frozen:** a page is rendered when the link is made, as its maker sees it then, and the link shows exactly that until a
@@ -157,5 +168,6 @@ the top of an export made before ADR-29.
 
 Migration 022 turns each level for all others into grants: a level at the top, or one wider than the level above it,
 becomes a grant to the tenant; a narrower one breaks the inheritance and grants the tenant that level. The folder of the
-tenant in Files grants read to the tenant and edit to its group of writers. Nobody sees more or less than before, except
-that the owner of an object now manages what lies below it.
+tenant in Files grants read to the tenant and edit to its group of writers. Migration 025 adds what 022 left out: the
+writers keep edit in the folders below that a narrower level made break the inheritance, as they had under ADR-20. Nobody
+sees more or less than before, except that the owner of an object now manages what lies below it.
