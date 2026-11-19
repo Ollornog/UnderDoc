@@ -49,7 +49,7 @@ or opens objects asks it: the tree, search, embeddings, references, the trash, e
 who may read a record as tokens (`all` for the tenant, `account:<id>`, `group:<id>`, from `object_readers`); a change of
 roles, of the inheritance or of the owner queues the object and everything below it.
 
-The tables `groups`, `group_members` and `grants` carry their tenant under row-level security like all others
+The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users` and `share_link_passes` carry their tenant under row-level security like all others
 ([tenants.md](tenants.md)). The column `objects.inherit` says whether an object takes roles from above.
 
 ## API
@@ -72,6 +72,40 @@ PUT    /api/groups/<id>/members/<account>    {"member": true}   administrators, 
 An empty role takes a grant back. The level of ADR-20 (`/access`) stays for the settings of the workspace: a level narrower
 than the one above breaks the inheritance and grants the tenant that level; an empty one takes the tenant's grant back and
 restores the inheritance, and at the top, where nothing is above, it means edit as before.
+
+## Share links
+
+Whoever manages an object makes links to it ([ADR-29](../backlog/ADR-29-roles-on-groups-and-persons.md)), never on
+something private. The address `/s/<token>` carries 32 random bytes; the database keeps only their SHA-256, so the address
+is shown once, when the link is made. A link has an optional expiry and an optional password (Argon2id, with the limit
+against guessing of the sign-in; a browser that gave it gets a cookie for that link alone, for a day). A link that expired,
+was revoked, lies on something in the trash, or whose maker no longer manages its object answers like one that never was,
+and lends nobody a role. The log names `/s/…` without the token, as
+it does for invitations.
+
+| Mode | For | What it does |
+|---|---|---|
+| **read** | anyone with the link | a page **frozen**; a file, or a folder of the files with what is below it, as it is now |
+| **upload** | anyone with the link | into a folder of the files: each file arrives under a name nothing there has, as a file of whoever made the link; the visitor sees nothing of the folder |
+| **comment**, **edit** | accounts of the tenant | whoever opens the link while signed in holds that role on the object and below it, as long as the link lives; without an account, the link asks to sign in |
+
+- **Frozen:** a page is rendered when the link is made, as its maker sees it then, and the link shows exactly that until a
+  manager renews it. Every page it embeds, directly or through what it embeds, is listed (`/shareables`) and shows only
+  if it was released; the rest says "Not shared". A collection or folder of the documents gets no link to read.
+- **Listed and revoked:** `/api/links` lists the links with who made them, when, until when and how many accounts opened
+  them; administrators see every link, everyone else the links they made and those on what they manage. Whoever made a
+  link, whoever manages its object and administrators revoke it.
+- Not yet: attachments of a page, such as a pasted image, are not part of a link, and wiki links in a frozen page lead
+  into the workspace.
+
+```text
+GET    /api/objects/<id>/shareables          the pages a page embeds, to release one by one
+POST   /api/objects/<id>/links               {"mode", "expires": "2026-12-31", "password", "released": ["<id>"]}  → the link with its address
+GET    /api/links[?object=<id>]              the links the viewer may see
+POST   /api/links/<id>/renew                 {"released": [...]}   freeze the page again
+DELETE /api/links/<id>                       revoke
+GET    /s/<token>                            the link; POST /s/<token>/password, GET /s/<token>/f/<file>, POST /s/<token>/upload
+```
 
 ## Export and import
 

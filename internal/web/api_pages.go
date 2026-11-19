@@ -204,6 +204,10 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	if len(trail) > maxEmbed {
 		return "", "", "Embedded too deep: " + ref
 	}
+	// A page frozen for a link shows only what its maker released (ADR-29).
+	if unreleased(r.Context(), a.Object) {
+		return "", "", "Not shared: " + ref
+	}
 	user, _ := account.From(r.Context())
 	o, err := h.options.DB.Object(r.Context(), a.Object, user.ID)
 	if err != nil || o.Kind != db.KindPage {

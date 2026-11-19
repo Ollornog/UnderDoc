@@ -68,8 +68,8 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		embedded string
 		// employer is the private employer booked in the time tracking, its name the word of the tenant.
 		employer string
-		// group is a local group of the tenant.
-		group string
+		// group is a local group of the tenant, link the address of a link to the plan.
+		group, link string
 	}
 	// The door "time tracking" (EightPerDay) is open in both tenants.
 	for _, id := range []string{tenant.Main, "acme"} {
@@ -111,6 +111,12 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			t.Fatal(err)
 		}
 		m.group = board.ID
+		link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+plan.ID+"/links", `{"mode":"read"}`, h))
+		if link.URL == "" {
+			t.Fatalf("a link: %+v", link)
+		}
+		u, _ := url.Parse(link.URL)
+		m.link = u.Path
 		m.ids = []string{team.ID, plan.ID, uses.ID, gone.ID}
 		m.comment = strconv.FormatInt(c.ID, 10)
 		m.trashed = gone.ID
@@ -222,6 +228,18 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 				if got := s.send(change.method, change.target, change.body, h); got.Code != http.StatusNotFound {
 					t.Errorf("%s %s = %d", change.method, change.target, got.Code)
 				}
+			}
+			// The link of the other tenant leads nowhere here, also signed out.
+			for _, headers := range []map[string]string{h, {"Host": c.host}} {
+				if got := s.getWith(c.other.link, headers); got.Code != http.StatusNotFound || strings.Contains(got.Body.String(), c.other.secret) {
+					t.Errorf("the link of the other tenant: %d", got.Code)
+				}
+			}
+			if got := s.getWith(c.other.link, at(c.otherHost)); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), c.other.secret) {
+				t.Errorf("at its own host the link works: %d", got.Code)
+			}
+			if body := s.getWith("/api/links", h).Body.String(); strings.Contains(body, c.other.ids[1]) {
+				t.Errorf("the links of the other tenant are listed: %s", body)
 			}
 			// The groups of the other tenant are not to be found, also for an administrator of this one.
 			here := tenant.Main

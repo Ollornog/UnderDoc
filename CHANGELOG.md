@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Share links (ADR-29, M-5, [docs/rights.md](docs/rights.md)): whoever manages an object makes a link with a mode (read,
+  upload only, comment, edit), an optional expiry and an optional password; only the hash of the token is kept. A page
+  is shown frozen as it was when the link was made or renewed, with only the embedded pages its maker released; a file or
+  a folder of the files shows its current files; upload only takes files under new names and shows nothing; a link to
+  comment or edit gives its role to the accounts that open it while signed in. Links are listed with maker, expiry and
+  users, and revoked (migration 023).
+
 - Roles for persons, groups and the tenant (ADR-29, M-5, [docs/rights.md](docs/rights.md)): owner, manage, edit,
   comment and read on every object of the documents and of Files, inherited down the tree, narrowed by breaking the
   inheritance (which copies what held from above), ownership transferred with the former owner keeping edit. Local
@@ -60,6 +67,8 @@ All notable changes to this project are documented in this file. The format foll
   every way an account, a block or a file comes in.
 
 ### Changed
+
+- The access log names the address of a share link or an invitation without its token.
 
 - The level for all others of ADR-20 is now the role of the whole tenant (migration 022): a narrower level below breaks
   the inheritance; the writers of the folder of the tenant are a group with the role edit. The owner of an object now

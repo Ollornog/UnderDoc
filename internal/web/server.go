@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -83,11 +84,24 @@ func accessLog(log *slog.Logger, next http.Handler) http.Handler {
 		}
 		log.LogAttrs(r.Context(), slog.LevelInfo, "request",
 			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
+			slog.String("path", logPath(r.URL.Path)),
 			slog.Int("status", writer.status),
 			slog.Float64("ms", float64(time.Since(start).Microseconds())/1000),
 		)
 	})
+}
+
+// logPath is a path as the log keeps it: the token of a share link or an invitation is a key, so it never reaches a log.
+func logPath(p string) string {
+	for _, prefix := range []string{"/s/", "/invite/"} {
+		if rest, ok := strings.CutPrefix(p, prefix); ok {
+			if i := strings.IndexByte(rest, '/'); i >= 0 {
+				return prefix + "…" + rest[i:]
+			}
+			return prefix + "…"
+		}
+	}
+	return p
 }
 
 // Health answers 200 while ready returns true, and 503 otherwise.

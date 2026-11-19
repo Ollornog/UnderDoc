@@ -1,0 +1,64 @@
+{{define "share" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{.Title}} · UnderDoc</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/c22/css/c22-vega.css?v={{.Version}}">
+  <script src="/assets/app/theme.js?v={{.Version}}"></script>
+</head>
+<body>
+  <main class="mx-auto w-full max-w-3xl p-4" data-share="{{.Kind}}">
+    <header class="mb-4">
+      <h1 class="text-2xl font-semibold" data-test="share-title">{{.Title}}</h1>
+      <p class="text-sm text-muted-foreground">Shared through a link{{if .Expires}} until {{.Expires}}{{end}}.{{if .FrozenAt}} As it was on {{.FrozenAt}}.{{end}}</p>
+    </header>
+    {{- if .Problem}}
+    <div class="alert" data-variant="destructive" role="alert" data-test="share-problem"><p>{{.Problem}}</p></div>
+    {{- end}}
+    {{- if .Notice}}
+    <div class="alert" role="status" data-test="share-notice"><p>{{.Notice}}</p></div>
+    {{- end}}
+    {{- if .Password}}
+    <form class="card w-full max-w-md" method="post" action="/s/{{.Token}}/password">
+      <header><h2 class="card-title">This link has a password</h2></header>
+      <section>
+        <div class="field"><label for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="off" required maxlength="1000" autofocus></div>
+      </section>
+      <footer><button class="btn" type="submit">Open</button></footer>
+    </form>
+    {{- else if eq .Kind "page"}}
+    <article data-test="share-page">{{.Frozen}}</article>
+    {{- else if eq .Kind "upload"}}
+    <form class="card w-full max-w-md" method="post" action="/s/{{.Token}}/upload" enctype="multipart/form-data">
+      <header><h2 class="card-title">Send a file</h2>
+        <p class="card-description">The file goes into this folder. You do not see what else is in it.</p></header>
+      <section><input class="input" type="file" name="file" required aria-label="File to send"></section>
+      <footer><button class="btn" type="submit">Send</button></footer>
+    </form>
+    {{- else if or (eq .Kind "file") (eq .Kind "folder")}}
+    {{- if .Up}}<p class="mb-2"><a class="btn" data-variant="outline" href="{{.Up}}">Back to the top</a></p>{{end}}
+    <table class="table" data-test="share-files">
+      <thead><tr><th>Name</th><th>Size</th></tr></thead>
+      <tbody>
+        {{- range .Files}}
+        <tr><td><a href="{{.Href}}">{{if .Folder}}{{.Title}}/{{else}}{{.Title}}{{end}}</a></td><td>{{.Size}}</td></tr>
+        {{- else}}
+        <tr><td colspan="2">Nothing here yet.</td></tr>
+        {{- end}}
+      </tbody>
+    </table>
+    {{- else}}
+    <p data-test="share-workspace">This link opens in the workspace for an account of this workspace.</p>
+    {{- end}}
+    {{- if .SignIn}}
+    <p class="mt-4"><a class="btn" href="{{.SignIn}}" data-test="share-sign-in">Sign in to {{.Mode}}</a></p>
+    {{- end}}
+  </main>
+</body>
+</html>
+{{- end}}
