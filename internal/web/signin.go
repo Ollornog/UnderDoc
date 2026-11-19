@@ -113,7 +113,7 @@ func (h *handler) identify(r *http.Request, s db.SignIn) (account.User, bool) {
 // public tells the paths that answer without a sign-in: the pages to sign in, to accept an invitation and to register.
 func public(r *http.Request) bool {
 	p := r.URL.Path
-	return p == "/sign-in" || strings.HasPrefix(p, "/sign-in/") || strings.HasPrefix(p, "/invite/") || p == "/register"
+	return p == "/sign-in" || strings.HasPrefix(p, "/sign-in/") || strings.HasPrefix(p, "/invite/") || p == "/register" || isShare(r)
 }
 
 // onlyGate tells whether the gate is the only way in, as before ADR-23: then a request without it gets the page that
