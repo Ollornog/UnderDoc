@@ -102,6 +102,8 @@ type apiDocument struct {
 	// that are gone; CanComment tells whether the viewer may add some (ADR-20).
 	Comments   int  `json:"comments,omitempty"`
 	CanComment bool `json:"canComment,omitempty"`
+	// SeenBy names who sees an object of the database and with which role, for its facts panel (ADR-29).
+	SeenBy []string `json:"seenBy,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.
@@ -264,7 +266,7 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 				Path: "not a file, lives in the database", Changed: stamp(o.Changed), Intro: "", Sections: [][]string{},
-				UsedIn: []string{}, Links: []string{}, Stable: true})
+				UsedIn: []string{}, Links: []string{}, Stable: true, Owner: h.options.DB.AccountName(ctx, o.Owner), SeenBy: h.seenBy(r, o)})
 			return
 		}
 		if !errors.Is(err, db.ErrNotFound) {

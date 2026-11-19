@@ -167,6 +167,8 @@ type Grant struct {
 // Rights are the roles that hold on an object: its owner, its own grants, and what it inherits from above.
 type Rights struct {
 	Owner, OwnerName string
+	// Private tells that the object is private: its owner alone sees it, and no grant counts.
+	Private bool
 	// Inherit is false where the object breaks the inheritance.
 	Inherit bool
 	Own     []Grant
@@ -197,6 +199,9 @@ func (db *DB) RightsOf(ctx context.Context, objectID string, actor Actor) (Right
 		return Rights{}, err
 	}
 	r := Rights{Owner: o.Owner, OwnerName: db.AccountName(ctx, o.Owner), Inherit: !o.Breaks}
+	if r.Private, err = isPrivate(ctx, db.pool, o.ID); err != nil || r.Private {
+		return r, err
+	}
 	rows, err := db.pool.Query(ctx, `SELECT `+grantColumns+` FROM grants g`+grantJoins+` WHERE g.object = $1
 		ORDER BY CASE g.kind WHEN 'tenant' THEN 0 WHEN 'group' THEN 1 ELSE 2 END, lower(coalesce(a.name, gr.name, '')), g.who`, objectID)
 	if err != nil {
@@ -595,5 +600,175 @@ func (db *DB) People(ctx context.Context) ([]Member, error) {
 		var m Member
 		err := row.Scan(&m.ID, &m.Login, &m.Name)
 		return m, err
+	})
+}
+
+// Reason is one way an account holds a role on an object: a grant to it, to one of its groups or to the tenant, a link
+// it opened, or the owner of the object or of something above it.
+type Reason struct {
+	// Object is where the role comes from, and Title its name.
+	Object, Title string
+	// Via is "owner", "owner above", "person", "group", "tenant" or "link"; Name names the group where it is one.
+	Via, Name string
+	Role      string
+}
+
+// Explain tells the role an account holds on an object and why, for the access check of the tab Rights (ADR-29).
+// Whoever manages the object asks it, and administrators; anyone may ask it for themselves.
+func (db *DB) Explain(ctx context.Context, objectID string, actor Actor, accountID string) (string, []Reason, error) {
+	if accountID != actor.ID {
+		if _, err := db.forRights(ctx, objectID, actor); err != nil {
+			return "", nil, err
+		}
+	} else if _, err := db.Object(ctx, objectID, actor.ID); err != nil {
+		return RoleNone, nil, nil
+	}
+	held, err := db.Role(ctx, objectID, accountID)
+	if err != nil || held == RoleNone {
+		return held, nil, err
+	}
+	var private bool
+	if private, err = isPrivate(ctx, db.pool, objectID); err != nil || private {
+		return held, []Reason{{Object: objectID, Via: "owner", Role: RoleOwner}}, err
+	}
+	groups, err := db.GroupsOf(ctx, accountID)
+	if err != nil {
+		return "", nil, err
+	}
+	var reasons []Reason
+	for cur, self := objectID, true; cur != ""; self = false {
+		o, err := db.objectForRights(ctx, cur)
+		if err != nil {
+			return "", nil, err
+		}
+		if o.Owner == accountID {
+			via, role := "owner above", RoleManage
+			if self {
+				via, role = "owner", RoleOwner
+			}
+			reasons = append(reasons, Reason{Object: o.ID, Title: o.Title, Via: via, Role: role})
+		}
+		rows, err := db.pool.Query(ctx, `SELECT g.kind, g.role, coalesce(gr.name, '') FROM grants g LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
+			WHERE g.object = $1 AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $2) OR (g.kind = 'group' AND g.who = ANY ($3)))
+			ORDER BY g.kind, gr.name`, o.ID, accountID, groups)
+		if err != nil {
+			return "", nil, err
+		}
+		found, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Reason, error) {
+			r := Reason{Object: o.ID, Title: o.Title}
+			err := row.Scan(&r.Via, &r.Role, &r.Name)
+			return r, err
+		})
+		if err != nil {
+			return "", nil, err
+		}
+		reasons = append(reasons, found...)
+		links, err := db.pool.Query(ctx, `SELECT l.mode FROM share_links l JOIN share_link_users u ON u.link = l.id
+			WHERE l.object = $1 AND u.account = $2 AND l.mode IN ('comment', 'edit') AND (l.expires IS NULL OR l.expires > now())
+			  AND object_role(l.object, l.created_by, false) >= 4`, o.ID, accountID)
+		if err != nil {
+			return "", nil, err
+		}
+		modes, err := pgx.CollectRows(links, pgx.RowTo[string])
+		if err != nil {
+			return "", nil, err
+		}
+		for _, m := range modes {
+			reasons = append(reasons, Reason{Object: o.ID, Title: o.Title, Via: "link", Role: m})
+		}
+		if o.Breaks {
+			break
+		}
+		cur = o.Parent
+	}
+	return held, reasons, nil
+}
+
+// Held is a role an account holds directly: on which object, and through what.
+type Held struct {
+	Object, Title, Kind, Area string
+	Via, Name, Role           string
+}
+
+// HeldBy lists where an account holds a role of its own, through a group or as the whole tenant: the start of "what may
+// X do" in the tab Rights. Administrators ask it for anyone, everyone else for themselves. Objects in the trash are left
+// out, and nothing private is ever there.
+func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held, error) {
+	if accountID != actor.ID && !actor.Admin {
+		return nil, ErrNotAllowed
+	}
+	groups, err := db.GroupsOf(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.pool.Query(ctx, `
+		SELECT o.id, o.title, o.kind, o.area, 'owner', '', 'owner' FROM objects o
+		WHERE o.owner = $1 AND o.deleted_at IS NULL AND NOT o.private AND (o.parent IS NULL OR (SELECT p.owner FROM objects p WHERE p.id = o.parent) <> $1)
+		UNION ALL
+		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(gr.name, ''), g.role FROM grants g JOIN objects o ON o.id = g.object
+			LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
+		WHERE o.deleted_at IS NULL AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1) OR (g.kind = 'group' AND g.who = ANY ($2)))
+		ORDER BY 2, 1, 5`, accountID, groups)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Held, error) {
+		var h Held
+		err := row.Scan(&h.Object, &h.Title, &h.Kind, &h.Area, &h.Via, &h.Name, &h.Role)
+		return h, err
+	})
+}
+
+// ErrLastAdmin is taking away one's own administration.
+var ErrLastAdmin = errors.New("nobody takes their own administration away, so a tenant keeps an administrator")
+
+// SetAdmin makes a local account an administrator of the tenant, or takes that back (ADR-29). Accounts of the gate or of
+// OIDC are administrators through their group, which their sign-in decides. Only administrators do; the caller checks.
+func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin bool) error {
+	if !actor.Admin {
+		return ErrNotAllowed
+	}
+	a, err := db.AccountByID(ctx, accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if a.Source != SourceLocal {
+		return ErrSource
+	}
+	if admin {
+		_, err := db.pool.Exec(ctx, "UPDATE accounts SET admin = true WHERE id = $1", accountID)
+		return err
+	}
+	// Whoever takes it back administers the tenant and is someone else, so the tenant keeps an administrator.
+	if accountID == actor.ID {
+		return ErrLastAdmin
+	}
+	_, err = db.pool.Exec(ctx, "UPDATE accounts SET admin = false WHERE id = $1", accountID)
+	return err
+}
+
+// User is an account with how it signs in and whether it administers the tenant as a local account.
+type User struct {
+	Member
+	Source string
+	Admin  bool
+	Groups []string
+}
+
+// Everyone returns every account of the tenant with its source, its local administration and its groups taken over,
+// for the administration of users (ADR-16, ADR-29).
+func (db *DB) Everyone(ctx context.Context) ([]User, error) {
+	rows, err := db.pool.Query(ctx, `SELECT id, login, name, source, admin, groups FROM accounts ORDER BY lower(name), login`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
+		var p User
+		err := row.Scan(&p.ID, &p.Login, &p.Name, &p.Source, &p.Admin, &p.Groups)
+		p.Groups = nonNil(p.Groups)
+		return p, err
 	})
 }

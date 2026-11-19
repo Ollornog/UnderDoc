@@ -276,7 +276,7 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	answer := apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
-		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created)}
+		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created), SeenBy: h.seenBy(r, o)}
 	used, err := h.options.DB.UsedIn(ctx, o.ID, user.ID)
 	if err != nil {
 		h.log.Error("used in failed", slog.String("error", err.Error()))

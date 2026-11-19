@@ -33,8 +33,11 @@ mouse and keyboard and checks that another tenant sees nothing of it.
 - **An account is a person**: its ID where EightPerDay takes it (letters, digits, `-` and `_`, up to 64), otherwise
   `a-` and a hash of it that stays the same (`db.Person`).
 - **An administrator of the tenant administers the organization**: the mapping gives them an administrator's
-  membership once; it never takes one away. Who else belongs to the organization, and who administers it besides, its
-  administrators decide on its page in the time tracking, choosing among the accounts of the tenant.
+  membership once (its ID starts with `ud-admin-`). Whoever stops administering the tenant loses that membership on their
+  next way into the time tracking, and at once when an administrator takes it back in UnderDoc (ADR-29): it ends the day
+  before, or becomes a plain membership if it began today. Memberships the organization gave itself, and those the mapping
+  made before 2026-11-19, stay. Who else belongs to the organization, and who administers it besides, its administrators
+  decide on its page in the time tracking, choosing among the accounts of the tenant.
 
 ## Private and managed at once
 

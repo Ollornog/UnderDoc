@@ -168,3 +168,58 @@ func TestMapTenant(t *testing.T) {
 		t.Error("acme finds an account of Main")
 	}
 }
+
+// TestMapTenantTakesBackItsAdministrators: whoever stops administering the tenant stops administering the organization
+// where the mapping made them do so; a role the organization gave them itself stays (ADR-29).
+func TestMapTenantTakesBackItsAdministrators(t *testing.T) {
+	db := open(t)
+	main := inMain()
+	s := db.TimeStore()
+	if err := db.MapTenant(main, anna.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation(core.DefaultTimeZone)
+	today := core.DateIn(time.Now(), loc)
+	admin := func(person string) bool {
+		ms, err := s.Memberships(main, tenant.Main, person)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return core.ActorFor(person, tenant.Main, ms, today).Admin
+	}
+	if !admin(Person(anna.ID)) {
+		t.Fatal("anna administers the organization")
+	}
+	// Bob was made an administrator by the organization itself, a week ago.
+	if err := s.PutMembership(main, core.Membership{ID: core.NewID(), Organization: tenant.Main, Person: Person(bob.ID), Role: core.RoleAdmin,
+		From: today.AddDays(-7)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, who := range []string{anna.ID, bob.ID} {
+		if err := db.MapTenant(main, who, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if admin(Person(anna.ID)) {
+		t.Error("anna no longer administers the tenant, nor the organization")
+	}
+	if !admin(Person(bob.ID)) {
+		t.Error("what the organization gave bob stays")
+	}
+	// Made an administrator a week ago through the mapping, the membership ends yesterday and keeps its history.
+	old := core.Membership{ID: mappedAdmin(Person("u-carl")) + "20261101", Organization: tenant.Main, Person: Person("u-carl"), Role: core.RoleAdmin,
+		From: today.AddDays(-7)}
+	if err := s.PutMembership(main, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.MapTenant(main, "u-carl", false); err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := s.Memberships(main, tenant.Main, Person("u-carl"))
+	if len(ms) != 1 || ms[0].Role != core.RoleAdmin || ms[0].Until != today.AddDays(-1) {
+		t.Errorf("the membership ends yesterday: %+v", ms)
+	}
+	if err := db.MapTenant(main, anna.ID, true); err != nil || !admin(Person(anna.ID)) {
+		t.Errorf("made an administrator again: %v", err)
+	}
+}
