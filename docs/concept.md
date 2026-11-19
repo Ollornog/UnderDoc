@@ -26,12 +26,14 @@ A document has its own identity, type, roles and versions. Where it sits is a se
 where it appears, not what it is. See [ADR-13](../backlog/ADR-13-documents-and-folders.md) and
 [ADR-15](../backlog/ADR-15-workspace-of-typed-documents.md).
 
-- **Roles:** one owner (person or group), plus editors, commenters and viewers, per person or group.
+- **Roles:** one owner, plus managers, editors, commenters and readers, per person, group, the whole tenant or link, on
+  every object ([ADR-29](../backlog/ADR-29-roles-on-groups-and-persons.md)).
 - **Pages live in the database as blocks**, each with its own ID, and Markdown is the way in and out
   ([ADR-19](../backlog/ADR-19-pages-in-the-database.md)). An Excel file stays the exact file, kept under its hash. Every version is
   kept.
 - **Who sees what before roles:** shared collections for everyone signed in, private ones for their user, and for all others edit,
-  comment or read, inherited down the tree ([ADR-20](../backlog/ADR-20-who-sees-what-before-roles.md)).
+  comment or read, inherited down the tree ([ADR-20](../backlog/ADR-20-who-sees-what-before-roles.md)), until the roles of
+  ADR-29 replace the level for all others.
 - **The share is a projection:** chosen folders appear as real files. Changes from there become new versions.
 - **Way out:** `underdoc export` writes everything as normal files at any time.
 
@@ -237,11 +239,15 @@ The order can change between topics, not during one. M-12 in particular can move
 
 ## Permissions
 
-- **Roles belong to the document:** owner, editor, commenter, viewer. Folders pass default roles on to their contents. The
-  default is no access.
-- **A move changes inherited roles only**, and the UI says so first. Ownership can be transferred, and a group can be the owner.
+- **Roles belong to the object:** owner, manage, edit, comment, read, granted to persons, groups, the whole tenant or a link
+  ([ADR-29](../backlog/ADR-29-roles-on-groups-and-persons.md)). Everything below an object inherits its roles; there is only
+  allowing, and narrower means breaking the inheritance. Private notes stay private, also from administrators.
+- **Groups** are local or taken over from OIDC or the gate (read only there), and do not nest.
+- **A move changes inherited roles only**, and the UI says so first. Ownership can be transferred to another person.
+- **Administrators manage rights, not content:** they see and change who holds which role, and read only where they hold one.
+- **Which tree decides (T-9):** the one an object lives in; folders shared over Samba or WebDAV set a limit the UI shows.
 - **Two doors, one model:** the web and SMB must agree. The app is the source of truth and derives Samba permissions
-  from it. Owner and editor can write, commenter and viewer can read, and commenting only exists in the web.
+  from it. Owner, manager and editor can write, commenter and reader can read, and commenting only exists in the web.
 - **Unproven:** whether per-file rights survive Office saving through renames (T-1). If not, share-enabled folders
   fall back to rights per folder, and the UI says so.
 - **SMB cannot use OIDC.** Windows access needs a domain (AD, Kerberos) or a separate share password per user.

@@ -2,7 +2,7 @@
 id: T-9
 type: Task
 title: Decide which tree decides inherited roles
-status: offen
+status: erledigt
 milestone: M-2
 blocked_by: [T-1]
 tags: [permissions, architecture]
@@ -17,3 +17,9 @@ if per-file rights do not survive Office saving (T-1), the share can only enforc
 - **The workspace decides, and share-enabled folders set a limit** that the UI shows. This is the starting recommendation.
 
 **Done when:** the choice is recorded in a decision before the database schema of M-2 is fixed.
+
+**Settled on 2026-11-19 in [ADR-29](ADR-29-roles-on-groups-and-persons.md):** the tree an object lives in decides, and
+folders shared over Samba or WebDAV set a limit that the interface shows. Since ADR-28 a document lives in the workspace and
+a file in the view Files, each in exactly one place; a reference, a link or an embedding grants nothing. Until T-1 proves
+rights per single file, a role on a single file in a shared folder holds in the web only, and a single file there cannot
+break its inheritance.

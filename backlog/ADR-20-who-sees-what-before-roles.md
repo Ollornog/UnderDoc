@@ -36,7 +36,9 @@ The second option.
 
 ## Consequences
 
-- M-5 replaces the one level for all others with roles per person and group, and keeps the owner.
+- M-5 replaces the one level for all others with roles per person and group, and keeps the owner. Decided on 2026-11-19 in
+  [ADR-29](ADR-29-roles-on-groups-and-persons.md), which replaces this decision once it is built; the owner, the private
+  collections and the rules for comments stay.
 - Comments arrive with the first build, each on an element of a page through its ID (ADR-18).
 - **Comments, settled on 2026-11-09:** a comment belongs to a page of the database, to the whole page or to one block.
   Whoever sees the page reads its comments, also with read only; a page in the trash or a private page of someone else
