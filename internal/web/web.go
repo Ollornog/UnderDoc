@@ -278,6 +278,17 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	if options.DevUI {
 		mux.HandleFunc("GET /dev/ui", h.app)
 	}
+	// The time tracking (EightPerDay) answers below /time while its module is on (docs/time-tracking.md).
+	if options.DB != nil {
+		timeTracking, err := h.timeTracking()
+		if err != nil {
+			return nil, err
+		}
+		for _, pattern := range []string{"GET " + timeBase, "GET " + timeBase + "/", "POST " + timeBase + "/"} {
+			mux.Handle(pattern, timeTracking)
+		}
+		mux.HandleFunc("GET /api/time/absences", h.guard(module.Time, h.apiTimeAbsences))
+	}
 	mux.HandleFunc("GET /", h.notFound)
 	return accessLog(log, secure(h.tenanted(h.signedIn(mux)))), nil
 }

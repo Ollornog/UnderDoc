@@ -30,7 +30,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-21](M-21-websites.md)** Websites: build and publish — 0/1 erledigt
 * ☐ **[M-22](M-22-mail.md)** Mail in the workspace — noch keine Aufgaben
 * ☐ **[M-23](M-23-network-module.md)** IP addresses and devices — noch keine Aufgaben
-* ☐ **[M-24](M-24-private-area.md)** Private area — noch keine Aufgaben
+* ☐ **[M-24](M-24-private-area.md)** Private area — 1/1 erledigt
 * ☐ **[M-25](M-25-bookmarks.md)** Bookmarks — noch keine Aufgaben
 * ☐ **[M-26](M-26-news.md)** News from subscribed feeds — noch keine Aufgaben
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
@@ -49,6 +49,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-8](T-8-website-kinds.md)** Settle what the site builder covers · M-21
 * ☐ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
 * ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
+* ☑ **[T-11](T-11-time-tracking-with-eightperday.md)** Time and leave of the private area with EightPerDay · M-24
 
 ## Fehler
 

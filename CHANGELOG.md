@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The module **Time tracking** (ADR-25, M-24, off by default, [docs/time-tracking.md](docs/time-tracking.md)):
+  EightPerDay, embedded at a pinned version, runs below `/time/` with UnderDoc's sign-in and in the tenant of the
+  request. Its tables come with the prefix `time_` from its own migrations in UnderDoc's flow and are held to the
+  guard of ADR-23; the door "time tracking" is part of the separation test of the web. The tenant is an organization
+  there, accounts are persons, and administrators of the tenant administer the organization; what a person tracks
+  privately only they see. Time and Vacation of the private area open its pages in a window of the workspace, in a
+  frame that a redraw of the workspace leaves as it was. `GET /api/time/absences` lists the user's absences for the
+  calendar of M-18.
+
 - The hoster renames a tenant, and deletes an archived one for good with its ID typed: its rows in every table, its
   addresses, its files and its search index ([docs/tenants.md](docs/tenants.md)).
 

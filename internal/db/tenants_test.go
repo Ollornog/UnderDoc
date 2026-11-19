@@ -62,12 +62,15 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checked := 0
+	checked, timeTables := 0, 0
 	for _, x := range tables {
 		if slices.Contains(sharedTables, x.name) {
 			continue
 		}
 		checked++
+		if strings.HasPrefix(x.name, TimeOptions.Prefix) {
+			timeTables++
+		}
 		switch {
 		case !x.notNull:
 			t.Errorf("%s: no column tenant, or one that may be empty", x.name)
@@ -83,6 +86,10 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 	}
 	if checked < 6 {
 		t.Fatalf("only %d tables checked, the query finds the tables no more", checked)
+	}
+	// The tables of the time tracking (EightPerDay) come from its own migrations and are held to the same rules.
+	if timeTables < 6 {
+		t.Fatalf("only %d tables of the time tracking checked", timeTables)
 	}
 
 	// Every reference between tables of tenants carries the tenant on both sides, at the same place.
@@ -150,6 +157,7 @@ func TestNoTableShowsAnotherTenant(t *testing.T) {
 	if err := db.Delete(main, gone.ID, anna.ID); err != nil {
 		t.Fatal(err)
 	}
+	fillTime(t, db, main)
 	names, err := pgx.CollectRows(must(db.pool.Query(main, `SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace
 		AND relkind IN ('r', 'p') ORDER BY relname`)), pgx.RowTo[string])
 	if err != nil {
@@ -479,6 +487,7 @@ func TestRenamingAndPurgingATenant(t *testing.T) {
 		if err := db.Delete(ctx, gone.ID, anna.ID); err != nil {
 			t.Fatal(err)
 		}
+		fillTime(t, db, ctx)
 	}
 	acme := tenant.With(context.Background(), "acme")
 	fill(main)
@@ -505,6 +514,11 @@ func TestRenamingAndPurgingATenant(t *testing.T) {
 	before := counts(main)
 	if len(counts(acme)) < 6 {
 		t.Fatalf("acme has too little to prove anything: %v", counts(acme))
+	}
+	for _, name := range timeTableNames {
+		if counts(acme)[name] == 0 {
+			t.Fatalf("acme has no rows in %s", name)
+		}
 	}
 	if err := db.PurgeTenant(main, "acme", "acme"); !errors.Is(err, ErrNotArchived) {
 		t.Errorf("an active tenant: %v", err)

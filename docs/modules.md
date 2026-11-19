@@ -1,9 +1,10 @@
 # Modules
 
 Every module of UnderDoc can be switched on and off ([ADR-25](../backlog/ADR-25-modules-and-profiles.md)). Today there
-are two: **Documents** (collections, folders and pages with comments, embeddings, tags, attachments, the trash and the
-folder source) and **Files** (the view Files of [docs/files.md](files.md): its roots, files with versions, uploads). The
-modules of the later milestones join them.
+are three: **Documents** (collections, folders and pages with comments, embeddings, tags, attachments, the trash and the
+folder source), **Files** (the view Files of [docs/files.md](files.md): its roots, files with versions, uploads) and
+**Time tracking** (EightPerDay below `/time/`, [docs/time-tracking.md](time-tracking.md)), the only one off by
+default. The modules of the later milestones join them.
 
 ## Who switches what
 
@@ -21,6 +22,7 @@ start.
 ```bash
 UNDERDOC_MODULES=documents          # Documents on; Files not allowed
 UNDERDOC_MODULES=documents,files:off # both allowed, Files off until a tenant switches it on
+UNDERDOC_MODULES=documents,files,time:off # all three allowed, Time tracking off until a tenant switches it on
 ```
 
 ## What off means
