@@ -8,7 +8,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Meilensteine
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 2/2 erledigt
-* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 0/3 erledigt
+* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 1/3 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
 * ☐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
@@ -47,7 +47,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-6](T-6-window-loading.md)** Choose how windows load their documents · M-15
 * ☑ **[T-7](T-7-review-model.md)** Decide how reviews work, with which forge · M-20
 * ☐ **[T-8](T-8-website-kinds.md)** Settle what the site builder covers · M-21
-* ☐ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
+* ☑ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
 * ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
 * ☑ **[T-11](T-11-time-tracking-with-eightperday.md)** Time and leave of the private area with EightPerDay · M-24
 
@@ -85,3 +85,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-26](ADR-26-realtime-with-yjs.md)** Editing together with Yjs and a small Node companion
 * ☑ **[ADR-27](ADR-27-database-tables.md)** Native tables are rows in JSONB with field definitions, and Markdown tables convert by a button
 * ☑ **[ADR-28](ADR-28-file-storage.md)** Files: the content store keeps the versions, the disk holds the working copy for the share
+* ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files

@@ -8,6 +8,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The decision on rights (ADR-29, M-5): roles owner, manage, edit, comment and read for persons, groups (local, or
+  taken over from OIDC and the gate), the whole tenant and links; only allowing, narrower by breaking the inheritance;
+  administrators manage rights, not content; the tree an object lives in decides, and shared folders set a limit (T-9).
+
 - The module **Time tracking** (ADR-25, M-24, off by default, [docs/time-tracking.md](docs/time-tracking.md)):
   EightPerDay, embedded at a pinned version, runs below `/time/` with UnderDoc's sign-in and in the tenant of the
   request. Its tables come with the prefix `time_` from its own migrations in UnderDoc's flow and are held to the
