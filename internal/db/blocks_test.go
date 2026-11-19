@@ -79,7 +79,7 @@ func TestBlocksFollowAccess(t *testing.T) {
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	block, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "Text")
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'comment' WHERE id = $1", team.ID); err != nil {
+	if err := setLevel(db, team.ID, "comment"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.EditBlock(ctx, page.ID, block.ID, bob.ID, "Mine"); !errors.Is(err, ErrNotAllowed) {
@@ -189,7 +189,7 @@ func TestMovingBlocks(t *testing.T) {
 	if err := db.MoveBlock(ctx, page.ID, "b1", anna.ID, "b1"); !errors.Is(err, ErrPlace) {
 		t.Errorf("after itself: %v", err)
 	}
-	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "read"); err != nil {
+	if _, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.MoveBlock(ctx, page.ID, "b1", bob.ID, ""); err == nil || order() != "b3 b1 b2" {

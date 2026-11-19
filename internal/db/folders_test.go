@@ -24,7 +24,7 @@ func TestFoldersAndConverting(t *testing.T) {
 	if err != nil || inner.Parent != folder.ID {
 		t.Errorf("a collection in a folder: %+v %v", inner, err)
 	}
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", archive.ID); err != nil {
+	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.CreateFolder(ctx, bob, "Mine", archive.ID); !errors.Is(err, ErrNotAllowed) {

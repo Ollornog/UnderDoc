@@ -19,8 +19,8 @@ import (
 
 // Files (ADR-28): a file is an object of the area Files with its versions; each version names a blob of the content
 // store by its SHA-256. The roots of the view Files are collections too (addendum of 2026-11-17): the folder of the
-// tenant, one folder per user and collections. Who sees and changes what follows ADR-20 until ADR-29: a user's folder is
-// private, the folder of the tenant is read only for all but its owner and the group named as its writers.
+// tenant, one folder per user and collections. Who sees and changes what follows ADR-29: a user's folder is private, the
+// folder of the tenant grants read to the whole tenant and edit to its group of writers.
 
 // Roles of the roots of the view Files.
 const (
@@ -111,7 +111,7 @@ func CleanFileName(name string) (string, error) {
 
 // --- Roots
 
-// rootOf returns the object at the top an object belongs to, seen by anyone: for quotas and writers, not for showing.
+// rootOf returns the object at the top an object belongs to, seen by anyone: for quotas, not for showing.
 func rootOf(ctx context.Context, q execer, objectID string) (string, error) {
 	var root string
 	err := q.QueryRow(ctx, `WITH RECURSIVE up AS (
@@ -155,12 +155,14 @@ func (db *DB) EnsureRoots(ctx context.Context, user account.User, admin bool, ad
 		if tenant {
 			return nil
 		}
-		o, err := insertObject(ctx, tx, Object{Kind: KindCollection, Title: TenantFolder, Owner: user.ID, Access: "read", Area: AreaFiles})
+		o, err := insertObject(ctx, tx, Object{Kind: KindCollection, Title: TenantFolder, Owner: user.ID, Access: RoleRead, Area: AreaFiles})
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, "INSERT INTO file_roots (object, role, writers) VALUES ($1, 'tenant', $2)", o.ID, adminGroup)
-		return err
+		if _, err = tx.Exec(ctx, "INSERT INTO file_roots (object, role) VALUES ($1, 'tenant')", o.ID); err != nil {
+			return err
+		}
+		return setWriters(ctx, tx, o.ID, adminGroup, user.ID)
 	})
 }
 
@@ -173,7 +175,11 @@ const (
 	lockBlobs = 7272825
 )
 
-const rootColumns = `, r.role, r.writers, coalesce(r.quota, -1)`
+const rootColumns = `, r.role, ` + writersOf + `, coalesce(r.quota, -1)`
+
+// writersOf names the groups that edit in a root, for the folder of the tenant.
+const writersOf = `coalesce((SELECT string_agg(gr.name, ', ' ORDER BY gr.name) FROM grants g JOIN groups gr ON gr.id = g.who
+	WHERE g.object = r.object AND g.kind = 'group' AND g.role IN ('edit', 'manage')), '')`
 
 func (db *DB) scanRoot(row pgx.Row) (Root, error) {
 	var r Root
@@ -233,12 +239,13 @@ func (db *DB) FileRoot(ctx context.Context, rootID, viewer string) (Root, error)
 	return r, err
 }
 
-// CreateFileCollection makes a collection among the roots of the view Files, owned by whoever makes it (ADR-20).
+// CreateFileCollection makes a collection among the roots of the view Files, owned by whoever makes it and open for
+// the whole tenant to edit, as a new collection of the documents is (ADR-29).
 func (db *DB) CreateFileCollection(ctx context.Context, owner account.User, title string) (Object, error) {
 	var made Object
 	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var err error
-		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Area: AreaFiles})
+		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Area: AreaFiles, Access: RoleEdit})
 		if err != nil {
 			return err
 		}
@@ -260,29 +267,40 @@ func (db *DB) SetQuota(ctx context.Context, rootID string, quota int64) error {
 	return err
 }
 
-// SetWriters names the group that writes in the folder of the tenant. Only administrators do; the caller checks.
+// SetWriters names the group that writes in the folder of the tenant: it gets the role edit there, and the groups that
+// had it before lose it. A name that is no group yet becomes a group taken over from the sign-in. Only administrators
+// do; the caller checks.
 func (db *DB) SetWriters(ctx context.Context, group string) error {
 	group = strings.TrimSpace(group)
 	if len(group) > 200 {
 		return ErrPlace
 	}
-	tag, err := db.pool.Exec(ctx, "UPDATE file_roots SET writers = $1 WHERE role = 'tenant'", group)
-	if err == nil && tag.RowsAffected() == 0 {
-		err = ErrNotFound
-	}
-	return err
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var root string
+		err := tx.QueryRow(ctx, "SELECT object FROM file_roots WHERE role = 'tenant'").Scan(&root)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		return setWriters(ctx, tx, root, group, "")
+	})
 }
 
-// mayWriteAsGroup tells whether the viewer belongs to the group that writes in the root above an object.
-func (db *DB) mayWriteAsGroup(ctx context.Context, objectID, viewer string) (bool, error) {
-	root, err := rootOf(ctx, db.pool, objectID)
-	if err != nil {
-		return false, err
+// setWriters makes one group the writers of a root, or none with an empty name.
+func setWriters(ctx context.Context, tx pgx.Tx, root, group, by string) error {
+	if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE object = $1 AND kind = 'group' AND role = 'edit'", root); err != nil {
+		return err
 	}
-	var ok bool
-	err = db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM file_roots r JOIN accounts a ON a.id = $2
-		WHERE r.object = $1 AND r.writers <> '' AND r.writers = ANY (a.groups))`, root, viewer).Scan(&ok)
-	return ok, err
+	if group == "" {
+		return nil
+	}
+	groupID, err := groupNamed(ctx, tx, group)
+	if err != nil {
+		return err
+	}
+	return setGrant(ctx, tx, root, ToGroup, groupID, RoleEdit, by)
 }
 
 // isFileRoot tells whether an object is a root of the view Files.

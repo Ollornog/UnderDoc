@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 1/3 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ☐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -76,7 +76,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-17](ADR-17-guiding-principles.md)** Guiding principles for every feature
 * ☑ **[ADR-18](ADR-18-object-ids-and-addresses.md)** Object IDs and addresses
 * ☑ **[ADR-19](ADR-19-pages-in-the-database.md)** Pages live in the database, as blocks with IDs
-* ☑ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive
+* ✗ **[ADR-20](ADR-20-who-sees-what-before-roles.md)** Who sees and changes what, before roles arrive · abgelöst durch ADR-29
 * ☑ **[ADR-21](ADR-21-editor-codemirror.md)** The web editor is CodeMirror 6 with a live preview
 * ☑ **[ADR-22](ADR-22-parts-and-their-life.md)** Reused parts belong to their document, and their end is chosen
 * ☑ **[ADR-23](ADR-23-tenants-and-sign-in.md)** One or many tenants, and sign-in built in next to the gate

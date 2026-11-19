@@ -29,15 +29,25 @@ const (
 	TypeFile = "file"
 )
 
-// Everyone is the reader every signed-in account of a tenant counts as. A record that only some may read lists them as
-// ReaderAccount(id); groups of M-5 will add theirs.
+// Everyone is the reader every signed-in account of a tenant counts as, where the whole tenant holds a role. A record that
+// only some may read lists them as ReaderAccount(id) and ReaderGroup(id) (ADR-29).
 const Everyone = "all"
 
 // ReaderAccount is the reader token of one account.
 func ReaderAccount(accountID string) string { return "account:" + accountID }
 
-// Readers returns the reader tokens of an account: what it may read is what lists one of them.
-func Readers(accountID string) []string { return []string{Everyone, ReaderAccount(accountID)} }
+// ReaderGroup is the reader token of one group.
+func ReaderGroup(groupID string) string { return "group:" + groupID }
+
+// Readers returns the reader tokens of an account and the groups it belongs to: what it may read is what lists one of
+// them.
+func Readers(accountID string, groups ...string) []string {
+	readers := []string{Everyone, ReaderAccount(accountID)}
+	for _, g := range groups {
+		readers = append(readers, ReaderGroup(g))
+	}
+	return readers
+}
 
 // Doc is one record in the index: a section of a page, or an object that has no sections, such as a folder.
 type Doc struct {

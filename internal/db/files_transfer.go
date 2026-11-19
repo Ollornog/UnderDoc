@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -44,7 +45,7 @@ func (db *DB) AllFiles(ctx context.Context) ([]*FileNode, []AttachmentRecord, er
 	if err != nil {
 		return nil, nil, err
 	}
-	rows, err := db.pool.Query(ctx, `SELECT `+columns+`, coalesce(r.role, ''), coalesce(r.writers, ''), coalesce(r.quota, -1), coalesce(r.account, '')
+	rows, err := db.pool.Query(ctx, `SELECT `+columns+`, coalesce(r.role, ''), CASE WHEN r.object IS NULL THEN '' ELSE `+writersOf+` END, coalesce(r.quota, -1), coalesce(r.account, '')
 		FROM objects o LEFT JOIN file_roots r ON r.object = o.id WHERE `+alive+` AND area = 'files' AND kind <> 'line' AND kind <> 'space'
 		ORDER BY position, created, id`)
 	if err != nil {
@@ -247,9 +248,24 @@ func (db *DB) ImportFiles(ctx context.Context, ownerLogin string, roots []*FileN
 				quota = nil
 			}
 			result.Roots++
-			_, err = tx.Exec(ctx, "INSERT INTO file_roots (object, role, account, writers, quota) VALUES ($1, $2, nullif($3, ''), $4, $5)",
-				made.ID, role, user, n.Writers, quota)
-			return err
+			if _, err = tx.Exec(ctx, "INSERT INTO file_roots (object, role, account, quota) VALUES ($1, $2, nullif($3, ''), $4)",
+				made.ID, role, user, quota); err != nil {
+				return err
+			}
+			// The writers of a root come back as groups with the role edit (ADR-29).
+			for _, group := range strings.Split(n.Writers, ",") {
+				if group = strings.TrimSpace(group); group == "" {
+					continue
+				}
+				groupID, err := groupNamed(ctx, tx, group)
+				if err != nil {
+					return err
+				}
+				if err := setGrant(ctx, tx, made.ID, ToGroup, groupID, RoleEdit, ""); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 		var position int
 		if err := tx.QueryRow(ctx, "SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NULL").Scan(&position); err != nil {

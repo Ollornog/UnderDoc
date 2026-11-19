@@ -90,7 +90,7 @@ func TestImportKeepsFreeIDsAndTouchesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	top := done.Top
-	if top.Title != "Imported" || top.Kind != KindCollection || top.Owner != bob.ID || top.ID == team.ID || !top.Private || top.Access != "read" || top.Description != "about" {
+	if top.Title != "Imported" || top.Kind != KindCollection || top.Owner != bob.ID || top.ID == team.ID || !top.Private || top.Access != "" || top.Description != "about" {
 		t.Errorf("the top: %+v", top)
 	}
 	if done.Objects != 6 || len(done.Renamed) != 3 || done.Renamed[team.ID] != top.ID || done.Renamed["ops.plan"] == "" {

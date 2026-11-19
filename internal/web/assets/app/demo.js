@@ -127,7 +127,7 @@ function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tag
   get stat(){return `${this.kids.length} entries`;},
   /* The overview holds the settings of the collection too, for whoever may change them (the maintainer, 2026-11-09). */
   get html(){const ac=accOf(id),may=this.db?ac==='edit'||!!this.mine:!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
-    const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[ac].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
+    const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[othersOf(id)].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd><dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
     const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
       <div class="slab">Others can</div><span class="seg" role="group">${(top?[]:[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?'edit':'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
       <p class="hint">Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this.</p>`:'';
@@ -171,7 +171,11 @@ const at=i=>S.wins[i].tabs[S.wins[i].a]||null;
 /* What others may do: edit, comment or only read. Set on a collection, folder or document, and inherited by what is below it. */
 const ACC={edit:'Can edit',comment:'Can comment',read:'Read only'};
 const contAcc=id=>PARENT[id]?accOf(PARENT[id]):COLL[id]?accOf(COLL[id].id):'edit';
-const accOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
+/* What others may do: the level set on an object or above it (shown as a lock and in the settings). What the viewer may
+   do comes from the server as its role (ADR-29) and decides what is greyed out; the demo has no roles and uses the level. */
+const othersOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
+const RANK={read:1,comment:2,edit:3,manage:4,owner:5};
+const accOf=id=>{const r=D[id]&&D[id].db&&D[id].role;if(!r)return othersOf(id);return RANK[r]>=3?'edit':r==='comment'?'comment':'read';};
 const kidsOpen=id=>{const v=S.tog[id];return v!==undefined?v:id.startsWith('dir:')?false:D[id].kids.length<=S.limit;};
 /* Moments come from the server in UTC (RFC 3339) and show in the time zone of this device (2026-11-09); what is no
    moment, such as "today" or made-up dates, shows as it is. */
@@ -208,7 +212,7 @@ const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
   const open=openColls();
   if(!open.length) return '<p class="lab pad">No collection is open. Pick one in nav2.</p>';
-  return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${accOf(c.id)!=='edit'?`<span class="acc" title="${ACC[accOf(c.id)]}">${ic('lock')}</span>`:''}</button>${canPlace(c.id)?`<button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="New in ${c.n}">New ${ic('plus')}</button>`:''}</div>
+  return open.map((c,k)=>`<div class="cheadrow${k?'':' first'}" data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><button class="chead" data-act="open" data-id="${c.id}" title="Open ${c.n}">${c.n}${othersOf(c.id)!=='edit'?`<span class="acc" title="${ACC[othersOf(c.id)]}">${ic('lock')}</span>`:''}</button>${canPlace(c.id)?`<button class="addbtn newplus" data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="New in ${c.n}">New ${ic('plus')}</button>`:''}</div>
     <ul class="t top">${c.top.map(rowHtml).join('')}</ul>`).join('');
 }
 /* New, in nav2 and in the head of a collection: one menu in groups, and typing filters it (the command menu of C22).
@@ -426,7 +430,7 @@ function gearHtml(t,i,hasSecs){
     <div class="setrow"><span>Width</span>${seg('setw',['slim','wide','full'],d.w)}</div>
     <div class="setrow"><span>Page view</span><button class="chip" disabled title="Comes later">DIN A4, later</button></div>
     ${d.db&&d.blocks?`<div class="setrow"><span>Template</span>${seg('settpl',['off','offered'],d.tpl?'offered':'off')}</div>`:''}
-    <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[accOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
+    <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[othersOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
@@ -494,7 +498,7 @@ function winHtml(w,i){
   const find=t.find?`<span class="findin"><input data-findq="${i}" type="search" value="${esc(t.q)}" placeholder="Find on this page" aria-label="Find on this page"><span class="lab" data-findc="${i}"></span><button class="ic" data-act="findnav" data-w="${i}" data-id="-1" aria-label="Previous hit" title="Previous hit">${ic('up')}</button><button class="ic" data-act="findnav" data-w="${i}" data-id="1" aria-label="Next hit" title="Next hit">${ic('down')}</button></span>`:'';
   /* The heading is not content. The title sits below the breadcrumbs in the same bar, the tags to the right of the breadcrumbs. Created, changed and the rest are metadata. */
   const crumbs=placeOf(t.d),tg=d.tags.length?`<span class="tagline">${tagChips(d.tags,'tagsearch')}</span>`:'';
-  const ac=accOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
+  const ac=othersOf(t.d),badge=ac==='edit'?'':`<span class="accbadge" title="What others may do here">${ic(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
   const place=`<span class="place" title="${crumbs}">${crumbs}</span>${tg}${badge}<span class="tspace"></span>`;
   /* Reading or editing, as a large button left of the title: the state in words and icon, a click turns it (2026-11-09). */
   const ed=editing(t)&&d.blocks&&d.canEdit,status=d.blocks&&d.canEdit?`<button class="dstatus" data-act="edit" data-w="${i}" aria-pressed="${!!ed}" aria-label="${ed?'Editing':'Reading'}" title="${ed?'Editing. Click to read':'Reading. Click to edit'}">${ic(ed?'pencil':'book')}</button>`
@@ -1373,7 +1377,7 @@ function addNode(node){
   if(node.t==='line'||node.t==='space'){decoDoc(id,node.t);D[id].real=true;D[id].sid=node.id;D[id].db=true;return id;}
   if(node.t==='collection'||node.t==='coll'){collDoc(id,n,kids,node.private?'lock':node.owner?'grid':'folder');D[id].real=true;D[id].owner=esc(node.owner||'—');D[id].private=node.private;}
   else D[id]=fill({t:node.t==='folder'?'folder':node.t==='notes'?'notes':'page',n,w:node.t==='notes'?'full':'wide',kids,path:esc(node.path||''),by:'—',ch:'',vis:'Everyone signed in',real:true,why:node.t==='folder'&&!node.owner?'A folder of the folder source.':''});
-  D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;
+  D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;if(node.role)D[id].role=node.role;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;D[id].tpl=!!node.template;
   return id;
@@ -1397,7 +1401,7 @@ async function createFolder(parent,title){
 /* A collection turns into a folder and back: the same object, shown in nav2 or only in nav3 (ADR-16). */
 /* What others may do (ADR-20): only the owner sets it, and the database keeps it; made-up content keeps it here. If the
    server refuses, the level goes back. */
-const isOwner=id=>!D[id].db||!!D[id].mine;
+const isOwner=id=>!D[id].db||!!D[id].mine||RANK[D[id].role]>=4;
 async function setAccess(id,level){
   const before=D[id].acc;if(level)D[id].acc=level;else delete D[id].acc;render();
   if(!D[id].db)return;

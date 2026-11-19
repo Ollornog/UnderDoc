@@ -101,7 +101,7 @@ func TestCollections(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
 	ops, err := db.CreateCollection(ctx, anna, "  Operations ", "")
-	if err != nil || !id.Valid(ops.ID) || ops.Title != "Operations" || ops.Private || ops.Access != "" {
+	if err != nil || !id.Valid(ops.ID) || ops.Title != "Operations" || ops.Private || ops.Access != RoleEdit {
 		t.Fatalf("%+v %v", ops, err)
 	}
 	if _, err := db.CreateCollection(ctx, bob, "Projects", ""); err != nil {
@@ -180,14 +180,14 @@ func TestAccessIsInherited(t *testing.T) {
 	top, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	inner, _ := db.CreateCollection(ctx, anna, "2025", top.ID)
 	for _, o := range []Object{top, inner} {
-		if got, err := db.Access(ctx, o.ID); got != "edit" || err != nil {
-			t.Errorf("%s: the default is edit, got %q %v", o.Title, got, err)
+		if got, err := db.Role(ctx, o.ID, bob.ID); got != RoleEdit || err != nil {
+			t.Errorf("%s: the tenant edits a new collection, got %q %v", o.Title, got, err)
 		}
 	}
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", top.ID); err != nil {
+	if _, err := db.pool.Exec(ctx, "UPDATE grants SET role = 'read' WHERE object = $1 AND kind = 'tenant'", top.ID); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := db.Access(ctx, inner.ID); got != "read" {
+	if got, _ := db.Role(ctx, inner.ID, bob.ID); got != RoleRead {
 		t.Errorf("read only should reach what is inside: %q", got)
 	}
 	if got, _ := db.Top(ctx, inner.ID, bob.ID); got.ID != top.ID {
@@ -209,7 +209,7 @@ func TestRename(t *testing.T) {
 	if got, err := db.Rename(ctx, inner.ID, bob.ID, "2026"); err != nil || got.Title != "2026" {
 		t.Errorf("others may edit by default: %+v %v", got, err)
 	}
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'comment' WHERE id = $1", top.ID); err != nil {
+	if err := setLevel(db, top.ID, "comment"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Rename(ctx, inner.ID, bob.ID, "2027"); !errors.Is(err, ErrNotAllowed) {

@@ -38,15 +38,17 @@ type Tree struct {
 }
 
 type dirMeta struct {
-	Format      int           `yaml:"format,omitempty"`
-	ID          string        `yaml:"id,omitempty"`
-	Kind        string        `yaml:"kind,omitempty"`
-	Title       string        `yaml:"title,omitempty"`
-	Description string        `yaml:"description,omitempty"`
-	Access      string        `yaml:"access,omitempty"`
-	Private     bool          `yaml:"private,omitempty"`
-	Tags        markdown.Tags `yaml:"tags,omitempty,flow"`
-	Order       []entry       `yaml:"order,omitempty"`
+	Format      int    `yaml:"format,omitempty"`
+	ID          string `yaml:"id,omitempty"`
+	Kind        string `yaml:"kind,omitempty"`
+	Title       string `yaml:"title,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	Access      string `yaml:"access,omitempty"`
+	// Inherit is false where the object breaks the inheritance of roles (ADR-29), and absent otherwise.
+	Inherit *bool         `yaml:"inherit,omitempty"`
+	Private bool          `yaml:"private,omitempty"`
+	Tags    markdown.Tags `yaml:"tags,omitempty,flow"`
+	Order   []entry       `yaml:"order,omitempty"`
 }
 
 // entry is one place in the order of a directory: a file or directory by its name, or a line or a space by its ID.
@@ -59,11 +61,13 @@ type entry struct {
 type pageMeta struct {
 	ID string `yaml:"id,omitempty"`
 	// Kind is written only for a board of quick notes; a page has none.
-	Kind        string        `yaml:"kind,omitempty"`
-	Title       string        `yaml:"title,omitempty"`
-	Description string        `yaml:"description,omitempty"`
-	Access      string        `yaml:"access,omitempty"`
-	Tags        markdown.Tags `yaml:"tags,omitempty,flow"`
+	Kind        string `yaml:"kind,omitempty"`
+	Title       string `yaml:"title,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	Access      string `yaml:"access,omitempty"`
+	// Inherit is false where the page breaks the inheritance of roles (ADR-29), and absent otherwise.
+	Inherit *bool         `yaml:"inherit,omitempty"`
+	Tags    markdown.Tags `yaml:"tags,omitempty,flow"`
 	// Width and Contents say how the page is shown (ADR-16), where they are set.
 	Width    string `yaml:"width,omitempty"`
 	Contents string `yaml:"contents,omitempty"`
@@ -188,9 +192,18 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 		if err != nil {
 			return entry{}, err
 		}
-		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Private: n.Private, Tags: n.Tags, Order: order}
+		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Private: n.Private, Tags: n.Tags, Order: order}
 		return entry{Name: stem}, w.meta(sub, m)
 	}
+}
+
+// inheritOf is what an export says of the inheritance of roles: false where an object breaks it, nothing otherwise.
+func inheritOf(o db.Object) *bool {
+	if !o.Breaks {
+		return nil
+	}
+	inherit := false
+	return &inherit
 }
 
 // kindOfPage is the kind a page file names: only a board of quick notes says so.
@@ -207,7 +220,7 @@ func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Kind), Title: n.Title, Description: n.Description, Access: n.Access, Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
+	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Kind), Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

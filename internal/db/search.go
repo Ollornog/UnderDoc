@@ -99,8 +99,8 @@ type objectSource struct{ db *DB }
 func (objectSource) Name() string { return SourceObjects }
 
 // Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
-// of files and of the attachments of pages (M-2).
-func (objectSource) Version() string { return "2" }
+// of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29).
+func (objectSource) Version() string { return "3" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
@@ -147,22 +147,13 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 	if self.deleted || IsDivider(self.kind) || (self.area != "docs" && self.kind != KindFile) {
 		return nil, nil
 	}
-	// Who may read it: everyone, unless it or something above it is private; then only the owner of that, and nobody if
-	// two private levels belong to different people (ADR-20, the same rule as the condition visible).
-	readers := []string{search.Everyone}
-	owner := ""
-	for _, l := range chain {
-		if !l.private {
-			continue
-		}
-		switch {
-		case owner == "":
-			owner = l.owner
-			readers = []string{search.ReaderAccount(l.owner)}
-		case owner != l.owner:
-			readers = []string{}
-		}
+	// Who may read it: the tokens of the persons, groups and the tenant that hold a role on it (ADR-29), the same rule
+	// as the condition visible.
+	var readers []string
+	if err := s.db.pool.QueryRow(ctx, "SELECT object_readers($1)", objectID).Scan(&readers); err != nil {
+		return nil, err
 	}
+	readers = nonNil(readers)
 	top := chain[len(chain)-1]
 	var path []string
 	for i := len(chain) - 1; i > 0; i-- {

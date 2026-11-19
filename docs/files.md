@@ -48,13 +48,15 @@ older than a day that the database does not know, such as one whose upload faile
 
 Files has three kinds of roots, all of them collections in an area of their own (ADR-28, addendum of 2026-11-17):
 
-- **The folder of the tenant** ("Company"): made when an administrator first opens Files, and owned by them. Everyone
-  reads it; the group named as its writers changes it, at first the group of administrators (`UNDERDOC_ADMIN_GROUP`).
-- **My files:** a folder for each account, seen only by it.
-- **Collections:** made by anyone, shared with everyone signed in, with the levels of ADR-20 (edit, comment, read).
+- **The folder of the tenant** ("Company"): made when an administrator first opens Files, and owned by them. The whole
+  tenant reads it; the group named as its writers edits it, at first the group of administrators
+  (`UNDERDOC_ADMIN_GROUP`).
+- **My files:** a folder for each account, private to it.
+- **Collections:** made by anyone, edited by the whole tenant at first.
 
-Rights per group and per person come with ADR-29. The folder of the tenant and the folders of users are never deleted or
-moved. Files and folders stay in the view Files, and pages stay among the documents: a move or copy between the two is
+Roles for persons, groups and the tenant hold here as among the documents, on every root, folder and file
+([rights.md](rights.md), ADR-29); the writers of the folder of the tenant are a group with the role edit there. The
+folder of the tenant and the folders of users are never deleted or moved. Files and folders stay in the view Files, and pages stay among the documents: a move or copy between the two is
 refused.
 
 ## Uploads

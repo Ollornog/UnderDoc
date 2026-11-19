@@ -138,7 +138,7 @@ func TestSearchDocsOfAPage(t *testing.T) {
 	if card.Path != "Team › Kasse" || card.Collection != team.ID || card.CollectionName != "Team" || card.AuthorName != anna.Name {
 		t.Errorf("place and author: %+v", card)
 	}
-	if !slices.Equal(card.Readers, []string{search.Everyone}) || !slices.Equal(card.Tags, []string{"kasse"}) {
+	if !slices.Equal(card.Readers, []string{search.ReaderAccount(anna.ID), search.Everyone}) || !slices.Equal(card.Tags, []string{"kasse"}) {
 		t.Errorf("readers and tags: %v %v", card.Readers, card.Tags)
 	}
 	for _, d := range docs {
@@ -346,7 +346,7 @@ func TestFilesAreFoundByTheirText(t *testing.T) {
 	}
 	last := docs[len(docs)-1]
 	if last.Type != search.TypeFile || last.Heading != "scan.png" || last.Anchor != block.ID || last.Object != page.ID ||
-		!strings.Contains(last.Body, "4711") || last.Origin != "ocr" || !slices.Equal(last.Readers, []string{search.Everyone}) {
+		!strings.Contains(last.Body, "4711") || last.Origin != "ocr" || !slices.Equal(last.Readers, []string{search.ReaderAccount(anna.ID), search.Everyone}) {
 		t.Errorf("the attachment is a record of its page: %+v", last)
 	}
 	if docs[0].Type != search.TypePage {

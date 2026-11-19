@@ -17,8 +17,9 @@ import (
 // Request is a search as a reader asks it.
 type Request struct {
 	Text string
-	// Account is the reader. What it may not read is never found (ADR-20, ADR-24).
+	// Account is the reader, and Groups the groups it belongs to. What it may not read is never found (ADR-24, ADR-29).
 	Account string
+	Groups  []string
 	Filters Filters
 	Limit   int
 	// Exact finds the words only as written and in this order, without typing errors (the strategy "exact words" of
@@ -190,7 +191,7 @@ func (s *Service) tenantOf(ctx context.Context) string {
 
 func (s *Service) searchEngine(ctx context.Context, tenantID string, r Request, limit int) (Result, error) {
 	q := Parse(r.Text)
-	readers := Readers(r.Account)
+	readers := Readers(r.Account, r.Groups...)
 	result := Result{Engine: s.engine.Name(), Hits: []Hit{}, Facets: Facets{}}
 	seen := map[string]bool{}
 	add := func(found Found, code bool) {

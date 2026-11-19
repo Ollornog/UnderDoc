@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package db keeps what lives in PostgreSQL (ADR-19): accounts, and objects with their place, owner and access. Every
-// query that returns objects takes the viewer, so what a viewer may not see never leaves this package (ADR-20). Every
+// query that returns objects takes the viewer, so what a viewer may not see never leaves this package (ADR-29). Every
 // query runs as the tenant its context carries (package tenant), and row-level security keeps it to the rows of that
 // tenant (ADR-23): a context without a tenant sees nothing.
 package db
@@ -249,8 +249,11 @@ type Object struct {
 	Owner       string
 	Parent      string
 	Position    int
-	// Access is what all others may do, set here; empty means inherited.
-	Access  string
+	// Access is the role the whole tenant is granted on this object itself (ADR-29); empty for none here. Only for a new
+	// object it is what to grant.
+	Access string
+	// Breaks tells that the object breaks the inheritance of roles: it takes none from above (ADR-29).
+	Breaks  bool
 	Private bool
 	Created time.Time
 	Changed time.Time
@@ -266,12 +269,12 @@ type Object struct {
 	Area string
 }
 
-const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(access, ''), private, created, changed, tags,
+const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(tenant_grant(id), ''), NOT inherit, private, created, changed, tags,
 	coalesce(width, ''), coalesce(contents, ''), template, area`
 
 // fields are the places columns scans into, in their order.
 func fields(o *Object) []any {
-	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Private, &o.Created, &o.Changed, &o.Tags,
+	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Breaks, &o.Private, &o.Created, &o.Changed, &o.Tags,
 		&o.Width, &o.Contents, &o.Template, &o.Area}
 }
 
@@ -307,19 +310,29 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	if n := len([]rune(o.Title)); n < 1 || n > 200 {
 		return Object{}, ErrTitle
 	}
+	if o.Access != "" && (!grantable(o.Access) || o.Private || IsDivider(o.Kind)) {
+		return Object{}, ErrRole
+	}
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, area)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, private, tags, width, contents, area)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''),
 				(SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NOT DISTINCT FROM nullif($6, '')),
-				nullif($7, ''), $8, $9, nullif($10, ''), nullif($11, ''), coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $12))
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Access, o.Private, tagsOf(o), o.Width, o.Contents, areaOf(o)))
+				$7, $8, nullif($9, ''), nullif($10, ''), coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $11))
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Private, tagsOf(o), o.Width, o.Contents, areaOf(o)))
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "objects_pkey" && attempt < 5 {
 			continue
 		}
-		return created, err
+		if err != nil || o.Access == "" {
+			return created, err
+		}
+		if err := setGrant(ctx, tx, created.ID, ToTenant, "", o.Access, o.Owner); err != nil {
+			return Object{}, err
+		}
+		created.Access = o.Access
+		return created, nil
 	}
 }
 
@@ -335,16 +348,19 @@ func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, p
 			return Object{}, err
 		}
 	}
-	return insertObject(ctx, db.pool, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Parent: parent})
+	// A new collection at the top is open for the whole tenant to edit, as before, until its owner says otherwise (ADR-29).
+	access := ""
+	if parent == "" {
+		access = RoleEdit
+	}
+	var made Object
+	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var err error
+		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Parent: parent, Access: access})
+		return err
+	})
+	return made, err
 }
-
-// visible is a condition on o: the object, or the top it belongs to, is not private, or it is the viewer's own.
-const visible = `NOT EXISTS (
-	WITH RECURSIVE up AS (
-		SELECT id, parent, private, owner FROM objects WHERE id = o.id
-		UNION ALL SELECT p.id, p.parent, p.private, p.owner FROM objects p JOIN up ON p.id = up.parent
-	)
-	SELECT 1 FROM up WHERE up.private AND up.owner <> $1)`
 
 // alive is a condition on o: it is not in the trash. Deleting marks everything below an object too, so an object that is
 // not deleted never lies below one that is.
@@ -388,18 +404,6 @@ func (db *DB) AccountName(ctx context.Context, accountID string) string {
 		return accountID
 	}
 	return name
-}
-
-// Access returns what all others may do with an object: the first level set on it or above it, else edit (ADR-20).
-func (db *DB) Access(ctx context.Context, objectID string) (string, error) {
-	var access string
-	err := db.pool.QueryRow(ctx, `
-		WITH RECURSIVE up AS (
-			SELECT id, parent, access, 0 AS depth FROM objects WHERE id = $1
-			UNION ALL SELECT p.id, p.parent, p.access, up.depth + 1 FROM objects p JOIN up ON p.id = up.parent
-		)
-		SELECT coalesce((SELECT access FROM up WHERE access IS NOT NULL ORDER BY depth LIMIT 1), 'edit')`, objectID).Scan(&access)
-	return access, err
 }
 
 // Top returns the collection at the top that an object belongs to.

@@ -63,11 +63,16 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 		t.Fatal(err)
 	}
 	checked, timeTables := 0, 0
+	// The tables of the rights (ADR-29) must be among them.
+	rights := map[string]bool{"groups": false, "group_members": false, "grants": false}
 	for _, x := range tables {
 		if slices.Contains(sharedTables, x.name) {
 			continue
 		}
 		checked++
+		if _, ok := rights[x.name]; ok {
+			rights[x.name] = true
+		}
 		if strings.HasPrefix(x.name, TimeOptions.Prefix) {
 			timeTables++
 		}
@@ -90,6 +95,11 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 	// The tables of the time tracking (EightPerDay) come from its own migrations and are held to the same rules.
 	if timeTables < 6 {
 		t.Fatalf("only %d tables of the time tracking checked", timeTables)
+	}
+	for name, seen := range rights {
+		if !seen {
+			t.Errorf("the table %s of the rights was not checked", name)
+		}
 	}
 
 	// Every reference between tables of tenants carries the tenant on both sides, at the same place.
@@ -155,6 +165,16 @@ func TestNoTableShowsAnotherTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.Delete(main, gone.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	editors, err := db.CreateGroup(main, "Editors", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetMember(main, editors.ID, bob.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetGrant(main, p.ID, Actor{ID: anna.ID}, ToGroup, editors.ID, RoleComment); err != nil {
 		t.Fatal(err)
 	}
 	fillTime(t, db, main)

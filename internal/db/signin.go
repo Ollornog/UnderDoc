@@ -185,7 +185,11 @@ func (db *DB) SeeExternal(ctx context.Context, user account.User, source string)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrSource
 		}
-		if err != nil || !inserted {
+		if err != nil {
+			return err
+		}
+		// The groups the sign-in names are groups taken over (ADR-29).
+		if err := syncGroups(ctx, tx, user.Groups); err != nil || !inserted {
 			return err
 		}
 		_, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: MyNotes, Owner: user.ID, Private: true})
