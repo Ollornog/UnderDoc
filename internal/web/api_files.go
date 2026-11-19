@@ -252,12 +252,16 @@ func (h *handler) apiFile(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "file") {
 		return
 	}
-	versions, err := h.options.DB.FileVersions(ctx, f.ID, user.ID)
-	if h.failed(w, err, "file") {
-		return
+	// The versions are for whoever may edit the file (ADR-29); whoever reads it gets the current one.
+	canEdit := h.options.DB.MayEdit(ctx, f.Object, user.ID)
+	var versions []db.FileVersion
+	if canEdit {
+		if versions, err = h.options.DB.FileVersions(ctx, f.ID, user.ID); h.failed(w, err, "file") {
+			return
+		}
 	}
 	out := apiFile{apiFileEntry: fileEntry(f), Parent: f.Parent, Place: h.place(r, f.Object), Owner: h.options.DB.AccountName(ctx, f.Owner),
-		Created: stamp(f.Created), CanEdit: h.options.DB.MayEdit(ctx, f.Object, user.ID), CanComment: h.options.DB.MayComment(ctx, f.Object, user.ID),
+		Created: stamp(f.Created), CanEdit: canEdit, CanComment: h.options.DB.MayComment(ctx, f.Object, user.ID),
 		Inline: files.Inline(f.ContentType), Content: db.FilePath(f.ID), History: []apiFileVersion{}}
 	switch {
 	case files.IsImage(f.ContentType):

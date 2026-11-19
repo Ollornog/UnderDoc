@@ -196,3 +196,37 @@ func TestMovingBlocks(t *testing.T) {
 		t.Errorf("only who may edit moves blocks: %v %s", err, order())
 	}
 }
+
+// TestVersionsAreForEditors: the versions of a page hold what was taken out, so whoever only reads it does not get them
+// (ADR-29); whoever edits does.
+func TestVersionsAreForEditors(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	if err := db.SeeAccount(ctx, carl); err != nil {
+		t.Fatal(err)
+	}
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	if err := db.SetGrant(ctx, team.ID, Actor{ID: anna.ID}, ToTenant, "", RoleNone); err != nil {
+		t.Fatal(err)
+	}
+	page, _ := db.CreatePage(ctx, anna, "Offer", team.ID)
+	b, err := db.AddBlock(ctx, page.ID, anna.ID, "", "Our lowest price is 7000.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.EditBlock(ctx, page.ID, b.ID, anna.ID, "Price on request."); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetGrant(ctx, page.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, RoleRead); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := db.Versions(ctx, page.ID, carl.ID, 50); !errors.Is(err, ErrNotAllowed) || len(v) != 0 {
+		t.Errorf("carl, who only reads, gets the versions: %d %v", len(v), err)
+	}
+	if err := db.SetGrant(ctx, page.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, RoleEdit); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := db.Versions(ctx, page.ID, carl.ID, 50); err != nil || len(v) != 2 {
+		t.Errorf("carl, who edits, gets %d versions: %v", len(v), err)
+	}
+}

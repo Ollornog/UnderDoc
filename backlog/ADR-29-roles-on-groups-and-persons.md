@@ -85,8 +85,8 @@ From the least to the most, each including those below it:
 |---|---|
 | **Read** | see and open, read comments, embed what it reads |
 | **Comment** | add comments and replies, on the whole page or on one block (ADR-18, ADR-20) |
-| **Edit** | change the content, title and tags, make, move and copy children, move to the trash and restore, see versions |
-| **Manage** | grant and take back roles up to manage, break and restore inheritance, make and revoke share links |
+| **Edit** | change the content, title and tags, make and copy children, reorder within the parent, move to the trash and restore, see versions |
+| **Manage** | grant and take back roles up to manage, break and restore inheritance, make and revoke share links, move to another place |
 | **Owner** | transfer the ownership; nobody takes the role away |
 
 - **One owner per object,** a person: whoever made it. The owner of an object manages everything below it while that
@@ -104,8 +104,9 @@ From the least to the most, each including those below it:
 - **There is only allowing.** To narrow, an object **breaks the inheritance**: it no longer takes roles from above. At that
   moment the roles that held from above are copied onto it, so nobody loses access by surprise; then the manager takes back
   what shall not hold. Restoring the inheritance takes from above again and keeps the object's own grants.
-- **A move** keeps the object's own grants and the owner; what it inherits changes with its new place. Moving needs edit on
-  the object and on where it goes, as before; only its owner moves an object into something private.
+- **A move** keeps the object's own grants and the owner; what it inherits changes with its new place. Within its parent,
+  edit reorders it; to another place it goes only with manage on the object and edit on where it goes (2026-11-19, until
+  then edit on both). Only its owner moves an object into something private, and only when everything below it is theirs.
 - **A new collection at the top** grants edit to the whole tenant, as the default of ADR-20 did, and its owner can change
   that right away. Everything else starts with what it inherits.
 
@@ -185,3 +186,29 @@ the owner and who sees it.
     follows only for memberships UnderDoc made itself (ID prefix `ud-admin-`), those from before stay.
   - The log keeps opening and changing once per account, object and hour, keeps nothing private, and has no retention
     period yet.
+- **Settled after an attack round on 2026-11-19** (each with a test that fails without it):
+  - **Moving to another place needs manage** on the object and edit on where it goes; reordering within the parent stays
+    with edit. Before, edit on both was enough, and whoever only edited a page moved it into a collection of their own,
+    managed it there as the owner above and could share it more widely. The workspace opens no gap for such a move.
+  - **Into something private** goes only what is wholly the mover's: something of someone else below it refuses the move
+    with a message. Its grants and links end with the move, and the log keeps each for the owner. "What may X do"
+    leaves out everything private.
+  - **Deleting stops at what shuts the deleter out:** whoever deletes or purges must be allowed to edit everything that
+    would go with it. A page below that breaks the inheritance and shuts them out refuses the deletion with a message,
+    and its owner moves it out first. This was chosen over moving such objects to the next place above their owner can
+    reach: it is simpler, and nothing changes its place without its owner.
+  - **Versions are for edit,** as the table says, for pages and files alike; whoever reads a file gets its current
+    version.
+  - **A link never shows more than its maker sees now,** checked for each object it reaches: a folder below that breaks
+    the inheritance and shuts the maker out is neither listed nor opened through it, nor are its files.
+  - **An upload through a link takes its name when the file is made,** with the folder locked, and never becomes a version
+    of a file that arrived under that name meanwhile.
+  - **The path of a search result** names only the levels above that every reader of the record sees; the others show as
+    "…".
+  - **The writers of the folder of the tenant keep edit in its narrower folders:** migration 022 broke their inheritance
+    and copied nothing; migration 025 grants the group edit on each such break, so they edit where they did under
+    ADR-20.
+  - **Taking back an administrator is decided in the database,** under a lock: a local actor must still administer, so
+    two administrators who take each other's role at the same moment never leave the tenant without one.
+  - **Open, for the maintainer:** whoever reads an object may copy it and owns the copy, and so may share the copy by a
+    link. Whether reading should allow copying, or a copy keep the rights of its source, is not decided.

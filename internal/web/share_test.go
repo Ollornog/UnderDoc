@@ -241,3 +241,60 @@ func TestTokensStayOutOfTheLog(t *testing.T) {
 		t.Errorf("the log: %s", log)
 	}
 }
+
+// TestALinkShowsOnlyWhatItsMakerSees: a link to read a folder of the files reaches a folder below it that breaks the
+// inheritance and shuts out whoever made the link. A link never shows more than its maker sees now, checked for each
+// object (ADR-29): that folder and its files are not found through it, nor listed, while the rest of the folder is.
+func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
+	s := withFiles(t)
+	for _, who := range []map[string]string{plain, carlOf} {
+		s.send(http.MethodGet, "/api/state", "", who)
+	}
+	// Bob makes a collection of the files; carl a folder in it that only he may see.
+	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Projects"}`, plain)
+	if made.Code != http.StatusCreated {
+		t.Fatalf("collection = %d %s", made.Code, made.Body.String())
+	}
+	projects := decode[map[string]string](t, made)["id"]
+	hr := decode[apiNode](t, s.send(http.MethodPost, "/api/folders", `{"title":"HR","parent":"`+projects+`"}`, carlOf))
+	if got := s.send(http.MethodPut, "/api/objects/"+hr.ID+"/inherit", `{"inherit":false}`, carlOf).Code; got != http.StatusNoContent {
+		t.Fatalf("break = %d", got)
+	}
+	for _, take := range []string{`{"kind":"person","who":"u-bob","role":""}`, `{"kind":"tenant","role":""}`} {
+		if got := s.send(http.MethodPut, "/api/objects/"+hr.ID+"/grants", take, carlOf); got.Code != http.StatusNoContent {
+			t.Fatalf("take back %s = %d %s", take, got.Code, got.Body.String())
+		}
+	}
+	check := decode[map[string]any](t, s.send(http.MethodGet, "/api/rights/check?object="+hr.ID, "", plain))
+	if check["role"] != "" {
+		t.Fatalf("bob holds nothing on HR: %v", check)
+	}
+	up := s.put(carlOf, `"parent":"`+hr.ID+`"`, "salaries.txt", []byte("carl earns 9000"), 64)
+	if up.Code != http.StatusCreated {
+		t.Fatalf("upload = %d %s", up.Code, up.Body.String())
+	}
+	file := decode[finished](t, up)
+	plan := s.put(plain, `"parent":"`+projects+`"`, "plan.txt", []byte("the plan"), 64)
+	if plan.Code != http.StatusCreated {
+		t.Fatalf("upload = %d %s", plan.Code, plan.Body.String())
+	}
+	// Bob shares his collection to read.
+	link := s.send(http.MethodPost, "/api/objects/"+projects+"/links", `{"mode":"read"}`, plain)
+	if link.Code != http.StatusCreated {
+		t.Fatalf("link = %d %s", link.Code, link.Body.String())
+	}
+	path := pathOf(t, decode[apiLink](t, link).URL)
+	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || strings.Contains(got.Body.String(), "HR") ||
+		!strings.Contains(got.Body.String(), "plan.txt") {
+		t.Errorf("the link lists the folder its maker may not see, or not the plan: %d %s", got.Code, got.Body.String())
+	}
+	if got := s.anonymous(http.MethodGet, path+"?in="+hr.ID, nil, nil); got.Code != http.StatusNotFound || strings.Contains(got.Body.String(), "salaries.txt") {
+		t.Errorf("the link opens the folder its maker may not see: %d %s", got.Code, got.Body.String())
+	}
+	if got := s.anonymous(http.MethodGet, path+"/f/"+file.ID, nil, nil); got.Code != http.StatusNotFound || got.Body.String() == "carl earns 9000" {
+		t.Errorf("the link sends a file its maker may not see: %d %q", got.Code, got.Body.String())
+	}
+	if got := s.anonymous(http.MethodGet, path+"/f/"+decode[finished](t, plan).ID, nil, nil); got.Code != http.StatusOK || got.Body.String() != "the plan" {
+		t.Errorf("the link does not send the plan: %d %q", got.Code, got.Body.String())
+	}
+}

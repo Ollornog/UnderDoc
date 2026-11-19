@@ -436,14 +436,14 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 		v.Kind = "folder"
 		folder := l.Object
 		if at := r.URL.Query().Get("in"); at != "" {
-			if !id.Valid(at) || !h.options.DB.Below(r.Context(), at, l.Object) {
+			if !id.Valid(at) || !h.options.DB.Below(r.Context(), at, l.Object, l.CreatedBy) {
 				h.notFound(w, r)
 				return
 			}
 			folder = at
 			v.Up = sharePath(token)
 		}
-		entries, err := h.options.DB.SharedFiles(r.Context(), folder)
+		entries, err := h.options.DB.SharedFiles(r.Context(), folder, l.CreatedBy)
 		if err != nil {
 			h.log.Error("shared files failed", slog.String("error", err.Error()))
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -517,7 +517,7 @@ func (h *handler) shareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fileID := r.PathValue("file")
-	if !h.passed(r, l) || l.Mode == db.LinkUpload || h.options.Store == nil || !id.Valid(fileID) || !h.options.DB.Below(r.Context(), fileID, l.Object) {
+	if !h.passed(r, l) || l.Mode == db.LinkUpload || h.options.Store == nil || !id.Valid(fileID) || !h.options.DB.Below(r.Context(), fileID, l.Object, l.CreatedBy) {
 		h.notFound(w, r)
 		return
 	}
@@ -596,9 +596,6 @@ func (h *handler) uploadThroughLink(r *http.Request, l db.Link, name string, dat
 	if err != nil {
 		return err
 	}
-	if name, err = h.options.DB.FreeName(ctx, l.Object, name); err != nil {
-		return err
-	}
 	declared := min(r.ContentLength, MaxLinkUpload)
 	if declared < 0 {
 		declared = MaxLinkUpload
@@ -647,7 +644,8 @@ func (h *handler) uploadThroughLink(r *http.Request, l db.Link, name string, dat
 	if err != nil {
 		return err
 	}
-	finished, err := h.options.DB.FinishUpload(ctx, u.ID, l.CreatedBy, sha, size, contentType, func() error {
+	// Only adds: the file takes a name nothing in the folder has when it is made, never a version of what is there.
+	finished, err := h.options.DB.FinishUploadAsNew(ctx, u.ID, l.CreatedBy, sha, size, contentType, func() error {
 		return h.options.Store.Adopt(t, u.ID, sha)
 	})
 	if err != nil {

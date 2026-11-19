@@ -1178,7 +1178,9 @@ const within=(id,a)=>{for(let x=a;x;x=PARENT[x])if(x===id)return true;return fal
 /* Where a drop puts the entry: the container it goes into. An object of the database goes only into the database, where
    one may edit, and made-up content stays made up. */
 function dropCont(t){return t.type==='coll'?t.c:t.type==='into'?t.id:t.type==='nav2'?'':contOf(t.id);}
-function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
+/* Within its place an entry is reordered by whoever may edit; to another place it goes only with the role manage on it
+   (ADR-29), so the gap does not open there for whoever may only edit. */
+function fits(id,t){const c=dropCont(t);if(!D[id].db)return c===''||!D[c]||!D[c].db;if(c!==(contOf(id)||'')&&!isOwner(id))return false;if(c==='')return D[id].t==='coll';return !!D[c]&&!!D[c].db&&accOf(c)==='edit'&&!isDeco(c);}
 /* Dragging an entry of nav2 or nav3 is C22's (app-workspace-drag.js, approved here on 2026-11-09): it carries the entry
    through the list as it looks when held, up and down between entries, onto one after waiting, deeper to the right. What
    may go where, and what a drop does, is decided here. The entries selected along with it go too; on a collection in
@@ -1683,7 +1685,9 @@ async function moveBlockTo(key,id,after){
 const flushEditors=()=>Object.values(EDS).forEach(e=>e.ed.flush());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushEditors();});
 addEventListener('pagehide',flushEditors);
+/* The versions hold what was taken out, so they are for whoever may edit the page (ADR-29). */
 function versionsHtml(d){
+  if(!d.canEdit)return '<div class="lab">Versions are for whoever may edit this page.</div>';
   if(!d.versions)return '<div class="lab">Loading…</div>';
   if(!d.versions.length)return '<div class="lab">No changes yet.</div>';
   return `<ul>${d.versions.map(v=>`<li><small>${v.at}</small><span>${v.who} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}</span></li>`).join('')}</ul>`;
@@ -1708,6 +1712,7 @@ async function removedAct(id,what,page){
 function toast(text){S.toast=text;render();setTimeout(()=>{S.toast='';render();},2600);}
 const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
 async function loadVersions(id){
+  if(!D[id].canEdit)return;
   try{const r=await fetch(pageURL(id)+'/versions',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
     D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt)}));}
   catch(e){D[id].versions=[];}
@@ -1860,9 +1865,11 @@ async function removeDivider(id){
     catch(e){toast(e.message==='403'?'Others may not change this collection.':'The '+D[id].n.toLowerCase()+' could not be removed.');return;}}
   if(k>=0)list.splice(k,1);rebuildPlaces();render();
 }
+/* Why the server refused, where it says more than that others may not change it. */
+async function refusal(r){try{const m=(await r.json()).error||'';return m.includes(': ')?m.slice(m.indexOf(': ')+2):'';}catch(e){return '';}}
 async function moveObject(id,cont,after,undo){
-  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/move',{...same,method:'POST',body:JSON.stringify({parent:cont?D[cont].sid:'',after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));return true;}
-  catch(e){undo();toast(e.message==='403'?'Others may not change this.':'It could not be moved there.');return false;}
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/move',{...same,method:'POST',body:JSON.stringify({parent:cont?D[cont].sid:'',after:after?D[after].sid:''})});if(!r.ok)throw new Error(r.status===403&&await refusal(r)||String(r.status));return true;}
+  catch(e){undo();toast(e.message==='403'?'Others may not change this.':/^\d+$/.test(e.message)?'It could not be moved there.':e.message);return false;}
 }
 /* A copy lands right after what it copies, or where a drop with Ctrl puts it. In the database the server copies the
    whole tree; made-up content is copied here. Only the top copy says it is one. */
@@ -1931,8 +1938,8 @@ async function deleteObject(id){
       /* What of it is embedded elsewhere is gone through one by one, with the same for all (ADR-22). */
       if(r.status===409){const ways=await askWays((await r.json()).inUse||[]);if(!ways){toast('Nothing was deleted.');return;}
         r=await fetch('/api/objects/'+encodeURIComponent(d.sid),{...same,method:'DELETE',body:JSON.stringify({ways})});}
-      if(!r.ok)throw new Error(String(r.status));}
-    catch(e){toast(e.message==='403'?'Others may not delete this.':'It could not be deleted.');return;}}
+      if(!r.ok)throw new Error(r.status===403&&await refusal(r)||String(r.status));}
+    catch(e){toast(e.message==='403'?'Others may not delete this.':/^\d+$/.test(e.message)?'It could not be deleted.':e.message);return;}}
   dropLocal(id);toast(d.db?plain(d.n)+' is in the trash.':plain(d.n)+' is deleted.');if(d.db&&trashOpen())loadTrash();
 }
 /* The trash is a page of the window: what the viewer deleted, and what was theirs, newest first, each with where it lay.
@@ -2095,7 +2102,7 @@ async function showFile(sid){
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
   Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
     html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
-      <h2>Versions</h2>${tableHtml(['Version','When','Who','Size',''],vrows)}`});
+      <h2>Versions</h2>${f.canEdit?tableHtml(['Version','When','Who','Size',''],vrows):'<p class="lab">Versions are for whoever may edit this file.</p>'}`});
   render();
 }
 /* PDF, and Office files through the optional Office module, show in pdf.js, served by UnderDoc itself

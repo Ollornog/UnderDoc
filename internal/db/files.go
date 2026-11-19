@@ -173,6 +173,8 @@ const (
 	// lockBlobs is taken shared by whoever adds a reference to a blob, and alone by the cleaning of the store, so a blob
 	// is never removed between being found in the store and being referred to.
 	lockBlobs = 7272825
+	// lockAdmins serializes taking back administrators, so the check that one remains sees what the other did.
+	lockAdmins = 7272826
 )
 
 const rootColumns = `, r.role, ` + writersOf + `, coalesce(r.quota, -1)`
@@ -604,6 +606,18 @@ type Finished struct {
 // runs inside the transaction, so the cleaning of the store never sees the blob without its reference. A new file with
 // the name of a file already in its folder, ignoring case, becomes a new version of that file.
 func (db *DB) FinishUpload(ctx context.Context, uploadID, viewer, sha string, size int64, contentType string, adopt func() error) (Finished, error) {
+	return db.finishUpload(ctx, uploadID, viewer, sha, size, contentType, adopt, false)
+}
+
+// FinishUploadAsNew is FinishUpload for an upload that only adds, such as one through a link to upload only (ADR-29): it
+// never becomes a version of what is there. The new file takes the name of the upload, or with " (2)" and up before its
+// extension, whichever nothing in the folder has at that moment; the folder is locked while the name is chosen and the
+// file made, so no other upload into it takes the same name in between.
+func (db *DB) FinishUploadAsNew(ctx context.Context, uploadID, viewer, sha string, size int64, contentType string, adopt func() error) (Finished, error) {
+	return db.finishUpload(ctx, uploadID, viewer, sha, size, contentType, adopt, true)
+}
+
+func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, size int64, contentType string, adopt func() error, asNew bool) (Finished, error) {
 	u, err := db.GetUpload(ctx, uploadID, viewer)
 	if err != nil {
 		return Finished{}, err
@@ -656,6 +670,21 @@ func (db *DB) FinishUpload(ctx context.Context, uploadID, viewer, sha string, si
 		case u.File != "":
 			done.File = target
 			done.Version, err = addVersion(ctx, tx, u.File, viewer, sha, size, target.Title, contentType)
+			return err
+		}
+		// The folder is locked: two uploads into it choose their name one after the other.
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", u.Parent); err != nil {
+			return err
+		}
+		if asNew {
+			name, err := freeName(ctx, tx, u.Parent, u.Name)
+			if err != nil {
+				return err
+			}
+			if done.File, err = insertObject(ctx, tx, Object{Kind: KindFile, Title: name, Owner: viewer, Parent: u.Parent}); err != nil {
+				return err
+			}
+			done.Version, err = addVersion(ctx, tx, done.File.ID, viewer, sha, size, name, contentType)
 			return err
 		}
 		var existing Object
@@ -755,32 +784,52 @@ func (db *DB) File(ctx context.Context, fileID, viewer string) (FileInfo, error)
 	return f, err
 }
 
-// FileVersions returns the versions of a file the viewer sees, newest first.
+const fileVersionColumns = `v.number, v.blob, v.size, v.name, v.content_type, v.author,
+	coalesce((SELECT a.name FROM accounts a WHERE a.id = v.author), v.author), v.at`
+
+func scanFileVersion(row pgx.Row) (FileVersion, error) {
+	var v FileVersion
+	err := row.Scan(&v.Number, &v.Blob, &v.Size, &v.Name, &v.ContentType, &v.Author, &v.AuthorName, &v.At)
+	return v, err
+}
+
+// FileVersions returns the versions of a file, newest first. Like the versions of a page, they are for whoever may edit
+// the file (ADR-29); whoever only reads it gets the current one through FileVersion.
 func (db *DB) FileVersions(ctx context.Context, fileID, viewer string) ([]FileVersion, error) {
-	if _, err := db.File(ctx, fileID, viewer); err != nil {
-		return nil, err
-	}
-	rows, err := db.pool.Query(ctx, `SELECT v.number, v.blob, v.size, v.name, v.content_type, v.author,
-			coalesce((SELECT a.name FROM accounts a WHERE a.id = v.author), v.author), v.at
-		FROM file_versions v WHERE v.file = $1 ORDER BY v.number DESC`, fileID)
+	f, err := db.File(ctx, fileID, viewer)
 	if err != nil {
 		return nil, err
 	}
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (FileVersion, error) {
-		var v FileVersion
-		err := row.Scan(&v.Number, &v.Blob, &v.Size, &v.Name, &v.ContentType, &v.Author, &v.AuthorName, &v.At)
-		return v, err
-	})
+	if err := db.mayEdit(ctx, f.Object, viewer); err != nil {
+		return nil, err
+	}
+	rows, err := db.pool.Query(ctx, `SELECT `+fileVersionColumns+` FROM file_versions v WHERE v.file = $1 ORDER BY v.number DESC`, fileID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (FileVersion, error) { return scanFileVersion(row) })
 }
 
-// FileVersion returns one version of a file the viewer sees; number 0 is the current one.
+// FileVersion returns one version of a file the viewer sees. Number 0 is the current one, for everyone who reads the
+// file; an older one only for whoever may edit it, as FileVersions.
 func (db *DB) FileVersion(ctx context.Context, fileID, viewer string, number int) (FileVersion, error) {
+	if number == 0 {
+		if _, err := db.File(ctx, fileID, viewer); err != nil {
+			return FileVersion{}, err
+		}
+		v, err := scanFileVersion(db.pool.QueryRow(ctx, `SELECT `+fileVersionColumns+` FROM file_versions v WHERE v.file = $1
+			ORDER BY v.number DESC LIMIT 1`, fileID))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return FileVersion{}, ErrNotFound
+		}
+		return v, err
+	}
 	versions, err := db.FileVersions(ctx, fileID, viewer)
 	if err != nil {
 		return FileVersion{}, err
 	}
 	for _, v := range versions {
-		if number == 0 || v.Number == number {
+		if v.Number == number {
 			return v, nil
 		}
 	}

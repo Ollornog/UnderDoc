@@ -113,6 +113,19 @@ All notable changes to this project are documented in this file. The format foll
 - A block held at the edge of a page scrolled it by the frames the browser drew, so a busy browser scrolled less in the
   same time and the block landed short: it now scrolls by the time held.
 
+### Security
+
+- The rights of ADR-29 after an attack round ([docs/rights.md](docs/rights.md)): moving an object to another place
+  needs manage on it (reordering within its parent stays with edit), so whoever only edits no longer becomes its manager
+  by moving it into a collection of their own; only what is wholly one's own goes into something private, and its grants
+  and links end there, logged; deleting and purging refuse when something below breaks the inheritance and shuts the
+  deleter out; versions of pages and files are for edit; a link to read a folder shows only what its maker sees now,
+  object by object; an upload through a link takes its name when the file is made and never becomes a version; search
+  paths show "…" for levels not every reader sees (the index is filled again once); "what may X do" names nothing
+  private; taking back administrators is decided under a lock in the database, so two at once never leave a tenant
+  without one. Migration 025 gives the group of writers edit again in the narrower folders of the folder of the tenant,
+  as under ADR-20.
+
 ### Added
 
 - Sign-in built in (ADR-23, [docs/sign-in.md](docs/sign-in.md)), chosen per tenant: local accounts with a passkey

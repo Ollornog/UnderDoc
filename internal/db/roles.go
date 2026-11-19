@@ -703,11 +703,13 @@ func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held
 	}
 	rows, err := db.pool.Query(ctx, `
 		SELECT o.id, o.title, o.kind, o.area, 'owner', '', 'owner' FROM objects o
-		WHERE o.owner = $1 AND o.deleted_at IS NULL AND NOT o.private AND (o.parent IS NULL OR (SELECT p.owner FROM objects p WHERE p.id = o.parent) <> $1)
+		WHERE o.owner = $1 AND o.deleted_at IS NULL AND NOT object_private(o.id)
+		  AND (o.parent IS NULL OR (SELECT p.owner FROM objects p WHERE p.id = o.parent) <> $1)
 		UNION ALL
 		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(gr.name, ''), g.role FROM grants g JOIN objects o ON o.id = g.object
 			LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
-		WHERE o.deleted_at IS NULL AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1) OR (g.kind = 'group' AND g.who = ANY ($2)))
+		WHERE o.deleted_at IS NULL AND NOT object_private(o.id)
+		  AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1) OR (g.kind = 'group' AND g.who = ANY ($2)))
 		ORDER BY 2, 1, 5`, accountID, groups)
 	if err != nil {
 		return nil, err
@@ -746,8 +748,25 @@ func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin
 	if accountID == actor.ID {
 		return ErrLastAdmin
 	}
-	_, err = db.pool.Exec(ctx, "UPDATE accounts SET admin = false WHERE id = $1", accountID)
-	return err
+	// The flag of the actor is what the request found at its start. Two requests at once could each take the other's
+	// administration away, so the database decides under a lock: a local actor must still administer, and as they are
+	// not the one taken back, a local administrator remains. An actor of the gate or of OIDC administers through the
+	// group of their sign-in, which stays theirs.
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockAdmins); err != nil {
+			return err
+		}
+		var local, still bool
+		if err := tx.QueryRow(ctx, `SELECT coalesce((SELECT source = 'local' FROM accounts WHERE id = $1), false),
+				coalesce((SELECT admin FROM accounts WHERE id = $1), false)`, actor.ID).Scan(&local, &still); err != nil {
+			return err
+		}
+		if local && !still {
+			return ErrNotAllowed
+		}
+		_, err := tx.Exec(ctx, "UPDATE accounts SET admin = false WHERE id = $1", accountID)
+		return err
+	})
 }
 
 // User is an account with how it signs in and whether it administers the tenant as a local account.

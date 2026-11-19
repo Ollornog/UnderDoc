@@ -256,9 +256,14 @@ func (db *DB) DeleteBlockWays(ctx context.Context, pageID, blockID, viewer strin
 	})
 }
 
-// Versions returns the latest changes of a page the viewer may see, newest first.
+// Versions returns the latest changes of a page, newest first. They hold what was taken out, so only whoever may edit
+// the page reads them (ADR-29).
 func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([]Version, error) {
-	if _, err := db.page(ctx, pageID, viewer); err != nil {
+	p, err := db.page(ctx, pageID, viewer)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.mayEdit(ctx, p, viewer); err != nil {
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `
