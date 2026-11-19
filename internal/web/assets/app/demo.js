@@ -197,7 +197,7 @@ function rowHtml(id){
 }
 const ADDTYPES=['page','folder','bookmark','search','table','todo','kanban','notes','excel','slides','video','images','view','db','ipnet','devices'];
 /* The first build: switched-off modules disappear, but what is not built yet stays in sight, greyed out. */
-const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','src','store','audit'],tool:['split','opencol','newwin','aid','qn']};
+const LATER={view:['files','resources','bookmarks','news','mail','todo','cal','time','vac','notes'],add:ADDTYPES.filter(k=>!['page','folder'].includes(k)),prof:['lang','notif','src','store'],tool:['split','opencol','newwin','aid','qn']};
 const later=(kind,id)=>S.first&&LATER[kind].includes(id);
 /* Why a document cannot be edited, for the greyed pencil: nothing that is not built or not allowed simply goes missing. */
 /* Whether a tab shows its document for editing: what was chosen for this document, else the setting "open for editing". */
@@ -655,6 +655,7 @@ const ADMINTXT={users:['Users and groups','Who exists, who is in which group, wh
 function adminHtml(sec){
   /* Users and groups are the tab Rights (rights.js), shown here too for the administration in the profile (ADR-16, ADR-29). */
   if(sec==='users'&&S.real&&window.UDRights) return UDRights.nav3('users',S.user)+UDRights.nav3('groups',S.user);
+  if(sec==='audit'&&S.real&&window.UDRights) return UDRights.nav3('log',S.user);
   if(sec==='signin') return `<div class="spanel"><div class="shead">Sign-in</div><p class="hint">How people sign in, who is invited, and who signed in.</p>${S.user.admin?'<a class="chip" href="/admin/sign-in">Open the sign-in settings</a>':''}</div>`;
   if(sec==='mods'&&!document.getElementById('root').hasAttribute('data-demo')) return `<div class="spanel"><div class="shead">Modules</div>${(S.modules||[]).map(m=>`<div class="modrow"><span>${esc(m.name)}<small>${esc(m.description)}</small></span><em>${m.on?'✓ On':'✗ Off'}</em></div>`).join('')}<p class="hint">Off means gone for everyone, and no data is touched.</p>${S.user.admin?'<a class="chip" href="/admin/modules">Switch modules</a>':''}<a class="chip" href="/account/modules">Hide modules for me</a></div>`;
   if(sec!=='mods') return `<div class="spanel"><div class="shead">${ADMINTXT[sec][0]}</div><p class="hint">${ADMINTXT[sec][1]}</p></div>`;

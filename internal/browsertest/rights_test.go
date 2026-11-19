@@ -169,4 +169,10 @@ func TestTheTabRights(t *testing.T) {
 		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
 	}
 	b.shot("rights-tab")
+	// The log names what was done, the group made among it.
+	b.clickOn(`[data-act="sec"][data-id="log"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-rights="log"] [data-log] [data-entry="group"]') && (document.querySelector('[data-rights="log"]')?.innerText || '').includes('Board')`) {
+		t.Errorf("the log: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+	}
+	b.shot("rights-log")
 }

@@ -46,3 +46,8 @@ T-9. The block of rights then comes in this order, each step a pull request of i
 Later, with the Samba part at the end: Samba users and rights, the limit of a share (ADR-29), the domain (the tenth and
 eleventh criterion). Passwords in the text (ADR-7) are a piece of their own; their attack round follows once they exist,
 while the attack round on the rights runs after step 4.
+
+**Built on 2026-11-19:** steps 1 to 4 ([docs/rights.md](../docs/rights.md)): roles, inheritance, ownership, groups, the
+one check, share links, the tab Rights with the rights dialog and the access check, administrators in the profile and
+taking them back, and the log. Open: the Samba part (users, rights and the limit of a share, the domain), passwords in
+the text (ADR-7) with their attack round, and a retention period of the log.

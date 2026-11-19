@@ -197,6 +197,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/rights/held", h.apiHeld)
 	mux.HandleFunc("GET /api/users", h.apiUsers)
 	mux.HandleFunc("PUT /api/users/{id}/admin", h.apiSetAdmin)
+	mux.HandleFunc("GET /api/log", h.apiLog)
 	// Share links (ADR-29): made and listed in the workspace, opened at /s/<token> without signing in.
 	mux.HandleFunc("GET /api/objects/{id}/shareables", h.apiShareables)
 	mux.HandleFunc("POST /api/objects/{id}/links", h.apiCreateLink)
@@ -320,7 +321,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		mux.HandleFunc("GET /api/time/absences", h.guard(module.Time, h.apiTimeAbsences))
 	}
 	mux.HandleFunc("GET /", h.notFound)
-	return accessLog(log, secure(h.tenanted(h.signedIn(mux)))), nil
+	return accessLog(log, secure(h.tenanted(h.signedIn(h.logged(mux))))), nil
 }
 
 // open reports whether a request needs neither tenant nor sign-in: the assets, so a page that says why nothing else

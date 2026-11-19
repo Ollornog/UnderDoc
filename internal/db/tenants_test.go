@@ -65,7 +65,7 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 	checked, timeTables := 0, 0
 	// The tables of the rights (ADR-29) must be among them.
 	rights := map[string]bool{"groups": false, "group_members": false, "grants": false, "share_links": false, "share_link_users": false,
-		"share_link_passes": false}
+		"share_link_passes": false, "audit_log": false}
 	for _, x := range tables {
 		if slices.Contains(sharedTables, x.name) {
 			continue
@@ -186,6 +186,9 @@ func TestNoTableShowsAnotherTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.GivePass(main, link.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Log(main, anna.ID, LogOpen, p.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 	fillTime(t, db, main)

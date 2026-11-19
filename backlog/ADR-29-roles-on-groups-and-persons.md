@@ -172,3 +172,16 @@ the owner and who sees it.
 - T-9 is settled by this decision; T-1 can only widen the share to rights per single file.
 - The Samba part of M-5 (users, shares, the domain) and the limit of a share come last, with T-1.
 - Passwords in the text (ADR-7) are a piece of their own; this decision gives them no rule beyond ADR-7.
+- **Built on 2026-11-19** ([docs/rights.md](../docs/rights.md), migrations 022 to 024). Settled in the build:
+  - The level of ADR-20 in the settings of the workspace stays as the role of the whole tenant; "as above" at the top
+    means edit, as it did.
+  - A link lives only while its maker manages its object; otherwise it answers like one that never was and lends no
+    role. Administrators who do not manage an object make no link to it, but see and revoke every link.
+  - A link to read shares a page, a file, or a folder of the files with what is below it; a collection or folder of the
+    documents is shared with accounts only, to comment or edit. A frozen page holds the page alone, not the pages below
+    it, and not its attachments yet.
+  - An upload through a link becomes a file of the link's maker under a name nothing in the folder has.
+  - Nobody takes their own administration away, so a tenant keeps an administrator. The organization of the time tracking
+    follows only for memberships UnderDoc made itself (ID prefix `ud-admin-`), those from before stay.
+  - The log keeps opening and changing once per account, object and hour, keeps nothing private, and has no retention
+    period yet.
