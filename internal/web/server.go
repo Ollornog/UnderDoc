@@ -12,9 +12,10 @@ import (
 )
 
 // CSP allows only what comes from the application itself, and no inline code at all. connect-src lets the shell load
-// the window it swaps in from the same origin.
+// the window it swaps in from the same origin; frame-src lets the workspace show the time tracking of the same origin
+// in a window (its pages set frame-ancestors 'self' for themselves).
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
-	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	"frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 // ocrWorkerCSP is the policy of the worker of Tesseract.js, which reads the text of images in the browser (ADR-24): it may
 // load the core from UnderDoc, compile its WebAssembly and fetch the language data from UnderDoc, and nothing else.

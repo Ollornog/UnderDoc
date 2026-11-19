@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Ollornog/EightPerDay/core/pgstore"
+
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/id"
@@ -52,14 +54,19 @@ func TestMigrationsRunOnce(t *testing.T) {
 	url := pgtest.URL(t)
 	ctx := inMain()
 	files, _ := fs.Glob(migrations, "migrations/*.sql")
+	// EightPerDay's migrations of the time tracking are recorded next to UnderDoc's own (timetracking.go).
+	timeSteps, err := pgstore.Migrations(TimeOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for range 2 {
 		db, err := Open(ctx, url)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var n int
-		if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&n); err != nil || n != len(files) || n < 2 {
-			t.Fatalf("%d migrations recorded for %d files, %v", n, len(files), err)
+		if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&n); err != nil || n != len(files)+len(timeSteps) || n < 2 {
+			t.Fatalf("%d migrations recorded for %d files and %d of the time tracking, %v", n, len(files), len(timeSteps), err)
 		}
 		if !db.Healthy(ctx) {
 			t.Fatal("not healthy")

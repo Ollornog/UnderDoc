@@ -91,6 +91,10 @@ through every door of the web, `TestTenantsSeeNothingOfEachOther` in `internal/w
 person and checks the tree, pages, search, embeddings, links, comments, uses, versions, the trash, the export and every
 change: nothing of one tenant reaches the other.
 
+The tables of the time tracking (`time_…`, EightPerDay's migrations, [docs/time-tracking.md](time-tracking.md)) are held
+to the same rules: the guard fails if it finds fewer than six of them, and its access log lets a tenant deleted for good
+take its rows along (`underdoc.tenant_erase`).
+
 A new table copies the pattern of `internal/db/migrations/013_tenants.sql`: the column, the default, the two `ALTER
 TABLE … ROW LEVEL SECURITY` and the policy `tenant_only`.
 

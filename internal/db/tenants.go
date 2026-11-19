@@ -180,6 +180,10 @@ func (db *DB) PurgeTenant(ctx context.Context, tenantID, confirm string) error {
 		if _, err := tx.Exec(ctx, "SELECT set_config('underdoc.tenant', $1, true)", tenantID); err != nil {
 			return err
 		}
+		// The access log of the time tracking lets go of its rows only for a tenant deleted for good (EightPerDay).
+		if _, err := tx.Exec(ctx, "SELECT set_config($1, $2, true)", timeEraseSetting, tenantID); err != nil {
+			return err
+		}
 		// The tables refer to each other; a table whose rows are still referred to waits for the next round.
 		for len(tables) > 0 {
 			var left []string

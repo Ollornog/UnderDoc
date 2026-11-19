@@ -21,6 +21,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Ollornog/EightPerDay/core/pgstore"
+
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -32,6 +34,8 @@ var migrations embed.FS
 // DB is the connection pool with the schema brought up to date.
 type DB struct {
 	pool *pgxpool.Pool
+	// time is EightPerDay's store on the pool (TimeStore).
+	time *pgstore.Store
 	// limits are the sizes files may have (SetLimits); set once before the first request.
 	limits Limits
 }
@@ -81,6 +85,10 @@ func Open(ctx context.Context, url string) (*DB, error) {
 		return nil, err
 	}
 	db := &DB{pool: pool}
+	if db.time, err = pgstore.New(pool, TimeOptions); err != nil {
+		pool.Close()
+		return nil, err
+	}
 	if err := db.checkRules(ctx); err != nil {
 		pool.Close()
 		return nil, err
@@ -191,7 +199,10 @@ func migrate(ctx context.Context, conn *pgx.Conn, upTo int) error {
 			return err
 		}
 	}
-	return nil
+	if upTo > 0 {
+		return nil
+	}
+	return migrateTime(ctx, conn)
 }
 
 // --- Accounts

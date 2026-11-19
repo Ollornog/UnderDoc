@@ -48,6 +48,7 @@ const D = {
 for (let i=0;i<11;i++) D['log'+i]={t:'page',n:'Log week '+(30+i),w:'slim',kids:[],path:`operations/site-logs/week-${30+i}.md`,by:'J. Roth',ch:'Oct',vis:'Group ops, inherited',uses:{ext:[],int:[],data:[],vals:[],db:[]},usedIn:[],doc:P('Weekly site log.',['Work','<p>Routine checks.</p>'],['Notes','<p>Nothing unusual.</p>'])};
 const C = [{id:'ops',n:'Operations',top:['net','logs','hand']},{id:'pro',n:'Projects',top:['tower','inv']},{id:'me',n:'My notes',top:['n1']}];
 function bodyHtml(w,i){
+  if(D[w.d].t==='epd') return {h:`<div data-timeframe="${D[w.d].src}" data-win="${i}"></div>`,hs:[],to:null};
   const d=D[w.d]; let hs=d.doc?d.doc.secs.map(s=>s[0]):[],to=null; const sub=`<div class="sub">${TYPE[d.t][1]} · ${d.path}</div>${d.tags.length?`<div class="tagline">${tagChips(d.tags,'tagsearch')}</div>`:''}`;
   let h='';
   /* The contents of a page of the database are its blocks that begin with a heading (M-8), each a jump to its block. */
@@ -332,8 +333,8 @@ const SECTIONS={
     :[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
   todo:()=>[...TL.map(l=>[l.id,l.n,l.i]),['newlist','New list','plus',1]],
   cal:()=>[['all','All calendars','grid',0,1],...CALS.map(c=>[c.id,c.n,c.i]),['import','Import a calendar','down',1]],
-  time:()=>[['week','This week','clock'],['last','Last week','clock'],['oct','October','cal'],['export','Export','down',1]],
-  vac:()=>[['y26','2026','sun'],['y27','2027','sun'],['plan','Plan a vacation','plus',1]],
+  time:()=>timeReal('time')?[['tt','Time tracking','clock']]:[['week','This week','clock'],['last','Last week','clock'],['oct','October','cal'],['export','Export','down',1]],
+  vac:()=>timeReal('vac')?[['tl','Leave planning','sun']]:[['y26','2026','sun'],['y27','2027','sun'],['plan','Plan a vacation','plus',1]],
   notes:()=>[...BOARDS.map(b=>[b.id,b.n,b.i]),['newboard','New board','plus',1]],
   resources:()=>RES.map(g=>[g.id,g.n,g.i]),
   mail:()=>[['inbox','Inbox','mail'],['sent','Sent','send'],['archive','Archive','box']],
@@ -686,6 +687,21 @@ function privNav3(v){
   const parts=SECTIONS[v]().filter(x=>so[x[0]]).map(x=>privPart(v,x[0])).join('');
   return `<div class="tree" id="tree">${lock}${parts||'<p class="lab pad">Nothing open. Pick a list in nav2.</p>'}</div>`;
 }
+/* The time tracking (module Time, docs/time-tracking.md): with the module on, Time and Vacation of the private area are
+   EightPerDay's pages, each opened like a document; its window shows the page in a frame of the same origin, which
+   timetracking.js keeps over the window. With the module off they are gone. */
+const timeReal=v=>S.real&&S.timeOn&&(v==='time'||v==='vac')&&!!window.UnderDocTime;
+TYPE.epd=['clock','Time tracking'];
+function timePseudos(){
+  if(!window.UnderDocTime)return;
+  [...UnderDocTime.pages,...UnderDocTime.leave].forEach(p=>pseudo('epd:'+p.path,{t:'epd',n:p.name,path:'not a file, private',
+    place:'Private › Time tracking',vis:'Only you, and your organization what you record for it',by:'you',ch:'',stat:'Time tracking',src:'/time'+p.path}));
+}
+function timeNav3(v){
+  const lock=`<div class="lockline">${ic('lock')}Only you see this. What you record for the organization of this workspace its administrators see.</div>`;
+  const list=v==='vac'?UnderDocTime.leave:UnderDocTime.pages;
+  return `<div class="tree" id="tree">${lock}<ul class="t top">${list.map(p=>listRow('epd:'+p.path,p.icon,p.name)).join('')}</ul></div>`;
+}
 function accountHtml(){
   const u=S.user;
   return `<div class="spanel"><div class="who"><span class="avatar">${esc(u.initials)}</span><span>${esc(u.name)}<small>${esc(u.email||u.login)}</small></span></div><div class="tagrow">${u.groups.map(g=>`<span class="tagc">${esc(g)}</span>`).join('')}</div>
@@ -696,6 +712,7 @@ function nav3Html(){
   if(v==='workspace') return `<div class="tree" id="tree">${treeHtml()}</div>`;
   if(v==='search') return searchHtml();
   if(v==='profile'){const sec=S.sec.profile;return sec==='acct'?accountHtml():PROFADM.some(x=>x[0]===sec)?adminHtml(sec):settingsHtml(sec);}
+  if(timeReal(v)) return timeNav3(v);
   if(PRIVV.some(x=>x[0]===v)) return privNav3(v,sec);
   if(v==='files'){
     if(FS.on&&sec!=='ext')return filesNav3();
@@ -728,7 +745,7 @@ function render(){
     ${wide?`<input class="search" type="search" id="search" value="${esc(S.sq)}" placeholder="Search · Ctrl+K" aria-label="Search" title="Search: / here, Ctrl+K anywhere">`:''}
     <button class="ic newbtn" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${ic('plus')}</button>${solo()?`<button class="ic newbtn winbtn" data-act="winmenu" aria-expanded="${!!S.ctx&&S.ctx.kind==='win'}" aria-label="Window and tabs" title="Window and tabs: keep as a tab, a new column, opened before">${ic('win')}</button>`:''}${S.newAt==='bar'?newMenuHtml('bar'):''}</div>`;
   const n1=(v,n,i)=>navItem('view',v,n,i,S.view===v);
-  const privs=S.mods.private?`<span class="sep"></span><span class="n1lab" title="Only you see this">${ic('lock')}<span class="lbl">Private</span></span>${PRIVV.map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
+  const privs=S.mods.private?`<span class="sep"></span><span class="n1lab" title="Only you see this">${ic('lock')}<span class="lbl">Private</span></span>${PRIVV.filter(x=>!S.real||S.timeOn||!['time','vac'].includes(x[0])).map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
   const strip=`<nav class="strip col s${ph?1:S.s1}" aria-label="Nav1"><div class="n1top">${n1('workspace','Workspace','panel')}${n1('files','Files','hd')}${n1('resources','Resources','db')}${S.mods.news?n1('news','News','globe'):''}${S.mods.mail?n1('mail','Mail','mail'):''}<span class="sep"></span>${n1('search','Search','search')}<span class="spacer"></span>${privs}</div><div class="n1bot"><span class="sep"></span>
     <button class="navitem" data-act="view" data-id="profile" aria-pressed="${S.view==='profile'}" title="Profile, settings and administration"><span class="avatar tiny">${esc(S.user.initials)}</span><span class="lbl">Profile</span></button></div><div class="grip" data-grip="1" role="separator" aria-orientation="vertical" aria-label="Width of nav1" tabindex="0" title="Drag: snaps to the next view"></div></nav>`;
   const prof='';
@@ -741,6 +758,7 @@ function render(){
   mountEditors(edFocus,want);
   S.wins.forEach((w,i)=>{const t=at(i),e=document.querySelector(`[data-sc="${i}"]`);if(t&&e)e.scrollTop=t.top;applyFind(i);});
   udSearch.after();
+  if(window.UnderDocTime)UnderDocTime.place();
   rendering=false;
   /* A name being written keeps its text and the focus through a render. */
   const rn=ren&&document.querySelector('[data-ren]');if(rn){rn.value=ren.v;rn.focus();rn.setSelectionRange(ren.a,ren.b);}
@@ -2185,7 +2203,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.modules=st.modules||[];S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
+    S.user=st.user;S.modules=st.modules||[];S.real=true;S.timeOn=S.modules.some(m=>m.id==='time'&&m.on&&!m.hidden);if(S.timeOn)timePseudos();S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

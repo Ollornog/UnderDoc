@@ -5,12 +5,16 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/Ollornog/EightPerDay/core"
+
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
@@ -54,13 +58,21 @@ var (
 // nothing of it through any door: the tree, the pages, search, embeddings, comments, uses, versions, the trash, the
 // export, the folder source and every change. And the other way round.
 func TestTenantsSeeNothingOfEachOther(t *testing.T) {
-	s, _ := withTenants(t)
+	s, database := withTenants(t)
 	type made struct {
 		ids      []string
 		comment  string
 		trashed  string
 		secret   string
 		embedded string
+		// employer is the private employer booked in the time tracking, its name the word of the tenant.
+		employer string
+	}
+	// The door "time tracking" (EightPerDay) is open in both tenants.
+	for _, id := range []string{tenant.Main, "acme"} {
+		if err := database.SetTenantModules(tenant.With(context.Background(), id), []string{module.Documents, module.Files, module.Time}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	build := func(host, word string) made {
 		h := at(host)
@@ -82,6 +94,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		if doc := decode[apiDocument](t, s.getWith("/api/doc/"+uses.ID, h)); !strings.Contains(doc.Blocks[0].HTML, m.secret) {
 			t.Fatalf("the embedding works within its tenant: %+v", doc.Blocks)
 		}
+		m.employer = bookIn(t, s, h, word+" hours")
 		m.ids = []string{team.ID, plan.ID, uses.ID, gone.ID}
 		m.comment = strconv.FormatInt(c.ID, 10)
 		m.trashed = gone.ID
@@ -118,6 +131,38 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 					if strings.Contains(body, word) {
 						t.Errorf("%s shows %q of the other tenant: %s", target, word, body)
 					}
+				}
+			}
+			// The time tracking shows nothing of the other tenant, and nothing of it can be changed from here.
+			for _, target := range []string{"/time/", "/time/week", "/time/weeks", "/time/leave", "/time/reports", "/time/all",
+				"/time/access", "/time/orgs", "/time/export/json", "/time/?e=" + c.other.employer,
+				"/api/time/absences?from=2026-01-01&to=2026-12-31"} {
+				got := s.getWith(target, h)
+				if strings.Contains(got.Body.String(), c.other.employer) || strings.Contains(got.Body.String(), c.otherWords[0]+" hours") {
+					t.Errorf("%s shows the time tracking of the other tenant: %d", target, got.Code)
+				}
+			}
+			otherTenant := tenant.Main
+			if c.otherHost == acmeHost {
+				otherTenant = "acme"
+			}
+			for _, target := range []string{"/time/employers/" + c.other.employer, "/time/orgs/" + otherTenant} {
+				if got := s.getWith(target, h); got.Code != http.StatusNotFound {
+					t.Errorf("GET %s = %d", target, got.Code)
+				}
+			}
+			for _, change := range []struct {
+				target string
+				values url.Values
+			}{
+				{"/time/book/week", url.Values{"employer": {c.other.employer}, "week": {"2026-11-16"}, "hours": {"1"}, "back": {"/"}}},
+				{"/time/book/absence", url.Values{"employer": {c.other.employer}, "type": {"sick"}, "from": {"2026-11-17"}, "back": {"/"}}},
+				{"/time/employers/" + c.other.employer + "/archive", url.Values{"back": {"/"}}},
+				{"/time/employers/" + c.other.employer + "/name", url.Values{"name": {"taken"}, "back": {"/"}}},
+				{"/time/orgs/" + otherTenant + "/member", url.Values{"person": {"u-7"}, "role": {"admin"}, "back": {"/"}}},
+			} {
+				if got := sendForm(s, change.target, change.values, h); got.Code < 400 || got.Code == http.StatusInternalServerError {
+					t.Errorf("POST %s = %d", change.target, got.Code)
 				}
 			}
 			for _, id := range c.other.ids {
@@ -184,11 +229,20 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 		})
 	}
-	// Both tenants still have what they made.
+	// Both tenants still have what they made, in the time tracking as well.
 	for _, c := range []struct {
-		host string
-		m    made
-	}{{mainHost, inMain}, {acmeHost, inAcme}} {
+		host, tenant string
+		m            made
+	}{{mainHost, tenant.Main, inMain}, {acmeHost, "acme", inAcme}} {
+		ctx := tenant.With(context.Background(), c.tenant)
+		entries, err := database.TimeStore().Entries(ctx, core.EntryFilter{Owner: db.Person("u-7"), IncludeDeleted: true})
+		if err != nil || len(entries) != 1 || entries[0].EmployerID != c.m.employer || entries[0].Minutes != 38*60+30 || entries[0].Version != 1 {
+			t.Errorf("%s: its time tracking changed: %+v %v", c.tenant, entries, err)
+		}
+		cat, err := database.TimeStore().Catalog(ctx, db.Person("u-7"))
+		if err != nil || len(cat.Employers) != 1 || cat.Employers[0].Archived {
+			t.Errorf("%s: its employers changed: %+v %v", c.tenant, cat.Employers, err)
+		}
 		if doc := decode[apiDocument](t, s.getWith("/api/doc/"+c.m.ids[1], at(c.host))); !strings.Contains(doc.Blocks[0].HTML, c.m.secret) {
 			t.Errorf("%s lost its page: %+v", c.host, doc)
 		}

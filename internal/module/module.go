@@ -27,6 +27,8 @@ const (
 	Documents = "documents"
 	// Files is the view Files: its roots, files with versions, and uploads (ADR-28).
 	Files = "files"
+	// Time is the time tracking: EightPerDay, embedded (docs/time-tracking.md).
+	Time = "time"
 )
 
 // All lists every module there is, in the order the settings show them. A new module adds itself here, guards its
@@ -34,6 +36,7 @@ const (
 var All = []Module{
 	{ID: Documents, Name: "Documents", Description: "Collections, folders and pages, with comments, embeddings, tags, the trash and the folder source.", On: true},
 	{ID: Files, Name: "Files", Description: "The view Files: the folder of the workspace, a folder of each user and collections, with versions and uploads.", On: true},
+	{ID: Time, Name: "Time tracking", Description: "Working time, leave and absences in the private area: privately, and for the organization of the workspace where its administrators manage it.", On: false},
 }
 
 // Find returns a module by its ID.
