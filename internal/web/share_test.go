@@ -287,7 +287,8 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 		t.Fatalf("link = %d %s", link.Code, link.Body.String())
 	}
 	path := pathOf(t, decode[apiLink](t, link).URL)
-	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || strings.Contains(got.Body.String(), "HR") ||
+	// A folder is listed as ">HR/<"; the bare letters may stand in the random token of the link (a run for #92, 2026-11-19).
+	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || strings.Contains(got.Body.String(), ">HR/<") ||
 		!strings.Contains(got.Body.String(), "plan.txt") {
 		t.Errorf("the link lists the folder its maker may not see, or not the plan: %d %s", got.Code, got.Body.String())
 	}
