@@ -23,8 +23,11 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
-// inFrame is the document of the time tracking's frame in the active window.
-const inFrame = `document.querySelector('iframe[data-time-frame]:not([hidden])')?.contentDocument`
+// inFrame is the document of the time tracking's frame in the active window, frameWindow its window.
+const (
+	inFrame     = `document.querySelector('iframe[data-time-frame]:not([hidden])')?.contentDocument`
+	frameWindow = `document.querySelector('iframe[data-time-frame]:not([hidden])')?.contentWindow`
+)
 
 // frameRect is where an element inside the frame of the time tracking is on the screen. It scrolls the element to the middle
 // of the frame first, at once and not smoothly, so it stands clear of the tab bar EightPerDay keeps at the bottom.
@@ -125,8 +128,11 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 		field := `#v-` + day
 		b.clickInFrame(field)
 		b.typeText(strconv.Itoa(7 + i%3))
+		// The page of the frame before Enter carries a mark; only the page loaded after the save lacks it, so a typed
+		// but unsaved value cannot pass for a saved one.
+		b.eval(`(` + frameWindow + `).udBefore = true; 1`)
 		b.enter()
-		if !b.waitFor(inFrame + `?.querySelector('` + field + `')?.value === '` + strconv.Itoa(7+i%3) + `' && ` + inFrame + `.location.search.includes('done=saved')`) {
+		if !b.waitFor(`!` + frameWindow + `?.udBefore && ` + inFrame + `?.readyState === 'complete' && ` + inFrame + `?.querySelector('` + field + `')?.value === '` + strconv.Itoa(7+i%3) + `' && ` + inFrame + `.location.search.includes('done=saved')`) {
 			t.Fatalf("%s was not saved: %s", day, b.eval(inFrame+`?.body?.innerText.slice(0, 300)`))
 		}
 	}
