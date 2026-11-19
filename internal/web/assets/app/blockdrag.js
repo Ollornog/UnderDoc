@@ -26,9 +26,11 @@
 //   });
 (function () {
   'use strict';
-  // EDGE: the band at the top and bottom of what scrolls in which the page scrolls by itself; SPEED: pixels per frame at
-  // its outer end.
-  var THRESHOLD = 6, EDGE = 56, SPEED = 22;
+  // EDGE: the band at the top and bottom of what scrolls in which the page scrolls by itself; SPEED: pixels per FRAME
+  // (a sixtieth of a second) at its outer end. The page scrolls by the time that passed, not by the frames drawn, so a
+  // busy browser that draws fewer frames scrolls as far in the same time (2026-11-19: CI drew too few, and the block
+  // landed short); LONGEST caps one step after a stall.
+  var THRESHOLD = 6, EDGE = 56, SPEED = 22, FRAME = 1000 / 60, LONGEST = 200;
 
   function attach(app) {
     var press = null, drag = null;
@@ -46,7 +48,7 @@
     function lift() {
       var c = press.c, rows = app.rows(c), k = rows.findIndex(function (r) { return r.id === c.id; });
       if (k < 0 || rows.length < 2) { press = null; return; }
-      drag = { c: c, h: rows[k].bot - rows[k].top, k: k, home: k, scroller: app.scroller(c), y: press.y0, raf: 0 };
+      drag = { c: c, h: rows[k].bot - rows[k].top, k: k, home: k, scroller: app.scroller(c), y: press.y0, raf: 0, last: 0 };
       document.body.classList.add('ud-bdrag');
       // The held block hides its handle, so the click that ends the drag lands elsewhere and opens no menu.
       app.show(c, k);
@@ -83,25 +85,29 @@
       if (k !== drag.k) { drag.k = k; app.show(drag.c, k); }
     }
 
-    // How far the page scrolls in a frame: more the deeper the pointer is in the band at the edge, or beyond it.
+    // How far the page scrolls in a sixtieth of a second: more the deeper the pointer is in the band at the edge, or
+    // beyond it.
     function speed() {
       var s = drag.scroller;
       if (!s) return 0;
       var r = s.getBoundingClientRect(), y = drag.y;
-      if (y < r.top + EDGE) return -Math.ceil(SPEED * Math.min(1, (r.top + EDGE - y) / EDGE));
-      if (y > r.bottom - EDGE) return Math.ceil(SPEED * Math.min(1, (y - r.bottom + EDGE) / EDGE));
+      if (y < r.top + EDGE) return -SPEED * Math.min(1, (r.top + EDGE - y) / EDGE);
+      if (y > r.bottom - EDGE) return SPEED * Math.min(1, (y - r.bottom + EDGE) / EDGE);
       return 0;
     }
 
-    function roll() {
+    function roll(now) {
       var d = drag;
       if (!d) return;
       d.raf = 0;
       var v = speed();
-      if (!v) return;
+      if (!v) { d.last = 0; return; }
+      // The first frame of a run scrolls one step; each after it by the time since the one before.
+      var step = d.last ? Math.min(now - d.last, LONGEST) / FRAME : 1;
+      d.last = now;
       var before = d.scroller.scrollTop;
-      d.scroller.scrollTop = before + v;
-      if (d.scroller.scrollTop === before) return;
+      d.scroller.scrollTop = before + (v < 0 ? Math.floor(v * step) : Math.ceil(v * step));
+      if (d.scroller.scrollTop === before) { d.last = 0; return; }
       place();
       d.raf = requestAnimationFrame(roll);
     }
@@ -116,7 +122,7 @@
       e.preventDefault();
       drag.y = e.clientY;
       place();
-      if (!drag.raf && speed()) drag.raf = requestAnimationFrame(roll);
+      if (!drag.raf && speed()) { drag.last = 0; drag.raf = requestAnimationFrame(roll); }
     }
 
     function finish(dropped) {

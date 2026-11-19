@@ -389,7 +389,11 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	b.press("Escape", "Escape", 27, 0)
 	b.mouse("mouseReleased", next.X, next.Bottom-3, 1, 0)
 	time.Sleep(100 * time.Millisecond)
+	// A busy browser draws fewer frames, as the CI does under load: the page scrolls by the time held, not by the frames
+	// drawn, so it gets as far (2026-11-19).
+	b.eval(`window.busy = true; (function frame() { if (!window.busy) return; const t = performance.now(); while (performance.now() - t < 60); requestAnimationFrame(frame); })()`)
 	b.grab(`article.doc [data-b="b3"] > .bhandle`, bottom, 1500*time.Millisecond)
+	b.eval(`window.busy = false`)
 	got := b.eval(`(() => { const g = document.querySelector('article.doc .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.doc > [data-b], article.doc > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
 	if got != "true true true" {
 		t.Errorf("held at the bottom edge: a short gap, the page scrolled, and the gap went down past the blocks out of view: %q", got)
