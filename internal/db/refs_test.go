@@ -13,7 +13,7 @@ func TestReferencesFollowTheBlocks(t *testing.T) {
 	if got := RefsIn("text\n::embed{ref=\"7k2m9q4x1c#b3\"}\n  ::embed{ref=\"7k2m9q4x1c\"}  \n::embed{ref=\"7k2m9q4x1c#b3\"}\nnot ::embed{ref=\"7k2m9q4x1c\"} inline\nsee ::embed{ref=\"7k2m9q4x1c#b9\"}\n::embed{ref=\"bad\"}"); !slices.Equal(got, [][2]string{{"7k2m9q4x1c", "b3"}, {"7k2m9q4x1c", ""}}) {
 		t.Errorf("each embedding once, on a line of its own: %q", got)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	rack, _ := db.CreatePage(ctx, anna, "Rack", team.ID)
 	b, _ := db.AddBlock(ctx, rack.ID, anna.ID, "", "::embed{ref=\""+plan.ID+"#b1\"}")
@@ -69,7 +69,7 @@ func TestReferencesFollowTheBlocks(t *testing.T) {
 func TestUsesBeforeDeleting(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Folder", team.ID)
 	plan, _ := db.CreatePage(ctx, anna, "Plan", folder.ID)
 	inside, _ := db.CreatePage(ctx, anna, "Inside", folder.ID)
@@ -103,7 +103,7 @@ func TestUsesBeforeDeleting(t *testing.T) {
 func TestReusedAndEmbeds(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	rates, _ := db.CreatePage(ctx, anna, "Rates", team.ID)
 	if _, err := db.AddBlock(ctx, rates.ID, anna.ID, "", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`); err != nil {
 		t.Fatal(err)

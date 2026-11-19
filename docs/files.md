@@ -52,7 +52,8 @@ Files has three kinds of roots, all of them collections in an area of their own 
   tenant reads it; the group named as its writers edits it, at first the group of administrators
   (`UNDERDOC_ADMIN_GROUP`).
 - **My files:** a folder for each account, private to it.
-- **Collections:** made by anyone, edited by the whole tenant at first.
+- **Collections:** made by anyone, and theirs alone until they share them in the step "Share with" or in their rights
+  (ADR-29, 2026-11-19; before, the whole tenant edited a new one).
 
 Roles for persons, groups and the tenant hold here as among the documents, on every root, folder and file
 ([rights.md](rights.md), ADR-29); the writers of the folder of the tenant are a group with the role edit there. The

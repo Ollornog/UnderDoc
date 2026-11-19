@@ -35,7 +35,7 @@ func TestModulesSwitchOffWithoutLoss(t *testing.T) {
 	s, _ := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
-	team := decode[apiNode](t, admin.post("/api/collections", `{"title":"Team"}`))
+	team := admin.sharedCollection(`{"title":"Team"}`)
 	plan := decode[apiNode](t, admin.post("/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`))
 	admin.post("/api/pages/"+plan.ID+"/blocks", `{"md":"Kept while off."}`)
 	if m := documents(stateOf(t, admin).Modules); !m.Allowed || !m.On || m.Hidden {
@@ -125,7 +125,7 @@ func TestUsersHideModules(t *testing.T) {
 	s, _ := signInSite(t, gateOnly, Options{})
 	anna := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
-	team := decode[apiNode](t, anna.post("/api/collections", `{"title":"Team"}`))
+	team := anna.sharedCollection(`{"title":"Team"}`)
 	if got := anna.form("/account/modules", url.Values{"hide": {module.Documents, "nonsense"}}); got.Code != http.StatusOK {
 		t.Fatalf("hide: %d", got.Code)
 	}
@@ -152,7 +152,7 @@ func TestUsersHideModules(t *testing.T) {
 func TestTheTrashJobFollowsDocuments(t *testing.T) {
 	s, database := signInSite(t, gateOnly, Options{})
 	anna := newClientWith(t, s, gateHeaders)
-	team := decode[apiNode](t, anna.post("/api/collections", `{"title":"Team"}`))
+	team := anna.sharedCollection(`{"title":"Team"}`)
 	anna.do(http.MethodDelete, "/api/objects/"+team.ID, "", "")
 	policy, _ := module.ParsePolicy("")
 	on := ModuleOn(database, policy, module.Documents)

@@ -12,7 +12,7 @@ import (
 func TestTemplates(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	list, err := db.Templates(ctx, anna.ID)
 	if err != nil || len(list) != len(BuiltInTemplates) || list[0].ID != "builtin:meeting" {
 		t.Fatalf("UnderDoc's own come first: %+v %v", list, err)

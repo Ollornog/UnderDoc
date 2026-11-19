@@ -10,8 +10,8 @@ import (
 func TestFoldersAndConverting(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
-	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
+	team, _ := db.createShared(ctx, anna, "Team")
+	archive, _ := db.createShared(ctx, anna, "Archive")
 	folder, err := db.CreateFolder(ctx, anna, "Drawings", team.ID)
 	if err != nil || folder.Kind != KindFolder || folder.Parent != team.ID {
 		t.Fatalf("a folder in the team: %+v %v", folder, err)

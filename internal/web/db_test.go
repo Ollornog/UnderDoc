@@ -68,7 +68,7 @@ func TestAccountAndPrivateNotes(t *testing.T) {
 
 func TestSharedCollections(t *testing.T) {
 	s := withDatabase(t)
-	top := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":" Operations "}`, sameSite))
+	top := s.sharedCollection(`{"title":" Operations "}`, sameSite)
 	if top.Title != "Operations" {
 		t.Errorf("the title is trimmed: %q", top.Title)
 	}

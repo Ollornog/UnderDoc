@@ -198,7 +198,8 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		defer database.Close()
 		options.DB = database
 		healthy = func() bool { return lib.Healthy() && database.Healthy(context.Background()) }
-		// The trash belongs to Documents: where that is off, its job does not run either (ADR-25).
+		// The trash belongs to Documents: where that is off, its trash is not emptied (ADR-25). Signing in and the log
+		// expire in every tenant (ADR-29).
 		go database.KeepTrash(ctx, time.Hour, web.ModuleOn(database, options.Modules, module.Documents), func(err error) { log.Error("emptying the trash failed", slog.String("error", err.Error())) })
 		files, err := readFilesConfig()
 		if err != nil {

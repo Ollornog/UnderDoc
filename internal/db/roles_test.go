@@ -44,11 +44,11 @@ func TestRolesForPersonsGroupsAndTheTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := Actor{ID: anna.ID}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	folder, _ := db.CreateFolder(ctx, anna, "Plans", team.ID)
 	page, _ := db.CreatePage(ctx, bob, "Plan", folder.ID)
 	if got := role(t, db, page.ID, carl.ID); got != RoleEdit {
-		t.Errorf("a new collection lets the tenant edit, below too: %q", got)
+		t.Errorf("a collection shared with the tenant to edit, below too: %q", got)
 	}
 	if got := role(t, db, page.ID, bob.ID); got != RoleOwner {
 		t.Errorf("bob owns the page: %q", got)
@@ -138,7 +138,7 @@ func TestBreakingTheInheritance(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, bob, "Salaries", team.ID)
 	if err := db.SetGrant(ctx, team.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, RoleComment); err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestTransferringOwnership(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	if err := db.TransferOwner(ctx, team.ID, Actor{ID: bob.ID}, bob.ID); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("bob may not take it: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestTheLevelsOfADR20BecomeGrants(t *testing.T) {
 func TestReadersFollowTheRoles(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, bob, "Plan", team.ID)
 	readers := func() []string {
 		var got []string

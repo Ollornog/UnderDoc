@@ -65,7 +65,7 @@ func TestEveryTableKeepsTenantsApart(t *testing.T) {
 	checked, timeTables := 0, 0
 	// The tables of the rights (ADR-29) must be among them.
 	rights := map[string]bool{"groups": false, "group_members": false, "grants": false, "share_links": false, "share_link_users": false,
-		"share_link_passes": false, "audit_log": false}
+		"share_link_passes": false, "audit_log": false, "log_settings": false}
 	for _, x := range tables {
 		if slices.Contains(sharedTables, x.name) {
 			continue
@@ -143,7 +143,7 @@ func TestNoTableShowsAnotherTenant(t *testing.T) {
 	if _, err := db.CreateTenant(main, "acme", "Acme"); err != nil {
 		t.Fatal(err)
 	}
-	shared, err := db.CreateCollection(main, anna, "Operations", "")
+	shared, err := db.createShared(main, anna, "Operations")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,11 +245,11 @@ func TestTenantsWorkApart(t *testing.T) {
 	if err := db.SeeAccount(acme, anna); err != nil {
 		t.Fatal(err)
 	}
-	mine, err := db.CreateCollection(main, anna, "Main things", "")
+	mine, err := db.createShared(main, anna, "Main things")
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := db.CreateCollection(acme, anna, "Acme things", "")
+	theirs, err := db.createShared(acme, anna, "Acme things")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +410,7 @@ func TestTrashExpiresForEveryTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, ctx := range []context.Context{main, acme} {
-		c, err := db.CreateCollection(ctx, anna, "Gone", "")
+		c, err := db.createShared(ctx, anna, "Gone")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -505,7 +505,7 @@ func TestRenamingAndPurgingATenant(t *testing.T) {
 		if err := db.SeeAccount(ctx, anna); err != nil {
 			t.Fatal(err)
 		}
-		c, err := db.CreateCollection(ctx, anna, "Things", "")
+		c, err := db.createShared(ctx, anna, "Things")
 		if err != nil {
 			t.Fatal(err)
 		}

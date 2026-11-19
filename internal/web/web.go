@@ -198,6 +198,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/users", h.apiUsers)
 	mux.HandleFunc("PUT /api/users/{id}/admin", h.apiSetAdmin)
 	mux.HandleFunc("GET /api/log", h.apiLog)
+	mux.HandleFunc("GET /api/log/keep", h.apiLogKeep)
+	mux.HandleFunc("PUT /api/log/keep", h.apiSetLogKeep)
 	// Share links (ADR-29): made and listed in the workspace, opened at /s/<token> without signing in.
 	mux.HandleFunc("GET /api/objects/{id}/shareables", h.apiShareables)
 	mux.HandleFunc("POST /api/objects/{id}/links", h.apiCreateLink)

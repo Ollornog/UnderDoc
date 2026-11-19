@@ -200,7 +200,7 @@ func TestTheHosterSeesNoContent(t *testing.T) {
 	s, _, h := hosterSite(t)
 	acme := newClient(t, s, acmeHost)
 	acme.headers = gateHeaders
-	team := decode[apiNode](t, acme.post("/api/collections", `{"title":"Secret plans of acme"}`))
+	team := acme.sharedCollection(`{"title":"Secret plans of acme"}`)
 	plan := decode[apiNode](t, acme.post("/api/pages", `{"title":"Merger","parent":"`+team.ID+`"}`))
 	acme.post("/api/pages/"+plan.ID+"/blocks", `{"md":"We buy the competitor."}`)
 	for _, target := range []string{"/hoster", "/hoster/tenants/acme"} {
@@ -240,7 +240,7 @@ func TestTheHosterSeesNoContent(t *testing.T) {
 func TestLimitsShowInTheWeb(t *testing.T) {
 	s, database := signInSite(t, gateOnly, Options{})
 	anna := newClientWith(t, s, gateHeaders)
-	team := decode[apiNode](t, anna.post("/api/collections", `{"title":"Team"}`))
+	team := anna.sharedCollection(`{"title":"Team"}`)
 	plan := decode[apiNode](t, anna.post("/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`))
 	max := 1
 	storage := int64(20)

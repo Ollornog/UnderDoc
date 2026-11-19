@@ -135,8 +135,14 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		}
 		var write func(n *node, parent, title string) (Object, error)
 		write = func(n *node, parent, title string) (Object, error) {
+			// A copy at the top is a new collection of the viewer, theirs alone until they share it (ADR-29, 2026-11-19);
+			// below it, each copy keeps the role its original grants the whole tenant.
+			access := n.o.Access
+			if parent == "" {
+				access = ""
+			}
 			made, err := insertObject(ctx, tx, Object{Kind: n.o.Kind, Title: title, Description: n.o.Description, Tags: n.o.Tags, Owner: viewer,
-				Parent: parent, Access: n.o.Access, Private: n.o.Private && parent == "", Width: n.o.Width, Contents: n.o.Contents})
+				Parent: parent, Access: access, Private: n.o.Private && parent == "", Width: n.o.Width, Contents: n.o.Contents})
 			if err != nil {
 				return Object{}, err
 			}

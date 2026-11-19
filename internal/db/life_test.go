@@ -15,7 +15,7 @@ import (
 func TestTheWaysKeepTheLimit(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	src, _ := db.CreatePage(ctx, anna, "Source", team.ID)
 	user, _ := db.CreatePage(ctx, anna, "User", team.ID)
 	if _, err := db.AddBlock(ctx, src.ID, anna.ID, "", strings.Repeat("s", 60)); err != nil {

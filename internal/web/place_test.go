@@ -10,7 +10,7 @@ import (
 
 func TestDividersAndMovingThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
 	b := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"B","parent":"`+team.ID+`"}`, sameSite))
 	if got := s.send(http.MethodPost, "/api/dividers", `{"kind":"line","parent":"`+team.ID+`","after":"`+a.ID+`"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
@@ -52,7 +52,7 @@ func TestDividersAndMovingThroughTheAPI(t *testing.T) {
 
 func TestTrashThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages", `{"title":"Kid","parent":"`+a.ID+`"}`, sameSite)
 	s.send(http.MethodPost, "/api/pages", `{"title":"B","parent":"`+team.ID+`"}`, sameSite)
@@ -133,7 +133,7 @@ func TestTrashThroughTheAPI(t *testing.T) {
 
 func TestCopyThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages", `{"title":"Kid","parent":"`+a.ID+`"}`, sameSite)
 	if got := s.send(http.MethodPost, "/api/objects/"+a.ID+"/copy", `{"parent":"`+team.ID+`","after":"`+a.ID+`"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
@@ -154,7 +154,7 @@ func TestCopyThroughTheAPI(t *testing.T) {
 
 func TestFoldersThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	rec := s.send(http.MethodPost, "/api/folders", `{"title":"Drawings","parent":"`+team.ID+`"}`, sameSite)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("folder = %d %s", rec.Code, rec.Body)
@@ -200,7 +200,7 @@ func TestSettingsThroughTheAPI(t *testing.T) {
 
 func TestAccessThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	if got := s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
 		t.Errorf("from another site = %d", got)
 	}
@@ -217,7 +217,7 @@ func TestAccessThroughTheAPI(t *testing.T) {
 
 func TestEmptyingTheTrashThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	a := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"A","parent":"`+team.ID+`"}`, sameSite))
 	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
 		t.Fatalf("delete = %d", got)

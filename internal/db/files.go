@@ -241,13 +241,13 @@ func (db *DB) FileRoot(ctx context.Context, rootID, viewer string) (Root, error)
 	return r, err
 }
 
-// CreateFileCollection makes a collection among the roots of the view Files, owned by whoever makes it and open for
-// the whole tenant to edit, as a new collection of the documents is (ADR-29).
+// CreateFileCollection makes a collection among the roots of the view Files, owned by whoever makes it and theirs alone
+// until they share it, as a new collection of the documents is (ADR-29, 2026-11-19).
 func (db *DB) CreateFileCollection(ctx context.Context, owner account.User, title string) (Object, error) {
 	var made Object
 	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var err error
-		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Area: AreaFiles, Access: RoleEdit})
+		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Area: AreaFiles})
 		if err != nil {
 			return err
 		}

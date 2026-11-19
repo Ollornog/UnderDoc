@@ -71,7 +71,7 @@ func TestFileRoots(t *testing.T) {
 	if len(roots) != 2 {
 		t.Fatalf("bob sees %d roots, want his own and the tenant's: %+v", len(roots), roots)
 	}
-	team, err := db.CreateFileCollection(ctx, bob, "Team")
+	team, err := db.createSharedFiles(ctx, bob, "Team")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestQuotas(t *testing.T) {
 		t.Fatalf("the tenant's quota passed: %v", err)
 	}
 	// A collection has its default.
-	team, _ := db.CreateFileCollection(ctx, anna, "Team")
+	team, _ := db.createSharedFiles(ctx, anna, "Team")
 	if _, err := db.StartUpload(ctx, anna.ID, UploadTarget{Parent: team.ID}, "f", 51); !errors.Is(err, ErrQuota) {
 		t.Fatalf("the collection's quota passed: %v", err)
 	}
@@ -448,7 +448,7 @@ func TestAttachmentsBelongToTheirPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	mine := rootOfRole(t, db, anna.ID, RootUser)
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	done := upload(t, db, anna.ID, UploadTarget{Page: page.ID}, "shot.png", 7, sha(1))
 	if done.Attachment != "a1" || done.Page != page.ID {
@@ -531,7 +531,7 @@ func TestFilesStayInTheirArea(t *testing.T) {
 	mine := rootOfRole(t, db, anna.ID, RootUser)
 	folder, _ := db.CreateFolder(ctx, anna, "Old", mine.ID)
 	file := upload(t, db, anna.ID, UploadTarget{Parent: mine.ID}, "plan.pdf", 6, sha(1)).File
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Page", team.ID)
 	if _, err := db.Move(ctx, file.ID, anna.ID, team.ID, ""); !errors.Is(err, ErrPlace) {
 		t.Fatalf("a file among the documents: %v", err)
@@ -599,7 +599,7 @@ func TestFileVersionsAreForEditors(t *testing.T) {
 	if err := db.SeeAccount(ctx, carl); err != nil {
 		t.Fatal(err)
 	}
-	inbox, err := db.CreateFileCollection(ctx, anna, "Inbox")
+	inbox, err := db.createSharedFiles(ctx, anna, "Inbox")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestFileVersionsAreForEditors(t *testing.T) {
 func TestUploadAsNewNeverBecomesAVersion(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	inbox, err := db.CreateFileCollection(ctx, anna, "Inbox")
+	inbox, err := db.createSharedFiles(ctx, anna, "Inbox")
 	if err != nil {
 		t.Fatal(err)
 	}

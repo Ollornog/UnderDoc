@@ -31,7 +31,7 @@ func TestTags(t *testing.T) {
 	if got, err := CleanTags(many[:50]); err != nil || len(got) != 50 {
 		t.Errorf("50 tags are fine: %d %v", len(got), err)
 	}
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	plan, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	o, err := db.SetTags(ctx, plan.ID, anna.ID, []string{"Network", "#Rack"})
 	if err != nil || !slices.Equal(o.Tags, []string{"network", "rack"}) {

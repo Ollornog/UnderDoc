@@ -13,7 +13,7 @@ import (
 // and allowed as ADR-20 says.
 func TestCommentsThroughTheAPI(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	plan := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	blocks := "/api/pages/" + plan.ID + "/blocks"
 	s.send(http.MethodPost, blocks, `{"md":"## Switches"}`, sameSite)

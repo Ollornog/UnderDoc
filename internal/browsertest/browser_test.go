@@ -769,8 +769,8 @@ func TestDarkModeFollowsTheSystem(t *testing.T) {
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
 
-// New in nav2 makes a collection in the database at once, numbered, and its name is written in place; a new name stays
-// (M-28).
+// New in nav2 asks for the name of a collection at the top, numbered, and with whom to share it: by default with nobody,
+// so it is its maker's alone (ADR-29, 2026-11-19). Enter makes it, Escape makes nothing.
 func TestNewCollectionByHand(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
@@ -784,44 +784,59 @@ func TestNewCollectionByHand(t *testing.T) {
 			t.Fatalf("the filter of New did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 		}
 		b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
+		if !b.waitFor(`document.getElementById('udrights')?.open && document.activeElement?.dataset?.newTitle !== undefined`) {
+			t.Fatalf("the dialog does not ask for the name: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
+		}
 	}
+	// The people for the step Share with come after the dialog opens; they are held back here, so drawing them again must
+	// keep the name focused and selected (in the CI of #92 it lost the focus, and what was typed went nowhere).
+	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/api/people", "requestStage": "Request"}}}, nil)
 	newIn()
-	if !b.waitFor(`document.activeElement?.dataset?.ren !== undefined`) {
-		t.Fatalf("the name is not written in place: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
-	}
-	if got := b.eval(`[document.activeElement.value, document.activeElement.selectionStart, document.activeElement.selectionEnd].join('|')`); got != "New collection (1)|0|18" {
+	selected := `[document.activeElement.value, document.activeElement.selectionStart, document.activeElement.selectionEnd].join('|')`
+	if got := b.eval(selected); got != "New collection (1)|0|18" {
 		t.Errorf("the first new collection is numbered, its name selected: %q", got)
 	}
-	b.typeText("Opera")
-	b.eval(`render()`) // something else draws: the name being written stays
-	b.typeText("tions")
+	var held struct{ RequestID string }
+	if err := json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &held); err != nil {
+		t.Fatal(err)
+	}
+	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
+	b.call("Fetch.disable", map[string]any{}, nil)
+	if !b.waitFor(`!!document.querySelector('#udrights [data-share-step] optgroup[label="People"] option')`) {
+		t.Fatalf("the people came: %s", b.eval(`document.getElementById('udrights').innerHTML.slice(0, 300)`))
+	}
+	if got := b.eval(selected); got != "New collection (1)|0|18" {
+		t.Errorf("drawn again with the people, the name keeps its focus and selection: %q", got)
+	}
+	if got := b.eval(`!!document.querySelector('#udrights [data-only-me]') && !!document.querySelector('#udrights [data-share-step] select[name="who"]')`); got != "true" {
+		t.Errorf("the step Share with starts with only me: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	b.typeText("Operations")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!document.querySelector('[data-ren]') && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Operations')`) {
-		t.Fatalf("Enter keeps the name: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Operations')`) {
+		t.Fatalf("Enter makes it: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
 	}
 	b.rightClickOn(probe(b, `.nav2 [data-act="coll"]`, "Operations"))
 	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].find(n => n.textContent.trim() === 'Delete')?.disabled`); got != "false" {
 		t.Errorf("a collection just made is one's own: Delete is offered at once, got %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
-	// Two more without a name: the free numbers in turn, and Escape keeps the name it got.
-	for _, want := range []string{"New collection (1)", "New collection (2)"} {
-		newIn()
-		if !b.waitFor(`document.activeElement?.value === ` + strconv.Quote(want)) {
-			t.Fatalf("want %q: %q", want, b.eval(`document.activeElement?.value`))
-		}
-		b.typeText("Not kept")
-		b.press("Escape", "Escape", 27, 0)
-		if !b.waitFor(`!document.querySelector('[data-ren]')`) {
-			t.Fatal("Escape ends writing the name")
-		}
+	// Escape in the dialog makes nothing.
+	newIn()
+	if !b.waitFor(`document.activeElement?.value === "New collection (1)"`) {
+		t.Fatalf("the free number again: %q", b.eval(`document.activeElement?.value`))
+	}
+	b.typeText("Not made")
+	b.press("Escape", "Escape", 27, 0)
+	if !b.waitFor(`!document.getElementById('udrights').open`) {
+		t.Fatal("Escape closes the dialog")
 	}
 	b.shot("new-collection")
 	time.Sleep(500 * time.Millisecond)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].map(n => n.textContent).filter(n => n === 'Operations' || n.startsWith('New collection')).sort().join(', ')`); got != "New collection (1), New collection (2), Operations" {
-		t.Errorf("the database keeps them: %q", got)
+	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].map(n => n.textContent).filter(n => n === 'Operations' || n === 'Not made' || n.startsWith('New collection')).sort().join(', ')`); got != "Operations" {
+		t.Errorf("the database keeps the one made: %q", got)
 	}
 }
 

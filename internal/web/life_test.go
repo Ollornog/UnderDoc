@@ -18,8 +18,8 @@ func TestTheEndOfSomethingInUse(t *testing.T) {
 	asBob := merged(bob)
 	asBob["Sec-Fetch-Site"] = "same-origin"
 	s.getWith("/api/state", asBob) // bob has an account
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
-	bobs := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Bob's"}`, asBob))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
+	bobs := s.sharedCollection(`{"title":"Bob's"}`, asBob)
 	s.send(http.MethodPost, "/api/objects/"+bobs.ID+"/access", `{"access":"read"}`, asBob)
 	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
 	newPage := func(parent string, as map[string]string, title string, blocks ...string) string {
@@ -242,7 +242,7 @@ func TestTheEndOfSomethingInUse(t *testing.T) {
 // them back a second time, and the version of their block says where they went.
 func TestAPageInTheTrashKeepsNoPartThatMoved(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(title string, blocks ...string) string {
 		t.Helper()
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))

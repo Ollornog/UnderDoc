@@ -30,7 +30,12 @@ allowing: to narrow, break the inheritance. Breaking copies the roles that held 
 access by surprise; then take back what shall not hold. Restoring the inheritance takes from above again and keeps the
 object's own grants.
 
-- A new collection at the top grants edit to the whole tenant, as before; its owner can change that.
+- **A new collection at the top belongs to its owner alone** until they share it (2026-11-19; before, it granted edit to
+  the whole tenant): no role for anyone else, not even the tenant. It is not private, so it is shared like any other. The
+  dialog that makes it has the step **Share with**: everyone in the workspace, groups and persons, each with a role, by
+  default nobody; it grants through `PUT /api/objects/<id>/grants`, as the rights dialog does. The same holds for a new
+  collection of Files and for a copy made at the top; a collection inside another inherits. Collections made before keep
+  what they granted.
 - A move keeps the object's own grants and its owner; what it inherits changes with its new place. **Moving to another
   place needs manage** on the object and edit on where it goes; within its parent, edit reorders it. The workspace
   opens no gap for a move one may not make.
@@ -51,6 +56,11 @@ Administrators of the tenant ([sign-in.md](sign-in.md)) **manage rights, not con
 every object that is not private, break and restore its inheritance and transfer its ownership, and they make local
 groups and manage their members. They read the content of an object only where they hold a role.
 
+**What someone left behind:** UnderDoc deactivates no account; the gate or the identity provider ends the sign-in. An
+administrator asks "what may they do" for that account in the tab Rights, which lists what it owns by title, and
+transfers each in place to another account. Transferring shows the administrator nothing of the content, unless they
+give it to themselves; the log keeps every transfer (`owner`).
+
 ## In the workspace
 
 - **Rights and sharing** in the settings of a page and in the overview of a collection opens the rights dialog: the
@@ -61,7 +71,7 @@ groups and manage their members. They read the content of an object only where t
 - **The tab Rights** in nav1: **Groups** (administrators make local groups and take members in and out; groups from the
   sign-in are marked and read only; everyone else sees the groups they belong to), **Users** (administrators see every
   account with how it signs in and its groups, make a local account an administrator or take that back, and ask what an
-  account may do), **Share links** (administrators all of them, everyone else theirs and those on what they manage, each
+  account may do, with what it owns transferred in place), **Share links** (administrators all of them, everyone else theirs and those on what they manage, each
   revoked in place), and the **Access check** ("what may someone do": where an account holds a role of its own, through a
   group or as everyone; "who sees something": the roles of an object, and the role of an account on it with why).
 - **The administration in the profile** shows Users and groups the same way (ADR-16).
@@ -89,7 +99,17 @@ what it names.
 
 Administrators read the whole log in the tab Rights (and under Audit log in the administration of the profile), everyone
 else what they did and what happened to what they manage. `GET /api/log[?object=<id>&actor=<id>&before=<entry>&limit=<n>]`
-answers the newest entries first. The log is kept as long as the tenant; a retention period is still open.
+answers the newest entries first.
+
+**Retention:** each tenant keeps an entry **365 days** (with one tenant: the instance). Administrators set 30 to 3650 days
+in the section Log of the tab Rights; the change is logged (`log kept`, with the days before and after). The job that
+empties the trash deletes older entries of every tenant at start and then every hour (table `log_settings`, migration
+026).
+
+```text
+GET  /api/log/keep                   {"days": 365, "min": 30, "max": 3650}
+PUT  /api/log/keep                   {"days": 730}   administrators
+```
 
 ## One check
 
@@ -99,7 +119,7 @@ who may read a record as tokens (`all` for the tenant, `account:<id>`, `group:<i
 roles, of the inheritance or of the owner queues the object and everything below it. The path of a record names only the
 levels above that every one of its readers sees; the others show as "…".
 
-The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users`, `share_link_passes` and `audit_log` carry their tenant under row-level security like all others
+The tables `groups`, `group_members`, `grants`, `share_links`, `share_link_users`, `share_link_passes`, `audit_log` and `log_settings` carry their tenant under row-level security like all others
 ([tenants.md](tenants.md)). The column `objects.inherit` says whether an object takes roles from above.
 
 ## API
@@ -121,7 +141,8 @@ PUT    /api/groups/<id>/members/<account>    {"member": true}   administrators, 
 
 An empty role takes a grant back. The level of ADR-20 (`/access`) stays for the settings of the workspace: a level narrower
 than the one above breaks the inheritance and grants the tenant that level; an empty one takes the tenant's grant back and
-restores the inheritance, and at the top, where nothing is above, it means edit as before.
+restores the inheritance. At the top, where nothing is above, an empty one leaves the collection to its owner and who
+holds a role of their own ("Nobody" in its overview, 2026-11-19; before, it meant edit).
 
 ## Share links
 

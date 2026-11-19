@@ -8,7 +8,7 @@ window.UDRights = (() => {
   const ROLEWORD = { read: "read", comment: "comment", edit: "edit", manage: "manage", owner: "owner" };
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
   const VIA = { owner: "owns it", "owner above": "owns what lies above", person: "as a person", group: "through a group", tenant: "as everyone", link: "through a link" };
-  const st = { people: null, groups: null, links: null, users: null, log: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
+  const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
   let redraw = () => {};
   let me = { id: "", admin: false };
 
@@ -115,7 +115,7 @@ window.UDRights = (() => {
       .map((u) => {
         const local = u.source === "local";
         const act = local ? `<button class="chip" data-ract="admin" data-id="${esc(u.id)}" data-on="${u.admin ? "0" : "1"}">${u.admin ? "Take back administrator" : "Make administrator"}</button>` : "";
-        return `<div class="modrow" data-user="${esc(u.login)}"><span>${esc(u.name)}<small>${esc(u.login)} · ${esc(u.source)}${u.admin ? " · ✓ administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}</small></span>${act}<button class="chip" data-ract="heldby" data-id="${esc(u.id)}">What may they do</button></div>`;
+        return `<div class="modrow" data-user="${esc(u.login)}"><span>${esc(u.name)}<small>${esc(u.login)} · ${esc(u.source)}${u.admin ? " · ✓ administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}</small></span>${act}<button class="chip" data-ract="heldby" data-id="${esc(u.id)}">What may they do</button></div>${st.heldFor === u.id ? heldHtml() : ""}`;
       })
       .join("")}`;
   }
@@ -139,7 +139,7 @@ window.UDRights = (() => {
 
   const ACTION = { open: "opened", change: "changed", grant: "role", inherit: "inheritance", owner: "owner", group: "group", member: "member", admin: "administrator",
     "link made": "link made", "link revoked": "link revoked", "link renewed": "link renewed", "link opened": "link opened", "link used": "link used",
-    "link wrong password": "✗ wrong password of a link", "link upload": "upload through a link" };
+    "link wrong password": "✗ wrong password of a link", "link upload": "upload through a link", "log kept": "log kept" };
   // named turns the IDs of accounts and groups in a line of the log into their names, where they are known.
   function named(text) {
     const p = st.people || { people: [], groups: [] };
@@ -148,23 +148,37 @@ window.UDRights = (() => {
     p.groups.forEach((g) => (out = out.split(esc(g.id)).join(esc(g.name))));
     return out;
   }
+  // keepHtml says how long the log keeps an entry; administrators change it (ADR-29, 2026-11-19).
+  function keepHtml() {
+    load("keep", "/api/log/keep");
+    if (st.keep === null) return "";
+    if (!me.admin) return `<p class="hint" data-keep>Entries are kept ${st.keep.days} days.</p>`;
+    return `<form class="flex items-center gap-2" data-rform="keep" data-keep><label class="lab" for="udkeep">Keep entries for</label><input class="input" id="udkeep" type="number" name="days" min="${st.keep.min}" max="${st.keep.max}" value="${st.keep.days}" required aria-label="Days the log keeps an entry"><span class="lab">days</span><button class="chip" type="submit">Save</button></form>`;
+  }
+
   function logHtml() {
     load("log", "/api/log?limit=200");
     if (st.log === null) return '<p class="lab">Loading…</p>';
-    return `<div class="shead">Log</div><p class="hint">${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.</p>${
+    return `<div class="shead">Log</div><p class="hint">${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.</p>${keepHtml()}${
       st.log.length
         ? `<ul class="pad" data-log>${st.log.map((e) => `<li class="modrow" data-entry="${esc(e.action)}"><span>${ACTION[e.action] || esc(e.action)}${e.objectTitle ? ": " + esc(e.objectTitle) : ""}<small>${when(e.at)} · ${e.actor ? esc(e.actorName) : "someone with a link"}${e.detail ? " · " + named(e.detail) : ""}</small></span></li>`).join("")}</ul><button class="chip" data-ract="reloadlog">Newer entries</button>`
         : '<p class="lab">Nothing logged yet.</p>'
     }`;
   }
 
-  function checkHtml() {
-    const forWhom = me.admin ? `<form class="flex items-center gap-2" data-rform="held">${personSelect("account", st.heldFor || me.id)}<button class="chip" type="submit">Show</button></form>` : "";
-    const held = st.held
+  // heldHtml lists where the account asked for holds a role of its own; administrators transfer in place what it owns,
+  // such as what someone left behind (ADR-29, 2026-11-19).
+  function heldHtml() {
+    return st.held
       ? st.held.length
-        ? `<ul class="pad" data-held>${st.held.map((x) => `<li class="modrow"><span>${esc(x.title)}<small>${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}</small></span></li>`).join("")}</ul>`
+        ? `<ul class="pad" data-held>${st.held.map((x) => `<li class="modrow" data-held-row="${esc(x.object)}"><span>${esc(x.title)}<small>${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}</small></span>${me.admin && x.via === "owner" && st.heldFor !== me.id ? `<form class="flex items-center gap-2" data-rform="transfer" data-id="${esc(x.object)}">${personSelect("to", "")}<button class="chip" type="submit">Transfer</button></form>` : ""}</li>`).join("")}</ul>${me.admin && st.held.some((x) => x.via === "owner") && st.heldFor !== me.id ? '<p class="hint">Whoever left owns what is listed with Transfer. Give it to someone else: you see its title and its rights, not its content.</p>' : ""}`
         : '<p class="lab">Nothing of their own: what they see comes from everyone.</p>'
       : "";
+  }
+
+  function checkHtml() {
+    const forWhom = me.admin ? `<form class="flex items-center gap-2" data-rform="held">${personSelect("account", st.heldFor || me.id)}<button class="chip" type="submit">Show</button></form>` : "";
+    const held = heldHtml();
     const who = st.who
       ? `<div data-who>${st.who.private ? `<p class="hint">Private: only ${esc(st.who.ownerName)} sees it.</p>` : `<p class="hint">Owner: ${esc(st.who.ownerName)}${st.who.inherit ? "" : " · takes no roles from above"}</p>${grantList(st.who.own, false)}${st.who.inherited.length ? `<div class="lab">From above</div>${grantList(st.who.inherited, true)}` : ""}`}</div>`
       : "";
@@ -179,7 +193,10 @@ window.UDRights = (() => {
 
   // --- The rights dialog
 
-  const dlg = { id: "", title: "", rights: null, links: null, shareables: null, made: "" };
+  const dlg = { mode: "rights", id: "", title: "", rights: null, links: null, shareables: null, made: "" };
+  // nw is the dialog that makes a collection at the top: its name, and with whom it is shared from the start. It is its
+  // maker's alone unless they add someone here (ADR-29, 2026-11-19).
+  const nw = { title: "", url: "", onMade: null, shares: [], busy: false, done: null };
 
   function dialogEl() {
     let d = document.getElementById("udrights");
@@ -197,6 +214,7 @@ window.UDRights = (() => {
     // The workspace keeps names escaped once; the dialog escapes what it shows itself.
     const plain = document.createElement("textarea");
     plain.innerHTML = title;
+    dlg.mode = "rights";
     dlg.id = objectId;
     dlg.title = plain.value;
     dlg.rights = dlg.links = dlg.shareables = null;
@@ -209,6 +227,10 @@ window.UDRights = (() => {
   }
 
   async function refreshDialog() {
+    if (dlg.mode === "new") {
+      drawDialog();
+      return;
+    }
     try {
       if (st.people === null) st.people = await api("GET", "/api/people");
       dlg.rights = await api("GET", `/api/objects/${encodeURIComponent(dlg.id)}/rights`);
@@ -223,6 +245,10 @@ window.UDRights = (() => {
   }
 
   function drawDialog() {
+    if (dlg.mode === "new") {
+      drawNew();
+      return;
+    }
     const d = dialogEl();
     const r = dlg.rights;
     let body = '<p class="text-sm text-muted-foreground">Loading…</p>';
@@ -247,6 +273,119 @@ window.UDRights = (() => {
       body = `${owner}${inherit}<h3 class="font-medium mt-3">Roles here</h3>${own}${add}${inherited}${may ? linksPart() : ""}`;
     }
     d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Roles for people, groups and everyone, inherited by what lies below. Only allowing: narrower means breaking the inheritance.</p></header><section class="max-h-[420px] overflow-y-auto">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
+  }
+
+  // --- A new collection, and with whom it is shared from the start
+
+  // create opens the dialog that makes a collection at the top through url (POST {title}). With whom it is shared is
+  // granted afterwards through the same API as the rights dialog; whatever is not granted stays its maker's alone.
+  // onMade gets what the server answered for the collection.
+  async function create(opts) {
+    dlg.mode = "new";
+    nw.title = opts.title || "";
+    nw.url = opts.url;
+    nw.onMade = opts.onMade || null;
+    nw.shares = [];
+    nw.busy = false;
+    nw.done = null;
+    st.error = "";
+    const d = dialogEl();
+    drawNew();
+    if (!d.open) d.showModal();
+    const field = d.querySelector("[data-new-title]");
+    if (field) {
+      field.focus();
+      field.select();
+    }
+    if (st.people === null) {
+      try {
+        st.people = await api("GET", "/api/people");
+      } catch (e) {
+        st.error = e.message;
+      }
+      drawNew();
+    }
+  }
+
+  // keepFocus draws the dialog again while the name keeps its focus, its selection and what was typed: the people come
+  // later than the dialog opens, and redrawing it took the focus away while someone typed (CI of #92, 2026-11-19).
+  function keepFocus(draw) {
+    const was = document.activeElement;
+    const focused = was && was.matches && was.matches("[data-new-title]") ? [was.selectionStart, was.selectionEnd] : null;
+    draw();
+    if (!focused) return;
+    const field = document.querySelector("#udrights [data-new-title]");
+    if (field) {
+      field.focus();
+      field.setSelectionRange(focused[0], focused[1]);
+    }
+  }
+
+  const shareName = (x) => {
+    const p = st.people || { people: [], groups: [] };
+    if (x.kind === "tenant") return "Everyone";
+    if (x.kind === "group") return `Group ${esc((p.groups.find((g) => g.id === x.who) || { name: x.who }).name)}`;
+    return esc((p.people.find((q) => q.id === x.who) || { name: x.who }).name);
+  };
+
+  function drawNew() {
+    keepFocus(paintNew);
+  }
+
+  function paintNew() {
+    const d = dialogEl();
+    const list = nw.shares.length
+      ? `<table class="table" data-new-shares><tbody>${nw.shares
+          .map(
+            (x, i) =>
+              `<tr data-new-share="${esc(x.kind)}:${esc(x.who)}"><td>${shareName(x)}</td><td>${roleSelect("nrole" + i, x.role, nw.busy).replace("data-rsel=", `data-nshare="${i}" data-rsel=`)}</td><td>${small(`data-ract="newunshare" data-i="${i}"${nw.busy ? " disabled" : ""}`, "Take out", true)}</td></tr>`,
+          )
+          .join("")}</tbody></table>`
+      : '<p class="text-sm text-muted-foreground" data-only-me>Only you. Nobody else sees it until you share it, here or later in its rights.</p>';
+    const body = nw.done
+      ? `<p class="text-sm" data-new-done>${esc(nw.done)}</p>`
+      : `<form class="grid gap-2" id="udnew" data-rform="new"><label class="label" for="udnew-title">Name</label><input class="input" id="udnew-title" name="title" data-new-title required maxlength="200" value="${esc(nw.title)}"${nw.busy ? " disabled" : ""}>
+        <fieldset class="grid gap-2 mt-2" data-share-step><legend class="font-medium">Share with</legend>${list}
+        <div class="flex flex-wrap items-center gap-2">${whoSelect("who", true)}${roleSelect("role", "read")}${small('data-ract="newshare"' + (nw.busy ? " disabled" : ""), "Add", true)}</div></fieldset></form>`;
+    const foot = nw.done
+      ? '<button class="btn" data-variant="outline" data-ract="close" type="button">Close</button>'
+      : `<button class="btn" data-variant="outline" data-ract="close" type="button">Cancel</button><button class="btn" type="submit" form="udnew"${nw.busy ? " disabled" : ""}>Make</button>`;
+    d.innerHTML = `<div><header><h2 id="udrights-title">New collection</h2><p>It is yours alone, not private: share it with everyone, groups or people now or later. Each holds the role given and passes it to what lies inside.</p></header><section class="max-h-[420px] overflow-y-auto">${problem()}${body}</section><footer>${foot}</footer></div>`;
+  }
+
+  // make sends the new collection, then grants each share; a share that fails leaves the collection less shared, never
+  // more, and says so.
+  async function make() {
+    nw.busy = true;
+    st.error = "";
+    drawNew();
+    let made;
+    try {
+      made = await api("POST", nw.url, { title: nw.title.trim() });
+    } catch (e) {
+      st.error = e.message;
+      nw.busy = false;
+      drawNew();
+      return;
+    }
+    const failed = [];
+    for (const x of nw.shares) {
+      try {
+        await api("PUT", `/api/objects/${encodeURIComponent(made.id)}/grants`, { kind: x.kind, who: x.who, role: x.role });
+      } catch (e) {
+        failed.push(`${shareName(x)}: ${e.message}`);
+      }
+    }
+    nw.busy = false;
+    st.log = null;
+    if (nw.onMade) nw.onMade(made);
+    if (failed.length) {
+      nw.done = `Made, but not shared with ${failed.join(", ")}. Its rights share it.`;
+      drawNew();
+      return;
+    }
+    dialogEl().close();
+    redraw();
   }
 
   function linksPart() {
@@ -333,6 +472,21 @@ window.UDRights = (() => {
       case "reloadlog":
         reload("log");
         return;
+      case "newshare": {
+        const f = b.closest("[data-share-step]");
+        const [kind, who] = f.querySelector("select[name=who]").value.split(/:(.*)/s);
+        const role = f.querySelector("select[name=role]").value;
+        const at = nw.shares.findIndex((x) => x.kind === kind && x.who === who);
+        if (at >= 0) nw.shares[at].role = role;
+        else nw.shares.push({ kind, who, role });
+        drawNew();
+        return;
+      }
+      case "newunshare":
+        nw.shares.splice(Number(a.i), 1);
+        drawNew();
+        return;
+
       case "revoke":
         if (!window.confirm("Revoke this link? It leads nowhere from then on.")) return;
         act(() => api("DELETE", `/api/links/${encodeURIComponent(a.id)}`), "links");
@@ -355,7 +509,31 @@ window.UDRights = (() => {
     redraw();
   }
 
+  // Enter in the name makes the new collection, Escape closes the dialog without making anything.
+  document.addEventListener("keydown", (e) => {
+    const d = document.getElementById("udrights");
+    if (!d || !d.open || dlg.mode !== "new" || nw.done) return;
+    if (e.key === "Enter" && e.target.matches && e.target.matches("[data-new-title]")) {
+      e.preventDefault();
+      const f = document.getElementById("udnew");
+      if (f) f.requestSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      d.close();
+      redraw();
+    }
+  });
+
+  document.addEventListener("input", (e) => {
+    if (e.target.matches && e.target.matches("[data-new-title]")) nw.title = e.target.value;
+  });
+
   document.addEventListener("change", (e) => {
+    const share = e.target.closest("[data-nshare]");
+    if (share) {
+      nw.shares[Number(share.dataset.nshare)].role = share.value;
+      return;
+    }
     const sel = e.target.closest("[data-rform=role] select");
     if (!sel) return;
     const f = sel.form;
@@ -368,6 +546,20 @@ window.UDRights = (() => {
     e.preventDefault();
     const v = (n) => (f.elements[n] ? f.elements[n].value : "");
     switch (f.dataset.rform) {
+      case "keep":
+        act(() => api("PUT", "/api/log/keep", { days: Number(v("days")) }), "keep");
+        return;
+      case "new":
+        nw.title = v("title");
+        if (!nw.busy && nw.title.trim()) make();
+        return;
+      case "transfer":
+        if (!window.confirm("Give this to someone else? Whoever had it keeps the role edit. You see nothing of it unless you hold a role.")) return;
+        act(async () => {
+          await api("PUT", `/api/objects/${encodeURIComponent(f.dataset.id)}/owner`, { to: v("to") });
+          st.held = await api("GET", `/api/rights/held?account=${encodeURIComponent(st.heldFor)}`);
+        });
+        return;
       case "group":
         act(() => api("POST", "/api/groups", { name: v("name"), description: v("description") }), "groups", "people");
         return;
@@ -412,6 +604,7 @@ window.UDRights = (() => {
     SECTIONS,
     nav3,
     open,
+    create,
     setup(render, user) {
       redraw = render;
       me = user || me;

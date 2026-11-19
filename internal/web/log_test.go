@@ -14,7 +14,7 @@ import (
 func TestAccessAndChangesAreLogged(t *testing.T) {
 	s := withDatabase(t)
 	s.send(http.MethodGet, "/api/state", "", plain)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"one"}`, sameSite)
 	s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"two"}`, sameSite)

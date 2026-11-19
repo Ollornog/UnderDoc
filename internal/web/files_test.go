@@ -343,7 +343,7 @@ func TestUploadAttacks(t *testing.T) {
 func TestAttachmentsAndSpaces(t *testing.T) {
 	s := withFiles(t)
 	mine := s.root(nil, db.RootUser)
-	space := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	space := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", fmt.Sprintf(`{"title":"Plan","parent":%q}`, space.ID), sameSite))
 	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
 	done := decode[finished](t, s.put(nil, fmt.Sprintf(`"page":%q`, page.ID), "shot.png", png, 5))
@@ -416,7 +416,7 @@ func TestTenantsShareNoFiles(t *testing.T) {
 		m.file = decode[finished](t, s.put(h, fmt.Sprintf(`"parent":%q`, m.root), "contract.txt", []byte("the same content"), 5)).ID
 		m.folder = decode[apiNode](t, s.send(http.MethodPost, "/api/folders", fmt.Sprintf(`{"title":"Scans","parent":%q}`, m.root), h)).ID
 		m.upload = decode[apiUpload](t, s.send(http.MethodPost, "/api/uploads", fmt.Sprintf(`{"parent":%q,"name":"half","size":10}`, m.root), h)).ID
-		team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, h))
+		team := s.sharedCollection(`{"title":"Team"}`, h)
 		m.page = decode[apiNode](t, s.send(http.MethodPost, "/api/pages", fmt.Sprintf(`{"title":"Plan","parent":%q}`, team.ID), h)).ID
 		m.attachment = decode[finished](t, s.put(h, fmt.Sprintf(`"page":%q`, m.page), "shot.png", []byte("\x89PNG\r\n\x1a\n"), 4)).URL
 		return m

@@ -17,7 +17,7 @@ import (
 func TestRolesGoOutAndComeBack(t *testing.T) {
 	first := open(t)
 	ctx := tenant.With(context.Background(), tenant.Main)
-	team := must[db.Object](t)(first.CreateCollection(ctx, anna, "Team", ""))
+	team := shared(t, first, anna, "Team")
 	closed := must[db.Object](t)(first.CreateFolder(ctx, anna, "Closed", team.ID))
 	must[db.Object](t)(first.SetAccess(ctx, closed.ID, db.Actor{ID: anna.ID}, "read"))
 	shut := must[db.Object](t)(first.CreateCollection(ctx, anna, "Shut", ""))

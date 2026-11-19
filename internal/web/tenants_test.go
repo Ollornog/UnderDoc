@@ -260,7 +260,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 				t.Errorf("members of the other tenant's group: %v", err)
 			}
 			// An embedding of the other tenant's block shows "not to be found", as for something that never was.
-			team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Probe"}`, h))
+			team := s.sharedCollection(`{"title":"Probe"}`, h)
 			probe := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Probe","parent":"`+team.ID+`"}`, h))
 			s.send(http.MethodPost, "/api/pages/"+probe.ID+"/blocks", `{"md":"::embed{ref=\"`+c.other.embedded+`\"}"}`, h)
 			s.send(http.MethodPost, "/api/pages/"+probe.ID+"/blocks", `{"md":"[[plan]] and [[start]]"}`, h)
@@ -340,7 +340,7 @@ func TestHostsLeadToTenants(t *testing.T) {
 	if err := database.AddTenantHost(ctx, "acme", "wiki.acme.example"); err != nil {
 		t.Fatal(err)
 	}
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Own domain"}`, at("wiki.acme.example")))
+	team := s.sharedCollection(`{"title":"Own domain"}`, at("wiki.acme.example"))
 	if state := s.getWith("/api/state", at(acmeHost)).Body.String(); !strings.Contains(state, team.ID) {
 		t.Error("the own domain and the subdomain lead to the same tenant")
 	}
@@ -369,7 +369,7 @@ func TestHostsLeadToTenants(t *testing.T) {
 // TestOneTenantIgnoresTheHost: in the default mode every host leads to Main, as before tenants.
 func TestOneTenantIgnoresTheHost(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, at("anything.example")))
+	team := s.sharedCollection(`{"title":"Team"}`, at("anything.example"))
 	if state := s.getWith("/api/state", at("other.example")).Body.String(); !strings.Contains(state, team.ID) {
 		t.Error("every host is Main")
 	}

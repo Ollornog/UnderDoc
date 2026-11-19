@@ -129,8 +129,8 @@ function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tag
   get html(){const ac=accOf(id),may=this.db?ac==='edit'||!!this.mine:!this.real&&ac==='edit',top=C.some(c=>c.id===id&&!c.alias),owner=isOwner(id);
     const facts=`<dl class="mailhead colfacts"><dt>Owner</dt><dd>${this.owner||'A. Keller'}</dd>${may?'':`<dt>Others can</dt><dd>${ACC[othersOf(id)].toLowerCase()}${this.acc?'':' (the default)'}</dd>`}${this.db&&!this.private?'':`<dt>Visible to</dt><dd>${id==='me'||this.private?'only you':'everyone signed in'}</dd>`}<dt>Entries</dt><dd>${this.kids.length}</dd></dl>`;
     const set=may?`<h2>Settings</h2><label class="slab" for="cname">Name</label><input id="cname" class="addtag" data-cname="${id}" value="${this.n}" aria-label="Name of the collection">
-      <div class="slab">Others can</div><span class="seg" role="group">${(top?[]:[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?'edit':'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
-      <p class="hint">Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this.</p>`:'';
+      <div class="slab">Others can</div><span class="seg" role="group">${(top?(this.db?[['none','Nobody']]:[]):[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]).map(x=>`<button data-act="cacc" data-c="${id}" data-id="${x[0]}" aria-pressed="${(this.acc||(top?(this.db?'none':'edit'):'inherit'))===x[0]}"${owner?'':' disabled title="Only the owner sets this"'}>${x[1]}</button>`).join('')}</span>
+      <p class="hint">Everyone in this workspace. Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this; groups and people get roles in its rights.</p>`:'';
     const rights=this.db?`<p><button class="chip" data-act="rights" data-id="${id}">Rights and sharing</button></p>`:'';
     return facts+rights+set+(this.kids.length?'':'<p class="lab">Empty. New + at its heading in nav3 adds something.</p>');}};}
 /* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
@@ -170,11 +170,11 @@ const S={help:false,user:{name:'',login:'',email:'',groups:[],initials:'?',admin
   wins:[{tabs:[newTab('plan',true)],a:0,hist:['plan']}]};
 const at=i=>S.wins[i].tabs[S.wins[i].a]||null;
 /* What others may do: edit, comment or only read. Set on a collection, folder or document, and inherited by what is below it. */
-const ACC={edit:'Can edit',comment:'Can comment',read:'Read only'};
+const ACC={edit:'Can edit',comment:'Can comment',read:'Read only',none:'Nobody else'};
 const contAcc=id=>PARENT[id]?accOf(PARENT[id]):COLL[id]?accOf(COLL[id].id):'edit';
 /* What others may do: the level set on an object or above it (shown as a lock and in the settings). What the viewer may
    do comes from the server as its role (ADR-29) and decides what is greyed out; the demo has no roles and uses the level. */
-const othersOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||'edit';};
+const othersOf=id=>{for(let x=id;x;x=PARENT[x])if(D[x]&&D[x].acc)return D[x].acc;const c=COLL[id];return c&&D[c.id].acc||(D[id]&&D[id].db?'none':'edit');};
 const RANK={read:1,comment:2,edit:3,manage:4,owner:5};
 const accOf=id=>{const r=D[id]&&D[id].db&&D[id].role;if(!r)return othersOf(id);return RANK[r]>=3?'edit':r==='comment'?'comment':'read';};
 const kidsOpen=id=>{const v=S.tog[id];return v!==undefined?v:id.startsWith('dir:')?false:D[id].kids.length<=S.limit;};
@@ -941,11 +941,15 @@ document.addEventListener('click',e=>{
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
     case 'copen':onlyThis(a.id);break;
     case 'cpin':togglePin(a.id);break;
-    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){createCollection(a.id&&D[a.id]?a.id:'',freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
+    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){const par=a.id&&D[a.id]?a.id:'';
+      /* At the top it is its maker's alone until shared: the dialog asks with whom (ADR-29, 2026-11-19). */
+      if(!par&&window.UDRights){UDRights.create({title:freeName('New collection'),url:'/api/collections',onMade:node=>placeCollection(node,'',false)});return;}
+      createCollection(par,freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
       if(par){D[par].kids.push(id);S.tog[par]=true;rebuildPlaces();onlyThis(COLL[id].id);}else{C.push(asTop({id,i:'grid'}));onlyThis(id);}
       rebuildPlaces();S.view='workspace';S.rail=true;S.just=id;renameHere(id);return;}
-    /* At the top, edit is what nothing set means; below, "as above" takes it from there. */
-    case 'cacc':setAccess(a.c,a.id==='inherit'||(a.id==='edit'&&C.some(c=>c.id===a.c&&!c.alias))?'':a.id);return;
+    /* At the top, nothing set means nobody else in the database (ADR-29, 2026-11-19) and edit in the made-up content;
+       below, "as above" takes it from there. */
+    case 'cacc':setAccess(a.c,a.id==='inherit'||a.id==='none'||(a.id==='edit'&&!D[a.c].db&&C.some(c=>c.id===a.c&&!c.alias))?'':a.id);return;
     case 'setacc':setAccess(t.d,a.id==='inherit'?'':a.id);return;
     case 'cmt':t.cmt=!t.cmt;t.cb=null;if(t.cmt){t.gear=false;if(D[t.d].blocks)loadComments(t.d);}break;
     case 'cmtreply':case 'cmtedit':case 'cmtres':case 'cmtdel':cmtAct(act,t,i,a.id);return;
@@ -1426,11 +1430,16 @@ async function convertKind(id,kind){
 }
 async function createCollection(parent,title){
   try{const r=await fetch('/api/collections',{...same,method:'POST',body:JSON.stringify({title,parent})});if(!r.ok)throw new Error(String(r.status));
-    const node=await r.json();node.t='collection';node.owner=S.user.name;node.mine=true;const id=addNode(node);
-    if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
-    else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'grid'}));rebuildPlaces();onlyThis(id);}
-    S.view='workspace';S.rail=true;S.just=id;renameHere(id);
+    placeCollection(await r.json(),parent,true);
   }catch(e){S.toast='The collection could not be made.';render();setTimeout(()=>{S.toast='';render();},2400);}
+}
+/* placeCollection puts a collection the server made where it belongs; rename writes its name in place, which the dialog
+   of a new collection at the top has asked already. */
+function placeCollection(node,parent,rename){
+  node.t='collection';node.owner=S.user.name;node.mine=true;node.role='owner';const id=addNode(node);
+  if(parent){D[parent].kids.push(id);S.tog[parent]=true;rebuildPlaces();onlyThis(COLL[id]?COLL[id].id:parent);}
+  else{C.splice(C.filter(c=>D[c.id]&&D[c.id].real).length,0,asTop({id,i:'grid'}));rebuildPlaces();onlyThis(id);}
+  S.view='workspace';S.rail=true;S.just=id;if(rename)renameHere(id);else render();
 }
 /* The name of something new is written where it appears, in nav2 or in nav3: Enter or leaving the field keeps it,
    Escape keeps the name it got. */
@@ -2071,7 +2080,7 @@ function fcrumbs(root,cur){const out=[];for(let x=cur;x;x=FS.dirs[x]&&FS.dirs[x]
   return out.map((x,k)=>k===out.length-1?`<span>${esc(FS.dirs[x]&&FS.dirs[x].n||'')}</span>`:`<button class="l" data-act="fdir" data-id="${x}">${esc(FS.dirs[x].n)}</button>`).join(' › ');}
 function filesNav3(){
   const sec=S.sec.files;
-  if(sec==='newfcoll')return `<div class="spanel"><div class="shead">New collection</div><form data-fform="coll"><input name="title" value="Files" data-keep="fcoll" aria-label="Name of the collection" required maxlength="200"><button class="chip" type="submit">Make</button></form><p class="hint">A collection of files with its own members; until roles come (ADR-29), others may do what you let them.</p></div>`;
+  if(sec==='newfcoll')return `<div class="spanel"><div class="shead">New collection</div><form data-fform="coll"><input name="title" value="Files" data-keep="fcoll" aria-label="Name of the collection" required maxlength="200"><button class="chip" type="submit">Make</button></form><p class="hint">A collection of files of your own: the next step asks with whom to share it. Until then nobody else sees it.</p></div>`;
   const r=froot();if(!r)return '<p class="lab pad">Loading…</p>';
   const cur=FS.cur[r.id]||r.id,d=FS.dirs[cur];
   if(!d){loadDir(cur);return '<p class="lab pad">Loading…</p>';}
@@ -2209,6 +2218,7 @@ document.addEventListener('change',e=>{const n=e.target;if(!n.files||!n.files.le
   else if(n.dataset.fpickFile!==undefined){uploadFiles([...n.files],{file:n.dataset.fpickFile},D[SID[n.dataset.fpickFile]]&&D[SID[n.dataset.fpickFile]].fparent);n.value='';}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-fform]');if(!f)return;e.preventDefault();const title=f.elements.title.value.trim();if(!title)return;
   if(f.dataset.fform==='dir'){const parent=f.dataset.id;fsend('/api/folders','POST',{title,parent}).then(()=>{FS.form=null;loadDir(parent);}).catch(e=>toast(e.message));}
+  else if(window.UDRights)UDRights.create({title,url:'/api/files/collections',onMade:a=>{S.sec.files=a.id;loadRoots();}});
   else fsend('/api/files/collections','POST',{title}).then(a=>{S.sec.files=a.id;loadRoots();}).catch(e=>toast(e.message));});
 /* Files dropped from the desktop onto the folder shown in nav3 are uploaded into it. */
 document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('[data-fdrop]');if(z&&z.dataset.fdrop&&e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';}});

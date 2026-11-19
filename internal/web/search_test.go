@@ -96,7 +96,7 @@ func addBlocks(t *testing.T, s *site, pageID string, bodies ...string) []string 
 
 func TestSearchThroughTheService(t *testing.T) {
 	s := withSearch(t, meiliEngine(t))
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Filiale"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Filiale"}`, sameSite)
 	handbook := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Kasse bedienen","parent":"`+team.ID+`"}`, sameSite))
 	blocks := addBlocks(t, s.site, handbook.ID, "Die Kasse ist das wichtigste Werkzeug.", "## Kartenzahlung",
 		"Karte vorhalten, PIN eingeben.", "## Fehler", "Bei E-1042 das Terminal neu starten.")
@@ -181,7 +181,7 @@ func TestSearchThroughTheService(t *testing.T) {
 
 func TestSearchWithoutService(t *testing.T) {
 	s := withSearch(t, nil)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Filiale"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Filiale"}`, sameSite)
 	decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Kartenzahlung","parent":"`+team.ID+`"}`, sameSite))
 	result := s.find("q=kartenzahlung", nil)
 	if result.Engine != search.EngineTitles || result.Notice != search.NoticeNoService || len(result.Hits) != 1 || result.Hits[0].Place != "Filiale" {

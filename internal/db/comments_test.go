@@ -40,7 +40,7 @@ func setAccess(t *testing.T, db *DB, objectID, access string) {
 func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	b1, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "# Plan")
 	b2, _ := db.AddBlock(ctx, page.ID, anna.ID, b1.ID, "Text")
@@ -162,7 +162,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 func TestCommentsFollowAccess(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	block, _ := db.AddBlock(ctx, page.ID, anna.ID, "", "Text")
 	first, _ := db.AddComment(ctx, page.ID, anna.ID, block.ID, "Anna's", 0)
@@ -253,7 +253,7 @@ func TestCommentsFollowAccess(t *testing.T) {
 func TestDeletingComments(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
 	mine, _ := db.AddComment(ctx, page.ID, bob.ID, "", "Bob asks", 0)
 	if _, err := db.AddComment(ctx, page.ID, bob.ID, "", "Bob adds", mine.ID); err != nil {

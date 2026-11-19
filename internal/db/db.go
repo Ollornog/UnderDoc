@@ -336,8 +336,9 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	}
 }
 
-// CreateCollection makes a collection at the top, or inside parent if that is set, visible to the owner and open for
-// changes by them (ADR-20).
+// CreateCollection makes a collection at the top, or inside parent if that is set. One at the top belongs to its owner
+// alone until they share it: it grants nobody a role, not even the whole tenant (ADR-29, 2026-11-19). It is not private:
+// roles and links can be granted on it like on any other. One inside a parent inherits what holds there.
 func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, parent string) (Object, error) {
 	if parent != "" {
 		p, err := db.Object(ctx, parent, owner.ID)
@@ -348,18 +349,7 @@ func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, p
 			return Object{}, err
 		}
 	}
-	// A new collection at the top is open for the whole tenant to edit, as before, until its owner says otherwise (ADR-29).
-	access := ""
-	if parent == "" {
-		access = RoleEdit
-	}
-	var made Object
-	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		var err error
-		made, err = insertObject(ctx, tx, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Parent: parent, Access: access})
-		return err
-	})
-	return made, err
+	return insertObject(ctx, db.pool, Object{Kind: KindCollection, Title: title, Owner: owner.ID, Parent: parent})
 }
 
 // alive is a condition on o: it is not in the trash. Deleting marks everything below an object too, so an object that is

@@ -41,7 +41,7 @@ func pathOf(t *testing.T, address string) string {
 // page changes; renewing freezes it again; a password keeps others out; revoked, the link leads nowhere (ADR-29).
 func TestAPageSharedByLink(t *testing.T) {
 	s := withDatabase(t)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	newPage := func(title string, blocks ...string) string {
 		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
 		after := ""
@@ -148,7 +148,7 @@ func TestAPageSharedByLink(t *testing.T) {
 func TestALinkToEdit(t *testing.T) {
 	s := withDatabase(t)
 	s.send(http.MethodGet, "/api/state", "", plain)
-	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+team.ID+"/links", `{"mode":"edit"}`, sameSite))
@@ -250,12 +250,15 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 	for _, who := range []map[string]string{plain, carlOf} {
 		s.send(http.MethodGet, "/api/state", "", who)
 	}
-	// Bob makes a collection of the files; carl a folder in it that only he may see.
+	// Bob makes a collection of the files and shares it with the tenant; carl a folder in it that only he may see.
 	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Projects"}`, plain)
 	if made.Code != http.StatusCreated {
 		t.Fatalf("collection = %d %s", made.Code, made.Body.String())
 	}
 	projects := decode[map[string]string](t, made)["id"]
+	if got := s.send(http.MethodPut, "/api/objects/"+projects+"/grants", `{"kind":"tenant","role":"edit"}`, plain); got.Code != http.StatusNoContent {
+		t.Fatalf("bob shares Projects with the tenant: %d %s", got.Code, got.Body.String())
+	}
 	hr := decode[apiNode](t, s.send(http.MethodPost, "/api/folders", `{"title":"HR","parent":"`+projects+`"}`, carlOf))
 	if got := s.send(http.MethodPut, "/api/objects/"+hr.ID+"/inherit", `{"inherit":false}`, carlOf).Code; got != http.StatusNoContent {
 		t.Fatalf("break = %d", got)
@@ -284,7 +287,8 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 		t.Fatalf("link = %d %s", link.Code, link.Body.String())
 	}
 	path := pathOf(t, decode[apiLink](t, link).URL)
-	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || strings.Contains(got.Body.String(), "HR") ||
+	// A folder is listed as ">HR/<"; the bare letters may stand in the random token of the link (a run for #92, 2026-11-19).
+	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || strings.Contains(got.Body.String(), ">HR/<") ||
 		!strings.Contains(got.Body.String(), "plan.txt") {
 		t.Errorf("the link lists the folder its maker may not see, or not the plan: %d %s", got.Code, got.Body.String())
 	}
