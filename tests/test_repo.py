@@ -68,6 +68,33 @@ check("vulnerability gate present", hygiene.pruefe_audit_workflow(str(ROOT), FIL
 check("publishing depends on the tag", hygiene.pruefe_veroeffentlichen_am_tag(str(ROOT)))
 check("Dependabot auto-merge follows the template", automerge.pruefe(str(ROOT)))
 
+
+def search_engine_pins():
+    """The services of ci.yml run the search engines the tests know: the same tag and digest as scripts/search/Dockerfile.*.
+    Dependabot moves the Dockerfiles; the services of a workflow it does not, so a moved pin turns this red until ci.yml
+    follows."""
+    found = []
+    pinned = {}
+    for path in sorted((ROOT / "scripts/search").glob("Dockerfile.*")):
+        m = re.search(r"^FROM (\S+)", path.read_text(encoding="utf-8"), re.M)
+        if m:
+            pinned[m.group(1).split(":")[0]] = m.group(1)
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    services = re.search(r"^    services:\n((?:      .*\n|\s*\n)+)", workflow, re.M)
+    images = re.findall(r"^        image: (\S+)", services.group(1), re.M) if services else []
+    if not pinned:
+        found.append("no pin in scripts/search/Dockerfile.*")
+    for name, pin in pinned.items():
+        if pin not in images:
+            found.append(f"ci.yml has no service {pin}")
+    for image in images:
+        if image not in pinned.values():
+            found.append(f"ci.yml runs {image}, pinned in no scripts/search/Dockerfile.*")
+    return found
+
+
+check("the search services of ci.yml are the pins of scripts/search", search_engine_pins())
+
 # ---- Files
 check("scripts are executable", hygiene.pruefe_ausfuehrbar(str(ROOT), [
     "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "scripts/build-js.sh", "tests/test_repo.py"]))

@@ -19,6 +19,28 @@ jobs:
     name: Tests and hygiene
     runs-on: ubuntu-latest   # public repository, so never self-hosted (fork pull requests)
     timeout-minutes: 30
+    # The search engines the tests run against (ADR-24), started next to the job, also by ci-local. The images are the
+    # pins of scripts/search/Dockerfile.*, which tests/test_repo.py holds them to.
+    services:
+      meilisearch:
+        image: getmeili/meilisearch:v1.56.2@sha256:9600db22be3fcbf3d506176d3a73dd70a65c5719d9aa1d2837355b75afb8f4fb
+        env:
+          MEILI_NO_ANALYTICS: "true"
+          MEILI_ENV: development
+        ports: ["7700:7700"]
+        options: >-
+          --health-cmd "curl -fsS http://127.0.0.1:7700/health" --health-interval 3s --health-timeout 3s --health-retries 30
+      opensearch:
+        image: opensearchproject/opensearch:3.9.0@sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports: ["9200:9200"]
+        options: >-
+          --memory=2g --health-cmd "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"
+          --health-interval 5s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -46,8 +68,14 @@ jobs:
           docker info --format '{{.ServerVersion}}'
       - name: check.sh
         run: scripts/check.sh
+        env:
+          UNDERDOC_TEST_MEILISEARCH_URL: http://localhost:7700
+          UNDERDOC_TEST_OPENSEARCH_URL: http://localhost:9200
       # A test that fails on the second run is broken. Proven here, not claimed.
       - name: Second run, repeatability
         run: scripts/check.sh
+        env:
+          UNDERDOC_TEST_MEILISEARCH_URL: http://localhost:7700
+          UNDERDOC_TEST_OPENSEARCH_URL: http://localhost:9200
       - name: Container image
         run: scripts/check-image.sh

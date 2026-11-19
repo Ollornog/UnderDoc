@@ -103,7 +103,9 @@ errors. **Similar meaning** comes with AI (M-13) as a hybrid search of the same 
 The search is tested against real engines in throwaway containers, started by `scripts/search-engines.sh` with names and
 ports of their own, so parallel runs never meet. `scripts/check.sh` starts them and fails without Docker: a skipped search
 test is not a green one. Engines that run already can be named with `UNDERDOC_TEST_MEILISEARCH_URL` and `UNDERDOC_TEST_OPENSEARCH_URL`. The images are
-pinned by tag and digest in `scripts/search/Dockerfile.*`, which only carry the pin, and Dependabot moves them.
+pinned by tag and digest in `scripts/search/Dockerfile.*`, which only carry the pin, and Dependabot moves them. The CI
+runs the same images as `services:` of its job and names them this way; `tests/test_repo.py` holds the services to the
+pins, so a pin Dependabot moved turns the check red until `.github/workflows/ci.yml` follows.
 
 Every engine passes the same functional tests (`internal/search/searchtest`): readers, tenants, replacing and removing,
 filters, one hit per page, codes exactly and never through a typing error, typing errors in words, title before heading

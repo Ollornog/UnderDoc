@@ -42,6 +42,8 @@ All notable changes to this project are documented in this file. The format foll
 
 - The storage a tenant uses is a counter that triggers keep (migration 021), no longer summed over every block and file
   on each write; what each tenant used before is counted once by the migration.
+- The CI runs Meilisearch and OpenSearch as services of its job (also started by ci-local); the hygiene test holds their
+  images to the pins of `scripts/search/Dockerfile.*`.
 
 ### Fixed
 
