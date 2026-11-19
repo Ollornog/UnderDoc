@@ -70,7 +70,8 @@
           <tbody>{{range .Tenants}}
             <tr data-test="tenant" data-id="{{.ID}}"><td>{{.Name}}<span class="block text-sm text-muted-foreground font-mono">{{.ID}}</span></td>
               <td>{{if eq .State "active"}}✓ active{{else if eq .State "locked"}}✗ locked{{else}}✗ archived{{end}}</td>
-              <td>{{.Users}} / {{.MaxUsers}}</td><td>{{.Storage}} / {{.MaxStorage}}</td>
+              <td class="tabular-nums">{{.Users}} / {{.MaxUsers}}{{template "meter" (meterOf .UsersMeter "Users of the limit")}}</td>
+              <td class="tabular-nums">{{.Storage}} / {{.MaxStorage}}{{template "meter" (meterOf .StorageMeter "Storage of the limit")}}</td>
               <td><a class="btn" data-variant="outline" data-size="sm" href="/hoster/tenants/{{.ID}}">Change</a></td></tr>
           {{end}}</tbody>
         </table></div>
@@ -100,13 +101,17 @@
       {{with .Edit}}
       <header>
         <h1 class="card-title">{{.Name}}</h1>
-        <p class="card-description"><span class="font-mono">{{.ID}}</span> · {{if eq .State "active"}}✓ active{{else if eq .State "locked"}}✗ locked{{else}}✗ archived{{end}} · {{.Users}} users · {{.Storage}}</p>
+        <p class="card-description"><span class="font-mono">{{.ID}}</span> · {{if eq .State "active"}}✓ active{{else if eq .State "locked"}}✗ locked{{else}}✗ archived{{end}}</p>
       </header>
       {{end}}
       <section class="grid gap-6">
         {{template "auth-alerts" .}}
-        {{if .Link}}<p class="text-sm font-mono" data-test="invite-link">{{.Link}}</p>{{end}}
+        {{template "invite-link" .Link}}
         {{with .Edit}}
+        <dl class="grid gap-3 sm:grid-cols-2" data-test="usage">
+          <div class="grid gap-1"><dt class="text-sm text-muted-foreground">Users, used / limit</dt><dd class="tabular-nums">{{.Users}} / {{.MaxUsers}}{{template "meter" (meterOf .UsersMeter "Users of the limit")}}</dd></div>
+          <div class="grid gap-1"><dt class="text-sm text-muted-foreground">Storage, used / limit</dt><dd class="tabular-nums">{{.Storage}} / {{.MaxStorage}}{{template "meter" (meterOf .StorageMeter "Storage of the limit")}}</dd></div>
+        </dl>
         {{if not .Reserved}}
         <div class="flex flex-wrap gap-2">
           {{if eq .State "active"}}
@@ -174,4 +179,10 @@
   </main>
 </body>
 </html>
+{{- end}}
+
+{{/* A use against its limit as C22's bar (progress.progress): ✗ full or ⚠ nearly full stand in the words of the
+     label as well, never in the colour alone. */}}
+{{define "meter" -}}
+{{with .M}}<progress class="progress mt-1" value="{{.Value}}" max="{{.Max}}"{{if .Variant}} data-variant="{{.Variant}}"{{end}} aria-label="{{$.Label}}{{if eq .Variant "destructive"}}: full{{else if eq .Variant "warning"}}: nearly full{{end}}" data-test="meter"></progress>{{if eq .Variant "destructive"}}<span class="block text-xs">✗ full</span>{{else if eq .Variant "warning"}}<span class="block text-xs">⚠ nearly full</span>{{end}}{{end}}
 {{- end}}

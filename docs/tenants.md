@@ -47,6 +47,7 @@ they use, and nothing of a workspace answers there.
 (docs/files.md) hold next to it. The storage is a counter per tenant that triggers keep (`tenant_storage`, migration
 021), whichever way a block, a file version, an attachment or an upload comes or goes; a check reads one row, and a write
 holds the row of its tenant until it commits, so two writes that would each just fit cannot both pass the limit.
+- The list and the page of a tenant show used / limit with a bar, ⚠ from nine tenths on and ✗ when full.
 - **Modules** it may use, of those the instance allows ([docs/modules.md](modules.md)).
 - **Domains of its own**, next to the subdomain, and more administrators by invitation.
 - The hoster sees names, states and counts, never content. Its session is one of the tenant `hoster`, which row-level

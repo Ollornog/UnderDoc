@@ -4,6 +4,7 @@ package web
 
 import (
 	"context"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -211,6 +212,9 @@ func TestANewInstanceAsksForAPasskey(t *testing.T) {
 	if !strings.Contains(page, "data-passkey-sign-in") || strings.Contains(page, `action="/sign-in/password"`) || strings.Contains(page, "/register") {
 		t.Errorf("the sign-in page offers passkeys only: %s", page)
 	}
+	if !strings.Contains(page, `<div class="card w-full max-w-sm" data-test="signin-card">`) || strings.Contains(page, "field-separator") {
+		t.Error("with passkeys only, the sign-in is a card of buttons, without an \"or\"")
+	}
 	if got := c.get("/register"); got.Code != http.StatusNotFound {
 		t.Errorf("registration is off: %d", got.Code)
 	}
@@ -395,6 +399,11 @@ func TestPasswordAndCode(t *testing.T) {
 	if got := signIn(next); got != http.StatusUnauthorized {
 		t.Errorf("the same code twice: %d", got)
 	}
+}
+
+// inviteLink is the link that works once, from C22's field to copy it in (template "invite-link").
+func inviteLink(body string) string {
+	return html.UnescapeString(between(body, `id="invite-link" type="text" value="`, `"`))
 }
 
 func between(s, start, end string) string {
@@ -610,7 +619,7 @@ func TestAdministratorsChooseTheWaysIn(t *testing.T) {
 		t.Errorf("an administrator switches the gate on: %d", got.Code)
 	}
 	link := invited.form("/admin/invites", url.Values{"login": {"mia"}, "name": {"Mia"}})
-	shown := between(link.Body.String(), `data-test="invite-link">`, "<")
+	shown := inviteLink(link.Body.String())
 	if !strings.HasPrefix(shown, "https://"+signInHost+"/invite/") {
 		t.Fatalf("the link: %q", shown)
 	}
@@ -738,5 +747,25 @@ func TestSessionsStayWithTheirTenant(t *testing.T) {
 	}
 	if got := carried.get("/admin/sign-in"); got.Code == http.StatusOK {
 		t.Error("acme's administrator administers Main")
+	}
+}
+
+// TestTheSignInIsC22sCard: with a password, the card itself is the form, the passkey above it set apart by "or", the
+// button in its footer and registration as the action of its header (C22, blocks/login-signup).
+func TestTheSignInIsC22sCard(t *testing.T) {
+	s, _ := signInSite(t, &db.SignIn{Methods: []string{db.MethodPasskey, db.MethodPassword}, Registration: true}, Options{})
+	page := newClient(t, s, signInHost).get("/sign-in").Body.String()
+	for _, want := range []string{
+		`<form class="card w-full max-w-sm" method="post" action="/sign-in/password" data-test="signin-card">`,
+		`<div class="field-separator"><hr role="separator"><span>or</span></div>`,
+		`<div class="card-action"><a class="btn" data-variant="link" href="/register">Register</a></div>`,
+		`<footer class="flex-col gap-2">`, `data-passkey-sign-in`, `type="button" data-passkey-sign-in`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the sign-in lacks %s", want)
+		}
+	}
+	if strings.Index(page, "data-passkey-sign-in") > strings.Index(page, `id="login"`) {
+		t.Error("the passkey comes after the password")
 	}
 }
