@@ -2709,6 +2709,21 @@
     });
   }
 
+  // ---- Drop zone ([data-dropzone]) ------------------------------------------
+  // While a drag that carries files is over the zone, it has data-over (the look is in components.css). Only the look:
+  // what a drop does is the app's. A counter, because dragenter/dragleave fire for every child the pointer crosses.
+  function wireDropzone(zone) {
+    if (zone.dataset.c22DropWired) return;
+    zone.dataset.c22DropWired = '1';
+    var depth = 0;
+    var files = function (e) { return e.dataTransfer && [].indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; };
+    var off = function () { depth = 0; zone.removeAttribute('data-over'); };
+    zone.addEventListener('dragenter', function (e) { if (!files(e)) return; depth++; zone.setAttribute('data-over', ''); });
+    zone.addEventListener('dragover', function (e) { if (files(e)) e.preventDefault(); });
+    zone.addEventListener('dragleave', function (e) { if (!files(e)) return; if (--depth <= 0) off(); });
+    zone.addEventListener('drop', off);
+  }
+
   // ---- Reaktions-Leiste (Chat-Reaktionen) -----------------------------------
   // REINE DEMO-/UI-LOGIK — KEINE Persistenz: welche Reaktionen es gibt und wer reagiert
   // hat, weiß nur die App; die bindet das an ihr Backend (Klick abfangen / State setzen).
@@ -2876,6 +2891,7 @@
     (root || document).querySelectorAll('[data-edit-table]').forEach(wireEditTable);
     (root || document).querySelectorAll('[data-char-count]').forEach(wireCharCount);
     (root || document).querySelectorAll('[data-copy]').forEach(wireCopy);
+    (root || document).querySelectorAll('[data-dropzone]').forEach(wireDropzone);
     (root || document).querySelectorAll('[data-reactions]').forEach(wireReactions);
     wireGlobals();
   }

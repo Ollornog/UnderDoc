@@ -423,6 +423,12 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range []string{"embed", "embedbody", "broken"} {
 		used[class] = "the embedding of blocks (api_pages.go)"
 	}
+	// The script and the editor draw these, and their look now comes only from C22 (the rules UnderDoc kept for itself
+	// until 2026-11-19 are gone): the question before something in use goes, parts, the preview of a file, an upload.
+	for _, class := range []string{"wayspop", "wayitem", "wayrow", "waysame", "partedge", "partlabel", "cm-ud-part",
+		"cm-ud-partlabel", "preview", "progress", "cur"} {
+		used[class] = "the workspace script and the editor (demo.js, parts.js, search.js, web/editor)"
+	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
 	if err != nil || len(files) == 0 {
