@@ -1202,7 +1202,7 @@ func TestTheHandleOfABlock(t *testing.T) {
 		t.Fatalf("each block has a handle: %s", got)
 	}
 	b.clickOn(`article.doc [data-b="b2"] > .bhandle`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Comment | Used in Rack" {
+	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Move to page, Comment | Used in Rack" {
 		t.Errorf("the menu of b2: %q", got)
 	}
 	b.clickOn(`.bmenu [data-act="blkedit"]`, 1)

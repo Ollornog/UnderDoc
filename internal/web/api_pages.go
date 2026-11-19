@@ -289,6 +289,25 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	for _, n := range open {
 		answer.Comments += n
 	}
+	embeds, err := h.options.DB.Embeds(ctx, o.ID, user.ID)
+	if err != nil {
+		h.log.Error("embeds failed", slog.String("error", err.Error()))
+	}
+	for _, e := range embeds {
+		kind := "page"
+		switch {
+		case e.Name != "":
+			kind = "value"
+		case e.Address.Sub == db.Section:
+			kind = "section"
+		case e.Address.Sub != "":
+			kind = "part"
+		case e.Address.Block != "":
+			kind = "block"
+		}
+		answer.Embeds = append(answer.Embeds, apiEmbed{Kind: kind, Name: e.Name, Title: e.Title, Ref: e.Address.String(),
+			URL: route.Object(e.Address.Object) + anchorOf(e.Address)})
+	}
 	for _, u := range used {
 		where := u.Title
 		if u.TargetBlock != "" {
@@ -732,4 +751,12 @@ func (h *handler) apiEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// anchorOf is the fragment that opens an address at its place in the page, none for a whole page.
+func anchorOf(a db.Address) string {
+	if a.Block == "" {
+		return ""
+	}
+	return "#" + a.Target()
 }

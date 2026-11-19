@@ -2,7 +2,7 @@
 id: M-3
 type: Milestone
 title: "Single source: values, snippets, embedding"
-status: offen
+status: in-arbeit
 tags: [spot, mermaid]
 created: 2026-11-06
 ---
@@ -32,3 +32,9 @@ and marking in the editor and in reading, the Resources tab. **Later the same da
 placeholder, restoring, copies, new master, redirects and notices; marking, copying and embedding from the editor, the
 boundaries in the editor and while reading, values by name. Open: the Resources tab of the workspace with real values and
 snippets (it is still a mock-up of the first build), Excel tables in pages, Mermaid (T-3), the facts panel.
+
+**State 2026-11-19:** the Resources tab with real values and snippets (with how often each is used), the facts panel
+with what a page embeds, moving a block to another page from its menu while reading and editing, and the fix of a part
+that came back twice when a page left the trash after its part got a new master. Open: Excel tables in pages (with M-2),
+Mermaid (T-3), the origin of a text copied through the clipboard in the version of the block it is pasted into, and
+"every object shows where it is used" for files and tables once they can be embedded.

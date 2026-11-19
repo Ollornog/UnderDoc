@@ -237,3 +237,49 @@ func TestTheEndOfSomethingInUse(t *testing.T) {
 		t.Errorf("Bob sees of Anna's private page in the trash: %s", got)
 	}
 }
+
+// A page that goes into the trash while its parts get a new master leaves them there: restoring the page does not bring
+// them back a second time, and the version of their block says where they went.
+func TestAPageInTheTrashKeepsNoPartThatMoved(t *testing.T) {
+	s := withDatabase(t)
+	team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Team"}`, sameSite))
+	newPage := func(title string, blocks ...string) string {
+		t.Helper()
+		p := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite))
+		after := ""
+		for _, md := range blocks {
+			body, _ := json.Marshal(map[string]string{"md": md, "after": after})
+			after = decode[apiBlock](t, s.send(http.MethodPost, "/api/pages/"+p.ID+"/blocks", string(body), sameSite)).ID
+		}
+		return p.ID
+	}
+	md := func(id string) []string {
+		var out []string
+		for _, b := range decode[apiDocument](t, s.get("/api/doc/"+id)).Blocks {
+			out = append(out, b.ID+":"+b.Markdown)
+		}
+		return out
+	}
+	src := newPage("Errors", "Error 42: <!-- part t1 -->the disk is full<!-- /part t1 --> or <!-- part t2 -->the fan stops<!-- /part t2 -->.", "Plain.")
+	runbook := newPage("Runbook", "If :embed{ref=\""+src+"#b1.t1\"}, free space.", "If :embed{ref=\""+src+"#b1.t2\"}, call.")
+	ways := `{"ways":{"` + src + `#b1.t1":{"way":"master","master":"` + runbook + `#b1"},"` + src + `#b1.t2":{"way":"master","master":"` + runbook + `#b2"}}}`
+	if got := s.send(http.MethodDelete, "/api/objects/"+src, ways, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("delete with new masters = %d", got)
+	}
+	if got := md(runbook); !slices.Equal(got, []string{"b1:If <!-- part t1 -->the disk is full<!-- /part t1 -->, free space.",
+		"b2:If <!-- part t1 -->the fan stops<!-- /part t1 -->, call."}) {
+		t.Errorf("both parts live in Runbook: %q", got)
+	}
+	if got := s.send(http.MethodPost, "/api/trash/"+src+"/restore", "", sameSite).Code; got != http.StatusOK {
+		t.Fatalf("restore = %d", got)
+	}
+	if got := md(src); !slices.Equal(got, []string{"b1:Error 42:  or .", "b2:Plain."}) {
+		t.Errorf("the restored page keeps no part that moved: %q", got)
+	}
+	versions := decode[[]apiVersion](t, s.get("/api/pages/"+src+"/versions"))
+	if !slices.ContainsFunc(versions, func(v apiVersion) bool {
+		return v.Block == "b1" && v.Origin == "moved to "+runbook+"#b1.t1, "+runbook+"#b2.t1"
+	}) {
+		t.Errorf("the version says where they went: %+v", versions)
+	}
+}

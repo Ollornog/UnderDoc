@@ -183,3 +183,111 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 		})
 	}
 }
+
+// The facts panel of a page names what it embeds (M-3): a value by its name and the page it lives in, a block by its kind.
+func TestTheFactsNameWhatAPageEmbeds(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	rates := makePage(b, "Rates", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`, "Shipping is free.")
+	invoice := makePage(b, "Invoice", "Net plus :embed{ref=\""+rates+"#b1.t1\"}.", "::embed{ref=\""+rates+"#b2\"}")
+	b.open(base + "/o/" + invoice)
+	b.ready("Invoice")
+	b.clickOn(`[data-act="gear"]`, 1)
+	uses := `[...document.querySelectorAll('.facts li')].map(li => li.innerText.replace(/\s+/g, ' ').trim()).join(' | ')`
+	if !b.waitFor(uses + `.includes('Value vat Rates #b1.t1') && ` + uses + `.includes('Block Rates #b2')`) {
+		t.Fatalf("the facts do not name what Invoice embeds: %s", b.eval(uses))
+	}
+	b.shot("facts-embeds")
+}
+
+// The Resources tab lists the real values and snippets (M-3): a value with its text, its page and how often it is used,
+// and opening it names the page it lives in. Databases and external sources are the mock-up still, and say so.
+func TestTheResourcesTabIsReal(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	rates := makePage(b, "Rates", `VAT is <!-- part t1 name="vat" -->19 %<!-- /part t1 -->.`, "Shipping is free.")
+	makePage(b, "Invoice", "Net plus :embed{ref=\""+rates+"#b1.t1\"}.", "::embed{ref=\""+rates+"#b2\"}")
+	b.open(base + "/")
+	b.ready("")
+	b.clickOn(`.strip [data-act="view"][data-id="resources"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 [data-act="open"]')].some(x => x.textContent.trim() === 'vat')`) {
+		t.Fatalf("the value is not in the list: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	}
+	b.clickOn(probe(b, `.nav3 [data-act="open"]`, "vat"), 1)
+	row := `[...document.querySelectorAll('article.doc tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()).join(' | ')`
+	if !b.waitFor(row + `.includes('Value 19 %') && ` + row + `.includes('Used in 1 place') && document.querySelector('article.doc a[href^="/o/` + rates + `#b1.t1"]')?.textContent === 'Rates'`) {
+		t.Fatalf("the value does not show: %s", b.eval(row))
+	}
+	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"]')].map(x => x.textContent.trim()).join(', ')`); !strings.Contains(got, "Databases and views (demo)") || strings.Contains(got, "Values (demo)") {
+		t.Errorf("what is real and what is the mock-up: %s", got)
+	}
+	b.clickOn(`[data-act="sec"][data-id="snippets"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('.nav3 [data-act="open"]')].some(x => x.textContent.trim() === 'Shipping is free.')`) {
+		t.Fatalf("the snippet is not in the list: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	}
+	b.shot("resources-real")
+}
+
+// A block moves into another page from its menu (M-3), while reading and while editing: it goes to the end of the other
+// page, leaves its own, and its old address leads to the new place.
+func TestMovingABlockToAnotherPage(t *testing.T) {
+	for _, editing := range []bool{false, true} {
+		name := "reading"
+		if editing {
+			name = "editing"
+		}
+		t.Run(name, func(t *testing.T) {
+			b, base := setupWithDatabase(t)
+			b.open(base + "/o/plan")
+			b.ready("Network plan")
+			target := makePage(b, "Target page", "First.")
+			source := makePage(b, "Source page", "Stays here.", "Goes away <!-- part t1 -->with its part<!-- /part t1 -->.")
+			user := makePage(b, "User page", "Uses :embed{ref=\""+source+"#b2.t1\"}.")
+			handle := `article.doc [data-b="b2"] > .bhandle`
+			if editing {
+				b.openEditing(base, source, "Source page")
+				handle = `.cm-ud-marker[data-edb="b2"] .bhandle`
+			} else {
+				b.open(base + "/o/" + source)
+				b.ready("Source page")
+			}
+			if !b.waitFor(`!!document.querySelector('` + handle + `')`) {
+				t.Fatal("no handle on the block")
+			}
+			b.clickOn(handle, 1)
+			b.clickOn(`.bmenu [data-act="bmoveto"]`, 1)
+			if !b.waitFor(`[...document.querySelectorAll('#bmovesel option')].some(o => o.textContent === 'Target page')`) {
+				t.Fatalf("the menu offers no page: %s", b.eval(`document.querySelector('.bmenu')?.innerHTML.slice(0, 400)`))
+			}
+			// A redraw keeps the choice.
+			b.eval(`(() => { const s = document.getElementById('bmovesel'); s.value = [...s.options].find(o => o.textContent === 'Target page').value; s.focus(); })()`)
+			b.eval(`render()`)
+			b.clickOn(`.bmenu [data-act="bmovego"]`, 1)
+			md := func(id string) string {
+				return b.eval(`(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/doc/` + id + `', false); x.send(); return JSON.parse(x.responseText).blocks.map(b => b.id + ':' + b.md).join(' | '); })()`)
+			}
+			if !b.waitFor(`(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/doc/` + target + `', false); x.send(); return JSON.parse(x.responseText).blocks.length === 2; })()`) {
+				t.Fatalf("the block did not move: target %s, source %s", md(target), md(source))
+			}
+			if got := md(target); got != "b1:First. | b2:Goes away <!-- part t1 -->with its part<!-- /part t1 -->." {
+				t.Errorf("Target page: %q", got)
+			}
+			if got := md(source); got != "b1:Stays here." {
+				t.Errorf("Source page: %q", got)
+			}
+			if got := md(user); got != `b1:Uses :embed{ref="`+target+`#b2.t1"}.` {
+				t.Errorf("User page follows: %q", got)
+			}
+			if !b.waitFor(`![...document.querySelectorAll('article.doc')].some(a => a.textContent.includes('Goes away')) && !Object.values(EDS).some(e => e.ed.text().includes('Goes away'))`) {
+				t.Errorf("the page still shows the block: %s", b.eval(`document.querySelector('article.doc')?.textContent`))
+			}
+			// Nothing saves it back later: the editor made again saves nothing of the old page.
+			time.Sleep(2 * time.Second)
+			if got := md(source); got != "b1:Stays here." {
+				t.Errorf("after a while, Source page: %q", got)
+			}
+		})
+	}
+}
