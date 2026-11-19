@@ -124,6 +124,16 @@ func (s *Store) RemoveUpload(tenant, id string) error {
 	return nil
 }
 
+// RemoveTenant deletes the directory of a tenant with every blob and upload in it, for a tenant deleted for good. A
+// tenant without one is fine.
+func (s *Store) RemoveTenant(tenant string) error {
+	dir, err := s.tenantDir(tenant)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(dir)
+}
+
 // HashFile returns the SHA-256 and size of a file.
 func HashFile(path string) (string, int64, error) {
 	f, err := os.Open(path)

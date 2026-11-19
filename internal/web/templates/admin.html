@@ -118,6 +118,20 @@
           <form method="post" action="/hoster/tenants/{{.ID}}"><input type="hidden" name="do" value="archive"><button class="btn" data-variant="destructive" type="submit">Archive</button></form>
           {{end}}
         </div>
+        <form class="flex flex-wrap items-end gap-2" method="post" action="/hoster/tenants/{{.ID}}">
+          <input type="hidden" name="do" value="rename">
+          <div class="field"><label for="tenant_name">Name</label><input class="input" id="tenant_name" name="name" value="{{.Name}}" required maxlength="200"></div>
+          <button class="btn" data-variant="outline" type="submit">Rename</button>
+        </form>
+        {{if eq .State "archived"}}
+        <form class="grid gap-2" method="post" action="/hoster/tenants/{{.ID}}">
+          <input type="hidden" name="do" value="purge">
+          <h2 class="font-semibold">Delete for good</h2>
+          <p class="text-sm">Every page, file, account and setting of this tenant goes, with its search index, and cannot come back. Type its ID, <span class="font-mono">{{.ID}}</span>, to do it.</p>
+          <div class="field"><label for="confirm">ID of the tenant</label><input class="input" id="confirm" name="confirm" autocomplete="off" required></div>
+          <button class="btn" data-variant="destructive" type="submit">Delete for good</button>
+        </form>
+        {{end}}
         {{end}}
         <form class="grid gap-4" method="post" action="/hoster/tenants/{{.ID}}">
           <input type="hidden" name="do" value="limits">

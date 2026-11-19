@@ -179,7 +179,8 @@ func hosterProblem(err error) string {
 	switch {
 	case errors.Is(err, tenant.ErrID):
 		return capital(err.Error()) + "."
-	case errors.Is(err, db.ErrTenantTaken), errors.Is(err, db.ErrHostTaken), errors.Is(err, db.ErrHost), errors.Is(err, db.ErrReserved):
+	case errors.Is(err, db.ErrTenantTaken), errors.Is(err, db.ErrHostTaken), errors.Is(err, db.ErrHost), errors.Is(err, db.ErrReserved),
+		errors.Is(err, db.ErrNotArchived), errors.Is(err, db.ErrConfirm):
 		return capital(err.Error()) + "."
 	case errors.Is(err, db.ErrTitle):
 		return "A name has 1 to 200 characters."
@@ -187,8 +188,9 @@ func hosterProblem(err error) string {
 	return "That did not work."
 }
 
-// changeTenant locks, opens, archives or restores a tenant, sets its limits and modules, adds or removes a domain, or
-// invites another administrator. Archiving is the delete of the hoster: nothing goes, and restoring brings all back.
+// changeTenant locks, opens, archives or restores a tenant, renames it, sets its limits and modules, adds or removes a
+// domain, or invites another administrator. Archiving is the delete of the hoster: nothing goes, and restoring brings
+// all back. Only an archived tenant can then be deleted for good, with its ID typed as the confirmation.
 func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 	if !h.hosterOnly(w, r) || !h.formOK(w, r) {
 		return
@@ -209,6 +211,15 @@ func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 	case "archive":
 		_, err = h.options.DB.SetTenantState(ctx, id, db.TenantArchived)
 		notice = "Archived: nobody gets in, and everything is kept. Restore brings it back."
+	case "rename":
+		_, err = h.options.DB.RenameTenant(ctx, id, r.PostFormValue("name"))
+	case "purge":
+		if err = h.options.DB.PurgeTenant(ctx, id, strings.TrimSpace(r.PostFormValue("confirm"))); err == nil {
+			h.purgeOutside(ctx, id)
+			h.log.Info("tenant deleted for good", slog.String("tenant", id), slog.String("by", h.me(r).Login))
+			h.hosterPage(w, r, http.StatusOK, "", "Deleted for good: "+id+". Its ID is free again.", "", "")
+			return
+		}
 	case "limits":
 		err = h.saveLimits(r, id)
 	case "add-host":
@@ -265,4 +276,18 @@ func (h *handler) saveLimits(r *http.Request, id string) error {
 		}
 	}
 	return h.options.DB.SetTenantLimits(r.Context(), id, l)
+}
+
+// purgeOutside deletes what a tenant deleted for good keeps outside the database: its files in the content store and its
+// search index. The rows are gone already; what fails here is logged, and the files of a tenant ID made again later stay
+// apart from nothing, since its directory was removed or never written.
+func (h *handler) purgeOutside(ctx context.Context, tenantID string) {
+	if h.options.Store != nil {
+		if err := h.options.Store.RemoveTenant(tenantID); err != nil {
+			h.log.Error("files of a deleted tenant not removed", slog.String("tenant", tenantID), slog.String("error", err.Error()))
+		}
+	}
+	if err := h.options.Search.DropTenant(ctx, tenantID); err != nil {
+		h.log.Error("search index of a deleted tenant not removed", slog.String("tenant", tenantID), slog.String("error", err.Error()))
+	}
 }

@@ -4,6 +4,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -145,6 +146,39 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	}
 	if got := change("beta", url.Values{"do": {"explode"}}); got != http.StatusNotFound {
 		t.Errorf("an unknown action: %d", got)
+	}
+
+	// Renaming keeps the ID; deleting for good needs the tenant archived and its ID typed.
+	if got := change("beta", url.Values{"do": {"rename"}, "name": {"Beta AG"}}); got != http.StatusOK || !strings.Contains(h.get("/hoster").Body.String(), "Beta AG") {
+		t.Errorf("rename: %d", got)
+	}
+	if got := change("beta", url.Values{"do": {"rename"}, "name": {" "}}); got != http.StatusBadRequest {
+		t.Errorf("an empty name: %d", got)
+	}
+	if got := change("beta", url.Values{"do": {"purge"}, "confirm": {"beta"}}); got != http.StatusBadRequest {
+		t.Errorf("deleting an active tenant: %d", got)
+	}
+	if page := h.get("/hoster/tenants/beta").Body.String(); strings.Contains(page, `value="purge"`) {
+		t.Error("an active tenant offers no delete for good")
+	}
+	change("beta", url.Values{"do": {"archive"}})
+	if page := h.get("/hoster/tenants/beta").Body.String(); !strings.Contains(page, `value="purge"`) {
+		t.Error("an archived tenant offers the delete for good")
+	}
+	if got := change("beta", url.Values{"do": {"purge"}, "confirm": {"Beta AG"}}); got != http.StatusBadRequest {
+		t.Errorf("a confirmation that is not the ID: %d", got)
+	}
+	if got := change("main", url.Values{"do": {"purge"}, "confirm": {"main"}}); got != http.StatusBadRequest {
+		t.Errorf("Main cannot be deleted: %d", got)
+	}
+	if got := h.form("/hoster/tenants/beta", url.Values{"do": {"purge"}, "confirm": {" beta "}}); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Deleted for good: beta") {
+		t.Fatalf("delete for good: %d", got.Code)
+	}
+	if _, err := database.Tenant(context.Background(), "beta"); !errors.Is(err, db.ErrNotFound) {
+		t.Errorf("beta is still there: %v", err)
+	}
+	if got := h.get("/hoster/tenants/beta").Code; got != http.StatusNotFound {
+		t.Errorf("its page: %d", got)
 	}
 }
 
