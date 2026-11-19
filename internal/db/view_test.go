@@ -45,7 +45,7 @@ func TestView(t *testing.T) {
 	if err != nil || copied.Width != "slim" || copied.Contents != "side" {
 		t.Errorf("a copy keeps the view: %+v %v", copied, err)
 	}
-	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "comment"); err != nil {
+	if _, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "comment"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.SetView(ctx, plan.ID, bob.ID, text("wide"), nil); err == nil {
@@ -93,7 +93,7 @@ func TestAlignBlock(t *testing.T) {
 	if blocks, _ = db.Blocks(ctx, copied.ID, anna.ID); blocks[0].Align != "center" {
 		t.Errorf("a copy keeps the alignment: %+v", blocks)
 	}
-	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "read"); err != nil {
+	if _, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.AlignBlock(ctx, plan.ID, b1.ID, bob.ID, "right"); !errors.Is(err, ErrNotAllowed) {

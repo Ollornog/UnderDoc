@@ -290,7 +290,7 @@ func cleanTitle(title string) string {
 
 func cleanAccess(access string) (string, bool) {
 	switch access {
-	case "", "edit", "comment", "read":
+	case "", "edit", "comment", "read", "manage", db.AccessNone:
 		return access, true
 	}
 	return "", false
@@ -450,8 +450,9 @@ func (r *reader) dir(dir, name string) (*db.Node, error) {
 	if access, ok := cleanAccess(m.Access); ok {
 		n.Access = access
 	} else {
-		r.warn(path.Join(dir, MetaFile), fmt.Sprintf("access %q is not edit, comment or read, it was left out", m.Access))
+		r.warn(path.Join(dir, MetaFile), fmt.Sprintf("access %q is not manage, edit, comment, read or none, it was left out", m.Access))
 	}
+	n.Breaks = m.Inherit != nil && !*m.Inherit
 	kids, err := r.children(dir, m.Order)
 	n.Kids = kids
 	return n, err
@@ -561,8 +562,9 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 	if access, ok := cleanAccess(p.Meta.Access); ok {
 		n.Access = access
 	} else {
-		r.warn(file, fmt.Sprintf("access %q is not edit, comment or read, it was left out", p.Meta.Access))
+		r.warn(file, fmt.Sprintf("access %q is not manage, edit, comment, read or none, it was left out", p.Meta.Access))
 	}
+	n.Breaks = p.Meta.Inherit != nil && !*p.Meta.Inherit
 	n.Template = p.Meta.Template
 	switch p.Meta.Kind {
 	case "", db.KindPage:

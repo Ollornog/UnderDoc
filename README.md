@@ -91,6 +91,10 @@ Markdown files with front matter, and a hidden comment before each block that ke
 and collections, with uploads that resume, versions, quotas and a trash. Every version lies once in a content store named
 by its hash, and an export takes the files along. How it works: [docs/files.md](docs/files.md).
 
+**Rights** hold for documents and files alike: an owner, and the roles manage, edit, comment and read for persons, groups
+(local, or taken over from OIDC and the gate) and the whole tenant, inherited down the tree and narrowed by breaking the
+inheritance. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
 `web/editor`, and the built bundle is in the repository, so building UnderDoc needs only Go. How it works and how to

@@ -4,6 +4,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -67,6 +68,8 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		embedded string
 		// employer is the private employer booked in the time tracking, its name the word of the tenant.
 		employer string
+		// group is a local group of the tenant.
+		group string
 	}
 	// The door "time tracking" (EightPerDay) is open in both tenants.
 	for _, id := range []string{tenant.Main, "acme"} {
@@ -95,6 +98,19 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			t.Fatalf("the embedding works within its tenant: %+v", doc.Blocks)
 		}
 		m.employer = bookIn(t, s, h, word+" hours")
+		// A local group with a role on the plan: the door "rights" (ADR-29).
+		tid := tenant.Main
+		if host == acmeHost {
+			tid = "acme"
+		}
+		board, err := database.CreateGroup(tenant.With(context.Background(), tid), word+" board", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := database.SetGrant(tenant.With(context.Background(), tid), plan.ID, db.Actor{ID: "u-7"}, db.ToGroup, board.ID, db.RoleRead); err != nil {
+			t.Fatal(err)
+		}
+		m.group = board.ID
 		m.ids = []string{team.ID, plan.ID, uses.ID, gone.ID}
 		m.comment = strconv.FormatInt(c.ID, 10)
 		m.trashed = gone.ID
@@ -119,7 +135,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := at(c.host)
-			reads := []string{"/api/state", "/api/trash", "/api/problems", "/api/search?q=secret", "/api/search?q=plan"}
+			reads := []string{"/api/state", "/api/trash", "/api/problems", "/api/search?q=secret", "/api/search?q=plan", "/api/people", "/api/groups"}
 			for _, target := range reads {
 				body := s.getWith(target, h).Body.String()
 				for _, id := range c.other.ids {
@@ -167,7 +183,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 			for _, id := range c.other.ids {
 				for _, target := range []string{"/o/" + id, "/api/doc/" + id, "/api/objects/" + id + "/uses", "/api/pages/" + id + "/comments",
-					"/api/pages/" + id + "/versions", "/api/objects/" + id + "/export"} {
+					"/api/pages/" + id + "/versions", "/api/objects/" + id + "/export", "/api/objects/" + id + "/rights"} {
 					if got := s.getWith(target, h); got.Code != http.StatusNotFound {
 						t.Errorf("GET %s = %d", target, got.Code)
 					}
@@ -186,6 +202,9 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 					{http.MethodPut, "/api/pages/" + id + "/blocks/b1", `{"md":"in"}`},
 					{http.MethodDelete, "/api/pages/" + id + "/blocks/b1", ""},
 					{http.MethodPost, "/api/pages/" + id + "/comments", `{"body":"in"}`},
+					{http.MethodPut, "/api/objects/" + id + "/grants", `{"kind":"tenant","role":"edit"}`},
+					{http.MethodPut, "/api/objects/" + id + "/inherit", `{"inherit":false}`},
+					{http.MethodPut, "/api/objects/" + id + "/owner", `{"to":"u-7"}`},
 				} {
 					got := s.send(change.method, change.target, change.body, h)
 					if got.Code < 400 || got.Code == http.StatusInternalServerError {
@@ -203,6 +222,24 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 				if got := s.send(change.method, change.target, change.body, h); got.Code != http.StatusNotFound {
 					t.Errorf("%s %s = %d", change.method, change.target, got.Code)
 				}
+			}
+			// The groups of the other tenant are not to be found, also for an administrator of this one.
+			here := tenant.Main
+			if c.host == acmeHost {
+				here = "acme"
+			}
+			hctx := tenant.With(context.Background(), here)
+			for name, err := range map[string]error{
+				"member": database.SetMember(hctx, c.other.group, "u-7", true),
+				"rename": database.RenameGroup(hctx, c.other.group, "taken", ""),
+				"delete": database.DeleteGroup(hctx, c.other.group),
+			} {
+				if !errors.Is(err, db.ErrNotFound) {
+					t.Errorf("%s of the other tenant's group: %v", name, err)
+				}
+			}
+			if _, err := database.GroupMembers(hctx, c.other.group); !errors.Is(err, db.ErrNotFound) {
+				t.Errorf("members of the other tenant's group: %v", err)
 			}
 			// An embedding of the other tenant's block shows "not to be found", as for something that never was.
 			team := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Probe"}`, h))

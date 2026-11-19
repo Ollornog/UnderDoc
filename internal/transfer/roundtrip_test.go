@@ -135,7 +135,7 @@ func TestRoundTrip(t *testing.T) {
 	must[db.Object](t)(first.CreatePage(ctx, bob, "Grandchild", kid.ID))
 	must[db.Object](t)(first.CreateDivider(ctx, anna, db.KindLine, team.ID, plan.ID))
 	folder := must[db.Object](t)(first.CreateFolder(ctx, anna, "Plan", team.ID))
-	must[db.Object](t)(first.SetAccess(ctx, folder.ID, anna.ID, "read"))
+	must[db.Object](t)(first.SetAccess(ctx, folder.ID, db.Actor{ID: anna.ID}, "read"))
 	must[db.Object](t)(first.CreateDivider(ctx, anna, db.KindSpace, team.ID, folder.ID))
 	inner := must[db.Object](t)(first.CreateCollection(ctx, anna, "Inner", team.ID))
 	must[db.Object](t)(first.CreatePage(ctx, anna, "CON", inner.ID))

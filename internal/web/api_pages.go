@@ -74,7 +74,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate):
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrQuota):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -86,7 +86,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-	case errors.Is(err, db.ErrNotAllowed):
+	case errors.Is(err, db.ErrNotAllowed), errors.Is(err, db.ErrPrivate), errors.Is(err, db.ErrGroup):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	default:
 		h.log.Error(what+" failed", slog.String("error", err.Error()))
@@ -725,7 +725,7 @@ func (h *handler) apiSettings(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// apiAccess sets what all others may do with an object; only its owner may.
+// apiAccess sets what the whole tenant may do with an object; whoever manages it may, and administrators (ADR-29).
 func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Access string `json:"access"`
@@ -734,7 +734,7 @@ func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	o, err := h.options.DB.SetAccess(r.Context(), r.PathValue("id"), user.ID, in.Access)
+	o, err := h.options.DB.SetAccess(r.Context(), r.PathValue("id"), db.Actor{ID: user.ID, Admin: user.Admin}, in.Access)
 	if h.failed(w, err, "access") {
 		return
 	}

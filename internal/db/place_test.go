@@ -88,7 +88,7 @@ func TestMovingFollowsAccess(t *testing.T) {
 	team, _ := db.CreateCollection(ctx, anna, "Team", "")
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	page, _ := db.CreatePage(ctx, anna, "Plan", team.ID)
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", archive.ID); err != nil {
+	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Move(ctx, page.ID, bob.ID, archive.ID, ""); !errors.Is(err, ErrNotAllowed) {

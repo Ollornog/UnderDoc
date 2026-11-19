@@ -51,8 +51,8 @@ Everything a reader may read, and nothing else:
   of a page**, such as a pasted scan, by their text: a hit on one opens its page at the block that shows it. Of the texts
   a file has (docs/files.md, "Text for the search"), the one its content gives (server, then browser) comes before what
   was recognised in pixels (a model, then OCR on the server); each record says where its text came from (`origin`, type
-  `file`). Files follow the rule of the documents for now (whoever may see the file, ADR-20): the folder of a user is read
-  by that user only. The folders and roots of the view Files are places, not content, and are not found themselves.
+  `file`). Files follow the rule of the documents: whoever holds a role on the file reads it (ADR-29,
+  [rights.md](rights.md)), and the folder of a user is read by that user only. The folders and roots of the view Files are places, not content, and are not found themselves.
 - A new version, a text read later and an attachment added or removed put the file or page into the queue by themselves
   (triggers of the database, migration 020), whichever way the text came.
 - Later sources only register with the indexer (`search.Source`): tables and lists (M-6) and cached views of sources
@@ -60,8 +60,9 @@ Everything a reader may read, and nothing else:
   filled again once, as for new settings of the engine.
 - **Passwords never**: the directives of ADR-7 (`::secret{…}`) and their IDs are cut out before anything is indexed.
 
-**Rights** are a filter in the index, not a check afterwards: every record lists its readers (everyone signed in, or the
-owner of private notes and of a user's own files), and every query carries the readers of the person asking. A query without readers is refused.
+**Rights** are a filter in the index, not a check afterwards: every record lists its readers as tokens of the persons,
+groups and the tenant that hold a role on it (`all`, `account:<id>`, `group:<id>`, ADR-29), and every query carries the
+tokens of the person asking and of their groups. A change of roles queues the object and everything below it. A query without readers is refused.
 The tenant is separated by its own index. When groups and shares of M-5 come, they add reader tokens of their own.
 
 **Sections:** a page is indexed in sections, one per heading and what follows it up to the next heading (ADR-22). A hit

@@ -119,6 +119,30 @@ func TestSearchThroughTheService(t *testing.T) {
 	if got := s.find("q=Kartenzahlung", bob); len(got.Hits) != 1 || got.Hits[0].ID != handbook.ID {
 		t.Errorf("bob never finds Anna's private notes: %+v", got.Hits)
 	}
+	// A page only the group editors reads (ADR-29): carl finds it through his group, bob does not.
+	s.send(http.MethodGet, "/api/state", "", carlOf)
+	board := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Vorstandsbeschluss","parent":"`+team.ID+`"}`, sameSite))
+	addBlocks(t, s.site, board.ID, "Beschlossen.")
+	s.send(http.MethodPut, "/api/objects/"+board.ID+"/inherit", `{"inherit":false}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+board.ID+"/grants", `{"kind":"tenant","role":""}`, sameSite)
+	editors := ""
+	for _, g := range decode[struct {
+		Groups []apiGroup `json:"groups"`
+	}](t, s.get("/api/people")).Groups {
+		if g.Name == "editors" {
+			editors = g.ID
+		}
+	}
+	if got := s.send(http.MethodPut, "/api/objects/"+board.ID+"/grants", `{"kind":"group","who":"`+editors+`","role":"read"}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("grant to editors = %d", got)
+	}
+	s.drain()
+	if got := s.find("q=Vorstandsbeschluss", carlOf); len(got.Hits) != 1 || got.Hits[0].ID != board.ID {
+		t.Errorf("carl finds the page of his group: %+v", got.Hits)
+	}
+	if got := s.find("q=Vorstandsbeschluss", bob); len(got.Hits) != 0 {
+		t.Errorf("bob does not: %+v", got.Hits)
+	}
 	code := s.find("q=E-1042", nil)
 	if len(code.Hits) != 1 || code.Hits[0].Anchor != blocks[3] || !code.Hits[0].Code || !strings.Contains(code.Hits[0].Snippet, "<mark>E-1042</mark>") {
 		t.Errorf("a code finds its section, marked: %+v", code.Hits)

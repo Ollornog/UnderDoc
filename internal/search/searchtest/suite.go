@@ -57,9 +57,9 @@ func page(object, title string, sections ...string) []search.Doc {
 	return search.SectionDocs(base, secs)
 }
 
-func objects(t *testing.T, ctx context.Context, service *search.Service, account, text string, filters search.Filters) []string {
+func objects(t *testing.T, ctx context.Context, service *search.Service, account, text string, filters search.Filters, groups ...string) []string {
 	t.Helper()
-	result, err := service.Search(ctx, search.Request{Text: text, Account: account, Filters: filters, Limit: 20})
+	result, err := service.Search(ctx, search.Request{Text: text, Account: account, Groups: groups, Filters: filters, Limit: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,16 @@ func testReaders(t *testing.T, ctx context.Context, engine search.Engine, tenant
 	}
 	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "open"}, open)
 	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "private"}, private)
+	// A page the group "board" reads (ADR-29): found by its members only.
+	board := page("board", "Vorstand zur Kartenzahlung", "", "Beschluss: Kartenzahlung ab Januar.")
+	for i := range board {
+		board[i].Readers = []string{search.ReaderGroup("board")}
+	}
+	Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: "board"}, board)
 	service := serviceOf(engine, tenant)
+	if got := objects(t, ctx, service, "carl", "Kartenzahlung", search.Filters{}, "board"); !sameSet(got, "open", "board") {
+		t.Errorf("carl reads the open page and, through his group, the board's: %v", got)
+	}
 	if got := objects(t, ctx, service, "anna", "Kartenzahlung", search.Filters{}); !sameSet(got, "open", "private") {
 		t.Errorf("anna reads both pages: %v", got)
 	}

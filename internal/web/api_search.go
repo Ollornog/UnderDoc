@@ -76,6 +76,13 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 	if to, err := time.Parse(time.DateOnly, query.Get("to")); err == nil {
 		request.Filters.To = to.Add(24*time.Hour - time.Second)
 	}
+	if h.options.DB != nil {
+		groups, err := h.options.DB.GroupsOf(r.Context(), user.ID)
+		if h.failed(w, err, "search") {
+			return
+		}
+		request.Groups = groups
+	}
 	result, err := h.options.Search.Search(r.Context(), request)
 	if h.failed(w, err, "search") {
 		return

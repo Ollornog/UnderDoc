@@ -78,7 +78,7 @@ func TestCopyFollowsAccessAndLimits(t *testing.T) {
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	a, _ := db.CreatePage(ctx, anna, "A", team.ID)
 	kid, _ := db.CreatePage(ctx, anna, "Kid", a.ID)
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", archive.ID); err != nil {
+	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Copy(ctx, a.ID, bob.ID, archive.ID, ""); !errors.Is(err, ErrNotAllowed) {

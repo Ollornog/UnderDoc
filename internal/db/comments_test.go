@@ -32,7 +32,7 @@ func thread(comments []Comment) []string {
 
 func setAccess(t *testing.T, db *DB, objectID, access string) {
 	t.Helper()
-	if _, err := db.pool.Exec(inMain(), "UPDATE objects SET access = nullif($2, '') WHERE id = $1", objectID, access); err != nil {
+	if err := setLevel(db, objectID, access); err != nil {
 		t.Fatal(err)
 	}
 }

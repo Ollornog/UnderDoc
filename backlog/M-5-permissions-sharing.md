@@ -2,7 +2,7 @@
 id: M-5
 type: Milestone
 title: Permissions and sharing
-status: offen
+status: in-arbeit
 tags: [permissions, security]
 created: 2026-11-06
 ---

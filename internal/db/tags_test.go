@@ -47,7 +47,7 @@ func TestTags(t *testing.T) {
 	if _, err := db.SetTags(ctx, line.ID, anna.ID, []string{"x"}); !errors.Is(err, ErrPlace) {
 		t.Errorf("a line takes no tags: %v", err)
 	}
-	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "comment"); err != nil {
+	if _, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "comment"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.SetTags(ctx, plan.ID, bob.ID, []string{"mine"}); err == nil {

@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Roles for persons, groups and the tenant (ADR-29, M-5, [docs/rights.md](docs/rights.md)): owner, manage, edit,
+  comment and read on every object of the documents and of Files, inherited down the tree, narrowed by breaking the
+  inheritance (which copies what held from above), ownership transferred with the former owner keeping edit. Local
+  groups made by administrators, and groups taken over from OIDC and the gate. One function of the database decides the
+  role, and every query that lists, finds or opens objects asks it, embeddings and search included; the index keeps
+  readers as persons, groups and the tenant and is filled again once. Administrators manage rights, not content; private
+  notes stay private. API under `/api/objects/<id>/rights|grants|inherit|owner`, `/api/groups` and `/api/people`.
+
 - The decision on rights (ADR-29, M-5): roles owner, manage, edit, comment and read for persons, groups (local, or
   taken over from OIDC and the gate), the whole tenant and links; only allowing, narrower by breaking the inheritance;
   administrators manage rights, not content; the tree an object lives in decides, and shared folders set a limit (T-9).
@@ -52,6 +60,10 @@ All notable changes to this project are documented in this file. The format foll
   every way an account, a block or a file comes in.
 
 ### Changed
+
+- The level for all others of ADR-20 is now the role of the whole tenant (migration 022): a narrower level below breaks
+  the inheritance; the writers of the folder of the tenant are a group with the role edit. The owner of an object now
+  manages what lies below it. The export writes `inherit: false` and `access: none` where they apply.
 
 - The pages of signing in and of the administration use the building blocks of C22 0508dbf: the sign-in is C22's
   card (the card is the form of the password, other ways above it set apart by "or", registration as its action), a

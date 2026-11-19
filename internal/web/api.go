@@ -46,10 +46,15 @@ type apiNode struct {
 	Path    string `json:"path,omitempty"`
 	Private bool   `json:"private,omitempty"`
 	Owner   string `json:"owner,omitempty"`
-	// Access is what all others may do, set on this object itself; empty when it comes from above (ADR-20).
+	// Access is what the whole tenant is granted on this object itself; empty when nothing is granted here (ADR-29).
 	Access string `json:"access,omitempty"`
+	// Breaks tells that the object takes no roles from above (ADR-29).
+	Breaks bool `json:"breaks,omitempty"`
 	// Mine tells the workspace that the viewer owns it, so it offers what only the owner may do. Each change checks again.
-	Mine bool     `json:"mine,omitempty"`
+	Mine bool `json:"mine,omitempty"`
+	// Role is the viewer's role on it (ADR-29): read, comment, edit, manage or owner. The workspace greys out what it
+	// does not allow; each change checks again.
+	Role string   `json:"role,omitempty"`
 	Tags []string `json:"tags,omitempty"`
 	// Width and Contents say how a document of the database is shown, where they are set (ADR-16).
 	Width    string `json:"width,omitempty"`
@@ -180,7 +185,12 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
 	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
-		Access: o.Access, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template, Kids: []apiNode{}}
+		Access: o.Access, Breaks: o.Breaks, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template, Kids: []apiNode{}}
+	role, err := h.options.DB.Role(r.Context(), o.ID, user.ID)
+	if err != nil {
+		h.log.Error("role failed", slog.String("error", err.Error()))
+	}
+	node.Role = role
 	if depth > 8 {
 		return node
 	}

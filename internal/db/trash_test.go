@@ -84,7 +84,7 @@ func TestDeleteFollowsAccess(t *testing.T) {
 	inner, _ := db.CreateCollection(ctx, anna, "Inner", team.ID)
 	archive, _ := db.CreateCollection(ctx, anna, "Archive", "")
 	old, _ := db.CreatePage(ctx, anna, "Old", archive.ID)
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", archive.ID); err != nil {
+	if err := setLevel(db, archive.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Delete(ctx, old.ID, bob.ID); !errors.Is(err, ErrNotAllowed) {
@@ -204,7 +204,7 @@ func TestRestore(t *testing.T) {
 	if err := db.Delete(ctx, early.ID, bob.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.pool.Exec(ctx, "UPDATE objects SET access = 'read' WHERE id = $1", team.ID); err != nil {
+	if err := setLevel(db, team.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Restore(ctx, early.ID, bob.ID); !errors.Is(err, ErrNotAllowed) {

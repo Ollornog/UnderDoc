@@ -466,7 +466,7 @@ func TestAttachmentsBelongToTheirPage(t *testing.T) {
 	if _, err := db.GetAttachment(ctx, page.ID, "a1", bob.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.SetAccess(ctx, team.ID, anna.ID, "read"); err != nil {
+	if _, err := db.SetAccess(ctx, team.ID, Actor{ID: anna.ID}, "read"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.StartUpload(ctx, bob.ID, UploadTarget{Page: page.ID}, "x.png", 1); !errors.Is(err, ErrNotAllowed) {

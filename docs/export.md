@@ -35,7 +35,9 @@ backup/
 
 - **Collections and folders** are directories. Their `.underdoc.yaml` holds what a directory cannot: the ID, the kind
   (`collection` or `folder`), the exact title, the description and access level where set, and the order of the entries,
-  lines and spaces included, each with its ID:
+  lines and spaces included, each with its ID. The access level is the role of the whole tenant on it (ADR-29,
+  [rights.md](rights.md)): `read`, `comment`, `edit` or `manage`, and `none` on a shared collection at the top that grants
+  the tenant nothing; `inherit: false` marks a directory or page that breaks the inheritance of roles:
 
   ```yaml
   id: 7k2m9q4x1c

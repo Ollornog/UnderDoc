@@ -71,6 +71,11 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 		return nil, nil, err
 	}
 	for _, n := range nodes {
+		// A shared collection at the top that grants the tenant nothing says so, since an export from before ADR-29 has
+		// no level there and means edit.
+		if n.Parent == "" && !n.Private && n.Access == "" {
+			n.Access = AccessNone
+		}
 		switch {
 		case n.Parent != "":
 			if p := byID[n.Parent]; p != nil {
@@ -311,15 +316,43 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, access, private, tags, width, contents, template, area)
-			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, nullif($8, ''), $9, $10, nullif($11, ''), nullif($12, ''), $13,
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, inherit, private, tags, width, contents, template, area)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, $8, $9, $10, nullif($11, ''), nullif($12, ''), $13,
 				coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $14))
 			ON CONFLICT (tenant, id) DO NOTHING
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, o.Access, o.Private, tagsOf(o),
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, !(o.Breaks && o.Parent != ""), o.Private, tagsOf(o),
 			o.Width, o.Contents, o.Template && o.Kind == KindPage, areaOf(o)))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}
-		return made, err
+		if err != nil {
+			return made, err
+		}
+		access := importedAccess(o)
+		if access == "" {
+			return made, nil
+		}
+		if err := setGrant(ctx, tx, made.ID, ToTenant, "", access, o.Owner); err != nil {
+			return Object{}, err
+		}
+		made.Access = access
+		return made, nil
 	}
+}
+
+// AccessNone marks in an export a shared collection at the top that grants the whole tenant nothing.
+const AccessNone = "none"
+
+// importedAccess is the role an imported object grants the whole tenant: what it brings; at the top of the shared tree
+// edit where it brings nothing, as an export from before ADR-29 means; nothing on something private or a divider.
+func importedAccess(o Object) string {
+	switch {
+	case o.Private || IsDivider(o.Kind) || o.Access == AccessNone:
+		return ""
+	case grantable(o.Access):
+		return o.Access
+	case o.Parent == "" && o.Access == "":
+		return RoleEdit
+	}
+	return ""
 }
