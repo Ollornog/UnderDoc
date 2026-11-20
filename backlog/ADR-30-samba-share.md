@@ -201,10 +201,15 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
   stays off the disk, where the scan would have taken it for deleted.
 - **No `%` in a share path:** smb.conf reads it as a variable (`%U` is the user's name), so a folder with `%` in its path is
   no share of its own, and the helper refuses such a path; in a comment it becomes a space.
-- **Open, for the maintainer to decide:** passage (`--x`) through the folders above a share of one's own lets its user
-  tell an existing name there from a missing one (`NT_STATUS_ACCESS_DENIED` against `NT_STATUS_OBJECT_NAME_NOT_FOUND`).
-  Closing it needs the folder outside the tree (a bind mount per share, which the companion may not make without
-  `CAP_SYS_ADMIN`) or a module of smbd of its own.
+- **Known limit: guessed names above a share of one's own.** Passage (`--x`) through the folders above a share of one's
+  own lets its user tell an existing name there from a missing one (`NT_STATUS_ACCESS_DENIED` against
+  `NT_STATUS_OBJECT_NAME_NOT_FOUND`): a guessed name is confirmed, nothing more. Decided on 2026-11-20 not to fix it:
+  closing it needs the share's folder outside the tree (a bind mount per share, which the companion may not make without
+  `CAP_SYS_ADMIN`, a capability worth more than this) or a module of smbd of its own, both out of proportion to a leak
+  of names that must be guessed one by one. What stays protected: contents (reading fails), listing (the passage
+  folder cannot be listed and shows no name) and rights (passage grants nothing else). The test
+  `TestSambaPassageKnownLimitGuessedNames` holds both: the listing and the read stay closed, and the guess is named as
+  the limit; if the guess ever closes, that test goes red and this entry and `docs/samba.md` are to change.
 
 ### Not now
 

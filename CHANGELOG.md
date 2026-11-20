@@ -174,6 +174,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- Samba, known limit ([docs/samba.md](docs/samba.md), ADR-30): a user who reaches a folder only through passage on the
+  way to their own share can confirm a guessed name there, not list it or read it. Not fixed on purpose (it would need
+  `CAP_SYS_ADMIN` in the companion); the test holds that listing and reading stay closed.
 - Samba after an attack round (ADR-30, [docs/samba.md](docs/samba.md)): a change on the share whose writer neither the
   audit nor a Samba user owning the file names is no longer taken as the owner of the object but put back (something new
   stays on disk untaken), and the log says so; the audit keeps only operations that change something, numbered, so a
