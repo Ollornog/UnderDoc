@@ -48,3 +48,8 @@ rename included), new files and folders, renames, moves and deletions into the t
 writes to disk and is held back while a file is open over SMB, and the facts panel shows each file's share path and who
 has it open. Tested against real Samba in the CI. Open in M-2: Excel as native tables (and search over tables), tags on
 files, the document types for PowerPoint, video and image collections, and the acceptance with real Excel.
+
+**Settled on 2026-11-20:** [ADR-31](ADR-31-spreadsheets-as-tables.md) says how spreadsheets become tables: a reader of
+UnderDoc's own for `.xlsx`/`.xlsm`, `.ods` and `.csv` (excelize weighed and left), cached values without a formula engine,
+number formats in the reader's language, hidden stays hidden, limits against bombs and huge sheets, and the cells of the
+visible sheets in the search for readers of the file. Read only in this milestone.

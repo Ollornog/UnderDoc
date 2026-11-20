@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- How spreadsheets become tables ([ADR-31](backlog/ADR-31-spreadsheets-as-tables.md)), before its code: a reader of
+  UnderDoc's own for `.xlsx`/`.xlsm`, `.ods` and `.csv`; a sheet, a range, a defined name or an Excel table embedded by
+  an ID local to its file (`<file>#x3`) and followed through new versions, with a notice where it cannot be followed;
+  cached values, number formats in the reader's language, hidden stays hidden; rights, read links, export and search as
+  for the file; limits against zip bombs, entities and huge sheets, and CSV without formula injection. Read only.
 - The quota reaches the client of Samba (ADR-30, [docs/samba.md](docs/samba.md)): after each pass the companion gets the
   room of each shared library that a quota, the limit of the tenant or the storage of the hoster binds (the new request
   `room`), and smbd tells it through `dfree command`, so Windows shows it on the drive and Explorer refuses a copy that

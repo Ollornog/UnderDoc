@@ -87,3 +87,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-28](ADR-28-file-storage.md)** Files: the content store keeps the versions, the disk holds the working copy for the share
 * ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files
 * ☑ **[ADR-30](ADR-30-samba-share.md)** Samba: a working copy on disk, a watcher, and a companion that UnderDoc steers without root
+* ☑ **[ADR-31](ADR-31-spreadsheets-as-tables.md)** Spreadsheets as native tables: read by UnderDoc, embedded by a local ID, never quietly wrong
