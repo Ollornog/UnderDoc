@@ -166,9 +166,10 @@ func TestTimeTrackingPrivateAndManaged(t *testing.T) {
 		t.Fatalf("Bob's employers: %+v %v", cat.Employers, err)
 	}
 	managedID := managed.Catalog.Employers[0].ID
-	if got := other.get("/time/?e=" + managedID); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Bobs own") ||
-		!strings.Contains(got.Body.String(), `value="`+managedID+`"`) {
-		t.Errorf("Bob's list lacks one of his employers: %d", got.Code)
+	// The sheet has a column for each of his employers (EightPerDay M-6).
+	if got := other.get("/time/"); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Bobs own") ||
+		!strings.Contains(got.Body.String(), `data-col="e-`+managedID+`"`) {
+		t.Errorf("Bob's sheet lacks one of his employers: %d", got.Code)
 	}
 }
 

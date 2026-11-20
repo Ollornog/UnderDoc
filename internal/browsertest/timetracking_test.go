@@ -113,7 +113,8 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 		t.Error("the frame has a sign-in or an account of its own, or not the theme of the workspace")
 	}
 
-	// A new employer with a schedule of eight hours a day, then the week of today in the list.
+	// A new employer with a schedule of eight hours a day, then the week of today on the sheet: each field saves itself
+	// (EightPerDay M-6), in the table or, in a narrow frame, the journal, whichever the sheet chose.
 	b.clickInFrame(`#new-name`)
 	b.typeText("Acme work")
 	b.clickInFrame(`#new-mode-schedule`)
@@ -123,17 +124,19 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 	berlin, _ := time.LoadLocation("Europe/Berlin")
 	today := core.DateIn(time.Now(), berlin)
 	monday := today.StartOfWeek(time.Monday)
+	if !b.waitFor(`!!` + inFrame + `?.querySelector('[data-sheet] [data-cell][data-date="` + monday.String() + `"]')`) {
+		t.Fatalf("the sheet does not show the week: %s", b.eval(inFrame+`?.body?.innerText.slice(0, 300)`))
+	}
 	for i := range 5 {
 		day := monday.AddDays(i).String()
-		field := `#v-` + day
+		field := `[data-cell][data-date="` + day + `"]`
+		value := strconv.Itoa(7 + i%3)
+		b.eval(inFrame + `.querySelector('` + field + `').scrollIntoView({block: 'center', behavior: 'instant'}); 1`)
 		b.clickInFrame(field)
-		b.typeText(strconv.Itoa(7 + i%3))
-		// The page of the frame before Enter carries a mark; only the page loaded after the save lacks it, so a typed
-		// but unsaved value cannot pass for a saved one.
-		b.eval(`(` + frameWindow + `).udBefore = true; 1`)
+		b.typeText(value)
 		b.enter()
-		if !b.waitFor(`!` + frameWindow + `?.udBefore && ` + inFrame + `?.readyState === 'complete' && ` + inFrame + `?.querySelector('` + field + `')?.value === '` + strconv.Itoa(7+i%3) + `' && ` + inFrame + `.location.search.includes('done=saved')`) {
-			t.Fatalf("%s was not saved: %s", day, b.eval(inFrame+`?.body?.innerText.slice(0, 300)`))
+		if !b.waitFor(inFrame + `?.querySelector('` + field + `')?.value === '` + value + `'`) {
+			t.Fatalf("%s does not show what was typed: %s", day, b.eval(inFrame+`?.body?.innerText.slice(0, 300)`))
 		}
 	}
 	b.shot("time-tracking")
@@ -145,7 +148,14 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 		t.Errorf("a redraw of the workspace reloaded the frame: %s, was %s", after, before)
 	}
 
-	entries, err := database.TimeStore().Entries(main, core.EntryFilter{Owner: db.Person("anna"), From: monday, To: monday.AddDays(6)})
+	// Each field saved itself: the week arrives in the database, five entries.
+	var entries []core.Entry
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		entries, err = database.TimeStore().Entries(main, core.EntryFilter{Owner: db.Person("anna"), From: monday, To: monday.AddDays(6)})
+		if (err == nil && len(entries) == 5) || time.Now().After(deadline) {
+			break
+		}
+	}
 	if err != nil || len(entries) != 5 {
 		t.Fatalf("the week in the database: %+v %v", entries, err)
 	}
@@ -154,7 +164,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 	if err := database.SetTenantModules(acme, []string{module.Documents, module.Files, module.Time}); err != nil {
 		t.Fatal(err)
 	}
-	for _, target := range []string{"/time/", "/time/weeks", "/time/all", "/time/reports", "/api/time/absences?from=2026-01-01&to=2026-12-31"} {
+	for _, target := range []string{"/time/", "/time/week", "/time/all", "/time/reports", "/api/time/absences?from=2026-01-01&to=2026-12-31"} {
 		request, err := http.NewRequest(http.MethodGet, base+target, nil)
 		if err != nil {
 			t.Fatal(err)
