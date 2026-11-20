@@ -75,6 +75,8 @@ type apiState struct {
 	Settings json.RawMessage `json:"settings,omitempty"`
 	// Files tells that the view Files has the database and the content store behind it (ADR-28).
 	Files bool `json:"files,omitempty"`
+	// ShareRefused are the saves of this account over SMB that a quota or the largest size turned away (ADR-30).
+	ShareRefused []apiRefused `json:"shareRefused,omitempty"`
 }
 
 type apiDocument struct {
@@ -145,6 +147,11 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 		Files: h.options.DB != nil && h.options.Store != nil &&
 			slices.ContainsFunc(modules, func(m module.State) bool { return m.ID == module.Files && m.On && !m.Hidden }),
 		Modules: apiModules(modules),
+	}
+	if h.options.Share != nil && h.options.DB != nil {
+		if refused := h.refusedOf(r.Context(), user.ID); len(refused) > 0 {
+			state.ShareRefused = refused
+		}
 	}
 	if state.User.Groups == nil {
 		state.User.Groups = []string{}

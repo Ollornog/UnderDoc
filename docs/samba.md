@@ -84,6 +84,17 @@ nothing of it:** a new version, a restore, a rename, a move or a deletion answer
 runs at start, after every change the database announces, and once an hour; the table `share_files` keeps what disk and
 database last agreed on, so a restart knows which side changed.
 
+**The quota reaches the client** (2026-11-20, ADR-30). After each pass UnderDoc gives the companion the room of each
+shared library that a limit binds: the quota of the library or of a user's own folder, the limit of the tenant
+(`UNDERDOC_FILES_QUOTA`) or the storage the hoster allows, whichever leaves the least, versions counted. smbd asks for it
+through `dfree command` (a link `dfree` to the helper in its directory), so Windows shows that room on the drive and
+Explorer refuses a copy that does not fit before it starts; a library without a limit shows the disk, and nothing shows
+more than the disk has. smbd does not refuse a write itself: a save that does not ask for room first still lands on
+disk, and stays there without a version, as does a file larger than `UNDERDOC_FILES_MAX_SIZE`; nothing writes the
+database's content over it. **Whoever saved it is told:** once in the log as theirs ("… over Samba was not taken: the
+quota is full"), when the workspace opens (a notice), and in the profile under SMB share, until there is room and the
+file is saved again, or it is gone.
+
 ## Setup
 
 UnderDoc and the companion share two directories at the same paths: the share directory, on a file system with extended
@@ -136,6 +147,7 @@ anyone else is turned away. A connection carries one JSON request from a closed 
 | `acl` | sets the ACL of directories, their default ACL and that of the files directly in them, and gives each to `UNDERDOC_UID`; every path is opened below the tenant's directory without following links |
 | `open` | the files open over SMB, by user, and whether for writing |
 | `who` | the latest operations of smbd's audit that change something, which the helper receives as the syslog of its container, numbered, with the numbers of the oldest and the newest it keeps |
+| `room` | the room of each library that a limit binds (path, free, total); the helper keeps one file per library in `<run>/room` (passed, not listed) for `dfree command`, and removes those not named. A companion from before answers it as unknown: UnderDoc says so once and clients see the disk |
 
 No request carries a command line, and every name, UID, hash and path is checked against the rules of the channel
 (`internal/samba`). A share path never holds `%`, which smb.conf would read as a variable such as `%U`: a folder with `%`

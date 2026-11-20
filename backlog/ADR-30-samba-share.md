@@ -231,6 +231,12 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
     it (a notice with the file and why), and lists it in the profile under Samba, until the file is taken or gone. It is
     kept in memory and found again by the next pass after a start.
   - A companion from before answers `room` with an error: UnderDoc says so once in its log and goes on without it.
+  - **Built on 2026-11-20** ([docs/samba.md](../docs/samba.md)). smbd runs `dfree command` as one path with the
+    directory as its only argument and does not split the setting into words, so it names a link `dfree` to the helper
+    in the helper's directory (the first try, the helper with an argument, ran nothing, and smbd fell back to a made-up
+    room of 2 MB). Building it showed that a refused save did not stay on disk: the same pass wrote the database's
+    content over it, so the save was lost; now nothing is written over a refused save, and each pass takes it up again
+    until there is room or it is gone. A real smbd shows the room in `TestSambaQuotaReachesTheClient`.
 
 ### Not now
 

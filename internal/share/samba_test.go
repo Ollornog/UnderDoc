@@ -16,7 +16,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -402,5 +404,51 @@ func TestSambaOpenHoldsTheWebBack(t *testing.T) {
 	place, ok := f.m.PlaceOf(inMain(), file.ID, anna.ID)
 	if !ok || place.Path != `\\files\Company\busy.txt` || !slices.Contains(place.OpenBy, "anna") {
 		t.Errorf("place: %+v %v", place, ok)
+	}
+}
+
+// The quota of a library reaches the client through dfree command (ADR-30, 2026-11-20): smbclient's du shows the room
+// the quota leaves, also in a folder below; a save past it stays on the share without a version, and its writer is told.
+func TestSambaQuotaReachesTheClient(t *testing.T) {
+	f := setupSamba(t)
+	ctx := inMain()
+	if err := f.db.SetQuota(ctx, f.company.ID, 1<<20); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db.CreateFolder(ctx, anna, "Reports", f.company.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.put(anna, "Company", "first.txt", strings.Repeat("a", 100<<10))
+	f.sync(tenant.Main)
+	du := regexp.MustCompile(`(\d+) blocks of size (\d+)\. (\d+) blocks available`)
+	room := func(dir string) (total, free int64) {
+		t.Helper()
+		out, err := f.smb(tenant.Main, anna, "", "Company", "cd "+dir+"; du", "")
+		m := du.FindStringSubmatch(out)
+		if err != nil || m == nil {
+			t.Fatalf("du in %s: %v %s", dir, err, out)
+		}
+		n, _ := strconv.ParseInt(m[1], 10, 64)
+		size, _ := strconv.ParseInt(m[2], 10, 64)
+		left, _ := strconv.ParseInt(m[3], 10, 64)
+		return n * size, left * size
+	}
+	for _, dir := range []string{"/", "Reports"} {
+		total, free := room(dir)
+		if total != 1<<20 || free > 1<<20-100<<10 || free < 1<<20-100<<10-8<<10 {
+			t.Errorf("du in %s: %d free of %d, want about %d of %d", dir, free, total, 1<<20-100<<10, 1<<20)
+		}
+	}
+	// Past the quota: the file stays, without becoming an object, and anna is told.
+	f.put(anna, "Company", "big.txt", strings.Repeat("b", 2<<20))
+	f.sync(tenant.Main)
+	if _, err := os.Stat(filepath.Join(f.dir, f.company.ID, "big.txt")); err != nil {
+		t.Errorf("the save past the quota left the share: %v", err)
+	}
+	if got := f.m.Refused(ctx, anna.ID); len(got) != 1 || got[0].Path != "big.txt" || got[0].Why != "the quota is full" {
+		t.Errorf("anna is not told: %+v", got)
+	}
+	if _, free := room("/"); free > 1<<20-100<<10 {
+		t.Errorf("du after the refused save: %d free", free)
 	}
 }

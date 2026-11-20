@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The quota reaches the client of Samba (ADR-30, [docs/samba.md](docs/samba.md)): after each pass the companion gets the
+  room of each shared library that a quota, the limit of the tenant or the storage of the hoster binds (the new request
+  `room`), and smbd tells it through `dfree command`, so Windows shows it on the drive and Explorer refuses a copy that
+  does not fit. A save over SMB that a quota or the largest size turns away is told to whoever saved it: once in their
+  log, when the workspace opens, and in the profile under SMB share. **The companion changed:** its image must be built
+  again; a companion from before keeps working without the room.
 - A password typed as text (ADR-7, [docs/secrets.md](docs/secrets.md)): a line such as `Router password: hunter2`, or a
   row of a table with such a label, holds the page back in the editor before anything is sent, and the editor asks below
   the line: Keep it as a password makes a secret from the value and writes its reference in its place, It is not a
@@ -177,6 +183,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A save over SMB that a quota turned away was written over by the database's content in the same pass, so it was lost
+  instead of staying on disk without a version as ADR-30 says; now it stays, and each pass takes it up again (ADR-30).
 - Taking a folder into something private now waits for whatever is being made or handed over at any depth below it, not
   only directly in it, so a page of someone else made at that moment deep inside never goes private with it (ADR-29).
 - The form to transfer what someone left behind chooses nobody until the administrator does, and does not offer the

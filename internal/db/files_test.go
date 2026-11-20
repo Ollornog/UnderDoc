@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // sha gives a made-up hash for test content: the database only checks its form.
@@ -663,5 +664,45 @@ func TestUploadAsNewNeverBecomesAVersion(t *testing.T) {
 	}
 	if v, err := db.FileVersions(ctx, real.File.ID, anna.ID); err != nil || len(v) != 1 || v[0].Blob != sha(1) {
 		t.Errorf("the real contract changed: %+v %v", v, err)
+	}
+}
+
+// TestTheRoomOfARoot: what a root still takes, as the companion of Samba tells it to the client (ADR-30): the limit that
+// leaves the least binds, versions count, and a root without any limit has no room of its own.
+func TestTheRoomOfARoot(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	if err := db.EnsureRoots(ctx, anna, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	mine := rootOfRole(t, db, anna.ID, RootUser)
+	if room, err := db.RootRoom(ctx, mine.ID); err != nil || room.Limited {
+		t.Fatalf("no limit, no room of its own: %+v %v", room, err)
+	}
+	db.SetLimits(Limits{User: 100, Tenant: 1000})
+	done := upload(t, db, anna.ID, UploadTarget{Parent: mine.ID}, "a", 30, sha(1))
+	upload(t, db, anna.ID, UploadTarget{File: done.File.ID}, "a", 20, sha(2))
+	if room, err := db.RootRoom(ctx, mine.ID); err != nil || room != (Room{Free: 50, Total: 100, Limited: true}) {
+		t.Errorf("the quota of the folder binds, versions count: %+v %v", room, err)
+	}
+	db.SetLimits(Limits{User: 100, Tenant: 70})
+	if room, err := db.RootRoom(ctx, mine.ID); err != nil || room != (Room{Free: 20, Total: 70, Limited: true}) {
+		t.Errorf("the limit of the tenant binds: %+v %v", room, err)
+	}
+	db.SetLimits(Limits{User: 40})
+	if room, err := db.RootRoom(ctx, mine.ID); err != nil || room != (Room{Free: 0, Total: 40, Limited: true}) {
+		t.Errorf("over the quota: %+v %v", room, err)
+	}
+	// The storage the hoster allows the tenant binds as well.
+	db.SetLimits(Limits{})
+	ten := int64(60)
+	if err := db.SetTenantLimits(ctx, tenant.Main, HosterLimits{MaxStorage: &ten}); err != nil {
+		t.Fatal(err)
+	}
+	if room, err := db.RootRoom(ctx, mine.ID); err != nil || room != (Room{Free: 10, Total: 60, Limited: true}) {
+		t.Errorf("the storage of the hoster: %+v %v", room, err)
+	}
+	if _, err := db.RootRoom(ctx, "zzzzzzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("no root: %v", err)
 	}
 }

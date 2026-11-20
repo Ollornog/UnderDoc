@@ -22,6 +22,7 @@ const (
 	OpACL   = "acl"   // ACLs for directories and the files directly in them
 	OpOpen  = "open"  // the files open over SMB now
 	OpWho   = "who"   // who wrote, made, renamed or deleted a path lately
+	OpRoom  = "room"  // the room each library that a limit binds has left, for dfree command
 )
 
 // Request is one request to the helper.
@@ -31,6 +32,16 @@ type Request struct {
 	ACL   []PathACL `json:"acl,omitempty"`
 	// Paths limits open and who to these paths, absolute below the tenant's directory; empty means all.
 	Paths []string `json:"paths,omitempty"`
+	// Room is the whole list of libraries a limit binds (room); a library not in it has the room of the disk.
+	Room []Room `json:"room,omitempty"`
+}
+
+// Room is what a library still takes: Free bytes of Total, by the quotas of UnderDoc (ADR-28, ADR-30). Its Path is the
+// directory of the library; dfree command answers it for everything below.
+type Room struct {
+	Path  string `json:"path"`
+	Free  int64  `json:"free"`
+	Total int64  `json:"total"`
 }
 
 // State is everything the companion shall know: its users and its shares. Applying the same state twice changes nothing.
@@ -251,6 +262,18 @@ func (r Request) Check(root string, uidMin, uidMax int) error {
 				if access != Pass && access != Read && access != Write {
 					return fmt.Errorf("access %q", access)
 				}
+			}
+		}
+		return nil
+	case OpRoom:
+		seen := map[string]bool{}
+		for _, room := range r.Room {
+			if !Below(root, room.Path) || room.Path == root || seen[room.Path] {
+				return ErrPath
+			}
+			seen[room.Path] = true
+			if room.Free < 0 || room.Total < room.Free {
+				return fmt.Errorf("room of %s: free and total do not fit", room.Path)
 			}
 		}
 		return nil

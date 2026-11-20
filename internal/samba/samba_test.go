@@ -67,6 +67,10 @@ func TestRequestCheck(t *testing.T) {
 	if err := good.Check(root, 20000, 29999); err != nil {
 		t.Fatal(err)
 	}
+	room := Request{Op: OpRoom, Room: []Room{{Path: root + "/c", Free: 10, Total: 100}, {Path: root + "/abc", Total: 5}}}
+	if err := room.Check(root, 20000, 29999); err != nil {
+		t.Fatalf("the room: %v", err)
+	}
 	bad := []Request{
 		{Op: "exec"},
 		{Op: OpApply},
@@ -86,6 +90,12 @@ func TestRequestCheck(t *testing.T) {
 		{Op: OpApply, State: &State{Shares: []Share{{Name: "Company", Path: root + "/c", Comment: "x\n[evil]"}}}},
 		// A folder named "%U" would be the folder of each user's name.
 		{Op: OpApply, State: &State{Shares: []Share{{Name: "Company", Path: root + "/c/%U"}}}},
+		// The room: only libraries below the tenant's directory, each once, free within total.
+		{Op: OpRoom, Room: []Room{{Path: "/etc", Total: 1}}},
+		{Op: OpRoom, Room: []Room{{Path: root, Total: 1}}},
+		{Op: OpRoom, Room: []Room{{Path: root + "/c", Total: 1}, {Path: root + "/c", Total: 2}}},
+		{Op: OpRoom, Room: []Room{{Path: root + "/c", Free: 2, Total: 1}}},
+		{Op: OpRoom, Room: []Room{{Path: root + "/c", Free: -1, Total: 1}}},
 	}
 	for i, r := range bad {
 		if err := r.Check(root, 20000, 29999); err == nil {
