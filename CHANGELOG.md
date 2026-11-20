@@ -151,6 +151,11 @@ All notable changes to this project are documented in this file. The format foll
   top. Collections made before keep what they granted. The level "" at the top (`/access`) now means nobody instead of
   edit, and the overview of a collection at the top offers "Nobody".
 
+- The time tracking runs EightPerDay `50e5120` (was `f388147`, EightPerDay T-17 and T-18): notes, projects, the
+  details of a day and its incomes in an approved week change only through a change request with a reason, a note of a
+  managed employer says who sees it, and the core refuses to write the details or incomes of a locked day
+  (`core.ErrLocked`), so UnderDoc's store refuses them too and the page tells why
+  ([docs/time-tracking.md](docs/time-tracking.md)). No migration; the records carry new JSON fields.
 - The time tracking runs EightPerDay `f388147` (was `de9f1ea`, EightPerDay M-6): the start page is one sheet in three
   views (table, journal, a grid per week) with a level of detail, each field saving itself, and the view kept per person.
   Its list and every week are gone, so the list of Time in nav3 names the sheet instead

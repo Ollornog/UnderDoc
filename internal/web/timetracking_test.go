@@ -4,6 +4,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -205,6 +206,69 @@ func TestTimeTrackingAbsencesForTheCalendar(t *testing.T) {
 		if code, _ := read(admin, query); code != http.StatusBadRequest {
 			t.Errorf("%q: %d", query, code)
 		}
+	}
+}
+
+// TestTimeTrackingLockedDayIsTold (EightPerDay T-18): the details of a day in a week handed in are locked in the core,
+// in UnderDoc's store too; the interface tells the member so (a sentence, never an error of the server), and the store
+// refuses the record itself with core.ErrLocked.
+func TestTimeTrackingLockedDayIsTold(t *testing.T) {
+	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	admin := newClientWith(t, s, gateHeaders)
+	other := newClientWith(t, s, bob)
+	switchTime(t, admin, true)
+	other.get("/time/") // Bob is known to the time tracking once he opened it.
+	org := "/time/orgs/" + tenant.Main
+	if got := admin.form(org+"/template", url.Values{"name": {"Full time"}, "mode": {"plan"}, "hours-1": {"8"},
+		"hours-2": {"8"}, "hours-3": {"8"}, "hours-4": {"8"}, "hours-5": {"8"}, "leave_days": {"30"}, "basis": {"week"},
+		"back": {"/"}}); got.Code != http.StatusSeeOther {
+		t.Fatalf("the template: %d %s", got.Code, got.Body.String())
+	}
+	if got := admin.form(org+"/features", url.Values{"approval": {"on"}, "confirm": {"on"}, "agreement": {"BV 2026"},
+		"back": {"/"}}); got.Code != http.StatusSeeOther {
+		t.Fatalf("the approval: %d %s", got.Code, got.Body.String())
+	}
+	if got := admin.form(org+"/member", url.Values{"person": {"u-bob"}, "role": {"member"}, "template": {"Full time"},
+		"from": {"2026-11-01"}, "records": {"on"}, "back": {"/"}}); got.Code != http.StatusSeeOther {
+		t.Fatalf("take Bob in: %d %s", got.Code, got.Body.String())
+	}
+	managed, err := database.TimeStore().Managed(inMain(), tenant.Main, core.MustDate("2026-01-01"), core.MustDate("2026-12-31"))
+	if err != nil || len(managed.Catalog.Employers) != 1 {
+		t.Fatalf("the organization's employer: %+v %v", managed.Catalog.Employers, err)
+	}
+	employer := managed.Catalog.Employers[0].ID
+	monday := core.MustDate("2026-11-16")
+	day := func(place string) url.Values {
+		return url.Values{"employer": {employer}, "date": {monday.String()}, "place": {place}, "reason": {"why"},
+			"back": {"/day?e=" + employer + "&d=" + monday.String()}}
+	}
+	if got := other.form("/time/book/dayinfo", day("Berlin")); got.Code != http.StatusSeeOther {
+		t.Fatalf("the details of the day: %d %s", got.Code, got.Body.String())
+	}
+	if got := other.form("/time/approval/submit", url.Values{"employer": {employer}, "kind": {"period"},
+		"from": {monday.String()}, "to": {monday.AddDays(6).String()}, "back": {"/"}}); got.Code != http.StatusSeeOther {
+		t.Fatalf("hand in the week: %d %s", got.Code, got.Body.String())
+	}
+	got := other.form("/time/book/dayinfo", day("Hamburg"))
+	if got.Code != http.StatusBadRequest || !strings.Contains(got.Body.String(), "cannot be changed") {
+		t.Errorf("a locked day: %d %s", got.Code, got.Body.String())
+	}
+	cat, err := database.TimeStore().Catalog(inMain(), "u-bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info core.DayInfo
+	for _, i := range cat.DayInfos {
+		if i.ID == core.DayInfoID(employer, monday) {
+			info = i
+		}
+	}
+	if info.Place != "Berlin" {
+		t.Fatalf("the details changed: %+v", cat.DayInfos)
+	}
+	info.Place = "Hamburg"
+	if err := database.TimeStore().Put(inMain(), info); !errors.Is(err, core.ErrLocked) {
+		t.Errorf("the store writes a locked day: %v", err)
 	}
 }
 
