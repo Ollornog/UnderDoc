@@ -48,6 +48,11 @@ frame by mouse and keyboard and checks that another tenant sees nothing of it.
   supervisor's view), which are off unless switched on with the reference to a works agreement, and every read of a
   member's data goes into that member's access log.
 - A person's overview over every employer, with its hints on the Working Hours Act, is shown only to the person.
+- A week handed in or approved is fixed as a whole: hours, notes, projects, the details of a day (place, kilometres,
+  standby) and its incomes change only through a change request with a reason, which the organization decides. The
+  core refuses the details and incomes of a locked day itself (`core.ErrLocked`), in UnderDoc's store as well, and the
+  page tells the member why instead of failing (`TestTimeTrackingLockedDayIsTold`). A note of a managed employer says
+  that the organization sees it.
 
 ## Database
 
