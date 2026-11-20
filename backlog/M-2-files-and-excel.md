@@ -37,3 +37,7 @@ each switched by hoster, tenant and user, and images pasted or dropped into the 
 the text of files and of attachments handed to the search service (M-12). Open in M-2: Excel as native tables (and search
 over tables), the facts panel, tags on files, the document types for PowerPoint, video and image collections, Samba and
 the watcher (T-1), the acceptance with real Excel.
+
+**Settled on 2026-11-20:** [ADR-30](ADR-30-samba-share.md) says how Samba is built: a working copy on disk only for
+shared libraries, the ID as an extended attribute, inotify with a full scan, the save through a temporary file and a
+rename, deleting into the trash, the web writing to disk, and no writing from the web while a file is open over SMB.

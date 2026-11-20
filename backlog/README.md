@@ -39,7 +39,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 ## Aufgaben
 
-* ☐ **[T-1](T-1-measure-office-saving.md)** Measure how Excel and LibreOffice save over Samba · M-2
+* ◐ **[T-1](T-1-measure-office-saving.md)** Measure how Excel and LibreOffice save over Samba · M-2
 * ☑ **[T-2](T-2-go-ui-foundation.md)** Web foundation and design adapter for a Go app · M-1
 * ☐ **[T-3](T-3-mermaid-under-strict-csp.md)** Render Mermaid under a strict CSP · M-3
 * ☐ **[T-4](T-4-versions-and-audit.md)** Store versions and record who changed what · M-2
@@ -86,3 +86,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-27](ADR-27-database-tables.md)** Native tables are rows in JSONB with field definitions, and Markdown tables convert by a button
 * ☑ **[ADR-28](ADR-28-file-storage.md)** Files: the content store keeps the versions, the disk holds the working copy for the share
 * ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files
+* ☑ **[ADR-30](ADR-30-samba-share.md)** Samba: a working copy on disk, a watcher, and a companion that UnderDoc steers without root
