@@ -187,7 +187,7 @@ The order can change between topics, not during one. M-12 in particular can move
 | Reading Excel | excelize | Reads stored results, calculates nothing itself |
 | Database | Postgres | Native lists, full-text search, many writers |
 | Sign-in | TinySesam as a gate in front | OIDC, SAML, LDAP, group mapping, independent of language |
-| Editor (later) | TipTap, Yjs, Hocuspocus | Existing parts, check each package's license |
+| Editor | CodeMirror 6 with a live preview (ADR-21); Yjs and Hocuspocus for editing together later (ADR-26) | Existing parts, check each package's license |
 | Excel in the browser (optional, later) | Collabora via WOPI | Check its limits first |
 | Review and issues (optional, later) | Forgejo as a separate service, to be decided in T-7 | Self-hosted, with an API |
 

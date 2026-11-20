@@ -180,7 +180,8 @@ the owner and who sees it.
     role. Administrators who do not manage an object make no link to it, but see and revoke every link.
   - A link to read shares a page, a file, or a folder of the files with what is below it; a collection or folder of the
     documents is shared with accounts only, to comment or edit. A frozen page holds the page alone, not the pages below
-    it, and not its attachments yet.
+    it, ~~and not its attachments yet~~ (until 2026-11-20): the attachments it shows, of the page and of the pages it
+    released, come through the link while its maker sees their page, and its links into the workspace become plain text.
   - An upload through a link becomes a file of the link's maker under a name nothing in the folder has.
   - Nobody takes their own administration away, so a tenant keeps an administrator. The organization of the time tracking
     follows only for memberships UnderDoc made itself (ID prefix `ud-admin-`), those from before stay.
@@ -191,7 +192,8 @@ the owner and who sees it.
     with edit. Before, edit on both was enough, and whoever only edited a page moved it into a collection of their own,
     managed it there as the owner above and could share it more widely. The workspace opens no gap for such a move.
   - **Into something private** goes only what is wholly the mover's: something of someone else below it refuses the move
-    with a message. Its grants and links end with the move, and the log keeps each for the owner. "What may X do"
+    with a message. The check locks the whole tree below, at every depth, so nothing of someone else comes in while it
+    runs (2026-11-20; before, only what lay directly in the object waited). Its grants and links end with the move, and the log keeps each for the owner. "What may X do"
     leaves out everything private.
   - **Deleting stops at what shuts the deleter out:** whoever deletes or purges must be allowed to edit everything that
     would go with it. A page below that breaks the inheritance and shuts them out refuses the deletion with a message,

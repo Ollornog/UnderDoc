@@ -56,6 +56,60 @@ func TestTheRoleDecidesWhatIsGreyed(t *testing.T) {
 	b.signIn(true)
 }
 
+// TestARefusalSaysWhy: when the server refuses a move or a deletion for a reason of the rights, the toast says that
+// reason, not only that others may not change it (ADR-29). Anna's page A holds a page of bob: she may neither take A into
+// her notes nor delete B, below which bob's page breaks the inheritance and shuts her out.
+func TestARefusalSaysWhy(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	sid := func(title string) string {
+		return b.eval(`(() => { const k = Object.keys(D).find(k => D[k].sid && D[k].n === ` + strconv.Quote(title) + `); return D[k].sid; })()`)
+	}
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	rowNamed(b, "B")
+	pageA, pageB := sid("A"), sid("B")
+	b.signInWith("bob", "Bob Kern", "")
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	b.eval(`window.done = null; (async () => {
+		const json = {'Content-Type': 'application/json'}, post = async (u, v) => (await fetch(u, {method: 'POST', headers: json, body: JSON.stringify(v)})).json();
+		await post('/api/pages', {title: 'Bob in A', parent: '` + pageA + `'});
+		const mine = await post('/api/pages', {title: 'Bob in B', parent: '` + pageB + `'});
+		await fetch('/api/objects/' + mine.id + '/inherit', {method: 'PUT', headers: json, body: JSON.stringify({inherit: false})});
+		// Broken, the page holds what held from above; bob takes all of it back, anna's role included.
+		const rights = await (await fetch('/api/objects/' + mine.id + '/rights')).json();
+		let r = {status: 204};
+		for (const g of rights.own) if (r.status === 204) r = await fetch('/api/objects/' + mine.id + '/grants', {method: 'PUT', headers: json, body: JSON.stringify({kind: g.kind, who: g.who, role: ''})});
+		window.done = rights.own.length > 0 ? r.status : 'nothing held';
+	})()`)
+	if !b.waitFor(`window.done === 204`) {
+		t.Fatalf("bob's pages were not made: %s", b.eval(`String(window.done)`))
+	}
+	b.signIn(true)
+	b.open(base + "/o/" + team)
+	b.ready("Team")
+	rowNamed(b, "A")
+	b.eval(`window.notes = null; fetch('/api/state').then(r => r.json()).then(s => { const n = s.collections.find(c => c.private);
+		D.refusalNotes = {sid: n.id, n: n.n}; window.notes = n.id; })`)
+	if !b.waitFor(`!!window.notes`) {
+		t.Fatal("no private notes")
+	}
+	key := func(title string) string {
+		return b.eval(`Object.keys(D).find(k => D[k].sid && D[k].n === ` + strconv.Quote(title) + `)`)
+	}
+	b.eval(`moveObject(` + strconv.Quote(key("A")) + `, 'refusalNotes', '', () => {})`)
+	if !b.waitFor(`(document.querySelector('.toast')?.textContent || '') === 'something in it belongs to someone else, and only what is all yours goes into something private'`) {
+		t.Errorf("the toast of a refused move: %q", b.eval(`document.querySelector('.toast')?.textContent`))
+	}
+	b.eval(`deleteObject(` + strconv.Quote(key("B")) + `)`)
+	if !b.waitFor(`(document.querySelector('.toast')?.textContent || '') === 'something below it is not open to you, so it cannot go with it; its owner moves it out first'`) {
+		t.Errorf("the toast of a refused deletion: %q", b.eval(`document.querySelector('.toast')?.textContent`))
+	}
+}
+
 // setupAsAdmin is setupWithDatabase where the group ops administers the tenant, as Anna's sign-in names it.
 func setupAsAdmin(t *testing.T) (*browser, string) {
 	t.Helper()
@@ -187,8 +241,18 @@ func TestTheTabRights(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]')`) {
 		t.Fatalf("what bob owns, with Transfer: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
 	}
-	b.eval(`window.confirm = () => true`)
-	b.submit(`[data-held-row="`+left+`"] [data-rform="transfer"]`, map[string]string{"to": "anna"})
+	// Nobody is chosen before the administrator chooses, and bob, whose things these are, is not offered: sent as it is,
+	// the form gives nothing away.
+	transfer := `[data-held-row="` + left + `"] [data-rform="transfer"]`
+	if got := b.eval(`(() => { const s = document.querySelector('` + transfer + ` select'); return s.value + '|' + [...s.options].filter(o => !o.disabled).map(o => o.value).join(','); })()`); got != "|anna" {
+		t.Errorf("the transfer chooses nobody and offers everyone but bob: %q", got)
+	}
+	b.eval(`window.confirm = () => true; window.asked = 0; document.querySelector('` + transfer + `').requestSubmit(); document.querySelector('` + transfer + `').dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))`)
+	b.eval(`window.r = null; fetch('/api/rights/held?account=bob').then(r => r.json()).then(j => { window.r = JSON.stringify(j.filter(x => x.object === '` + left + `').map(x => x.via)); }); ''`)
+	if !b.waitFor(`window.r !== null`) || b.eval(`window.r`) != `["owner"]` {
+		t.Errorf("sent without a choice, bob still owns it: %s", b.eval(`String(window.r)`))
+	}
+	b.submit(transfer, map[string]string{"to": "anna"})
 	// Bob keeps edit, as a former owner does.
 	if !b.waitFor(`!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]') && (document.querySelector('[data-held-row="` + left + `"]')?.innerText || '').includes('edit')`) {
 		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('.spanel')?.innerText`))

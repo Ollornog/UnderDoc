@@ -61,9 +61,12 @@ window.UDRights = (() => {
     const p = st.people || { people: [], groups: [] };
     return `<select class="select" name="${name}" aria-label="Who">${withTenant ? '<option value="tenant:">Everyone in this workspace</option>' : ""}${p.groups.length ? `<optgroup label="Groups">${p.groups.map((g) => `<option value="group:${esc(g.id)}">${esc(g.name)}${g.source === "synced" ? " (sign-in)" : ""}</option>`).join("")}</optgroup>` : ""}<optgroup label="People">${p.people.map((x) => `<option value="person:${esc(x.id)}">${esc(x.name)} (${esc(x.login)})</option>`).join("")}</optgroup></select>`;
   };
-  const personSelect = (name, current) => {
+  // personSelect chooses an account. With choose, nobody is chosen until someone is, and without is left out: a form that
+  // gives something away must not have a default that sends it somewhere by itself.
+  const personSelect = (name, current, choose, without) => {
     const p = st.people || { people: [] };
-    return `<select class="select" name="${name}" aria-label="Person">${p.people.map((x) => `<option value="${esc(x.id)}"${x.id === current ? " selected" : ""}>${esc(x.name)} (${esc(x.login)})</option>`).join("")}</select>`;
+    const first = choose ? '<option value="" selected disabled>Choose someone</option>' : "";
+    return `<select class="select" name="${name}" aria-label="Person"${choose ? " required" : ""}>${first}${p.people.filter((x) => x.id !== without).map((x) => `<option value="${esc(x.id)}"${x.id === current ? " selected" : ""}>${esc(x.name)} (${esc(x.login)})</option>`).join("")}</select>`;
   };
   // small is a small button: a chip in the workspace, a button of C22 in the dialog, which lies outside the workspace.
   const small = (attrs, label, inDialog) =>
@@ -171,7 +174,7 @@ window.UDRights = (() => {
   function heldHtml() {
     return st.held
       ? st.held.length
-        ? `<ul class="pad" data-held>${st.held.map((x) => `<li class="modrow" data-held-row="${esc(x.object)}"><span>${esc(x.title)}<small>${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}</small></span>${me.admin && x.via === "owner" && st.heldFor !== me.id ? `<form class="flex items-center gap-2" data-rform="transfer" data-id="${esc(x.object)}">${personSelect("to", "")}<button class="chip" type="submit">Transfer</button></form>` : ""}</li>`).join("")}</ul>${me.admin && st.held.some((x) => x.via === "owner") && st.heldFor !== me.id ? '<p class="hint">Whoever left owns what is listed with Transfer. Give it to someone else: you see its title and its rights, not its content.</p>' : ""}`
+        ? `<ul class="pad" data-held>${st.held.map((x) => `<li class="modrow" data-held-row="${esc(x.object)}"><span>${esc(x.title)}<small>${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}</small></span>${me.admin && x.via === "owner" && st.heldFor !== me.id ? `<form class="flex items-center gap-2" data-rform="transfer" data-id="${esc(x.object)}">${personSelect("to", "", true, st.heldFor)}<button class="chip" type="submit">Transfer</button></form>` : ""}</li>`).join("")}</ul>${me.admin && st.held.some((x) => x.via === "owner") && st.heldFor !== me.id ? '<p class="hint">Whoever left owns what is listed with Transfer. Give it to someone else: you see its title and its rights, not its content.</p>' : ""}`
         : '<p class="lab">Nothing of their own: what they see comes from everyone.</p>'
       : "";
   }
@@ -565,6 +568,7 @@ window.UDRights = (() => {
         if (!nw.busy && nw.title.trim()) make();
         return;
       case "transfer":
+        if (!v("to")) return;
         if (!window.confirm("Give this to someone else? Whoever had it keeps the role edit. You see nothing of it unless you hold a role.")) return;
         act(async () => {
           await api("PUT", `/api/objects/${encodeURIComponent(f.dataset.id)}/owner`, { to: v("to") });
