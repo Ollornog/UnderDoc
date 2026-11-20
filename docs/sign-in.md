@@ -73,8 +73,10 @@ What a tenant enters for other systems (the client secret of OIDC today; sources
 sealed with AES-256-GCM under `UNDERDOC_SECRET_KEY` (32 random bytes in base64, for example `openssl rand -base64 32`),
 bound to its tenant and its name, so a sealed value copied elsewhere does not open. It can be written and used, never
 shown again, and never reaches a log. Without the key, the ways that need it are not offered. Package `vault` is the
-building block for later modules: `vault.Store{Vault, Rows: db}` with `Put`, `Has`, `Use` and `Delete`. Changing the key
-means entering the secrets and setting up the apps for codes again.
+building block for later modules: `vault.Store{Vault, Rows: db}` with `Put`, `Has`, `Use` and `Delete`. The same vault
+seals the passwords in the text and the NT hashes of Samba. **Changing the key** (2026-11-20): start with the new key in
+`UNDERDOC_SECRET_KEY` and the old one in `UNDERDOC_SECRET_KEY_OLD`, run `underdoc rekey`, then drop the old key
+([secrets.md](secrets.md#the-key)); before, it meant entering the secrets and setting up the apps for codes again.
 
 ## Libraries
 

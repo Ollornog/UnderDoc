@@ -18,7 +18,9 @@
 //	UNDERDOC_FILES_MAX_SIZE, _QUOTA, _USER_QUOTA, _COLLECTION_QUOTA, _KEEP_ALL_DAYS, _KEEP_DAILY_DAYS, _KEEP_WEEKLY_DAYS
 //	                        limits and how long versions are kept (docs/files.md)
 //	UNDERDOC_GATE           "on" lets tenants trust the headers of a sign-in gate, "off" never; empty keeps it where it is
-//	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC (none: not offered)
+//	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC, passwords in the
+//	                        text, app passwords of Samba (none: not offered)
+//	UNDERDOC_SECRET_KEY_OLD the key before a rotation, until underdoc rekey ran (docs/secrets.md)
 //	UNDERDOC_MODULES        the modules allowed, each on by default or with ":off" off by default (none: every module)
 //	UNDERDOC_HOSTER_HOST    with many tenants, the host name of the hoster administration (none: no such page)
 //	UNDERDOC_OFFICE_URL     the optional Office module for previews, a Gotenberg service (none: no Office previews)
@@ -35,6 +37,8 @@
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
 //	underdoc invite [--tenant <id>] [--admin] <login> <name>       an invitation to a local account, as a link path
 //	underdoc reindex [--tenant <id>]                               everything of a tenant queued for the search service again
+//	underdoc rekey                                                 every sealed value of every tenant sealed again under
+//	                                                               UNDERDOC_SECRET_KEY, opened with UNDERDOC_SECRET_KEY_OLD
 //
 // Each tenant chooses how people sign in (docs/sign-in.md): passkeys, password and code, password, OIDC, or a sign-in gate
 // in front that passes the user on in request headers. An instance that ran behind a gate keeps it. It binds to loopback
@@ -68,7 +72,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc reindex [--tenant <id>] | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -127,6 +131,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		err = importTree(ctx, owner, rest[0], rest[1], stdout, stderr)
+	case args[0] == "rekey" && len(args) == 1:
+		err = rekey(context.Background(), stdout)
 	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":
 		err = addTenant(context.Background(), args[2], args[3], stdout)
 	case args[0] == "invite":
@@ -175,13 +181,16 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	if options.Modules, err = module.ParsePolicy(os.Getenv("UNDERDOC_MODULES")); err != nil {
 		return err
 	}
-	keys, err := vault.New(os.Getenv(vault.KeyEnv))
+	keys, err := vault.NewRotating(os.Getenv(vault.KeyEnv), os.Getenv(vault.OldKeyEnv))
 	if err != nil {
 		return err
 	}
 	options.Vault = keys
 	if !keys.Ready() {
-		log.Info(vault.KeyEnv + " is not set: password and code, and the client secret of OIDC, are not offered")
+		log.Info(vault.KeyEnv + " is not set: password and code, the client secret of OIDC, passwords in the text and Samba are not offered")
+	}
+	if keys.Rotating() {
+		log.Warn(vault.OldKeyEnv + " is set: run underdoc rekey, then remove it")
 	}
 	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
 		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")

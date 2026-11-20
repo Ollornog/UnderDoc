@@ -114,7 +114,9 @@ type handler struct {
 	uploads uploadBusy
 	// throttle is the limit against guessing passwords.
 	throttle *auth.Throttle
-	oidc     oidcProviders
+	// reveals is the limit on revealing passwords of the text (ADR-7).
+	reveals *auth.Rate
+	oidc    oidcProviders
 }
 
 // New returns the complete handler with logging and security headers.
@@ -123,7 +125,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		options.Search = search.NewService(nil, TitleFallback(options.DB, store), tenant.Main, log)
 	}
 	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
-		throttle: auth.NewThrottle()}
+		throttle: auth.NewThrottle(), reveals: auth.NewRate(revealsPerWindow, revealWindow)}
 	if h.options.Modules.IsZero() {
 		h.options.Modules, _ = module.ParsePolicy("")
 	}
@@ -229,6 +231,15 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("GET /api/values", h.apiValues)
 	doc("GET /api/snippets", h.apiSnippets)
 	doc("GET /api/pages/{id}/versions", h.apiVersions)
+	// Passwords in the text (ADR-7): the value only through reveal.
+	doc("GET /api/pages/{id}/secrets", h.apiPageSecrets)
+	doc("POST /api/pages/{id}/secrets", h.apiCreateSecret)
+	doc("GET /api/secrets/{id}", h.apiSecret)
+	doc("PUT /api/secrets/{id}", h.apiChangeSecret)
+	doc("DELETE /api/secrets/{id}", h.apiDeleteSecret)
+	doc("POST /api/secrets/{id}/reveal", h.apiRevealSecret)
+	doc("PUT /api/secrets/{id}/readers", h.apiSecretReaders)
+	doc("POST /api/secrets/{id}/versions/{n}/restore", h.apiRestoreSecret)
 	doc("GET /api/pages/{id}/comments", h.apiComments)
 	doc("POST /api/pages/{id}/comments", h.apiAddComment)
 	doc("PATCH /api/comments/{id}", h.apiChangeComment)

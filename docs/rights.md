@@ -49,6 +49,8 @@ object's own grants.
 - **Versions are for edit:** the history of a page or a file holds what was taken out, so whoever only reads gets the
   current state, not the versions.
 - **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever holds no role on it.
+- **Passwords in the text** ([secrets.md](secrets.md), ADR-7) are revealed by whoever reads their page, or narrower by
+  whom its managers name; a role lent by a share link reveals none.
 
 ## On the Samba share
 
@@ -101,7 +103,9 @@ Access and changes are logged ([ADR-29](../backlog/ADR-29-roles-on-groups-and-pe
 `audit_log`): opening an object and changing it (each change of the API that went through, an upload, making something)
 once per account, object and hour; roles, the inheritance, owners, groups, members, administrators and links each time,
 with what was done; a link opened, used, a wrong password of a link and an upload through a link, with an empty actor for
-someone without an account; grants taken back and links revoked by a move into something private, visible to its owner. Nothing that lies in something private is logged. An entry keeps the plain IDs, so it outlives
+someone without an account; grants taken back and links revoked by a move into something private, visible to its owner; and each time a password of
+the text is made, revealed, copied, changed, restored, restricted, moved or deleted ([secrets.md](secrets.md)), never its
+value. Nothing that lies in something private is logged. An entry keeps the plain IDs, so it outlives
 what it names.
 
 Administrators read the whole log in the tab Rights (and under Audit log in the administration of the profile), everyone

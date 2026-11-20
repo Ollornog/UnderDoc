@@ -86,6 +86,9 @@ backup/
   account into `private/<login>/`, to keep a backup whole. Guard that directory like the database. The zip of the web
   holds only what the viewer sees, which never includes someone else's private notes.
 - What lies in the trash is not exported. Versions of blocks are not exported either: an export is the current state.
+- **Passwords in the text never leave** ([secrets.md](secrets.md), ADR-7): a page keeps its references
+  `::secret{id="…"}`, and no value is written. Imported, a reference shows "not available here", since a secret belongs to
+  its page in the database it was made in.
 
 ## Import
 

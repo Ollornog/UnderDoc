@@ -19,23 +19,56 @@ import (
 // KeyEnv is the variable that holds the key: 32 random bytes in base64, for example from `openssl rand -base64 32`.
 const KeyEnv = "UNDERDOC_SECRET_KEY"
 
+// OldKeyEnv holds the key before a rotation: what it sealed still opens, and `underdoc rekey` seals it again under the
+// key of KeyEnv (ADR-7). Once that ran, it goes.
+const OldKeyEnv = "UNDERDOC_SECRET_KEY_OLD"
+
 // Errors of the vault.
 var (
-	ErrNoKey  = errors.New("no key for secrets: set " + KeyEnv + " to 32 random bytes in base64")
-	ErrKey    = errors.New(KeyEnv + " must be 32 bytes in base64")
-	ErrSealed = errors.New("a sealed value does not open: wrong key, tenant or name")
+	ErrNoKey   = errors.New("no key for secrets: set " + KeyEnv + " to 32 random bytes in base64")
+	ErrKey     = errors.New(KeyEnv + " must be 32 bytes in base64")
+	ErrSealed  = errors.New("a sealed value does not open: wrong key, tenant or name")
+	ErrOldKey  = errors.New(OldKeyEnv + " must be 32 bytes in base64")
+	ErrOldOnly = errors.New(OldKeyEnv + " is set without " + KeyEnv + ": set the new key too")
 )
 
 // Vault seals and opens values. The zero value and nil have no key: they seal nothing and say so.
 type Vault struct {
 	aead cipher.AEAD
+	// old opens what the key before a rotation sealed; it never seals.
+	old cipher.AEAD
 }
 
 // New returns a vault with the key in base64. An empty key gives a vault without a key, so the rest of UnderDoc runs.
 func New(key string) (*Vault, error) {
+	aead, err := cipherOf(key)
+	if err != nil {
+		return nil, err
+	}
+	return &Vault{aead: aead}, nil
+}
+
+// NewRotating returns a vault that seals with key and also opens what old sealed, for the time of a rotation (ADR-7).
+// An old key without a new one is refused: nothing would seal again what it opens.
+func NewRotating(key, old string) (*Vault, error) {
+	v, err := New(key)
+	if err != nil || strings.TrimSpace(old) == "" {
+		return v, err
+	}
+	if !v.Ready() {
+		return nil, ErrOldOnly
+	}
+	if v.old, err = cipherOf(old); err != nil {
+		return nil, ErrOldKey
+	}
+	return v, nil
+}
+
+// cipherOf makes AES-256-GCM of a key in base64, nil for an empty key.
+func cipherOf(key string) (cipher.AEAD, error) {
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return &Vault{}, nil
+		return nil, nil
 	}
 	raw, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
@@ -48,12 +81,11 @@ func New(key string) (*Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return &Vault{aead: aead}, nil
+	return cipher.NewGCM(block)
 }
+
+// Rotating tells whether the vault also opens with the key before a rotation.
+func (v *Vault) Rotating() bool { return v.Ready() && v.old != nil }
 
 // Ready tells whether the vault has a key.
 func (v *Vault) Ready() bool { return v != nil && v.aead != nil }
@@ -72,20 +104,41 @@ func (v *Vault) Seal(tenant, name string, value Secret) ([]byte, error) {
 	return v.aead.Seal(nonce, nonce, value, label(tenant, name)), nil
 }
 
-// Open decrypts what Seal made for the same tenant and name.
+// Open decrypts what Seal made for the same tenant and name, with the key or, during a rotation, the key before it.
 func (v *Vault) Open(tenant, name string, sealed []byte) (Secret, error) {
+	plain, _, err := v.open(tenant, name, sealed)
+	return plain, err
+}
+
+// open decrypts and tells whether it took the key before a rotation.
+func (v *Vault) open(tenant, name string, sealed []byte) (Secret, bool, error) {
 	if !v.Ready() {
-		return nil, ErrNoKey
+		return nil, false, ErrNoKey
 	}
 	n := v.aead.NonceSize()
 	if len(sealed) < n {
-		return nil, ErrSealed
+		return nil, false, ErrSealed
 	}
-	plain, err := v.aead.Open(nil, sealed[:n], sealed[n:], label(tenant, name))
-	if err != nil {
-		return nil, ErrSealed
+	if plain, err := v.aead.Open(nil, sealed[:n], sealed[n:], label(tenant, name)); err == nil {
+		return Secret(plain), false, nil
 	}
-	return Secret(plain), nil
+	if v.old != nil {
+		if plain, err := v.old.Open(nil, sealed[:n], sealed[n:], label(tenant, name)); err == nil {
+			return Secret(plain), true, nil
+		}
+	}
+	return nil, false, ErrSealed
+}
+
+// Reseal seals again under the key what the key before a rotation sealed, for the same tenant and name. It returns nil
+// for a value the key already opens, so a rotation can run again and leaves alone what it did.
+func (v *Vault) Reseal(tenant, name string, sealed []byte) ([]byte, error) {
+	plain, old, err := v.open(tenant, name, sealed)
+	if err != nil || !old {
+		return nil, err
+	}
+	defer clear(plain)
+	return v.Seal(tenant, name, plain)
 }
 
 // Secret is a value that never shows itself: printed, logged or turned into JSON, it is a mark.

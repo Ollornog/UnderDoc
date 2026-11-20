@@ -4,6 +4,8 @@ package vault
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,5 +92,62 @@ func TestSecretNeverShows(t *testing.T) {
 	}
 	if !strings.Contains(all, "[hidden]") {
 		t.Errorf("no mark: %s", all)
+	}
+}
+
+// newKey makes a fresh key for a test.
+func newKey(t *testing.T) string {
+	t.Helper()
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+// TestRotation: during a rotation the vault opens what the old key sealed, seals only with the new key, and Reseal moves
+// a value to the new key once; afterwards the new key alone opens it (ADR-7).
+func TestRotation(t *testing.T) {
+	oldKey, newKeyText := newKey(t), newKey(t)
+	before, _ := New(oldKey)
+	sealed, err := before.Seal("acme", "page:7k2m9q4x1c:1", Secret("hunter2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, _ := New(newKeyText)
+	if _, err := fresh.Open("acme", "page:7k2m9q4x1c:1", sealed); !errors.Is(err, ErrSealed) {
+		t.Fatalf("the new key alone opens the old value: %v", err)
+	}
+	both, err := NewRotating(newKeyText, oldKey)
+	if err != nil || !both.Rotating() {
+		t.Fatal(err)
+	}
+	if got, err := both.Open("acme", "page:7k2m9q4x1c:1", sealed); err != nil || string(got) != "hunter2" {
+		t.Fatalf("the rotating vault does not open the old value: %v", err)
+	}
+	if _, err := both.Open("acme", "page:7k2m9q4x1c:2", sealed); !errors.Is(err, ErrSealed) {
+		t.Errorf("the old key opens under another name: %v", err)
+	}
+	again, err := both.Reseal("acme", "page:7k2m9q4x1c:1", sealed)
+	if err != nil || again == nil {
+		t.Fatalf("Reseal: %v", err)
+	}
+	if got, err := fresh.Open("acme", "page:7k2m9q4x1c:1", again); err != nil || string(got) != "hunter2" {
+		t.Fatalf("the resealed value does not open with the new key: %v", err)
+	}
+	if more, err := both.Reseal("acme", "page:7k2m9q4x1c:1", again); err != nil || more != nil {
+		t.Errorf("Reseal changed what the new key already opens: %v", err)
+	}
+	if _, err := both.Reseal("acme", "page:7k2m9q4x1c:1", []byte("not sealed by anyone, long enough")); !errors.Is(err, ErrSealed) {
+		t.Errorf("Reseal of a value no key opens: %v", err)
+	}
+	if fresh.Rotating() {
+		t.Error("a vault with one key says it rotates")
+	}
+	if _, err := NewRotating("", oldKey); !errors.Is(err, ErrOldOnly) {
+		t.Errorf("an old key without a new one: %v", err)
+	}
+	if _, err := NewRotating(newKeyText, "short"); !errors.Is(err, ErrOldKey) {
+		t.Errorf("a broken old key: %v", err)
 	}
 }

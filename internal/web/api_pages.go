@@ -90,7 +90,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-	case errors.Is(err, db.ErrNotAllowed), errors.Is(err, db.ErrPrivate), errors.Is(err, db.ErrGroup):
+	case errors.Is(err, db.ErrNotAllowed), errors.Is(err, db.ErrPrivate), errors.Is(err, db.ErrGroup), errors.Is(err, db.ErrSecretHeld):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	default:
 		h.log.Error(what+" failed", slog.String("error", err.Error()))
@@ -124,10 +124,12 @@ const maxEmbed = 5
 // paragraph with :embed{ref="…"} (ADR-22). What cannot be shown says so, visibly: a missing source is an error to see,
 // never a silent gap. trail holds what is being rendered, to stop at a loop.
 func (h *handler) render(r *http.Request, body string, trail []string) string {
+	// Passwords show only in a block of their own page (ADR-7); the trail ends with that block.
+	page := pageOf(trail)
 	var out strings.Builder
 	last := 0
 	for _, m := range db.EmbedLine.FindAllStringSubmatchIndex(body, -1) {
-		out.WriteString(h.inlineEmbeds(r, h.markdown(r, body[last:m[0]]), trail))
+		out.WriteString(h.inlineEmbeds(r, h.passwords(r, h.markdown(r, body[last:m[0]]), page), trail))
 		a := db.Address{Object: body[m[2]:m[3]]}
 		if m[4] >= 0 {
 			a.Block = body[m[4]:m[5]]
@@ -138,7 +140,7 @@ func (h *handler) render(r *http.Request, body string, trail []string) string {
 		out.WriteString(h.embed(r, a, trail))
 		last = m[1]
 	}
-	out.WriteString(h.inlineEmbeds(r, h.markdown(r, body[last:]), trail))
+	out.WriteString(h.inlineEmbeds(r, h.passwords(r, h.markdown(r, body[last:]), page), trail))
 	return out.String()
 }
 

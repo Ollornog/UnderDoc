@@ -40,8 +40,10 @@ var engine = goldmark.New(
 		parser.WithAutoHeadingID(),
 		parser.WithInlineParsers(util.Prioritized(wikiParser{}, 199)), // before the link parser at 200
 		parser.WithInlineParsers(util.Prioritized(embedParser{}, 198)),
+		parser.WithInlineParsers(util.Prioritized(secretParser{}, 197)),
 	),
-	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(nodeRenderer{}, 100), util.Prioritized(embedRenderer{}, 100))),
+	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(nodeRenderer{}, 100), util.Prioritized(embedRenderer{}, 100),
+		util.Prioritized(secretRenderer{}, 100))),
 )
 
 // Front is the front matter a page may start with. All other keys are ignored.
