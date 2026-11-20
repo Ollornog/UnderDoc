@@ -438,6 +438,15 @@ func moveSecrets(ctx context.Context, tx pgx.Tx, from, to, body, viewer string) 
 		if _, err := tx.Exec(ctx, "UPDATE page_secrets SET page = $2 WHERE id = $1", secretID, to); err != nil {
 			return err
 		}
+		// Both pages log it: the page it leaves keeps the trace even when the page it goes to is private and logs
+		// nothing; then it names no private page, only that it went into something private.
+		var where string
+		if err := tx.QueryRow(ctx, "SELECT CASE WHEN object_private($1) THEN 'into something private' ELSE 'to ' || $1 END", to).Scan(&where); err != nil {
+			return err
+		}
+		if err := logIn(ctx, tx, viewer, LogSecretMoved, from, "secret "+secretID+" "+where); err != nil {
+			return err
+		}
 		if err := logIn(ctx, tx, viewer, LogSecretMoved, to, "secret "+secretID+" from "+from); err != nil {
 			return err
 		}

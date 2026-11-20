@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,12 +18,14 @@ import (
 // The audit of smbd (vfs_full_audit) goes to syslog. The helper is that syslog: it binds the socket smbd writes to and
 // keeps the last operations in a ring, so UnderDoc can ask who changed a path. Nothing is written to disk.
 
-// ring keeps the newest events.
+// ring keeps the newest events, numbered from 1 on since the start of the helper, so UnderDoc tells when events were
+// pushed out before it asked.
 type ring struct {
 	mu     sync.Mutex
 	events []samba.Event
 	next   int
 	full   bool
+	seq    uint64 // the number of the newest event
 }
 
 func newRing(n int) *ring { return &ring{events: make([]samba.Event, n)} }
@@ -30,6 +33,7 @@ func newRing(n int) *ring { return &ring{events: make([]samba.Event, n)} }
 func (r *ring) add(e samba.Event) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.seq++
 	r.events[r.next] = e
 	r.next = (r.next + 1) % len(r.events)
 	if r.next == 0 {
@@ -37,15 +41,15 @@ func (r *ring) add(e samba.Event) {
 	}
 }
 
-// find returns the events about the paths, oldest first; all events without paths.
-func (r *ring) find(paths []string) []samba.Event {
+// find returns the events about the paths, oldest first, all events without paths; and the numbers of the oldest and
+// the newest event the ring still keeps.
+func (r *ring) find(paths []string) (out []samba.Event, first, last uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	want := map[string]bool{}
 	for _, p := range paths {
 		want[p] = true
 	}
-	var out []samba.Event
 	n := r.next
 	start := 0
 	if r.full {
@@ -58,7 +62,7 @@ func (r *ring) find(paths []string) []samba.Event {
 			out = append(out, e)
 		}
 	}
-	return out
+	return out, r.seq - uint64(n) + 1, r.seq // #nosec G115 -- n is a length
 }
 
 // listenAudit binds the syslog socket and reads smbd's audit lines into the ring.
@@ -100,7 +104,9 @@ func (h *helper) listenAudit(ctx context.Context) error {
 //
 //	<173>Nov 20 10:00:00 smbd_audit: anna|renameat|ok|/share/dir/a.tmp|/share/dir/a.xlsx
 //
-// Samba names absolute paths; a path outside the tenant's directory is dropped.
+// Samba names absolute paths; a path outside the tenant's directory is dropped. So is a create_file that opens what is
+// there without asking to change it (a listing, a read): it changes nothing, and kept it would push the events that do
+// out of the ring and name a reader as the last one to touch a path.
 func parseAudit(msg, root string) (samba.Event, bool) {
 	i := strings.Index(msg, "smbd_audit:")
 	if i < 0 {
@@ -108,6 +114,9 @@ func parseAudit(msg, root string) (samba.Event, bool) {
 	}
 	fields := strings.Split(strings.TrimSpace(msg[i+len("smbd_audit:"):]), "|")
 	if len(fields) < 4 || fields[2] != "ok" {
+		return samba.Event{}, false
+	}
+	if fields[1] == "create_file" && len(fields) >= 6 && fields[5] == "open" && !changing(fields[3]) {
 		return samba.Event{}, false
 	}
 	// The paths are the fields that start with '/': create_file names its access mask and kind first.
@@ -126,6 +135,18 @@ func parseAudit(msg, root string) (samba.Event, bool) {
 		}
 	}
 	return e, e.User != "" && e.Path != ""
+}
+
+// changing tells whether the access mask of create_file (vfs_full_audit: "0x%x") asks for more than reading: writing data,
+// attributes or extended attributes, deleting, changing ACL or owner, or the generic and maximal rights. An unknown mask
+// counts as changing.
+func changing(mask string) bool {
+	m, err := strconv.ParseUint(strings.TrimPrefix(mask, "0x"), 16, 32)
+	if err != nil {
+		return true
+	}
+	const write = 0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000 | 0x2000000 | 0x10000000 | 0x40000000
+	return m&write != 0
 }
 
 func clean(p, root string) string {

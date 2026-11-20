@@ -126,7 +126,7 @@ func main() {
 	}
 	var b [8]byte
 	_, _ = rand.Read(b[:])
-	h := &helper{cfg: cfg, log: log, audit: newRing(4096), boot: hex.EncodeToString(b[:])}
+	h := &helper{cfg: cfg, log: log, audit: newRing(16384), boot: hex.EncodeToString(b[:])}
 	if err := h.run(); err != nil {
 		log.Error("helper", "err", err)
 		os.Exit(1)
@@ -274,7 +274,8 @@ func (h *helper) handle(req samba.Request) (samba.Response, error) {
 		open, err := h.openFiles(req.Paths)
 		return samba.Response{Open: open}, err
 	case samba.OpWho:
-		return samba.Response{Who: h.audit.find(req.Paths)}, nil
+		who, first, last := h.audit.find(req.Paths)
+		return samba.Response{Who: who, First: first, Last: last}, nil
 	}
 	return samba.Response{}, fmt.Errorf("unknown request")
 }

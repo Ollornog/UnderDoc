@@ -3,7 +3,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Ollornog/UnderDoc/internal/samba"
@@ -69,5 +72,69 @@ func TestNetbiosName(t *testing.T) {
 		if regexpNetbios(name) != want {
 			t.Errorf("%q: %v", name, !want)
 		}
+	}
+}
+
+// A listing or a read opens with create_file and changes nothing: it stays out of the ring, so a flood of listings
+// pushes no change out and a reader is never named as the one who changed a path. What asks to write, delete or make
+// something stays in, as do linkat with both its paths.
+func TestAuditKeepsOnlyChanges(t *testing.T) {
+	root := "/srv/share/main"
+	for _, line := range []string{
+		"smbd_audit: bob|create_file|ok|0x100081|dir|open|/srv/share/main/c",
+		"smbd_audit: bob|create_file|ok|0x120089|file|open|/srv/share/main/c/a.txt",
+	} {
+		if e, ok := parseAudit(line, root); ok {
+			t.Errorf("a read went into the ring: %+v", e)
+		}
+	}
+	for _, line := range []string{
+		"smbd_audit: bob|create_file|ok|0x12019f|file|open|/srv/share/main/c/a.txt",
+		"smbd_audit: bob|create_file|ok|0x110080|file|open|/srv/share/main/c/a.txt",
+		"smbd_audit: bob|create_file|ok|0x120089|file|create|/srv/share/main/c/new.txt",
+		"smbd_audit: bob|create_file|ok|0x120089|file|overwrite_if|/srv/share/main/c/a.txt",
+		"smbd_audit: bob|create_file|ok|nonsense|file|open|/srv/share/main/c/a.txt",
+	} {
+		if _, ok := parseAudit(line, root); !ok {
+			t.Errorf("a change stayed out of the ring: %s", line)
+		}
+	}
+	e, ok := parseAudit("smbd_audit: bob|linkat|ok|/srv/share/main/c/a.txt|/srv/share/main/c/b.txt", root)
+	if !ok || e.Path != root+"/c/a.txt" || e.To != root+"/c/b.txt" {
+		t.Errorf("linkat: %+v %v", e, ok)
+	}
+}
+
+// The ring numbers its events: First and Last name the oldest and the newest it still keeps, so a caller that saw
+// Last before sees a gap when events were pushed out.
+func TestRingNumbersItsEvents(t *testing.T) {
+	r := newRing(3)
+	if _, first, last := r.find(nil); first != 1 || last != 0 {
+		t.Errorf("empty: %d %d", first, last)
+	}
+	for i := range 5 {
+		r.add(samba.Event{User: "bob", Op: "renameat", Path: "/x/" + string(rune('a'+i))})
+	}
+	got, first, last := r.find(nil)
+	if first != 3 || last != 5 || len(got) != 3 || got[0].Path != "/x/c" {
+		t.Errorf("after 5 events in a ring of 3: %d %d %+v", first, last, got)
+	}
+}
+
+// A comment of a share is a name from UnderDoc: '%' in it would be a variable of smb.conf (%I is the client's address),
+// so it becomes a space, as a backslash and a line break do.
+func TestCommentHasNoVariables(t *testing.T) {
+	h := &helper{cfg: config{run: t.TempDir(), owner: 1000, ownerGID: 1000}}
+	state := samba.State{Users: []samba.User{{Name: "anna", UID: 20000, NTHash: samba.NTHash("x")}},
+		Shares: []samba.Share{{Name: "Plans", Path: "/srv/share/main/x", Comment: "100% of %I", Users: []string{"anna"}}}}
+	if err := h.writeState(state); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(h.cfg.run, "shares.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "comment = 100  of  I") {
+		t.Errorf("shares.conf: %s", raw)
 	}
 }

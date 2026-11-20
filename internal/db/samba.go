@@ -192,6 +192,18 @@ func (db *DB) SharedRoots(ctx context.Context) ([]SharedRoot, error) {
 	})
 }
 
+// ShareRootInfo returns a library of the view Files whether or not it is shared, in the trash or not: for the last pass
+// over the directory of a library that stops being shared. ErrNotFound when it is no library.
+func (db *DB) ShareRootInfo(ctx context.Context, rootID string) (SharedRoot, error) {
+	var s SharedRoot
+	err := db.pool.QueryRow(ctx, `SELECT o.id, r.role, o.title, o.owner, coalesce(r.account, '') FROM file_roots r JOIN objects o ON o.id = r.object
+		WHERE r.object = $1`, rootID).Scan(&s.ID, &s.Role, &s.Title, &s.Owner, &s.Account)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return s, ErrNotFound
+	}
+	return s, err
+}
+
 // sharedRootOf returns the shared library an object lies in, "" when it lies in none.
 func (db *DB) sharedRootOf(ctx context.Context, q execer, objectID string) (string, error) {
 	if !db.SambaOn(ctx) {
@@ -229,6 +241,13 @@ func (db *DB) SetRootSamba(ctx context.Context, rootID, viewer string, on bool) 
 	if err := db.may(ctx, o, viewer, RoleManage); err != nil {
 		return err
 	}
+	// Samba knows rights per folder only (ADR-29, ADR-30): a library holding a file that broke the inheritance is not
+	// shared until that file inherits again, or would show it to everyone who reads its folder.
+	if on {
+		if err := perFolder(ctx, db.pool, rootID); err != nil {
+			return err
+		}
+	}
 	tag, err := db.pool.Exec(ctx, "UPDATE file_roots SET samba = $2 WHERE object = $1 AND role = 'collection'", rootID, on)
 	if err != nil {
 		return err
@@ -243,8 +262,32 @@ func (db *DB) SetRootSamba(ctx context.Context, rootID, viewer string, on bool) 
 	return db.Log(ctx, viewer, "samba share", rootID, detail)
 }
 
-// ShareNode is an object of a shared library as the working copy needs it: where it lies, what it is, and the current
-// version of a file.
+// perFolder answers ErrPerFolder, naming the files, when an object or something below it is a file that breaks the
+// inheritance: it cannot go into a library shared over Samba, nor can a library holding one be shared.
+func perFolder(ctx context.Context, q interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}, objectID string) error {
+	rows, err := q.Query(ctx, `WITH RECURSIVE down AS (
+			SELECT id, kind, title, inherit, 0 AS depth FROM objects WHERE id = $1 AND deleted_at IS NULL
+			UNION ALL SELECT c.id, c.kind, c.title, c.inherit, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
+				WHERE c.deleted_at IS NULL AND down.depth < 100
+		) SELECT title FROM down WHERE kind = 'file' AND NOT inherit ORDER BY lower(title) LIMIT 11`, objectID)
+	if err != nil {
+		return err
+	}
+	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(names) == 0 {
+		return err
+	}
+	list := strings.Join(names[:min(len(names), 10)], ", ")
+	if len(names) > 10 {
+		list += ", …"
+	}
+	return fmt.Errorf("%w; these files do, and must inherit again first: %s", ErrPerFolder, list)
+}
+
+// ShareNode is an object of a shared library as the working copy needs it: where it lies, what it is, the current
+// version of a file, and whether it breaks the inheritance.
 type ShareNode struct {
 	ID     string
 	Parent string
@@ -253,16 +296,17 @@ type ShareNode struct {
 	Owner  string
 	SHA    string
 	Size   int64
+	Breaks bool
 }
 
 // ShareTree returns every object of a library that is not in the trash, from the top down, for the working copy. It is
 // not for showing: it asks no viewer.
 func (db *DB) ShareTree(ctx context.Context, rootID string) ([]ShareNode, error) {
 	rows, err := db.pool.Query(ctx, `WITH RECURSIVE down AS (
-			SELECT o.id, '' AS parent, o.kind, o.title, o.owner, 0 AS depth FROM objects o WHERE o.id = $1 AND o.deleted_at IS NULL
-			UNION ALL SELECT c.id, c.parent, c.kind, c.title, c.owner, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
+			SELECT o.id, '' AS parent, o.kind, o.title, o.owner, o.inherit, 0 AS depth FROM objects o WHERE o.id = $1 AND o.deleted_at IS NULL
+			UNION ALL SELECT c.id, c.parent, c.kind, c.title, c.owner, c.inherit, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
 				WHERE c.deleted_at IS NULL AND c.kind IN ('folder', 'file') AND down.depth < 100
-		) SELECT d.id, d.parent, d.kind, d.title, d.owner, coalesce(v.blob, ''), coalesce(v.size, 0) FROM down d
+		) SELECT d.id, d.parent, d.kind, d.title, d.owner, coalesce(v.blob, ''), coalesce(v.size, 0), NOT d.inherit FROM down d
 			LEFT JOIN LATERAL (SELECT blob, size FROM file_versions WHERE file = d.id ORDER BY number DESC LIMIT 1) v ON true
 		ORDER BY d.depth, d.title, d.id`, rootID)
 	if err != nil {
@@ -270,7 +314,7 @@ func (db *DB) ShareTree(ctx context.Context, rootID string) ([]ShareNode, error)
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (ShareNode, error) {
 		var n ShareNode
-		err := row.Scan(&n.ID, &n.Parent, &n.Kind, &n.Name, &n.Owner, &n.SHA, &n.Size)
+		err := row.Scan(&n.ID, &n.Parent, &n.Kind, &n.Name, &n.Owner, &n.SHA, &n.Size, &n.Breaks)
 		return n, err
 	})
 }

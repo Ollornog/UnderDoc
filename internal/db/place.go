@@ -189,6 +189,19 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 				return ErrForeignBelow
 			}
 		}
+		// Into a library shared over Samba from somewhere else, nothing goes that holds a file breaking the inheritance:
+		// Samba knows rights per folder only (ADR-29, ADR-30).
+		if parent != o.Parent && o.Area == AreaFiles {
+			shared, err := db.sharedRootOf(ctx, tx, parent)
+			if err != nil {
+				return err
+			}
+			if shared != "" {
+				if err := perFolder(ctx, tx, objectID); err != nil {
+					return err
+				}
+			}
+		}
 		position, err := place(ctx, tx, parent, after)
 		if err != nil {
 			return err

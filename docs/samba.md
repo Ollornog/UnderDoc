@@ -14,7 +14,8 @@ UnderDoc never runs as root: a **companion** container runs smbd, and UnderDoc s
   the folder, so they reach it without seeing what lies above (ADR-29).
 
 Only shared libraries are on disk; the content store keeps every version either way. A library that stops being shared
-leaves the disk.
+leaves the disk after a last pass has taken what changed there into the database; if something there is not taken (its
+writer unknown, or refused), the directory stays on disk, the log says what, and every pass looks again.
 
 ## Rights on the share
 
@@ -23,13 +24,20 @@ hides what a user may not read, and `access based share enum` lists only the sha
 per folder only** ([T-1](../backlog/T-1-measure-office-saving.md)): a save through a temporary file and a rename makes a
 new file that takes the rights of its folder, so a right on a single file would not survive it. In a shared library a
 role granted on a single file holds in the web only, and the rights dialog says so; breaking the inheritance of a single
-file is refused there, a folder can break it.
+file is refused there, a folder can break it. For the same reason a collection holding a file that breaks the inheritance
+is not shared, and nothing holding one moves into a shared library: both answer `409` naming the files, which must
+inherit again first. A file that is in a shared library anyway (it broke the inheritance before the tenant had a
+companion, or came back from the trash) is kept off the disk, and the log says so.
+
+A file moved into another folder, in the web or over SMB, and a file saved through a rename get the ACL of their folder
+at the next pass, and belong to UnderDoc's UID from then on.
 
 ## The app password
 
 In the profile, **SMB share** makes an app password: the user name is the login when it fits (lower case letters,
 digits, `.`, `_`, `-`, up to 32), otherwise one chosen there, and it stays. The password (20 characters in groups of
-five) is shown once. UnderDoc keeps only its NT hash, sealed by `UNDERDOC_SECRET_KEY`, so Samba needs a vault key. A new
+five) is shown once. A name that is the name of a share (`company` next to `\\files\Company`, in any case) is refused:
+its `[homes]` would push the share aside. A share keeps its name anyway, should such a user exist. UnderDoc keeps only its NT hash, sealed by `UNDERDOC_SECRET_KEY`, so Samba needs a vault key. A new
 app password replaces the old one and ends its sessions; removing it ends the Samba user. Administrators list the Samba
 users and remove any.
 
@@ -51,12 +59,23 @@ Each library lies at `<UNDERDOC_SHARE_DIR>/<tenant>/<ID of its root>/…` with t
 each file and folder carries its ID in the extended attribute `user.underdoc.id`. UnderDoc watches the tree with inotify
 and takes a change two seconds after the last event, once the file is no longer open for writing:
 
-- a changed file becomes a version by whoever wrote it (from smbd's audit, else the owner of the file on disk);
+- a changed file becomes a version by whoever wrote it (from smbd's audit, else the Samba user that owns the new file on
+  disk);
 - a new file or folder becomes an object of whoever made it;
 - a rename or a move renames or moves the object;
 - a file without an ID where a file was is a new version of it, which is how Office and LibreOffice save (T-1);
 - a deleted file or folder goes to the trash;
 - temporary files (`~$*`, `*.tmp`, `.~lock.*#`, `Thumbs.db`, `desktop.ini`, `.DS_Store`, `._*`) never become objects.
+  These patterns hold for files only: a folder named `Backup.tmp` is an ordinary folder. A file made in the web with such
+  a name stays off the disk;
+- a hard link (SMB2 makes one) ends at the next pass: the name UnderDoc knows keeps the object and its ID, every other name
+  becomes a copy of its own, a new file of whoever made the link. Samba has no setting against hard links.
+
+**A writer nobody names is nobody:** when neither smbd's audit nor the owner of the file on disk names who changed
+something, the change is never taken as the owner of the object or of the library. A move, a rename, a deletion and a
+save are put back from the database; something new stays on disk without becoming an object; the log says each (action
+`samba`). The audit keeps only operations that change something (a listing or a read does not push them out), numbers
+them, and a pass that finds events missing since the one before says so in the log.
 
 Every change is made as the user who made it, through the same checks as the web. What the database refuses is put back
 on disk (a rename, a move, a deletion) or stays there without a version (new content, for example over the quota). A
@@ -116,10 +135,11 @@ anyone else is turned away. A connection carries one JSON request from a closed 
 | `apply` | the whole state of users (name, UID, NT hash, home) and shares (name, path, users); writes them, reloads smbd, and ends the sessions of users that are gone or whose password changed. The same state twice changes nothing |
 | `acl` | sets the ACL of directories, their default ACL and that of the files directly in them, and gives each to `UNDERDOC_UID`; every path is opened below the tenant's directory without following links |
 | `open` | the files open over SMB, by user, and whether for writing |
-| `who` | the latest operations of smbd's audit, which the helper receives as the syslog of its container |
+| `who` | the latest operations of smbd's audit that change something, which the helper receives as the syslog of its container, numbered, with the numbers of the oldest and the newest it keeps |
 
 No request carries a command line, and every name, UID, hash and path is checked against the rules of the channel
-(`internal/samba`).
+(`internal/samba`). A share path never holds `%`, which smb.conf would read as a variable such as `%U`: a folder with `%`
+in its path is no share of its own and stays reachable through its library; `%` in a comment becomes a space.
 
 ## Connecting from Windows
 
@@ -134,7 +154,9 @@ later (M-5).
   builds the companion, starts one for the tenant main and one for acme, and runs the tests with the tag `samba`
   against them with `smbclient`: a save becomes a version, the save of Office through a rename keeps the ID, deleting
   goes to the trash, rights per folder hold, a user without a role sees nothing, a wrong app password is turned away, a
-  removed app password stops at once, and a user of one tenant never reaches the other.
+  removed app password stops at once, and a user of one tenant never reaches the other. The attack round of 2026-11-20
+  (`attack_samba_test.go`) runs there too: a flood of listings, a hard link, a move with an old ACL, files that break the
+  inheritance.
 - `scripts/t1-libreoffice.sh` (by hand, it mounts a share inside a container): LibreOffice saves over a real share while
   smbd's audit records every operation; the recordings in `internal/share/testdata/t1` are replayed by
   `TestRecordedSaves` in every run (T-1).

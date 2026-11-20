@@ -113,12 +113,29 @@ func (h *handler) apiNewAppPassword(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = strings.ToLower(user.Login)
 	}
-	if existing, err := h.options.DB.SambaAccountOf(ctx, user.ID); err == nil {
+	existing, err := h.options.DB.SambaAccountOf(ctx, user.ID)
+	isNew := errors.Is(err, db.ErrNotFound)
+	if err == nil {
 		name = existing.Name
+	} else if !isNew {
+		h.failed(w, err, "app password")
+		return
 	}
 	if !samba.ValidName(name) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": db.ErrSambaName.Error()})
 		return
+	}
+	// A new Samba user does not take the name of a share: its [homes] would push the share aside, and every drive
+	// mapped to it would break (ADR-30, after an attack round).
+	if isNew {
+		taken, err := h.options.Share.NameTaken(ctx, name)
+		if h.failed(w, err, "app password") {
+			return
+		}
+		if taken {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": db.ErrSambaName.Error() + "; a share has this name"})
+			return
+		}
 	}
 	password, err := newAppPassword()
 	if h.failed(w, err, "app password") {

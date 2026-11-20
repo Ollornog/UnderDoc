@@ -98,3 +98,9 @@ Copy while reading come from the server and `secrets.js`; the editor draws its o
 the slash menu and the lock in the bar make a secret. The settings of a page list its secrets with versions, readers and
 deletion. Reveals are limited to 20 a minute per account. `underdoc rekey` and `UNDERDOC_SECRET_KEY_OLD` rotate the key
 of the whole vault. Open: a warning when Markdown looks like it holds a password (concept), and the attack round of M-5.
+
+**After the attack round (2026-11-20):** moving a block whose secret goes along is logged on both pages, so the page a
+secret leaves keeps the trace even when it goes into something private, which logs nothing; that entry then says "into
+something private" and names no private page. A known limit, not changed: the limit of reveals per minute is kept in the
+memory of each instance, so several instances behind one address multiply it, and a restart resets it; the log still
+takes down every reveal.

@@ -129,8 +129,8 @@ and inotify with a full scan as the safety net. In detail:
   (`.::TMPNAME:*`), and the temporary files of UnderDoc itself, which smbd also hides (`veto files`). The list is backed
   by the recordings of T-1.
 - **Who made a change** comes from the audit of the companion. Without one (the helper unreachable), the owner of the new
-  file on disk names it; failing that, the change is taken as the owner of the object, and the log says that the writer
-  is unknown.
+  file on disk names it; failing that, the writer is unknown, and the change is put back (settled after the attack round
+  below; until 2026-11-20 it was taken as the owner of the object).
 - **A change in the web writes to disk:** a new version, a rename, a move, a deletion, a restore, a new folder. UnderDoc
   writes a temporary file next to the target and renames it, so a reader never sees half a file, and the watcher takes
   its own write for what it is: the file on disk equals the database, and nothing happens.
@@ -169,6 +169,42 @@ and inotify with a full scan as the safety net. In detail:
   shares the account reaches.
 - The rights dialog of a collection switches its share on and off, for its managers, and says per folder and file what
   Samba shows.
+
+### Settled after an attack round (2026-11-20)
+
+An independent attack round against real companions found ways around the rules above; each has a test that was red
+before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test.go`).
+
+- **An unknown writer is nobody.** An editor who moved a file (which needs manage, ADR-29) and then pushed the rename out
+  of the audit's ring with listings had the move taken as the file's owner. Now a change whose writer neither the audit
+  nor a Samba user owning the file names is never taken as anyone: a move, a rename, a deletion and a save are put back
+  from the database, something new stays on disk untaken, and the log says each. The audit keeps only operations that
+  change something (a `create_file` that opens without asking to change is dropped), 16384 of them, numbered; a pass that
+  finds a gap since the one before logs it. A change made before an app password was removed is still taken as its
+  account, which UnderDoc remembers while it runs.
+- **Hard links end at the next pass.** SMB2 makes them, Samba has no setting against them, and two names shared one ID.
+  The name the record of the ID knows keeps the object; every other name becomes a copy without an ID, a new file of whoever
+  made the link (`linkat` is audited now). A link from another library never takes the ID either.
+- **A file gets the ACL of its folder whenever it comes to a new path or a new inode.** The companion set the ACL of a
+  folder's files only when the folder's own changed, so a file moved into a narrower folder kept the readers of the one it
+  left, and a file made over SMB kept its maker as owner.
+- **A file that breaks the inheritance never reaches the share.** Only breaking it inside a shared library was refused.
+  Now sharing a collection that holds one and moving one into a shared library are refused too, naming the files; one that
+  is in a shared library anyway (the folder of the tenant shared at setup, an app password that shares a user's folder, a
+  restore from the trash) stays off the disk, and the log says so.
+- **A library that stops being shared gets a last pass first.** It left the disk with whatever was saved since the pass
+  before; now that is taken into the database first, and a directory still holding something untaken stays on disk.
+- **A Samba user never takes the name of a share.** The web refuses such a name, and a share keeps its name from the pass
+  before, so mapped drives do not break.
+- **The patterns of temporary files hold for files only.** A folder named `x.tmp`, `._x` or `~$x` kept a whole tree out of
+  the database, the quota and the versions; it is an ordinary folder now. A file of the web named like a temporary one
+  stays off the disk, where the scan would have taken it for deleted.
+- **No `%` in a share path:** smb.conf reads it as a variable (`%U` is the user's name), so a folder with `%` in its path is
+  no share of its own, and the helper refuses such a path; in a comment it becomes a space.
+- **Open, for the maintainer to decide:** passage (`--x`) through the folders above a share of one's own lets its user
+  tell an existing name there from a missing one (`NT_STATUS_ACCESS_DENIED` against `NT_STATUS_OBJECT_NAME_NOT_FOUND`).
+  Closing it needs the folder outside the tree (a bind mount per share, which the companion may not make without
+  `CAP_SYS_ADMIN`) or a module of smbd of its own.
 
 ### Not now
 

@@ -5,6 +5,7 @@ package share
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -43,9 +44,19 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 	homes := map[string]string{}
 	var shares []samba.Share
 	taken := map[string]bool{}
+	// A share keeps its name: a Samba user named like a share of the pass before does not push it aside (the web refuses
+	// such a name; this holds if one slips through). A new share steps aside for a user, whose [homes] has the name.
+	had := map[string]bool{}
+	for _, info := range ts.roots {
+		had[strings.ToLower(info.share)] = !info.home
+	}
+	users := map[string]bool{}
+	for _, a := range v.accounts {
+		users[strings.ToLower(a.Name)] = true
+	}
 	unique := func(s string) string {
 		base, n := s, 2
-		for taken[strings.ToLower(s)] || v.byName[strings.ToLower(s)] != "" {
+		for taken[strings.ToLower(s)] || (users[strings.ToLower(s)] && !had[strings.ToLower(s)]) {
 			s = fmt.Sprintf("%s %d", base, n)
 			n++
 		}
@@ -113,6 +124,16 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 			if n.Kind != db.KindFolder || n.ID == root.ID {
 				continue
 			}
+			p, ok := t.paths[n.ID]
+			if !ok {
+				continue
+			}
+			// smb.conf substitutes variables such as %U in a path, so a folder with '%' in its path cannot be a share of
+			// its own: it would be another folder for each user. It stays reachable through the share of its library.
+			if strings.ContainsRune(p, '%') {
+				ts.m.log.Warn("samba: a folder with '%' in its path is no share of its own", "tenant", ts.tenant, "folder", n.ID)
+				continue
+			}
 			for _, a := range ids {
 				if access[n.ID][a] >= rankRead && access[n.Parent][a] < rankRead {
 					own[n.ID] = append(own[n.ID], a)
@@ -172,6 +193,19 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 		k := aclKey(m)
 		if ts.acl[p] != k {
 			change = append(change, samba.PathACL{Path: p, Access: m})
+		}
+	}
+	// The files that came to a folder since the pass before get its ACL, whether or not the folder's changed (then the
+	// helper sets the files in it anyway); after the folders, as a path sorts after its folder's.
+	changing := map[string]bool{}
+	for _, c := range change {
+		changing[c.Path] = true
+	}
+	for _, f := range v.refresh {
+		dir := filepath.Dir(f)
+		if m, ok := acls[dir]; ok && !changing[dir] && !changing[f] {
+			changing[f] = true
+			change = append(change, samba.PathACL{Path: f, Access: m})
 		}
 	}
 	sort.Slice(change, func(i, j int) bool { return change[i].Path < change[j].Path })
@@ -340,6 +374,35 @@ func (m *Manager) Reaches(ctx context.Context, accountID string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// NameTaken tells whether a name is the name of a share of the tenant of ctx, as the last pass made it or as a shared
+// library would get it now, in any case: a Samba user may not take it, since its [homes] would push the share aside.
+func (m *Manager) NameTaken(ctx context.Context, name string) (bool, error) {
+	t, _ := tenant.From(ctx)
+	ts := m.tenants[t]
+	if ts == nil {
+		return false, nil
+	}
+	name = strings.ToLower(name)
+	ts.mu.Lock()
+	for _, info := range ts.roots {
+		if !info.home && strings.ToLower(info.share) == name {
+			ts.mu.Unlock()
+			return true, nil
+		}
+	}
+	ts.mu.Unlock()
+	roots, err := m.db.SharedRoots(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range roots {
+		if r.Role != db.RootUser && strings.ToLower(samba.ShareName(r.Title)) == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Server is the name of the server as share paths show it.

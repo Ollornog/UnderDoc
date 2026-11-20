@@ -84,6 +84,8 @@ func TestRequestCheck(t *testing.T) {
 		{Op: OpOpen, Paths: []string{"/etc/passwd"}},
 		{Op: OpApply, State: &State{Shares: []Share{{Name: "Company", Path: root + "/c\n[evil]\nguest ok = yes"}}}},
 		{Op: OpApply, State: &State{Shares: []Share{{Name: "Company", Path: root + "/c", Comment: "x\n[evil]"}}}},
+		// A folder named "%U" would be the folder of each user's name.
+		{Op: OpApply, State: &State{Shares: []Share{{Name: "Company", Path: root + "/c/%U"}}}},
 	}
 	for i, r := range bad {
 		if err := r.Check(root, 20000, 29999); err == nil {

@@ -174,6 +174,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- Samba after an attack round (ADR-30, [docs/samba.md](docs/samba.md)): a change on the share whose writer neither the
+  audit nor a Samba user owning the file names is no longer taken as the owner of the object but put back (something new
+  stays on disk untaken), and the log says so; the audit keeps only operations that change something, numbered, so a
+  flood of listings pushes nothing out and a gap is logged. Hard links made over SMB2 end at the next pass instead of
+  handing an object's ID to a second name. A file moved to another folder or saved through a rename gets the ACL of its
+  folder. Sharing a collection that holds a file breaking the inheritance, or moving one into a shared library, is
+  refused naming the files, and one that is there anyway stays off the disk. A library that stops being shared (or the
+  folder of a user whose app password went) gets a last pass first and stays on disk while something there is not taken.
+  A Samba user may not take the name of a share. Folders named like temporary files (`*.tmp`, `._*`, `~$*`) are ordinary
+  folders, and no share path holds `%`. The companion changed (`cmd/underdoc-samba`): its image must be built again.
+- Passwords in the text (ADR-7, [docs/secrets.md](docs/secrets.md)): a block moved with its secret is logged on the page
+  the secret leaves too, so a move into private notes leaves a trace.
 - The rights of ADR-29 after an attack round ([docs/rights.md](docs/rights.md)): moving an object to another place
   needs manage on it (reordering within its parent stays with edit), so whoever only edits no longer becomes its manager
   by moving it into a collection of their own; only what is wholly one's own goes into something private, and its grants
