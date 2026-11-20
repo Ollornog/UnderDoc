@@ -257,7 +257,15 @@ window.UDRights = (() => {
       const may = r.manage;
       const row = "flex flex-wrap items-center justify-between gap-2 mt-2";
       const owner = `<div class="${row}"><span>Owner: <b data-owner>${esc(r.ownerName)}</b></span>${r.role === "owner" || me.admin ? `<form class="flex items-center gap-2" data-rform="owner">${personSelect("to", r.owner)}<button class="btn" data-variant="outline" data-size="sm" type="submit">Transfer</button></form>` : ""}</div>`;
-      const inherit = `<div class="${row}"><span>${r.inherit ? "Takes the roles from above" : "Takes no roles from above"}</span>${may ? small(`data-ract="inherit" data-on="${r.inherit ? "0" : "1"}"`, r.inherit ? "Break the inheritance" : "Take from above again", true) : ""}</div>${r.inherit ? "" : '<p class="text-sm text-muted-foreground">Breaking copied what held from above; take back here what shall not hold.</p>'}`;
+      // A file in a library shared over Samba keeps the rights of its folder on the share (ADR-29, ADR-30): it cannot
+      // break the inheritance, and what is granted on it holds in the web only.
+      const sm = r.samba || null;
+      const perFolder = sm && sm.shared && sm.file;
+      const mayBreak = may && !(perFolder && r.inherit);
+      const inherit = `<div class="${row}"><span>${r.inherit ? "Takes the roles from above" : "Takes no roles from above"}</span>${mayBreak ? small(`data-ract="inherit" data-on="${r.inherit ? "0" : "1"}"`, r.inherit ? "Break the inheritance" : "Take from above again", true) : ""}</div>${r.inherit ? "" : '<p class="text-sm text-muted-foreground">Breaking copied what held from above; take back here what shall not hold.</p>'}`;
+      const samba = sm
+        ? `${perFolder ? '<p class="text-sm text-muted-foreground" data-samba-per-folder>Samba knows rights per folder only: roles granted on this file hold in the web only, and the share shows it as its folder does.</p>' : ""}${sm.path ? `<p class="text-sm" data-samba-path>On the share: <code>${esc(sm.path)}</code></p>` : ""}${sm.root !== undefined && sm.root !== null ? `<div class="${row}" data-samba-root><span>${sm.root ? "Shared over Samba" : "Not shared over Samba"}</span>${may ? small(`data-ract="samba" data-on="${sm.root ? "0" : "1"}"`, sm.root ? "Stop sharing over Samba" : "Share over Samba", true) : ""}</div>` : ""}`
+        : "";
       const own = r.own.length
         ? `<table class="table" data-grants><tbody>${r.own
             .map(
@@ -270,7 +278,7 @@ window.UDRights = (() => {
       const inherited = r.inherited.length
         ? `<h3 class="font-medium mt-3">From above</h3><table class="table" data-inherited><tbody>${r.inherited.map((g) => `<tr><td>${grantName(g)}</td><td>${ROLEWORD[g.role] || esc(g.role)}</td></tr>`).join("")}</tbody></table>`
         : "";
-      body = `${owner}${inherit}<h3 class="font-medium mt-3">Roles here</h3>${own}${add}${inherited}${may ? linksPart() : ""}`;
+      body = `${owner}${inherit}${samba}<h3 class="font-medium mt-3">Roles here</h3>${own}${add}${inherited}${may ? linksPart() : ""}`;
     }
     d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Roles for people, groups and everyone, inherited by what lies below. Only allowing: narrower means breaking the inheritance.</p></header><section class="max-h-[420px] overflow-y-auto">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
   }
@@ -493,6 +501,9 @@ window.UDRights = (() => {
         return;
       case "inherit":
         act(() => api("PUT", objectPath("/inherit"), { inherit: a.on === "1" }));
+        return;
+      case "samba":
+        act(() => api("PUT", `/api/files/roots/${encodeURIComponent(dlg.id)}/samba`, { on: a.on === "1" }));
         return;
       case "ungrant":
         act(() => api("PUT", objectPath("/grants"), { kind: a.kind, who: a.who, role: "" }));

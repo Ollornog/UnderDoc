@@ -303,6 +303,16 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 	if o.Breaks != inherit {
 		return nil
 	}
+	// In a library shared over Samba, rights hold per folder (ADR-29, ADR-30): a single file that broke the inheritance
+	// would be hidden in the web and shown on the share.
+	if !inherit && o.Kind == KindFile {
+		if root, err := db.sharedRootOf(ctx, db.pool, objectID); err != nil || root != "" {
+			if err == nil {
+				err = ErrPerFolder
+			}
+			return err
+		}
+	}
 	var copied []Grant
 	if !inherit {
 		r, err := db.RightsOf(ctx, objectID, actor)

@@ -8,6 +8,20 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Samba (ADR-30, M-2, M-5, [docs/samba.md](docs/samba.md), migration 027): the folder of the tenant, each account's own
+  folder and collections switched on by their managers appear as SMB shares, served by a companion container
+  (`deploy/samba/Dockerfile`, Samba 4.24, an example in `deploy/samba/compose.yml`) that UnderDoc steers over a Unix socket
+  without root (`UNDERDOC_SAMBA`, `UNDERDOC_SHARE_DIR`, `UNDERDOC_SAMBA_SERVER`). The working copy on disk carries each ID
+  as `user.underdoc.id`; inotify and full passes take saves as versions by whoever saved (the save of Office through a
+  temporary file and a rename included), new files and folders, renames and moves, and deletions into the trash; the web
+  writes to disk and changes nothing while a file is open over SMB (`409`, and the facts panel says who has it). Roles
+  become POSIX ACLs per folder; a folder someone may read without the folder above becomes a share of its own for them.
+- App passwords for SMB in the profile (`/api/samba`): shown once, only the NT hash kept, sealed by the vault; a new one
+  ends the old sessions. Administrators list and remove Samba users; managers switch the share of a collection in its
+  rights dialog, which also says that Samba knows rights per folder only.
+- `scripts/check-samba.sh` in the required check: the working copy against two real companions (two tenants) with
+  `smbclient`.
+
 - How Samba is built ([ADR-30](backlog/ADR-30-samba-share.md)), before its code: a companion container per tenant with
   smbd and a helper on a Unix socket, so UnderDoc never runs as root; an app password per account; a working copy on
   disk for shared libraries with the ID as an extended attribute and inotify; POSIX ACLs per folder from the roles.
@@ -92,6 +106,9 @@ All notable changes to this project are documented in this file. The format foll
   every way an account, a block or a file comes in.
 
 ### Changed
+
+- A file or folder of the view Files is made and renamed only with a name a file system takes (not `.` or `..`, no `/`,
+  `\` or control characters), as an upload already required; one from before stays off the share. In a library shared over Samba a single file no longer breaks the inheritance (ADR-29).
 
 - **A new collection at the top belongs to its maker alone** until they share it (ADR-29, decided on 2026-11-19,
   [docs/rights.md](docs/rights.md)): it grants nobody a role, not even the whole tenant, and is still not private. Its

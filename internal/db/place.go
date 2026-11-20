@@ -115,6 +115,9 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if err := db.may(ctx, o, viewer, need); err != nil {
 		return Object{}, err
 	}
+	if err := db.guardFile(ctx, o); err != nil {
+		return Object{}, err
+	}
 	if parent == "" && o.Kind != KindCollection {
 		return Object{}, ErrPlace
 	}

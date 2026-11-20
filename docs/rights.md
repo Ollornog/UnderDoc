@@ -50,6 +50,13 @@ object's own grants.
   current state, not the versions.
 - **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever holds no role on it.
 
+## On the Samba share
+
+In a library shared over Samba ([samba.md](samba.md), ADR-30) roles become ACLs per folder: read and comment read, edit
+and above write. Samba knows rights per folder only (T-1): a role granted on a single file holds in the web only, and
+the rights dialog says so; breaking the inheritance of a single file there is refused (`409`), a folder can break it. A
+folder in which someone holds a role without reading the folder above is a share of its own for them.
+
 ## Administrators
 
 Administrators of the tenant ([sign-in.md](sign-in.md)) **manage rights, not content.** They read and change the roles of

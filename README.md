@@ -91,6 +91,11 @@ Markdown files with front matter, and a hidden comment before each block that ke
 and collections, with uploads that resume, versions, quotas and a trash. Every version lies once in a content store named
 by its hash, and an export takes the files along. How it works: [docs/files.md](docs/files.md).
 
+**Samba** shows the folder of the company, each user's own folder and shared collections as network drives
+(`UNDERDOC_SAMBA`): a companion container runs smbd, UnderDoc steers it over a Unix socket without root, each account
+makes an app password in its profile, and saving in Office or LibreOffice becomes a version. How it works:
+[docs/samba.md](docs/samba.md).
+
 **Rights** hold for documents and files alike: an owner, and the roles manage, edit, comment and read for persons, groups
 (local, or taken over from OIDC and the gate) and the whole tenant, inherited down the tree and narrowed by breaking the
 inheritance. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).

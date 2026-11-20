@@ -1,8 +1,8 @@
 # Files
 
 Files that are files stay files (ADR-13, ADR-19, ADR-28). The view **Files** shows them next to the documents, with
-versions, a trash, quotas and uploads that resume. Samba and WebDAV come later (M-2, M-7); this page describes what is
-built.
+versions, a trash, quotas and uploads that resume. Samba shows them as network drives ([samba.md](samba.md), ADR-30);
+WebDAV comes later (M-7).
 
 ## Setup
 

@@ -1,0 +1,47 @@
+# An example of the Samba companion next to UnderDoc (ADR-30, docs/samba.md), for one tenant. Adapt the marked values;
+# nothing here is a secret. UnderDoc itself runs however the installation runs it, with the same two directories at the
+# same paths:
+#
+#   UNDERDOC_SAMBA=main=/run/underdoc-samba/helper.sock
+#   UNDERDOC_SHARE_DIR=/srv/underdoc-share
+#   UNDERDOC_SAMBA_SERVER=files              the name people type: \\files\Company
+#
+#   docker compose -f deploy/samba/compose.yml up -d --build
+name: underdoc-samba
+
+services:
+  samba-main:
+    build:
+      context: ../..
+      dockerfile: deploy/samba/Dockerfile
+    restart: unless-stopped
+    # smbd switches to the UID of each Samba user, so it starts as root in its own container; it needs no more than these.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /var/lib/underdoc-samba:mode=0755
+      - /run/samba
+      - /tmp
+    environment:
+      UNDERDOC_UID: "65532"                         # the UID UnderDoc runs as (the image of UnderDoc: 65532)
+      UNDERDOC_GID: "65532"
+      UNDERDOC_SAMBA_ROOT: /srv/underdoc-share/main # the directory of this tenant, the same path as in UnderDoc
+      UNDERDOC_SAMBA_NAME: FILES                    # NetBIOS name and server string, up to 15 letters, digits or '-'
+      UNDERDOC_SAMBA_UIDS: "20000-29999"            # the UIDs of Samba users, the same range as UnderDoc's
+      TZ: Europe/Berlin
+    volumes:
+      # Only the directory of its tenant, at the same path as UnderDoc sees it.
+      - /srv/underdoc-share/main:/srv/underdoc-share/main
+      # The channel: the helper makes helper.sock here for UnderDoc's UID alone.
+      - /run/underdoc-samba:/run/underdoc-samba
+    ports:
+      # Port 445 never faces the internet: bind it to an address of the LAN or the mesh (ADR-28).
+      - "192.0.2.10:445:445"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/underdoc-samba", "probe"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

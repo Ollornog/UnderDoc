@@ -21,6 +21,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/files"
+	"github.com/Ollornog/UnderDoc/internal/share"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
@@ -79,6 +80,8 @@ type apiFile struct {
 	CanComment bool   `json:"canComment"`
 	Inline     bool   `json:"inline"`
 	Content    string `json:"content"`
+	// Share is where the file is on a Samba share and who has it open there (ADR-30); nil when it is on none.
+	Share *share.Place `json:"share,omitempty"`
 	// Preview says how the window shows the file: image (Thumb), pdf (PDF, through pdf.js), video, text, or empty.
 	Preview string           `json:"preview"`
 	Thumb   string           `json:"thumb,omitempty"`
@@ -270,6 +273,11 @@ func (h *handler) apiFile(w http.ResponseWriter, r *http.Request) {
 		out.Preview, out.PDF = "pdf", "/api/files/"+f.ID+"/pdf"
 	case strings.HasPrefix(f.ContentType, "video/") && out.Inline:
 		out.Preview = "video"
+	}
+	if h.options.Share != nil {
+		if place, ok := h.options.Share.PlaceOf(ctx, f.ID, user.ID); ok {
+			out.Share = &place
+		}
 	}
 	for _, v := range versions {
 		out.History = append(out.History, apiFileVersion{Number: v.Number, Size: v.Size, Type: v.ContentType, Name: v.Name, Author: v.AuthorName, At: stamp(v.At)})

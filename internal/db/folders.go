@@ -27,6 +27,12 @@ func (db *DB) CreateFolder(ctx context.Context, owner account.User, title, paren
 	if IsDivider(p.Kind) {
 		return Object{}, ErrPlace
 	}
+	// A folder of the view Files becomes a directory on a share and in an export (ADR-30).
+	if p.Area == AreaFiles {
+		if title, err = CleanFileName(title); err != nil {
+			return Object{}, err
+		}
+	}
 	return insertObject(ctx, db.pool, Object{Kind: KindFolder, Title: title, Owner: owner.ID, Parent: parent})
 }
 

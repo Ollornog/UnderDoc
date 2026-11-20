@@ -407,7 +407,7 @@ function factsHtml(d){
     (u.emb||[]).map(e=>`<li><small>${e.l}</small><span>${e.x}</span></li>`).join('');
   return `<div class="facts"><h3>Metadata</h3><dl><dt>Name</dt><dd>${d.n}</dd><dt>Type</dt><dd>${TYPE[d.t][1]}</dd>
     ${d.desc?`<dt>Description</dt><dd>${d.desc}</dd>`:''}<dt>In workspace</dt><dd>${placeOf(Object.keys(D).find(k=>D[k]===d))}</dd><dt>On disk</dt><dd>${d.path}</dd>
-    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}${d.db&&d.owner?`<dt>Owner</dt><dd>${d.owner}</dd>`:''}<dt>Visible to</dt><dd data-seen-by>${d.vis}</dd></dl>${attachmentsHtml(d)}
+    ${d.by?`<dt>Created</dt><dd>${d.created||'Sep 12'} by ${d.cby||d.by}</dd><dt>Changed</dt><dd>${chg(d)}</dd>`:''}${d.db&&d.owner?`<dt>Owner</dt><dd>${d.owner}</dd>`:''}<dt>Visible to</dt><dd data-seen-by>${d.vis}</dd>${d.share?`<dt>On the share</dt><dd><code data-share-path>${esc(d.share.path)}</code>${(d.share.open_by||[]).length?`<br><small data-open-by>Open over Samba by ${esc(d.share.open_by.join(', '))}</small>`:''}</dd>`:''}</dl>${attachmentsHtml(d)}
     ${d.t!=='folder'&&!d.html?`<h3>Uses</h3>${useRows?`<ul>${useRows}</ul>`:'<div class="lab">Nothing yet.</div>'}
     <h3>Used in</h3>${(d.usedIn||[]).length?`<ul>${d.usedIn.map(x=>`<li><span>${x}</span></li>`).join('')}</ul>`:'<div class="lab">No other document.</div>'}
     <h3>Versions</h3>${d.blocks?versionsHtml(d):`<ul><li><small>now</small><span>${d.ch}</span></li><li><small>earlier</small><span>12 versions, with restore</span></li></ul>`}`:''}
@@ -713,10 +713,24 @@ function timeNav3(v){
   const list=v==='vac'?UnderDocTime.leave:UnderDocTime.pages;
   return `<div class="tree" id="tree">${lock}<ul class="t top">${list.map(p=>listRow('epd:'+p.path,p.icon,p.name)).join('')}</ul></div>`;
 }
+/* The app password for SMB (ADR-30): the Samba user, a new password shown once, the shares this account reaches. */
+function sambaHtml(){
+  if(S.samba===undefined){S.samba=null;fget('/api/samba').then(x=>{S.samba=x;render();}).catch(()=>{S.samba={on:false};});}
+  const sm=S.samba;if(!sm||!sm.on)return '';
+  const pass=S.sambaPass?`<div class="note" data-samba-password>App password for <code>${esc(S.sambaPass.name)}</code>, shown only now: <code>${esc(S.sambaPass.password)}</code>. Windows asks for it once and keeps it.</div>`:'';
+  if(!sm.has)return `<div class="spanel" data-samba><div class="shead">SMB share</div><p class="hint">Reach your files as a network drive on Windows, with a user name and an app password of their own. The password is shown once, and only its hash is kept.</p><label class="hint">User name <input class="input" data-samba-name value="${esc(sm.suggest||'')}" aria-label="Samba user name"></label><div class="tagrow"><button class="chip" data-act="sambanew">Make an app password</button></div>${pass}</div>`;
+  return `<div class="spanel" data-samba><div class="shead">SMB share</div><p class="hint">User name <code data-samba-user>${esc(sm.name)}</code>. In Windows: map a network drive to a path below, with this name and your app password.</p><ul class="hint" data-samba-shares>${(sm.shares||[]).map(s=>`<li><code>${esc(s)}</code></li>`).join('')||'<li>No share yet: the next pass of the share gives them.</li>'}</ul><div class="tagrow"><button class="chip" data-act="sambanew">New app password</button><button class="chip" data-act="sambadel">Remove the app password</button></div>${pass}</div>`;
+}
+function sambaAct(act){
+  if(act==='sambanew'){const f=document.querySelector('[data-samba-name]');
+    fsend('/api/samba/password','POST',{name:f?f.value:''}).then(a=>{S.sambaPass=a;S.samba=undefined;render();}).catch(e=>toast(e.message));}
+  if(act==='sambadel'&&window.confirm('Remove the app password? SMB stops at once for this account.'))
+    fsend('/api/samba/password','DELETE').then(()=>{S.sambaPass=null;S.samba=undefined;render();}).catch(e=>toast(e.message));
+}
 function accountHtml(){
   const u=S.user;
   return `<div class="spanel"><div class="who"><span class="avatar">${esc(u.initials)}</span><span>${esc(u.name)}<small>${esc(u.email||u.login)}</small></span></div><div class="tagrow">${u.groups.map(g=>`<span class="tagc">${esc(g)}</span>`).join('')}</div>
-    <p class="hint">Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.</p>${u.method&&u.method!=='gate'?`<a class="chip" href="/account/security">Sign-in and security</a><form method="post" action="/sign-out"><button class="chip signout" type="submit">Sign out</button></form>`:'<a class="chip signout" href="/.tinysesam/logout">Sign out</a>'}</div>`;
+    <p class="hint">Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.</p>${u.method&&u.method!=='gate'?`<a class="chip" href="/account/security">Sign-in and security</a><form method="post" action="/sign-out"><button class="chip signout" type="submit">Sign out</button></form>`:'<a class="chip signout" href="/.tinysesam/logout">Sign out</a>'}</div>${sambaHtml()}`;
 }
 function nav3Html(){
   const v=S.view,sec=S.sec[v];
@@ -961,6 +975,7 @@ document.addEventListener('click',e=>{
     case 'focus':S.focus=+a.id;break;
     case 'fdir':case 'fopen':case 'fnewdir':case 'fup':case 'frestore':case 'ftrash':if(!filesAct(act,a))return;break;
     case 'fatt':moveAttachment(a.id,a.att);break;
+    case 'sambanew':case 'sambadel':sambaAct(act);return;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */
@@ -2109,8 +2124,8 @@ async function showFile(sid){
     :f.preview==='pdf'?`<figure class="preview" data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></figure>`
     :f.preview==='video'?`<figure class="preview"><video src="${url}" controls preload="metadata"></video></figure>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
-  Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
-    html:`${preview}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
+  Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',share:f.share||null,tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
+    html:`${preview}${f.share&&(f.share.open_by||[]).length?`<div class="note" data-open-note>Open over Samba by ${esc(f.share.open_by.join(', '))}: the web changes nothing of it until it is closed.</div>`:''}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
       <h2>Versions</h2>${f.canEdit?tableHtml(['Version','When','Who','Size',''],vrows):'<p class="lab">Versions are for whoever may edit this file.</p>'}`});
   render();
 }
