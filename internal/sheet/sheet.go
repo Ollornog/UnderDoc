@@ -9,6 +9,7 @@ package sheet
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -469,25 +470,55 @@ func toSet(xs []int) map[int]bool {
 	return m
 }
 
-// Values returns the displayed texts of one row of a rectangle, visible columns only: the anchor of a range (ADR-31).
-func (w *Workbook) Values(s *Sheet, row, c1, c2 int, l Lang) []string {
-	hiddenCol := toSet(s.HiddenCols)
+// Anchor returns the texts of one row of a rectangle in English, hidden columns included, at most MaxGridCols of them: what a range is found again by
+// when its file changes (ADR-31). It is never shown.
+func (w *Workbook) Anchor(s *Sheet, row, c1, c2 int) []string {
+	c2 = min(c2, c1+MaxGridCols-1) // at most as wide as a grid shows
 	var cells []Cell
 	for _, r := range s.Rows {
 		if r.N == row {
 			cells = r.Cells
+			break
 		}
 	}
-	out := []string{}
+	out := make([]string, 0, c2-c1+1)
 	for c := c1; c <= c2; c++ {
-		if hiddenCol[c] {
-			continue
-		}
 		text := ""
 		if cell := cellAt(cells, c); cell != nil {
-			text = w.Display(*cell, l)
+			text = w.Display(*cell, English)
 		}
 		out = append(out, text)
 	}
 	return out
+}
+
+// FindAnchor looks for the rows of a sheet that hold the anchor, as wide as it is, anywhere: the top left cell of each
+// place, at most two (more than one is no answer). An anchor of empty texts is found nowhere.
+func (w *Workbook) FindAnchor(s *Sheet, anchor []string) [][2]int {
+	first := -1
+	for i, a := range anchor {
+		if a != "" {
+			first = i
+			break
+		}
+	}
+	if first < 0 {
+		return nil
+	}
+	var found [][2]int
+	for _, r := range s.Rows {
+		for _, c := range r.Cells {
+			start := c.Col - first
+			if start < 1 || start+len(anchor)-1 > MaxCols || w.Display(c, English) != anchor[first] {
+				continue
+			}
+			if slices.Equal(w.Anchor(s, r.N, start, start+len(anchor)-1), anchor) {
+				found = append(found, [2]int{r.N, start})
+				if len(found) > 1 {
+					return found
+				}
+			}
+		}
+	}
+	return found
 }

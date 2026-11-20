@@ -49,7 +49,8 @@ object's own grants.
   it out first.
 - **Versions are for edit:** the history of a page or a file holds what was taken out, so whoever only reads gets the
   current state, not the versions.
-- **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever holds no role on it.
+- **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever holds no role on it; an
+  embedded table of a spreadsheet the same, without the name of its file ([tables.md](tables.md#tables-in-pages)).
 - **Passwords in the text** ([secrets.md](secrets.md), ADR-7) are revealed by whoever reads their page, or narrower by
   whom its managers name; a role lent by a share link reveals none.
 

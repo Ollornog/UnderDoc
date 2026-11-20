@@ -157,3 +157,20 @@ func TestReusedAndEmbeds(t *testing.T) {
 		t.Errorf("for Bob, Invoice embeds the value and Rates, not Anna's hidden block: %q %v", got, err)
 	}
 }
+
+// TestAddressesOfTables (ADR-31): a table of a file is <file>#x3, on a line of its own or inside a paragraph; a part or
+// section after it, or an x anywhere else, is no address.
+func TestAddressesOfTables(t *testing.T) {
+	if a, ok := ParseAddress("7k2m9q4x1c#x3"); !ok || a.Block != "x3" || a.Sub != "" || a.String() != "7k2m9q4x1c#x3" || !IsTableID(a.Block) {
+		t.Errorf("x3: %+v %v", a, ok)
+	}
+	for _, bad := range []string{"7k2m9q4x1c#x0", "7k2m9q4x1c#x3.t1", "7k2m9q4x1c#x3.section", "7k2m9q4x1c#y3", "7k2m9q4x1c#x1234567890"} {
+		if a, ok := ParseAddress(bad); ok {
+			t.Errorf("%s: %+v", bad, a)
+		}
+	}
+	body := "::embed{ref=\"7k2m9q4x1c#x3\"}\n::embed{ref=\"7k2m9q4x1c#x3.t1\"}\nVAT :embed{ref=\"7k2m9q4x1c#x4\"} and `:embed{ref=\"7k2m9q4x1c#x5\"}`"
+	if got := RefsIn(body); !slices.Equal(got, [][2]string{{"7k2m9q4x1c", "x3"}, {"7k2m9q4x1c", "x4"}}) {
+		t.Errorf("refs: %v", got)
+	}
+}

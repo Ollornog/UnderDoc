@@ -130,13 +130,11 @@ func (h *handler) render(r *http.Request, body string, trail []string) string {
 	last := 0
 	for _, m := range db.EmbedLine.FindAllStringSubmatchIndex(body, -1) {
 		out.WriteString(h.inlineEmbeds(r, h.passwords(r, h.markdown(r, body[last:m[0]]), page), trail))
-		a := db.Address{Object: body[m[2]:m[3]]}
+		ref := body[m[2]:m[3]]
 		if m[4] >= 0 {
-			a.Block = body[m[4]:m[5]]
+			ref += "#" + body[m[4]:m[5]]
 		}
-		if m[6] >= 0 {
-			a.Sub = body[m[6]:m[7]]
-		}
+		a, _ := db.ParseAddress(ref)
 		out.WriteString(h.embed(r, a, trail))
 		last = m[1]
 	}
@@ -162,7 +160,12 @@ func (h *handler) inlineEmbeds(r *http.Request, rendered string, trail []string)
 	}
 	return markdown.EmbedSentinels.ReplaceAllStringFunc(rendered, func(sentinel string) string {
 		a, _ := db.ParseAddress(markdown.EmbedSentinels.FindStringSubmatch(sentinel)[1])
-		inner, title, why := h.embedded(r, a, trail)
+		var inner, title, why string
+		if db.IsTableID(a.Block) {
+			inner, title, why = h.inlineTable(r, a)
+		} else {
+			inner, title, why = h.embedded(r, a, trail)
+		}
 		if g := h.goneAt(r, a); why != "" && g != nil {
 			return h.placeholder(r, a, g, trail[0], true)
 		}
@@ -216,7 +219,10 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	}
 	user, _ := account.From(r.Context())
 	o, err := h.options.DB.Object(r.Context(), a.Object, user.ID)
-	if err != nil || o.Kind != db.KindPage {
+	if err == nil && o.Kind == db.KindFile && db.IsTableID(a.Block) && h.options.Store != nil {
+		return h.embeddedTable(r, o, a)
+	}
+	if err != nil || o.Kind != db.KindPage || db.IsTableID(a.Block) {
 		return "", "", "Not to be found: " + ref
 	}
 	blocks, err := h.options.DB.Blocks(r.Context(), a.Object, user.ID)
@@ -306,6 +312,8 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	for _, e := range embeds {
 		kind := "page"
 		switch {
+		case db.IsTableID(e.Address.Block):
+			kind, e.Name = "table", e.Table
 		case e.Name != "":
 			kind = "value"
 		case e.Address.Sub == db.Section:

@@ -348,3 +348,20 @@ func TestALoneCellFarOutCostsNothing(t *testing.T) {
 		t.Errorf("took %s", d)
 	}
 }
+
+// TestTheAnchorOfAWideRangeIsNarrow: the anchor of a range as wide as Excel's grid holds MaxGridCols texts, and is found
+// again by them.
+func TestTheAnchorOfAWideRangeIsNarrow(t *testing.T) {
+	wb, err := read(t, xlsx(t, `<row r="3"><c r="A3" t="inlineStr"><is><t>Head</t></is></c></row>`, noStr), TypeXLSX)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &wb.Sheets[0]
+	anchor := wb.Anchor(s, 3, 1, MaxCols)
+	if len(anchor) != MaxGridCols || anchor[0] != "Head" {
+		t.Fatalf("anchor: %d %q", len(anchor), anchor[0])
+	}
+	if found := wb.FindAnchor(s, anchor); len(found) != 1 || found[0] != [2]int{3, 1} {
+		t.Errorf("found: %v", found)
+	}
+}

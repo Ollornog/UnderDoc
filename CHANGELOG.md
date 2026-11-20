@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Tables of spreadsheets in pages (ADR-31, M-3, [docs/tables.md](docs/tables.md#tables-in-pages), migration 029): a
+  sheet, a range, a defined name or an Excel table gets an ID local to its file when it is chosen (`POST
+  /api/files/{id}/tables`), and `::embed{ref="<file>#x3"}` shows it live in a page, a name of one cell inside a paragraph
+  as a value (`:embed{ref=…}`). A new version of the file is followed: names and tables by their name, a sheet renamed in
+  Excel by its number, a range by its first row; a range whose first row changed shows a notice and is a problem until
+  kept, and what is gone says so with the version, never quietly wrong. Who may not read the file sees neither cells nor
+  its name; a read link shows a table only if its file was released and its maker still reads it. The file lists where
+  its tables are used, the facts of a page name them, the list of problems names those that do not show, and the export
+  of the files keeps their IDs.
 - Spreadsheets as tables (ADR-31, [docs/tables.md](docs/tables.md)): UnderDoc reads `.xlsx`, `.xlsm`, `.ods` and `.csv`
   itself (`internal/sheet`, no new dependency) and answers the visible sheets, defined names and Excel tables of a file
   (`GET /api/files/{id}/sheets`), any range as it shows in the reader's language (`…/sheets/grid`, 500 rows a page) and

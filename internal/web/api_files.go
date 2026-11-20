@@ -88,7 +88,9 @@ type apiFile struct {
 	Thumb   string `json:"thumb,omitempty"`
 	PDF     string `json:"pdf,omitempty"`
 	// Sheets is where the tables of a spreadsheet are listed (ADR-31), for a type internal/sheet reads.
-	Sheets  string           `json:"sheets,omitempty"`
+	Sheets string `json:"sheets,omitempty"`
+	// UsedIn names the pages that embed tables of the file, among those the viewer sees (M-3).
+	UsedIn  []string         `json:"usedIn,omitempty"`
 	History []apiFileVersion `json:"history"`
 }
 
@@ -279,6 +281,16 @@ func (h *handler) apiFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if sheet.Readable(f.ContentType) {
 		out.Sheets = "/api/files/" + f.ID + "/sheets"
+	}
+	used, err := h.options.DB.UsedIn(ctx, f.ID, user.ID)
+	if err != nil {
+		h.log.Error("used in failed", slog.String("error", err.Error()))
+	}
+	for _, u := range used {
+		where := u.Title + " (table #" + u.TargetBlock + ")"
+		if !slices.Contains(out.UsedIn, where) {
+			out.UsedIn = append(out.UsedIn, where)
+		}
 	}
 	if h.options.Share != nil {
 		if place, ok := h.options.Share.PlaceOf(ctx, f.ID, user.ID); ok {

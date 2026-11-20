@@ -29,7 +29,9 @@ type FileNode struct {
 	Login   string
 	// Versions of a file, oldest first; Author holds the login.
 	Versions []FileVersion
-	Kids     []*FileNode
+	// Tables of a spreadsheet that have an ID (ADR-31).
+	Tables []FileTable
+	Kids   []*FileNode
 }
 
 // AttachmentRecord is an attachment of a page with the login of its author.
@@ -65,6 +67,15 @@ func (db *DB) AllFiles(ctx context.Context) ([]*FileNode, []AttachmentRecord, er
 	byID := map[string]*FileNode{}
 	for _, n := range nodes {
 		byID[n.ID] = n
+	}
+	tables, err := db.tablesForExport(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for file, list := range tables {
+		if n := byID[file]; n != nil {
+			n.Tables = list
+		}
 	}
 	versions, err := db.pool.Query(ctx, `SELECT file, number, blob, size, name, content_type, author, at FROM file_versions ORDER BY file, number`)
 	if err != nil {
@@ -203,6 +214,11 @@ func (db *DB) ImportFiles(ctx context.Context, ownerLogin string, roots []*FileN
 					return err
 				}
 				result.Versions++
+			}
+			for _, t := range n.Tables {
+				if err := importTable(ctx, tx, made.ID, o.Owner, t); err != nil {
+					return err
+				}
 			}
 			for i, k := range n.Kids {
 				if err := write(k, made.ID, i); err != nil {

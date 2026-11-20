@@ -96,6 +96,7 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 		seen[key] = true
 		out.Database = append(out.Database, apiProblem{Page: b.Page, Title: b.Title, Block: b.Block, Ref: ref, Why: why})
 	}
+	request := r
 	for _, b := range blocks {
 		text := fencedCode.ReplaceAllString(b.Body, "")
 		for _, r := range db.RefsIn(text) {
@@ -104,6 +105,12 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 				a.Sub = r[1][len(a.Block)+1:]
 			}
 			ref := a.String()
+			if db.IsTableID(a.Block) {
+				if problem := h.tableProblem(request, a); problem != "" {
+					add(b, ref, problem)
+				}
+				continue
+			}
 			switch t := look(a.Object); {
 			case t == nil:
 				add(b, ref, "embeds something that is not to be found")
