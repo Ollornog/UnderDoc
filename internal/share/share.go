@@ -180,6 +180,27 @@ type tenantShare struct {
 	former    map[string]string
 	formerUID map[int]string
 	held      map[string]bool // what the last pass reported, so the log says it once
+
+	room   string // the room last given to the companion (ADR-30)
+	noRoom bool   // the companion does not know the request room: said once
+
+	notes   sync.Mutex
+	refused map[string]refusal // per full path: the saves the last pass turned away, for the web
+}
+
+// refusal is a Refused of an account. The record of the file keeps what the database has, so every pass takes the file
+// up again and turns it away again until there is room or it changes.
+type refusal struct {
+	Refused
+	account string
+}
+
+// Refused is a save or a new file over SMB that a quota or the largest size of a file turned away (ADR-30, 2026-11-20):
+// it stays on disk without a version, and the account that made it learns it in the web.
+type Refused struct {
+	Library string // the share the file lies in
+	Path    string // its path within the library
+	Why     string
 }
 
 // rootInfo is what a share path needs of a library.
@@ -250,6 +271,8 @@ type view struct {
 	// refresh are the files that came to a path or an inode the companion has not set the ACL of: moved, new, or saved
 	// through a rename. Each gets the ACL of its folder again.
 	refresh []string
+	// refused are the saves this pass turned away, by full path.
+	refused map[string]refusal
 }
 
 // pass brings the working copy and the database of the tenant in step, gives the companion its state and the ACLs, and
@@ -267,8 +290,9 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	v := &view{accounts: accounts, byName: map[string]string{}, byUID: map[int]string{}, who: map[string]string{},
-		open: map[string][]string{}, openWrite: map[string]bool{}, held: map[string]bool{}, told: ts.held}
+		open: map[string][]string{}, openWrite: map[string]bool{}, held: map[string]bool{}, told: ts.held, refused: map[string]refusal{}}
 	defer func() { ts.held = v.held }()
+
 	for name, acc := range ts.former {
 		v.byName[name] = acc
 	}
@@ -284,7 +308,7 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 	// A companion that started again has forgotten its users, its shares and its audit: they are applied again, and the
 	// numbers of the audit start anew.
 	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpPing}); err == nil && r.Boot != ts.boot {
-		ts.boot, ts.state, ts.seen = r.Boot, "", 0
+		ts.boot, ts.state, ts.seen, ts.room = r.Boot, "", 0, ""
 	}
 	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpWho}); err == nil {
 		for _, e := range r.Who {
@@ -327,6 +351,10 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 	if err := ts.applyRights(ctx, roots, v); err != nil {
 		failed = append(failed, err.Error())
 	}
+	ts.applyRoom(ctx, roots)
+	ts.notes.Lock()
+	ts.refused = v.refused
+	ts.notes.Unlock()
 	if ts.watcher != nil {
 		ts.watcher.watch(ts.dir)
 	}
@@ -728,6 +756,7 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 		o, err := ts.m.db.ShareNewFile(ctx, actor, parent, name, sha, size, contentType)
 		if err != nil {
 			ts.m.log.Warn("samba: a new file was not taken", "path", e.path, "account", actor, "err", err)
+			ts.refuse(ctx, v, root, e.path, "", actor, err)
 			continue
 		}
 		at[e.path] = o.ID
@@ -758,7 +787,86 @@ func (ts *tenantShare) takeContent(ctx context.Context, root db.SharedRoot, e *e
 	}
 	if _, err := ts.m.db.ShareNewVersion(ctx, actor, n.ID, sha, size, contentType); err != nil {
 		ts.m.log.Warn("samba: a save was not taken", "object", n.ID, "account", actor, "err", err)
+		ts.refuse(ctx, v, root, e.path, n.ID, actor, err)
 	}
+}
+
+// refuse tells the account that made a save over SMB that a quota or the largest size of a file turned it away: once
+// in the log, as theirs, and in the web until the file is taken or gone (ADR-30, 2026-11-20).
+func (ts *tenantShare) refuse(ctx context.Context, v *view, root db.SharedRoot, rel, objectID, actor string, err error) {
+	why := ""
+	switch {
+	case errors.Is(err, db.ErrQuota):
+		why = "the quota is full"
+	case errors.Is(err, db.ErrTooLarge):
+		why = "the file is larger than allowed"
+	default:
+		return
+	}
+	library := root.Title
+	if info, ok := ts.roots[root.ID]; ok && info.share != "" {
+		library = info.share
+	}
+	v.refused[ts.full(root.ID, rel)] = refusal{Refused: Refused{Library: library, Path: rel, Why: why}, account: actor}
+	if objectID == "" {
+		objectID = root.ID
+	}
+	if v.report("refused:" + root.ID + "/" + rel) {
+		_ = ts.m.db.Log(ctx, actor, LogShare, objectID, rel+" over Samba was not taken: "+why)
+	}
+}
+
+// applyRoom gives the companion the room of each shared library that a limit binds, when it changed (ADR-30,
+// 2026-11-20): smbd tells it to the client through dfree command. A companion that does not know the request is said
+// once in the log, and the pass goes on.
+func (ts *tenantShare) applyRoom(ctx context.Context, roots []db.SharedRoot) {
+	var list []samba.Room
+	for _, root := range roots {
+		room, err := ts.m.db.RootRoom(ctx, root.ID)
+		if err != nil {
+			ts.m.log.Warn("samba: the room of a library", "root", root.ID, "err", err)
+			return
+		}
+		if room.Limited {
+			list = append(list, samba.Room{Path: ts.full(root.ID, ""), Free: room.Free, Total: room.Total})
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].Path < list[j].Path })
+	key := ""
+	if len(list) > 0 {
+		raw, _ := json.Marshal(list)
+		key = string(raw)
+	}
+	if key == ts.room {
+		return
+	}
+	if _, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpRoom, Room: list}); err != nil {
+		if !ts.noRoom {
+			ts.m.log.Warn("samba: the companion takes no room; clients see the room of the disk", "tenant", ts.tenant, "err", err)
+			ts.noRoom = true
+		}
+		return
+	}
+	ts.room, ts.noRoom = key, false
+}
+
+// Refused lists the saves over SMB of an account that the last pass turned away for a quota or the largest size.
+func (m *Manager) Refused(ctx context.Context, accountID string) []Refused {
+	t, _ := tenant.From(ctx)
+	ts := m.tenants[t]
+	if ts == nil {
+		return nil
+	}
+	ts.notes.Lock()
+	defer ts.notes.Unlock()
+	var out []Refused
+	for _, r := range ts.refused {
+		if r.account == accountID {
+			out = append(out, r.Refused)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Library+"/"+out[i].Path < out[j].Library+"/"+out[j].Path })
+	return out
 }
 
 // breakLinks ends every hard link in a library before an ID is read or written (ADR-30, after an attack round): SMB2
@@ -899,6 +1007,11 @@ func (ts *tenantShare) dbToDisk(ctx context.Context, root db.SharedRoot, dir str
 				current = r.SHA
 			} else if sha, _, err := hashFile(full); err == nil {
 				current = sha
+			}
+			// A save over SMB that a quota or the largest size turned away stays on disk as it was saved, without a
+			// version (ADR-30): writing the database's content over it would lose it.
+			if _, refused := v.refused[full]; refused && current != n.SHA {
+				continue
 			}
 			if current != n.SHA {
 				if users := v.open[full]; len(users) > 0 {

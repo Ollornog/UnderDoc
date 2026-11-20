@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -27,6 +29,7 @@ type stubCompanion struct {
 	mu    sync.Mutex
 	state samba.State
 	open  []samba.Open
+	who   []samba.Event
 }
 
 func (c *stubCompanion) Do(_ context.Context, r samba.Request) (samba.Response, error) {
@@ -37,6 +40,8 @@ func (c *stubCompanion) Do(_ context.Context, r samba.Request) (samba.Response, 
 		c.state = *r.State
 	case samba.OpOpen:
 		return samba.Response{OK: true, Open: c.open}, nil
+	case samba.OpWho:
+		return samba.Response{OK: true, Who: c.who, First: 1, Last: uint64(len(c.who))}, nil
 	}
 	return samba.Response{OK: true}, nil
 }
@@ -217,5 +222,38 @@ func TestCollectionShare(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the collection is not shared: %+v", roots)
+	}
+}
+
+// A save over SMB that the quota turns away is told to the account that saved it, in the profile and when the workspace
+// opens (ADR-30, 2026-11-20); others hear nothing of it.
+func TestARefusedSaveIsToldInTheWeb(t *testing.T) {
+	s := withSamba(t)
+	s.send(http.MethodPost, "/api/samba/password", `{}`, sameSite)
+	fs := &filesSite{site: s.site, db: s.db}
+	company := fs.root(nil, db.RootTenant)
+	decode[finished](t, fs.put(nil, fmt.Sprintf(`"parent":%q`, company.ID), "plan.txt", []byte("plan"), 1<<20))
+	s.sync()
+	if err := s.db.SetQuota(tenant.With(context.Background(), tenant.Main), company.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	full := filepath.Join(s.shareDir, tenant.Main, company.ID, "budget.xlsx")
+	if err := os.WriteFile(full, []byte("far more than ten bytes"), 0o660); err != nil {
+		t.Fatal(err)
+	}
+	s.companion.mu.Lock()
+	s.companion.who = []samba.Event{{User: "anna", Op: "renameat", Path: full}}
+	s.companion.mu.Unlock()
+	s.sync()
+	got := decode[apiSamba](t, s.getWith("/api/samba", gateHeaders))
+	if len(got.Refused) != 1 || got.Refused[0].Library != "Company" || got.Refused[0].Path != "budget.xlsx" || got.Refused[0].Why != "the quota is full" {
+		t.Fatalf("the profile: %+v", got.Refused)
+	}
+	state := decode[apiState](t, s.getWith("/api/state", gateHeaders))
+	if len(state.ShareRefused) != 1 || state.ShareRefused[0].Path != "budget.xlsx" {
+		t.Errorf("the workspace: %+v", state.ShareRefused)
+	}
+	if other := decode[apiState](t, s.getWith("/api/state", merged2(gateHeaders, bobOnly))); len(other.ShareRefused) != 0 {
+		t.Errorf("bob is told: %+v", other.ShareRefused)
 	}
 }

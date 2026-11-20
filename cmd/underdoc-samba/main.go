@@ -119,6 +119,19 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "probe" {
 		os.Exit(probe())
 	}
+	// smbd runs `dfree command`, the link named dfree, with the directory it asks about (ADR-30); by hand it is
+	// `underdoc-samba dfree <dir>`.
+	if args := os.Args[1:]; filepath.Base(os.Args[0]) == dfreeName || len(args) > 0 && args[0] == dfreeName {
+		if len(args) > 0 && args[0] == dfreeName {
+			args = args[1:]
+		}
+		dir := "."
+		if len(args) > 0 {
+			dir = args[0]
+		}
+		dfree(os.Stdout, dir)
+		return
+	}
 	cfg, err := readConfig()
 	if err != nil {
 		log.Error("configuration", "err", err)
@@ -273,6 +286,8 @@ func (h *helper) handle(req samba.Request) (samba.Response, error) {
 	case samba.OpOpen:
 		open, err := h.openFiles(req.Paths)
 		return samba.Response{Open: open}, err
+	case samba.OpRoom:
+		return samba.Response{}, h.applyRoom(req.Room)
 	case samba.OpWho:
 		who, first, last := h.audit.find(req.Paths)
 		return samba.Response{Who: who, First: first, Last: last}, nil

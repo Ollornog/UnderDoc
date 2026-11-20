@@ -47,6 +47,9 @@ type fakeHelper struct {
 	last  uint64
 	calls map[string]int
 	boot  string
+	room  []samba.Room
+	// old answers the request room as a companion from before it did: unknown.
+	old bool
 }
 
 func (f *fakeHelper) Do(_ context.Context, r samba.Request) (samba.Response, error) {
@@ -72,6 +75,11 @@ func (f *fakeHelper) Do(_ context.Context, r samba.Request) (samba.Response, err
 		return samba.Response{OK: true, Who: f.who, First: f.first, Last: f.last}, nil
 	case samba.OpPing:
 		return samba.Response{OK: true, Boot: f.boot}, nil
+	case samba.OpRoom:
+		if f.old {
+			return samba.Response{}, errors.New("unknown request")
+		}
+		f.room = r.Room
 	}
 	return samba.Response{OK: true}, nil
 }

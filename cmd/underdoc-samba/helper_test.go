@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -136,5 +137,56 @@ func TestCommentHasNoVariables(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "comment = 100  of  I") {
 		t.Errorf("shares.conf: %s", raw)
+	}
+}
+
+// The room UnderDoc gives reaches dfree command: a directory below a library answers the room of that library in blocks
+// of 1024 bytes, never more than the disk has; a library left out of the next list answers the disk again; the
+// directory of the room can be passed but not listed (ADR-30, 2026-11-20).
+func TestTheRoomAnswersDfree(t *testing.T) {
+	run := t.TempDir()
+	t.Setenv("UNDERDOC_SAMBA_RUN", run)
+	library := t.TempDir()
+	below := filepath.Join(library, "Reports")
+	if err := os.Mkdir(below, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	answer := func(dir string) (total, free, block uint64) {
+		var out strings.Builder
+		dfree(&out, dir)
+		if _, err := fmt.Sscan(out.String(), &total, &free, &block); err != nil {
+			t.Fatalf("dfree answered %q: %v", out.String(), err)
+		}
+		return
+	}
+	diskTotal, diskFree, _ := answer(below)
+	if diskTotal == 0 || diskFree == 0 {
+		t.Fatalf("without a room, the disk: %d %d", diskTotal, diskFree)
+	}
+	h := &helper{}
+	if err := h.applyRoom([]samba.Room{{Path: library, Free: 3 << 20, Total: 10 << 20}}); err != nil {
+		t.Fatal(err)
+	}
+	if total, free, block := answer(below); total != 10<<10 || free != 3<<10 || block != 1024 {
+		t.Errorf("below the library: %d %d %d", total, free, block)
+	}
+	// More room than the disk has: the disk.
+	if err := h.applyRoom([]samba.Room{{Path: library, Free: 1 << 60, Total: 1 << 60}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, free, _ := answer(below); free > diskFree+(1<<10) {
+		t.Errorf("more free than the disk: %d > %d", free, diskFree)
+	}
+	if fi, err := os.Stat(roomDir()); err != nil || fi.Mode().Perm() != 0o711 {
+		t.Errorf("the directory of the room: %v %v", fi.Mode(), err)
+	}
+	if err := h.applyRoom(nil); err != nil {
+		t.Fatal(err)
+	}
+	if total, _, _ := answer(below); total != diskTotal {
+		t.Errorf("left out, the library answers the disk: %d, want %d", total, diskTotal)
+	}
+	if left, _ := os.ReadDir(roomDir()); len(left) != 0 {
+		t.Errorf("files of the room left: %v", left)
 	}
 }

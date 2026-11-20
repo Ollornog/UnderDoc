@@ -3,6 +3,7 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"net/http"
@@ -35,17 +36,38 @@ type apiSamba struct {
 	Shares []string `json:"shares"`
 	// Suggest is the name a new Samba user gets: the login where it fits the rules.
 	Suggest string `json:"suggest,omitempty"`
+	// Refused are the saves of this account over SMB that a quota or the largest size turned away (ADR-30).
+	Refused []apiRefused `json:"refused"`
+}
+
+// apiRefused is a save over SMB that was not taken: where, and why.
+type apiRefused struct {
+	Library string `json:"library"`
+	Path    string `json:"path"`
+	Why     string `json:"why"`
+}
+
+// refusedOf lists what the share turned away of an account; empty without Samba.
+func (h *handler) refusedOf(ctx context.Context, accountID string) []apiRefused {
+	out := []apiRefused{}
+	if h.options.Share == nil || accountID == "" {
+		return out
+	}
+	for _, r := range h.options.Share.Refused(ctx, accountID) {
+		out = append(out, apiRefused{Library: r.Library, Path: r.Path, Why: r.Why})
+	}
+	return out
 }
 
 // apiSamba tells the signed-in account whether Samba is there, its Samba user and the shares it reaches.
 func (h *handler) apiSamba(w http.ResponseWriter, r *http.Request) {
 	if h.options.DB == nil || h.options.Share == nil || !h.options.Share.On(r.Context()) {
-		writeJSON(w, http.StatusOK, apiSamba{Shares: []string{}})
+		writeJSON(w, http.StatusOK, apiSamba{Shares: []string{}, Refused: []apiRefused{}})
 		return
 	}
 	ctx := r.Context()
 	user, _ := account.From(ctx)
-	out := apiSamba{On: true, Server: h.options.Share.Server(), Shares: []string{}}
+	out := apiSamba{On: true, Server: h.options.Share.Server(), Shares: []string{}, Refused: h.refusedOf(ctx, user.ID)}
 	a, err := h.options.DB.SambaAccountOf(ctx, user.ID)
 	switch {
 	case err == nil:

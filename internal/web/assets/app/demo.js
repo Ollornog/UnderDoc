@@ -720,7 +720,9 @@ function sambaHtml(){
   const sm=S.samba;if(!sm||!sm.on)return '';
   const pass=S.sambaPass?`<div class="note" data-samba-password>App password for <code>${esc(S.sambaPass.name)}</code>, shown only now: <code>${esc(S.sambaPass.password)}</code>. Windows asks for it once and keeps it.</div>`:'';
   if(!sm.has)return `<div class="spanel" data-samba><div class="shead">SMB share</div><p class="hint">Reach your files as a network drive on Windows, with a user name and an app password of their own. The password is shown once, and only its hash is kept.</p><label class="hint">User name <input class="input" data-samba-name value="${esc(sm.suggest||'')}" aria-label="Samba user name"></label><div class="tagrow"><button class="chip" data-act="sambanew">Make an app password</button></div>${pass}</div>`;
-  return `<div class="spanel" data-samba><div class="shead">SMB share</div><p class="hint">User name <code data-samba-user>${esc(sm.name)}</code>. In Windows: map a network drive to a path below, with this name and your app password.</p><ul class="hint" data-samba-shares>${(sm.shares||[]).map(s=>`<li><code>${esc(s)}</code></li>`).join('')||'<li>No share yet: the next pass of the share gives them.</li>'}</ul><div class="tagrow"><button class="chip" data-act="sambanew">New app password</button><button class="chip" data-act="sambadel">Remove the app password</button></div>${pass}</div>`;
+  /* Saves over SMB a quota turned away stay on the share without a version, until there is room (ADR-30). */
+  const refused=(sm.refused||[]).length?`<div class="note" role="status" data-samba-refused><b>Not taken from the share:</b><ul class="hint">${sm.refused.map(x=>`<li><code>${esc(x.library)}/${esc(x.path)}</code>: ${esc(x.why)}</li>`).join('')}</ul>They stay on the share without a version. Make room, then save again.</div>`:'';
+  return `<div class="spanel" data-samba><div class="shead">SMB share</div><p class="hint">User name <code data-samba-user>${esc(sm.name)}</code>. In Windows: map a network drive to a path below, with this name and your app password.</p><ul class="hint" data-samba-shares>${(sm.shares||[]).map(s=>`<li><code>${esc(s)}</code></li>`).join('')||'<li>No share yet: the next pass of the share gives them.</li>'}</ul>${refused}<div class="tagrow"><button class="chip" data-act="sambanew">New app password</button><button class="chip" data-act="sambadel">Remove the app password</button></div>${pass}</div>`;
 }
 function sambaAct(act){
   if(act==='sambanew'){const f=document.querySelector('[data-samba-name]');
@@ -2263,6 +2265,9 @@ async function boot(){
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}
     if(st.files){FS.pending=true;loadRoots().finally(()=>{FS.pending=false;render();});const m=location.pathname.match(/^\/o\/([0-9a-z]{10})$/);if(m&&!SID[m[1]])fileStart=m[1];}
+    /* What a save over SMB could not bring in, said when the workspace opens; the profile lists it (ADR-30). */
+    if((st.shareRefused||[]).length){const x=st.shareRefused[0],more=st.shareRefused.length-1;
+      setTimeout(()=>{S.toast=`Not saved from the share: ${x.library}/${x.path}, ${x.why}${more?`, and ${more} more`:''}. It stays there without a version; see Profile.`;render();setTimeout(()=>{S.toast='';render();},9000);},0);}
   }
   const kept=loadSettings(st&&st.settings);
   if(kept)applyN2(kept.n2);

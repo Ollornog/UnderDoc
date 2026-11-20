@@ -381,6 +381,58 @@ func used(ctx context.Context, q execer, rootID string) (int64, error) {
 	return n, err
 }
 
+// Room is what a root of the view Files still takes: by its own quota, the limit of the tenant and the storage its
+// hoster allows, whichever leaves the least, with Total the limit that binds; versions count, as they do for an upload.
+// Limited is false when nothing limits it (ADR-30, 2026-11-20: told to the client of Samba).
+type Room struct {
+	Free, Total int64
+	Limited     bool
+}
+
+// RootRoom returns the room of a root of the view Files, for the companion of Samba: no viewer, the caller is the share.
+func (db *DB) RootRoom(ctx context.Context, rootID string) (Room, error) {
+	var room Room
+	consider := func(limit, used int64) {
+		free := max(0, limit-used)
+		if !room.Limited || free < room.Free {
+			room = Room{Free: free, Total: max(limit, free), Limited: true}
+		}
+	}
+	var role string
+	var quota int64
+	err := db.pool.QueryRow(ctx, "SELECT role, coalesce(quota, -1) FROM file_roots WHERE object = $1", rootID).Scan(&role, &quota)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Room{}, ErrNotFound
+	}
+	if err != nil {
+		return Room{}, err
+	}
+	if limit := db.limitOf(role, quota); limit > 0 {
+		n, err := used(ctx, db.pool, rootID)
+		if err != nil {
+			return Room{}, err
+		}
+		consider(limit, n)
+	}
+	if db.limits.Tenant > 0 {
+		n, err := tenantUsed(ctx, db.pool)
+		if err != nil {
+			return Room{}, err
+		}
+		consider(db.limits.Tenant, n)
+	}
+	var allowed *int64
+	var storage int64
+	if err := db.pool.QueryRow(ctx, `SELECT (SELECT max_storage FROM tenants WHERE id = current_setting('underdoc.tenant', true)), `+storageUsed).
+		Scan(&allowed, &storage); err != nil {
+		return Room{}, err
+	}
+	if allowed != nil {
+		consider(*allowed, storage)
+	}
+	return room, nil
+}
+
 // tenantUsed is what all files, versions, attachments and running uploads of the tenant take.
 func tenantUsed(ctx context.Context, q execer) (int64, error) {
 	var n int64

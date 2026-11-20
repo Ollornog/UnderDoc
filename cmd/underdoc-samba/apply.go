@@ -20,6 +20,22 @@ import (
 // users of the companion are exactly the base users and the Samba users of the last state.
 func (h *helper) confPath() string { return filepath.Join(h.cfg.run, "smb.conf") }
 
+// dfreeName is the name under which smbd runs this program for dfree command (room.go). smbd runs the setting as one
+// path with the directory as its only argument, never splitting it into words, so the setting cannot be this program
+// with an argument; a link in the directory of the helper names it instead.
+const dfreeName = "dfree"
+
+// linkDfree puts that link in place, to this program.
+func (h *helper) linkDfree() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	link := filepath.Join(h.cfg.run, dfreeName)
+	_ = os.Remove(link)
+	return os.Symlink(exe, link)
+}
+
 // writeBase writes the configuration of smbd that never changes with the state; the shares come from an included file.
 func (h *helper) writeBase() error {
 	verbose := "create_file renameat unlinkat mkdirat linkat pwrite_send"
@@ -61,6 +77,8 @@ func (h *helper) writeBase() error {
 	hide unreadable = yes
 	hide unwriteable files = no
 	hide dot files = no
+	dfree command = %[4]s
+	dfree cache time = 5
 	veto files = /.~underdoc-*/
 	delete veto files = no
 	create mask = 0660
@@ -89,7 +107,10 @@ func (h *helper) writeBase() error {
 	valid users = %%S
 
 include = %[2]s/shares.conf
-`, h.cfg.name, h.cfg.run, verbose)
+`, h.cfg.name, h.cfg.run, verbose, filepath.Join(h.cfg.run, dfreeName))
+	if err := h.linkDfree(); err != nil {
+		return err
+	}
 	for _, d := range []string{"private", "lock", "state", "cache", "pid", "ncalrpc"} {
 		if err := os.MkdirAll(filepath.Join(h.cfg.run, d), 0o700); err != nil {
 			return err
