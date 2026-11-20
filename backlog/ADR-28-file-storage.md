@@ -70,3 +70,4 @@ Settled with the maintainer on 2026-11-16, written down before the build of M-2.
 - Samba comes last in the sprint of 2026-11-16 (the maintainer): LibreOffice is measured in a container, and saving from real
   Excel is the maintainer's acceptance (T-1).
 - A backup takes the database and the content store together; the files on disk can be written again from them.
+- How Samba is built, the companion, the watcher and the rights on the share: [ADR-30](ADR-30-samba-share.md) (2026-11-20).

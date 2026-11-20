@@ -8,6 +8,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- How Samba is built ([ADR-30](backlog/ADR-30-samba-share.md)), before its code: a companion container per tenant with
+  smbd and a helper on a Unix socket, so UnderDoc never runs as root; an app password per account; a working copy on
+  disk for shared libraries with the ID as an extended attribute and inotify; POSIX ACLs per folder from the roles.
+
 - The log keeps an entry 365 days (ADR-29, [docs/rights.md](docs/rights.md), migration 026): per tenant, set by its
   administrators from 30 to 3650 days in the section Log of the tab Rights (`GET|PUT /api/log/keep`), the change logged.
   The job that empties the trash deletes older entries of every tenant.

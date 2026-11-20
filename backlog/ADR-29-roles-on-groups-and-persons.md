@@ -234,3 +234,5 @@ the owner and who sees it.
   - **The log is kept 365 days,** per tenant, since the log belongs to the tenant and its administrators read it (ADR-23;
     with one tenant, per instance). Administrators set 30 to 3650 days in the tab Rights; the change is logged with what
     it was. The job that empties the trash deletes older entries of every tenant once an hour (migration 026).
+- **The limit of a share** is built as [ADR-30](ADR-30-samba-share.md) says (2026-11-20): ACLs per folder, and a folder in
+  which someone holds a role without reading the folder above becomes a share of its own for them.

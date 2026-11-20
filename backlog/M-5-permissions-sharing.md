@@ -52,3 +52,8 @@ one check, share links, the tab Rights with the rights dialog and the access che
 taking them back, and the log. Open: the Samba part (users, rights and the limit of a share, the domain), and passwords in
 the text (ADR-7) with their attack round. The retention of the log (365 days per tenant, set from 30 to 3650) and new
 collections that belong to their maker alone followed the same day (ADR-29).
+
+**Settled on 2026-11-20:** [ADR-30](ADR-30-samba-share.md) says how the Samba part is built: a companion container
+per tenant with smbd and a helper that takes a few defined requests over a Unix socket, so UnderDoc never runs as root;
+an app password per account (its NT hash sealed in the vault); POSIX ACLs per folder computed from the roles; a folder in
+which someone holds a role without reading the folder above becomes a share of its own for them. The domain stays later.
