@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Spreadsheets as tables (ADR-31, [docs/tables.md](docs/tables.md)): UnderDoc reads `.xlsx`, `.xlsm`, `.ods` and `.csv`
+  itself (`internal/sheet`, no new dependency) and answers the visible sheets, defined names and Excel tables of a file
+  (`GET /api/files/{id}/sheets`), any range as it shows in the reader's language (`…/sheets/grid`, 500 rows a page) and
+  as CSV without formula injection (`…/sheets/csv`). The stored results of formulas, number formats rendered from their
+  codes (German or English by the browser's first language, held against what LibreOffice displays), merged cells,
+  hidden sheets, rows and columns left out. Limits against zip bombs, entities, huge sheets and time; a file past them
+  answers its reason (422); a page of a grid is at most 256 columns wide and a CSV at most a million cells, so a lone
+  cell at XFD1048576 costs nothing. `.xlsm` is now recognised and previewed through the Office module like `.xlsx`.
 - How spreadsheets become tables ([ADR-31](backlog/ADR-31-spreadsheets-as-tables.md)), before its code: a reader of
   UnderDoc's own for `.xlsx`/`.xlsm`, `.ods` and `.csv`; a sheet, a range, a defined name or an Excel table embedded by
   an ID local to its file (`<file>#x3`) and followed through new versions, with a notice where it cannot be followed;

@@ -109,6 +109,9 @@ all HTML, SVG and XML, which can carry scripts. Everything served from the store
 |---|---|---|
 | `UNDERDOC_OFFICE_URL` | The Office module for previews, a Gotenberg service | none: no Office previews |
 
+- **Spreadsheets** (`.xlsx`, `.xlsm`, `.ods`, `.csv`) are read by UnderDoc itself as tables, without the Office module:
+  [tables.md](tables.md).
+
 ## Text for the search
 
 The text of files reaches the search three ways (ADR-24), each switched on in layers: the hoster allows it

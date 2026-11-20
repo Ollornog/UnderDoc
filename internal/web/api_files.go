@@ -22,6 +22,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/share"
+	"github.com/Ollornog/UnderDoc/internal/sheet"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
@@ -83,9 +84,11 @@ type apiFile struct {
 	// Share is where the file is on a Samba share and who has it open there (ADR-30); nil when it is on none.
 	Share *share.Place `json:"share,omitempty"`
 	// Preview says how the window shows the file: image (Thumb), pdf (PDF, through pdf.js), video, text, or empty.
-	Preview string           `json:"preview"`
-	Thumb   string           `json:"thumb,omitempty"`
-	PDF     string           `json:"pdf,omitempty"`
+	Preview string `json:"preview"`
+	Thumb   string `json:"thumb,omitempty"`
+	PDF     string `json:"pdf,omitempty"`
+	// Sheets is where the tables of a spreadsheet are listed (ADR-31), for a type internal/sheet reads.
+	Sheets  string           `json:"sheets,omitempty"`
 	History []apiFileVersion `json:"history"`
 }
 
@@ -273,6 +276,9 @@ func (h *handler) apiFile(w http.ResponseWriter, r *http.Request) {
 		out.Preview, out.PDF = "pdf", "/api/files/"+f.ID+"/pdf"
 	case strings.HasPrefix(f.ContentType, "video/") && out.Inline:
 		out.Preview = "video"
+	}
+	if sheet.Readable(f.ContentType) {
+		out.Sheets = "/api/files/" + f.ID + "/sheets"
 	}
 	if h.options.Share != nil {
 		if place, ok := h.options.Share.PlaceOf(ctx, f.ID, user.ID); ok {

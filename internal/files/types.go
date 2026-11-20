@@ -34,6 +34,7 @@ var byExtension = map[string]string{
 	".css":      "text/css",
 	".docx":     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	".xlsx":     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".xlsm":     "application/vnd.ms-excel.sheet.macroEnabled.12",
 	".pptx":     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	".odt":      "application/vnd.oasis.opendocument.text",
 	".ods":      "application/vnd.oasis.opendocument.spreadsheet",
