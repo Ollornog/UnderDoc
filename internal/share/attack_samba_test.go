@@ -289,3 +289,58 @@ func TestSambaAttackBrokenFileMovedIn(t *testing.T) {
 		t.Errorf("Bob reads over SMB a file the web hides from him: %s", lastLines(out))
 	}
 }
+
+// KNOWN LIMIT (ADR-30, docs/samba.md): passage (--x) through the folders above a share of one's own lets the kernel stat
+// any name in them. Bob, who may not see anything in HR, can tell a name that exists there from one that does not by the
+// answer of the share (NT_STATUS_ACCESS_DENIED against NT_STATUS_OBJECT_NAME_NOT_FOUND): a guessed name is confirmed.
+// What stays closed, and what this test holds: listing HR fails and shows no name, and reading a name that exists fails.
+// The guess is the known limit; if it ever closes, the last check fails and ADR-30 and docs/samba.md must change.
+func TestSambaPassageKnownLimitGuessedNames(t *testing.T) {
+	f := setupSamba(t)
+	ctx := inMain()
+	admin := db.Actor{ID: anna.ID, Admin: true}
+	hr, err := f.db.CreateFolder(ctx, anna, "HR", f.company.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetInherit(ctx, hr.ID, admin, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetGrant(ctx, hr.ID, admin, db.ToTenant, "", db.RoleNone); err != nil {
+		t.Fatal(err)
+	}
+	public, err := f.db.CreateFolder(ctx, anna, "Public", hr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetGrant(ctx, public.ID, admin, db.ToPerson, bob.ID, db.RoleRead); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(tenant.Main)
+	f.put(anna, "Company", `HR\dismissal-carl.txt`, "x")
+	f.sync(tenant.Main)
+	f.sync(tenant.Main)
+	exists, _ := f.smb(tenant.Main, bob, "", "Company", `get HR\dismissal-carl.txt /dev/null`, "")
+	missing, _ := f.smb(tenant.Main, bob, "", "Company", `get HR\dismissal-dave.txt /dev/null`, "")
+	status := func(out string) string {
+		for _, w := range strings.Fields(out) {
+			if strings.HasPrefix(w, "NT_STATUS_") {
+				return w
+			}
+		}
+		return "no error"
+	}
+	// Closed: the listing of the passage folder fails and names nothing.
+	list, _ := f.smb(tenant.Main, bob, "", "Company", `ls HR\*`, "")
+	if status(list) == "no error" || strings.Contains(list, "dismissal") {
+		t.Errorf("Bob lists the passage folder HR: %s", lastLines(list))
+	}
+	// Closed: an existing name cannot be read.
+	if status(exists) == "no error" {
+		t.Errorf("Bob reads a file in HR: %s", lastLines(exists))
+	}
+	// Known limit: the answers differ, so a guessed name shows whether it exists (never its content).
+	if status(exists) == status(missing) {
+		t.Errorf("the guess of a name in HR is closed (%s for both): move the known limit out of ADR-30 and docs/samba.md", status(exists))
+	}
+}

@@ -148,6 +148,15 @@ different credentials**, user name `<server>\<user name>` and the app password. 
 Without a domain, Windows signs in with NTLMv2, which Microsoft lists as deprecated but keeps working; a domain comes
 later (M-5).
 
+## Limits
+
+- **Guessed names above a share of one's own.** Whoever reaches a folder only through passage (`--x`) on the way to a
+  share of their own cannot list the folders above it or read anything there, but can tell by the answer of the share
+  (`NT_STATUS_ACCESS_DENIED` against `NT_STATUS_OBJECT_NAME_NOT_FOUND`) whether a name they guessed exists. Contents,
+  listings and rights are not affected. Closing it would need a bind mount per share (`CAP_SYS_ADMIN` in the companion)
+  or a module of smbd of its own, which is out of proportion; see ADR-30. Tested as a known limit in
+  `TestSambaPassageKnownLimitGuessedNames`.
+
 ## Tests
 
 - `scripts/check-samba.sh` (in the required check of the CI, locally with Docker: `sg docker -c scripts/check-samba.sh`):
