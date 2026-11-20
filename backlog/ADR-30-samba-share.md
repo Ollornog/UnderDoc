@@ -211,6 +211,27 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
   `TestSambaPassageKnownLimitGuessedNames` holds both: the listing and the read stay closed, and the guess is named as
   the limit; if the guess ever closes, that test goes red and this entry and `docs/samba.md` are to change.
 
+- **The quota reaches the client (decided on 2026-11-20).** Until then a save over SMB past a quota only stayed on disk
+  without a version and was named in the log: Windows and Excel believed it saved. Samba has no quota of its own, and
+  the quotas of the file system need root and a quota per user, not per library and tenant as UnderDoc counts them
+  (ADR-28). Of what Samba offers, `dfree command` is the one that fits: smbd asks a program how much room a directory
+  has, and tells the client. So:
+  - After each pass UnderDoc tells the companion the room of each shared library that a limit binds: the quota of the
+    library (or of a user's own folder), the limit of the tenant, the storage the hoster allows, whichever leaves the
+    least; versions count, as they do in the web. A new request of the helper, `room`, takes the whole list; the helper
+    keeps one small file per library in a directory of its own (readable by name only), and `underdoc-samba dfree`,
+    which smbd runs for `dfree command`, answers from the nearest library above the directory asked, never more than
+    the disk has. A library without a limit answers what the disk has, as before. `dfree cache time` is 5 seconds.
+  - **What this does:** Windows shows the room of the library on the drive, Explorer refuses a copy that does not fit
+    before it starts, and an application that asks for room before it saves fails there. **What it does not:** smbd
+    does not refuse a write itself, so a save that does not ask first still lands on disk; it stays without a version
+    as before. A single file larger than allowed (`UNDERDOC_FILES_MAX_SIZE`) cannot be told by room at all.
+  - **The person who saved learns it in the web:** each save or new file over SMB that a quota or the largest size
+    refuses is logged once with their account as actor (their part of the log), and the workspace says so when they open
+    it (a notice with the file and why), and lists it in the profile under Samba, until the file is taken or gone. It is
+    kept in memory and found again by the next pass after a start.
+  - A companion from before answers `room` with an error: UnderDoc says so once in its log and goes on without it.
+
 ### Not now
 
 - **A domain** (M-5, ADR-10): Kerberos instead of NTLMv2, later, next to local users.
