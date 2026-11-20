@@ -348,7 +348,7 @@ func TestRevealingIsLimited(t *testing.T) {
 	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	page := s.newPageWith(team.ID, "Router")
 	secretID := s.newSecret(page, testValue(t), sameSite)
-	for i := range revealsPerWindow {
+	for i := range db.RevealsPerWindow {
 		if code, _ := s.reveal(secretID, "copy", sameSite); code != http.StatusOK {
 			t.Fatalf("reveal %d = %d", i+1, code)
 		}
@@ -358,6 +358,46 @@ func TestRevealingIsLimited(t *testing.T) {
 		t.Errorf("one more = %d %v", got.Code, got.Header())
 	}
 	if code, _ := s.reveal(secretID, "show", plain); code != http.StatusOK {
+		t.Errorf("bob is held back by anna's reveals: %d", code)
+	}
+}
+
+// TestTheLimitOfRevealsHoldsAcrossInstances: two instances behind one address share the database, and a third starts
+// later. Half the reveals of a minute through each fill the limit, and neither of them, nor the new one, gives one more,
+// though each has counted only its own in memory (ADR-7).
+func TestTheLimitOfRevealsHoldsAcrossInstances(t *testing.T) {
+	key := testKey(t)
+	s, _, database := withVault(t, key)
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
+	page := s.newPageWith(team.ID, "Router")
+	secretID := s.newSecret(page, testValue(t), sameSite)
+	instance := func() *site {
+		keys, err := vault.New(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		other := &site{t: t, dir: s.dir, store: s.store}
+		if other.http, err = New(s.store, slog.New(slog.DiscardHandler), Options{DB: database, Vault: keys}); err != nil {
+			t.Fatal(err)
+		}
+		return other
+	}
+	second := instance()
+	for i := range db.RevealsPerWindow {
+		through := s
+		if i%2 == 1 {
+			through = second
+		}
+		if code, _ := through.reveal(secretID, "show", sameSite); code != http.StatusOK {
+			t.Fatalf("reveal %d = %d", i+1, code)
+		}
+	}
+	for name, through := range map[string]*site{"the first": s, "the second": second, "one started later": instance()} {
+		if got := through.send(http.MethodPost, "/api/secrets/"+secretID+"/reveal", `{"purpose":"copy"}`, sameSite); got.Code != http.StatusTooManyRequests {
+			t.Errorf("one more through %s instance = %d", name, got.Code)
+		}
+	}
+	if code, _ := second.reveal(secretID, "show", plain); code != http.StatusOK {
 		t.Errorf("bob is held back by anna's reveals: %d", code)
 	}
 }

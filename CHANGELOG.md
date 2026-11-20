@@ -178,6 +178,8 @@ All notable changes to this project are documented in this file. The format foll
   account whose things they are; before, it chose the first account of the list, and sending it as it was gave the
   object to that account.
 - The table of building blocks in the concept still named TipTap as the editor; it is CodeMirror 6 (ADR-21).
+- The limit of 20 reveals of passwords a minute per account is counted in the log of the database, under a lock per
+  account, so several instances behind one address no longer multiply it and a restart no longer resets it (ADR-7).
 - A page that went into the trash while one of its parts got a new master brought the part back a second time when it
   was restored: the part now leaves the page in the trash, and the version says where it went.
 - A block held at the edge of a page scrolled it by the frames the browser drew, so a busy browser scrolled less in the

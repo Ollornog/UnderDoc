@@ -136,6 +136,15 @@ func (db *DB) CreatePageSecret(ctx context.Context, pageID, viewer string, seal 
 	return secretID, nil
 }
 
+// The limit of reveals per account (ADR-7): enough to work through a page, too few to read out a workspace.
+const (
+	RevealsPerWindow = 20
+	RevealWindow     = time.Minute
+)
+
+// ErrTooManyReveals is a reveal past the limit of an account.
+var ErrTooManyReveals = errors.New("too many passwords revealed in a short time")
+
 // RevealPageSecret returns a version of a secret, sealed under the name it returns, for whoever may reveal it, after the
 // log took it down in the same transaction. number 0 is the newest; an older one needs edit on the page, as versions do
 // (ADR-29). copied says the value goes to the clipboard, not on the screen; the log tells them apart.
@@ -155,6 +164,22 @@ func (db *DB) RevealPageSecret(ctx context.Context, secretID, viewer string, num
 				return ErrNotFound
 			}
 			return err
+		}
+		// The log counts what an account revealed in the last minute, across every instance of the database: the limit
+		// held in the memory of one instance alone would multiply with each and start anew with each start (ADR-7). The
+		// lock lets one reveal of an account count at a time. What lies in something private is not logged, and not
+		// counted here; the memory of the instance still limits it.
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('underdoc reveals ' || current_setting('underdoc.tenant', true) || ' ' || $1, 0))",
+			viewer); err != nil {
+			return err
+		}
+		var lately int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE actor = $1 AND action IN ($2, $3) AND at > now() - make_interval(secs => $4)`,
+			viewer, LogSecretRevealed, LogSecretCopied, RevealWindow.Seconds()).Scan(&lately); err != nil {
+			return err
+		}
+		if lately >= RevealsPerWindow {
+			return ErrTooManyReveals
 		}
 		action, detail := LogSecretRevealed, "secret "+secretID
 		if copied {
