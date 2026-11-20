@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The table view of a spreadsheet in the workspace (ADR-31, [docs/tables.md](docs/tables.md#in-the-workspace)): the
+  visible sheets as buttons, a head and row numbers that stay while scrolling, pages of 500 rows, a range marked with
+  the mouse or the keyboard, Embed (the line to paste goes to the clipboard) and Download CSV for the range or the sheet,
+  the names and Excel tables of the file with Embed, and what became of each embedded table in words. The PDF preview
+  stays below; the facts panel names the pages that use the file; a hit of the search opens its sheet and rows.
 - Search over tables (ADR-31, M-2, [docs/tables.md](docs/tables.md#search)): the cells of the visible sheets of a
   spreadsheet go to the search service, Meilisearch and OpenSearch alike, a record for each run of rows headed by its
   sheet; a hit opens `<sheet>!<range>`. Hidden sheets, rows and columns are not found, cell addresses are kept out of the

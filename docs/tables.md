@@ -40,13 +40,33 @@ it as `.xlsx`, `.ods` and `.csv` into `internal/sheet/testdata/libreoffice`, and
 cell; `TestFixturesShowAsLibreOfficeShows` compares every cell. Run it by hand when LibreOffice moves (it uses the image
 of T-1).
 
+## In the workspace
+
+A spreadsheet opens in its window as tables (`assets/app/sheets.js`); with the Office module its PDF preview stays one
+click away below.
+
+- The visible sheets are a row of buttons above the table; a head of column letters and a column of row numbers stay
+  while the table scrolls; rows come in pages of 500 (**Previous rows**, **Next rows**).
+- A range is marked by dragging over the cells, by a click and a Shift+click, or with the arrows and Shift and the
+  arrows once the table has the focus. **Embed** gives the marked range, or the sheet when nothing is marked, its ID and
+  puts its line `::embed{ref=…}` on the clipboard (the line shows below the table as well); **First row is the head**
+  goes with it. **Download CSV** downloads the marked range, or the sheet.
+- **Names and tables** lists the defined names and Excel tables of the visible sheets, each with **Embed**; a name of
+  one cell is a value, which also goes inside a sentence with one colon (`:embed{ref=…}`).
+- **Used in pages** lists the tables of the file that have an ID: what became of each in the current version (shows as
+  chosen, followed to its new place, its first row changed, no longer to be found, in words, never only as a colour) and
+  in how many places it is used, and for a range whose first row changed **Keep it as it is now** (for whoever may edit
+  the file). The facts panel names the pages.
+- A hit of the search in a spreadsheet opens the file at the sheet and the rows of the hit (`/o/<file>#<sheet>!<range>`).
+- Every text from the file goes into the page as text (`textContent`), never as HTML.
+
 ## API
 
 | Call | What it answers |
 |---|---|
 | `GET /api/files/{id}` | `sheets`: the address below, for a type that is read |
 | `GET /api/files/{id}/sheets` | the visible sheets with their used range, the defined names on them (`value` for a name of one cell) and the Excel tables, of the current version |
-| `GET /api/files/{id}/sheets/grid?sheet=&range=&from=` | a range of a visible sheet (its used range without `range`) as it shows: the visible columns, and up to 500 visible rows from row `from` (counted from 0), each cell with its text, its kind and its spans; `more` counts the rows after |
+| `GET /api/files/{id}/sheets/grid?sheet=&range=&from=` | a range of a visible sheet (its used range without `range`) as it shows: the visible columns, and up to 500 visible rows from row `from` (counted from 0), or the page that holds row `at`, each cell with its text, its kind and its spans; `more` counts the rows after |
 | `GET /api/files/{id}/sheets/csv?sheet=&range=` | the same range as CSV to download (below) |
 
 Each answers only to whoever may read the file (ADR-29), else 404 as for any file. A file that cannot be read answers

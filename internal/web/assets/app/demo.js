@@ -2131,12 +2131,15 @@ async function showFile(sid){
   D[key].sid=sid;openDoc(key);render();
   let f;try{f=await fget('/api/files/'+encodeURIComponent(sid));}catch(e){D[key].html='<p class="lab">This file could not be loaded.</p>';render();return;}
   const url=f.content,dl=url+'?download=1';
-  /* The preview sits in C22's frame (figure.preview): never wider than the window, on a quiet ground. */
-  const preview=f.preview==='image'?`<figure class="preview"><a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a></figure>`
-    :f.preview==='pdf'?`<figure class="preview" data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></figure>`
-    :f.preview==='video'?`<figure class="preview"><video src="${url}" controls preload="metadata"></video></figure>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`;
+  /* The preview sits in C22's frame (figure.preview): never wider than the window, on a quiet ground. A spreadsheet shows
+     as tables (sheets.js, ADR-31), its PDF preview one click away. */
+  const pdf=f.preview==='pdf'?`<figure class="preview" data-pdf="${f.pdf}"><p class="lab">Loading the preview…</p></figure>`:'';
+  const preview=f.sheets?`<div data-sheets="${sid}"></div>${pdf?`<details><summary>PDF preview</summary>${pdf}</details>`:''}`
+    :f.preview==='image'?`<figure class="preview"><a href="${url}" target="_blank" rel="noopener"><img src="${f.thumb}" alt="${esc(f.n)}"></a></figure>`
+    :pdf||(f.preview==='video'?`<figure class="preview"><video src="${url}" controls preload="metadata"></video></figure>`:`<div class="note">No preview of ${esc(f.type)}. Download it to open it.</div>`);
+  if(f.sheets&&window.UDSheets)UDSheets.forget(sid);
   const vrows=f.history.map((v,k)=>[`${v.n}`,when(v.at),esc(v.who),fsize(v.size),`<a class="l" href="${url}?v=${v.n}&amp;download=1">Download</a>`+(k&&f.canEdit?` <button class="l" data-act="frestore" data-id="${sid}" data-n="${v.n}">Restore</button>`:'')]);
-  Object.assign(D[key],{n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',share:f.share||null,tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
+  Object.assign(D[key],{usedIn:(f.usedIn||[]).map(esc),n:esc(f.n),path:esc(f.place)+' › '+esc(f.n),place:esc(f.place),by:esc(f.by||f.owner),ch:when(f.ch),created:when(f.created,false),vis:'As its folder',share:f.share||null,tags:(f.tags||[]).map(esc),stat:`${fsize(f.size)} · ${f.versions} version${f.versions===1?"":"s"}`,fparent:f.parent,
     html:`${preview}${f.share&&(f.share.open_by||[]).length?`<div class="note" data-open-note>Open over Samba by ${esc(f.share.open_by.join(', '))}: the web changes nothing of it until it is closed.</div>`:''}<div class="tagrow"><a class="chip" href="${dl}">${ic('down')} Download</a>${f.canEdit?`<button class="chip" data-act="fup" data-file="${sid}">${ic('plus')} Upload a new version</button><button class="chip" data-act="ftrash" data-id="${sid}">${ic('trash')} Move to the trash</button><input type="file" hidden data-fpick-file="${sid}" aria-label="New version">`:''}</div>
       <h2>Versions</h2>${f.canEdit?tableHtml(['Version','When','Who','Size',''],vrows):'<p class="lab">Versions are for whoever may edit this file.</p>'}`});
   render();
@@ -2281,7 +2284,8 @@ async function boot(){
   else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
   S.booted=true;render();
   /* An address of a file opens the view Files with the file in the window. */
-  if(fileStart)fget('/api/files/'+fileStart).then(f=>{S.view='files';S.rail=true;openFile(f.id);}).catch(()=>{});
+  /* With an anchor <sheet>!<range>, as a hit of the search in a spreadsheet carries it, the table view opens there (ADR-31). */
+  if(fileStart)fget('/api/files/'+fileStart).then(f=>{S.view='files';S.rail=true;if(location.hash&&window.UDSheets)UDSheets.goto(f.id,decodeURIComponent(location.hash.slice(1)));openFile(f.id);}).catch(()=>{});
 }
 /* A link inside a page to another page opens it in the window, as a click in the list does; Ctrl or the middle button
    leave it to the browser. */
