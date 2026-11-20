@@ -38,3 +38,9 @@ with what a page embeds, moving a block to another page from its menu while read
 that came back twice when a page left the trash after its part got a new master. Open: Excel tables in pages (with M-2),
 Mermaid (T-3), the origin of a text copied through the clipboard in the version of the block it is pasted into, and
 "every object shows where it is used" for files and tables once they can be embedded.
+
+**Settled on 2026-11-20:** [ADR-31](ADR-31-spreadsheets-as-tables.md) says how a table of a spreadsheet is embedded: a
+sheet, a range, a defined name or an Excel table gets an ID local to its file (`<file>#x3`), kept by UnderDoc with what it
+points at; `::embed{ref=…}` embeds it as a block, a name of one cell inline as a value; a new version of the file is
+followed by names, and a range by its first row, with a notice where it cannot be followed, never quietly wrong. The
+file and its tables show where they are used.

@@ -71,3 +71,5 @@ Settled with the maintainer on 2026-11-16, written down before the build of M-2.
   Excel is the maintainer's acceptance (T-1).
 - A backup takes the database and the content store together; the files on disk can be written again from them.
 - How Samba is built, the companion, the watcher and the rights on the share: [ADR-30](ADR-30-samba-share.md) (2026-11-20).
+- How a spreadsheet becomes tables that pages embed and the search finds: [ADR-31](ADR-31-spreadsheets-as-tables.md)
+  (2026-11-20).

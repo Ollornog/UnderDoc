@@ -58,6 +58,8 @@ The third option, confirmed by the maintainer, who asked for parts to get their 
   page; the table `refs` keeps every reference in both directions. Embedding goes at most five levels deep and stops at a
   loop, each time with a visible error in place. A reader without access to the source sees "not to be found", never its
   content (concept: embedding bypasses nothing).
+- The tables of a spreadsheet file are parts of it with IDs local to the file, `<file>#x3`, kept by UnderDoc beside the
+  file, since the file itself is never changed for them ([ADR-31](ADR-31-spreadsheets-as-tables.md), 2026-11-20).
 - Still open:
   - Whether entries of the private area, such as to-dos, events and time records, are objects with addresses too, visible only to
     their user, or records inside one private object per kind (M-24).
