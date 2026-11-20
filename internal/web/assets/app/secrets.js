@@ -154,6 +154,19 @@
     }
   }
 
+  /**
+   * makeFrom makes a secret of the page from a value typed as text, which the editor found before saving (ADR-7,
+   * 2026-11-20), and resolves to its reference, or to null.
+   */
+  async function makeFrom(page, value) {
+    try {
+      return (await api('POST', `/api/pages/${sid(page)}/secrets`, { value })).ref;
+    } catch (err) {
+      say(err.status === 403 ? 'Only who may change this page adds passwords.' : err.message);
+      return null;
+    }
+  }
+
   /** change asks for a new value of a secret and keeps it as a new version. */
   async function change(id) {
     const value = await ask('Change the password');
@@ -344,6 +357,7 @@
   window.UDSecrets = {
     open,
     make,
+    makeFrom,
     change,
     reveal,
     copy,

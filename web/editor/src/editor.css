@@ -242,3 +242,9 @@
 /* The question before something in use goes (.wayspop), a part in running text, its boundary while reading and in the
    editor (.partedge, .partlabel, .cm-ud-part), and the note where something embedded was removed come from C22 since
    2026-11-19 (ADR-22). */
+
+/* A value that looks like a password typed as text, while the editor asks about it (ADR-7, 2026-11-20). */
+.cm-editor.cm-ud .cm-ud-plain {
+  text-decoration: underline wavy var(--destructive);
+  text-underline-offset: 3px;
+}

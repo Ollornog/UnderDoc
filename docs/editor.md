@@ -69,7 +69,8 @@ loaded again with a notice, which offers to copy what was written since the last
 - **Passwords** (ADR-7, [secrets.md](secrets.md)): "Password" in the slash menu, or the lock in the bar at the cursor,
   asks for the value in a dialog with a field that hides it, keeps it sealed on the server and writes only
   `::secret{id="…"}`. Away from the cursor the reference shows as a mask with Reveal, Copy and Change; at the cursor it is
-  text. A revealed value is masked again after half a minute.
+  text. A revealed value is masked again after half a minute. A value typed as text after a label like "Password:" is asked about before the page is
+  saved, and can become a password in place ([secrets.md](secrets.md), `src/plain.js`).
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
 - Pasting or dropping an image uploads it as an attachment of the page and puts `![name](address)` on a line of its own
   where it landed ([files.md](files.md#attachments-of-pages)).

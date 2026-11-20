@@ -15,6 +15,7 @@ import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/lan
 import { classHighlighter } from '@lezer/highlight';
 import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, inlineEmbedFor, EMBED, PART_MARKER, partsIn, stripParts, imageLine } from './blocks.js';
 import { run, Conflict } from './save.js';
+import { findPlain } from './plain.js';
 import * as tables from './tables.js';
 import './editor.css';
 
@@ -50,6 +51,8 @@ const resyncFocus = EditorView.domEventHandlers({
 const refresh = StateEffect.define();
 const setHover = StateEffect.define();
 const setAsks = StateEffect.define();
+// The values that look like passwords typed as text and wait for an answer before anything is saved (ADR-7, plain.js).
+const setPlain = StateEffect.define();
 
 function scanLines(doc, from, to, adopted, out) {
   for (let pos = doc.lineAt(from).from; pos <= Math.min(to, doc.length); ) {
@@ -238,6 +241,39 @@ class AskWidget extends WidgetType {
     no.className = 'chip';
     no.dataset.answer = 'keep';
     no.textContent = 'Keep the block';
+    box.append(text, yes, ' ', no);
+    return box;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+// A value that looks like a password typed as text (ADR-7, 2026-11-20): asked about below its line before the page is
+// saved. Keep it as a password makes a secret of the page from it; It is not a password saves the text as typed.
+class PlainWidget extends WidgetType {
+  constructor(k) {
+    super();
+    this.k = k;
+  }
+  eq(other) {
+    return other.k === this.k;
+  }
+  toDOM() {
+    const box = document.createElement('div');
+    box.className = 'cm-ud-ask note';
+    box.setAttribute('role', 'alert');
+    box.dataset.plainAsk = String(this.k);
+    const text = document.createElement('span');
+    text.textContent = 'This looks like a password, typed as text. Nothing of the page is saved until you choose. ';
+    const yes = document.createElement('button');
+    yes.className = 'chip';
+    yes.dataset.plain = 'secret';
+    yes.textContent = 'Keep it as a password';
+    const no = document.createElement('button');
+    no.className = 'chip';
+    no.dataset.plain = 'text';
+    no.textContent = 'It is not a password';
     box.append(text, yes, ' ', no);
     return box;
   }
@@ -623,6 +659,12 @@ function decorate(state) {
     const pos = start ? line.from : line.to;
     add(pos, pos, Decoration.widget({ widget: new AskWidget(id, used), block: true, side: start ? -1 : 1 }));
   }
+  // A value that looks like a password typed as text is marked, and asked about below its line.
+  state.field(plainAsks).forEach((a, k) => {
+    add(a.from, a.to, mark('cm-ud-plain'));
+    const line = doc.lineAt(a.to);
+    add(line.to, line.to, Decoration.widget({ widget: new PlainWidget(k), block: true, side: 1 }));
+  });
 
   // A blank line between paragraphs, and so between blocks, is as high as the space between paragraphs when the page is
   // read, not a whole line, as in Typora or Obsidian; on the cursor it is a line again. Blank lines in code stay.
@@ -841,6 +883,21 @@ const asking = StateField.define({
   },
 });
 
+// plainAsks are the values that wait for an answer, [{from, to, value}], kept in place while the text around them
+// changes; one whose text changed goes, and the next save looks again.
+const plainAsks = StateField.define({
+  create: () => [],
+  update(value, tr) {
+    if (tr.docChanged) {
+      value = value
+        .map((a) => ({ ...a, from: tr.changes.mapPos(a.from, 1), to: tr.changes.mapPos(a.to, -1) }))
+        .filter((a) => a.to > a.from && tr.state.doc.sliceString(a.from, a.to) === a.value);
+    }
+    for (const e of tr.effects) if (e.is(setPlain)) value = e.value;
+    return value;
+  },
+});
+
 const hovered = StateField.define({
   create: () => null,
   update(value, tr) {
@@ -852,7 +909,7 @@ const hovered = StateField.define({
 const livePreview = StateField.define({
   create: (state) => decorate(state),
   update(value, tr) {
-    const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refresh) || e.is(setHover) || e.is(setAsks) || e.is(setDrag));
+    const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refresh) || e.is(setHover) || e.is(setAsks) || e.is(setPlain) || e.is(setDrag));
     if (tr.docChanged || tr.selection || effects || syntaxTree(tr.state) !== syntaxTree(tr.startState)) return decorate(tr.state);
     return value;
   },
@@ -1357,6 +1414,7 @@ class PageEditor {
           host.init(() => cfg),
           markers.init(() => ({ list, lost: new Map() })),
           asking,
+          plainAsks,
           hovered,
           dragging,
           focused,
@@ -1400,7 +1458,12 @@ class PageEditor {
     this.view.dom.addEventListener('click', (e) => {
       const b = e.target.closest && e.target.closest('.cm-ud-ask button[data-answer]');
       if (b) this.answer(b.closest('[data-ask]').dataset.ask, b.dataset.answer === 'delete');
+      const p = e.target.closest && e.target.closest('.cm-ud-ask button[data-plain]');
+      if (p) this.answerPlain(p, p.dataset.plain === 'secret');
     });
+    // Values the writer said are not passwords, for the life of this editor only: saved as typed, they are stored
+    // and so not new any more.
+    this.plainOK = new Set();
     this.lastKind = null;
     this.lastTable = false;
   }
@@ -1462,6 +1525,26 @@ class PageEditor {
       return this.saving;
     }
     const state = this.view.state;
+    // A value that looks like a password typed as text holds the whole page back until the writer answers: nothing of
+    // it may leave the browser before (ADR-7, 2026-11-20).
+    const found = this.plainNew(state);
+    const held = found.filter((f) => !f.partial);
+    // The start of a value still being typed on the line of the cursor waits: saved now, its first letters would stay
+    // in a version. A short value the cursor left is saved.
+    if (!this.flushing && this.view.hasFocus && found.some((f) => f.partial && state.doc.lineAt(f.to).number === state.doc.lineAt(state.selection.main.head).number)) {
+      this.emit('status', 'Not saved yet');
+      this.schedule();
+      return;
+    }
+    const asked = state.field(plainAsks);
+    if (held.length || asked.length) {
+      const same = held.length === asked.length && held.every((h, k) => h.from === asked[k].from && h.value === asked[k].value);
+      if (!same) this.view.dispatch({ effects: setPlain.of(held) });
+      if (held.length) {
+        this.emit('status', 'Not saved: is this a password?');
+        return;
+      }
+    }
     const p = plan(this.stored, segments(state), this.confirmed);
     this.ask(p.asks);
     if (idle(p)) {
@@ -1501,6 +1584,44 @@ class PageEditor {
       }
     })();
     return this.saving;
+  }
+
+  /**
+   * plainNew lists the values of the text that look like passwords typed as text and are new: not in the stored text of
+   * their block, and not said to be no password. Positions are in the whole text.
+   */
+  plainNew(state) {
+    const out = [];
+    for (const seg of segments(state)) {
+      const stored = seg.id ? (this.stored.find((b) => b.id === seg.id) || {}).md || '' : '';
+      const known = new Set(findPlain(stored).map((f) => f.value));
+      for (const f of findPlain(seg.text)) {
+        if (!known.has(f.value) && !this.plainOK.has(f.value)) out.push({ from: seg.body[0] + f.from, to: seg.body[0] + f.to, value: f.value, partial: f.partial });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * answerPlain answers the question about a value that looks like a password: as a password, the workspace makes a
+   * secret of the page from it and its reference takes the value's place; as text, it is saved as typed.
+   */
+  async answerPlain(button, secret) {
+    const asks = this.view.state.field(plainAsks);
+    const a = asks[Number(button.closest('[data-plain-ask]').dataset.plainAsk)];
+    if (!a) return;
+    if (!secret) {
+      this.plainOK.add(a.value);
+      this.view.dispatch({ effects: setPlain.of(asks.filter((x) => x !== a)) });
+      this.save();
+      return;
+    }
+    const make = call(this.view, 'secretFrom', a.value);
+    const ref = make && make.then ? await make : null;
+    if (!ref || this.destroyed) return;
+    const now = this.view.state.field(plainAsks).find((x) => x.value === a.value);
+    if (!now || this.view.state.doc.sliceString(now.from, now.to) !== a.value) return;
+    this.view.dispatch({ changes: { from: now.from, to: now.to, insert: ref }, userEvent: 'input' });
   }
 
   /** place writes the markers of new blocks into the text, where their text is now. The cursor and the view stay. */
@@ -1871,6 +1992,13 @@ class PageEditor {
 
   destroy() {
     this.flushing = true;
+    // Closed while a value that looks like a password waits for an answer: the value is left out, everything else is
+    // saved. It never leaves the browser (ADR-7, 2026-11-20).
+    const held = this.plainNew(this.view.state).filter((f) => !f.partial);
+    if (held.length) {
+      this.view.dispatch({ changes: held.map((h) => ({ from: h.from, to: h.to, insert: '…' })), effects: setPlain.of([]) });
+      this.emit('hint', 'A value that looked like a password was left out of the page, not saved. Use Password to keep one sealed.');
+    }
     const done = this.save();
     this.destroyed = true;
     Promise.resolve(done).finally(() => this.view.destroy());

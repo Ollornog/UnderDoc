@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- A password typed as text (ADR-7, [docs/secrets.md](docs/secrets.md)): a line such as `Router password: hunter2`, or a
+  row of a table with such a label, holds the page back in the editor before anything is sent, and the editor asks below
+  the line: Keep it as a password makes a secret from the value and writes its reference in its place, It is not a
+  password saves it as typed. Code, comments, placeholders and values already stored never ask; the first letters of a
+  value being typed are not saved either.
 - A link to read a page shows the images pasted into it and into the pages it released (ADR-29): they come through the
   address of the link (`/s/<token>/p/<page>/attachments/<id>`), only those the frozen page shows, and only while the
   maker of the link sees their page. A link of the page into the workspace becomes plain text, since whoever holds the

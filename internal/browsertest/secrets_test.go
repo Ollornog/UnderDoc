@@ -9,7 +9,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
@@ -185,4 +187,79 @@ func TestPasswordsInTheEditorAndWhileReading(t *testing.T) {
 		t.Errorf("bob sees one hidden and one he may reveal: %q", got)
 	}
 	b.signIn(true)
+}
+
+// TestAPasswordTypedAsText: a line that looks like a password, typed into the editor, holds the whole page back: no
+// write leaves the browser, and the editor asks below the line. Keep it as a password makes a secret of the page from the
+// value and saves only its reference; It is not a password saves it as typed; in code nothing asks. The value is never
+// in a block, a version or the search before the answer (ADR-7, 2026-11-20).
+func TestAPasswordTypedAsText(t *testing.T) {
+	b, base := setupWithVault(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Router", "Notes")
+	b.openEditing(base, page, "Router")
+	first := randomPassword(t)
+	b.lineWith("Notes")
+	// The first letters of the value, typed, then a pause longer than the editor waits before it saves: too short to ask
+	// about, but the start of a value, so nothing is saved while the cursor is on that line.
+	b.typeKeys("\n\nRouter password: " + first[:2])
+	time.Sleep(1600 * time.Millisecond)
+	if got := b.eval(`JSON.stringify(window.writes)`); got != "[]" {
+		t.Errorf("the first letters of the value were sent: %s", got)
+	}
+	b.typeKeys(first[2:] + "\n\nMore notes")
+	if !b.waitFor(`!!document.querySelector('.cm-content [data-plain-ask]') && document.querySelector('[data-edstatus]')?.textContent === 'Not saved: is this a password?'`) {
+		t.Fatalf("the editor does not ask: %q | %q", b.eval(`document.querySelector('[data-edstatus]')?.textContent`), b.eval(edText))
+	}
+	time.Sleep(1500 * time.Millisecond)
+	if got := b.eval(`JSON.stringify(window.writes)`); got != "[]" {
+		t.Errorf("something was sent before the answer: %s", got)
+	}
+	if got := b.stored(page); strings.Contains(got, first) || strings.Contains(got, "More notes") {
+		t.Errorf("the server has the page before the answer: %q", got)
+	}
+	if got := b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent`); got != first {
+		t.Errorf("the value is not marked: %q", got)
+	}
+	b.shot("plain-password-ask")
+	b.clickOn(`.cm-content [data-plain-ask] [data-plain="secret"]`, 1)
+	if !b.waitFor(`/Router password: ::secret\{id="[0-9a-hjkmnp-tv-z]{10}"\}/.test(EDS[at(0).d]?.ed.text() || '') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the value did not become a password: %q | %q", b.eval(edText), b.eval(`document.querySelector('[data-edstatus]')?.textContent`))
+	}
+	if got := b.stored(page); strings.Contains(got, first) || !strings.Contains(got, "More notes") {
+		t.Errorf("the server has: %q", got)
+	}
+	b.eval(`window.rv = null; fetch('/api/pages/` + page + `/versions').then(r => r.text()).then(v => { window.rv = v; })`)
+	if !b.waitFor(`window.rv !== null`) || strings.Contains(b.eval(`window.rv`), first) {
+		t.Errorf("a version holds the value: %s", b.eval(`window.rv`))
+	}
+	id := b.eval(`EDS[at(0).d].ed.text().match(/::secret\{id="([0-9a-hjkmnp-tv-z]{10})"\}/)[1]`)
+	b.eval(`window.val = null; fetch('/api/secrets/` + id + `/reveal', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"purpose":"show"}'}).then(r => r.json()).then(j => { window.val = j.value; })`)
+	if !b.waitFor(`window.val !== null`) || b.eval(`window.val`) != first {
+		t.Errorf("the secret does not hold the value: %q", b.eval(`String(window.val)`))
+	}
+	// Said not to be one, it is saved as typed, and asks no more.
+	b.eval(`window.writes = []`)
+	b.eval(`(() => { const v = EDS[at(0).d].ed.view; v.focus(); v.dispatch({selection: {anchor: v.state.doc.length}}); })()`)
+	b.typeKeys("\n\nPIN: 0815-test")
+	if !b.waitFor(`!!document.querySelector('.cm-content [data-plain-ask]')`) {
+		t.Fatalf("the editor does not ask about the PIN: %q", b.eval(edText))
+	}
+	b.clickOn(`.cm-content [data-plain-ask] [data-plain="text"]`, 1)
+	if !b.waitFor(`!document.querySelector('.cm-content [data-plain-ask]') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the PIN was not saved as typed: %q", b.eval(`document.querySelector('[data-edstatus]')?.textContent`))
+	}
+	if got := b.stored(page); !strings.Contains(got, "PIN: 0815-test") {
+		t.Errorf("the server has: %q", got)
+	}
+	// In code nothing asks.
+	b.typeKeys("\n\n```\npassword = from-a-config-file\n```\n\nEnd")
+	if !b.edWait(`t.includes('End')`) || !b.waitFor(`document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+		t.Fatalf("the code was not saved: %q | %q", b.eval(`document.querySelector('[data-edstatus]')?.textContent`), b.eval(edText))
+	}
+	if b.exists(`.cm-content [data-plain-ask]`) {
+		t.Error("the editor asks about code")
+	}
+	b.clean("plain password")
 }

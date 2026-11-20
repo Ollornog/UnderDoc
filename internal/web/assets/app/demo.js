@@ -1627,6 +1627,8 @@ function makeEditor(key){
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
       secret:()=>window.UDSecrets?UDSecrets.make(d.sid):Promise.resolve(null),
+      /* A value typed as text that looks like a password becomes one, when the writer says so (ADR-7). */
+      secretFrom:v=>window.UDSecrets?UDSecrets.makeFrom(d.sid,v):Promise.resolve(null),
       /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
       upload:f=>uploadAttachment(key,f),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),

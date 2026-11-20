@@ -97,7 +97,8 @@ browser integration.
 Copy while reading come from the server and `secrets.js`; the editor draws its own masks with Change, and "Password" in
 the slash menu and the lock in the bar make a secret. The settings of a page list its secrets with versions, readers and
 deletion. Reveals are limited to 20 a minute per account. `underdoc rekey` and `UNDERDOC_SECRET_KEY_OLD` rotate the key
-of the whole vault. Open: a warning when Markdown looks like it holds a password (concept), and the attack round of M-5.
+of the whole vault. Open: ~~a warning when Markdown looks like it holds a password (concept)~~ (built 2026-11-20, below), and the attack
+round of M-5.
 
 **After the attack round (2026-11-20):** moving a block whose secret goes along is logged on both pages, so the page a
 secret leaves keeps the trace even when it goes into something private, which logs nothing; that entry then says "into
@@ -113,23 +114,30 @@ and no later step takes it out of all of them. So the warning has to come **befo
 
 - **Where:** the editor of a page (ADR-21), at every save. Only what is new counts: a value the stored block already
   holds, from before this warning or because its author said so, does not ask again.
-- **What looks like a password:** a line whose label is one of password, passwort, kennwort, passphrase, pass, pw, pwd,
-  pin, secret, geheimnis, token, api key or api-key (any case, with or without bold, italics, a list mark or a quote),
-  then `:` or `=`, or a row of a table with such a label in one cell and the value in the next, and then **one word** of
-  4 to 200 characters. Not a value: a word with a space in it ("ask Bob"), a reference `::secret{…}`, a link, and
+- **What looks like a password:** a line whose label ends in password, passwort or kennwort (also inside a word, as in
+  adminpasswort) or in the word passphrase, pw, pwd, pin, secret, geheimnis, token, api key or api-key (any case, with
+  or without bold, italics, a list mark or a quote; at most four words), then `:` or `=`, or a row of a table with such
+  a label in one cell and the value in the next, and then **one word** of 4 to 200 characters. Not a value: a word with a space in it ("ask Bob"), a reference `::secret{…}`, a link, and
   placeholders such as `***`, `…`, `xxx`, `<password>`, `{{password}}`, `-`, `n/a`, `none`, `see below`.
-- **No false alarms in code:** fenced code, indented code, inline code and HTML comments (the markers of blocks and
-  parts) are never looked at, so a configuration file shown in a page, or a command line with `--password=…`, does not
-  ask.
+- **No false alarms in code:** fenced code, indented code and HTML comments (the markers of blocks and parts) are never
+  looked at, nor a label in inline code, so a configuration file shown in a page, or a command line with
+  `--password=…`, does not ask. A value in inline code after a label outside it (``Password: `hunter2` ``) does.
 - **Held, not sent:** while a value waits for an answer, the editor saves nothing of the page: no block, no version,
   nothing for the search or the log leaves the browser. The status says "Not saved: is this a password?", and below the
   line the editor asks: **Keep it as a password** makes a secret of the page from that value (`POST
   /api/pages/<id>/secrets`, the same as "Password") and puts its reference in place of the value, then saves; **It is
   not a password** saves the text as typed. Changing the text again asks again for what is then new. The value stays in
   the memory of the browser alone; nothing writes it to the storage of the browser.
+- **While typing:** autosave runs a second after the last key. A value of one to three characters after a label is not
+  asked about, but while the cursor is on its line nothing is saved either, so the first letters of a password never
+  reach a version. A short value the cursor left is saved.
+- **Closing the editor** while a value waits for an answer leaves the value out (`…` in its place), saves everything
+  else, and says so; the value never leaves the browser.
 - **Not covered:** an import, the API of blocks used by something else than the editor, and a Markdown file in Files or
   on the share, which is a file and holds what was typed into it (above). The warning helps people who type; it is not
   a filter the server enforces, since the server would only see the value once it is too late.
+
+**Built on 2026-11-20** ([docs/secrets.md](../docs/secrets.md), `web/editor/src/plain.js`): as settled above.
 
 **The limit of reveals across instances (2026-11-20):** the known limit above is lifted where it was cheap. A reveal
 counts the reveals and copies of the account in the log of the last minute, in the same transaction that logs it, under
