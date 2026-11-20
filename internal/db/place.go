@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 
@@ -174,8 +175,8 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 			return ErrPlace
 		}
 		if intoPrivate {
-			// The object is locked, so nothing new lands directly in it while this is checked.
-			if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
+			// The whole tree is locked, so nothing new lands anywhere in it and no owner changes while this is checked.
+			if err := lockTree(ctx, tx, objectID); err != nil {
 				return err
 			}
 			var foreign bool
@@ -214,6 +215,31 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		return endShares(ctx, tx, objectID, viewer)
 	})
 	return moved, err
+}
+
+// lockTree locks an object and everything below it, at every depth, for the rest of the transaction. Making something
+// below a locked object, or moving something into it, waits for the lock (the key its parent refers to), and so does
+// changing the owner of a locked object. What came in before the lock was granted shows in the next round, which locks it
+// too; when a round finds nothing new, nothing can come in any more until the transaction ends.
+func lockTree(ctx context.Context, tx pgx.Tx, objectID string) error {
+	var held []string
+	for {
+		var ids []string
+		if err := tx.QueryRow(ctx, `WITH locked AS (
+				SELECT id FROM objects WHERE id IN (
+					WITH RECURSIVE down AS (
+						SELECT id FROM objects WHERE id = $1
+						UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+					) SELECT id FROM down)
+				ORDER BY id FOR UPDATE
+			) SELECT coalesce(array_agg(id ORDER BY id), '{}') FROM locked`, objectID).Scan(&ids); err != nil {
+			return err
+		}
+		if slices.Equal(ids, held) {
+			return nil
+		}
+		held = ids
+	}
 }
 
 // endShares takes back every grant and revokes every link on an object and everything below it, as it goes into

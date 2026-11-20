@@ -41,7 +41,8 @@ object's own grants.
   opens no gap for a move one may not make.
 - **Private stays private:** My notes, the folder of each user in Files and everything below them belong to their user
   alone. Nothing can be granted there, and administrators see nothing of it. Only its owner moves an object into
-  something private, and only when everything below it is theirs too; otherwise the move is refused with a message. Its
+  something private, and only when everything below it is theirs too; otherwise the move is refused with a message,
+  and nothing new comes in anywhere below while that is checked. Its
   grants and links end with the move, and the log keeps each for the owner.
 - **Deleting takes nothing one may not edit:** deleting or purging needs edit on the object and everything below it. A
   page below that breaks the inheritance and shuts the deleter out refuses the deletion with a message; its owner moves
@@ -67,7 +68,8 @@ groups and manage their members. They read the content of an object only where t
 
 **What someone left behind:** UnderDoc deactivates no account; the gate or the identity provider ends the sign-in. An
 administrator asks "what may they do" for that account in the tab Rights, which lists what it owns by title, and
-transfers each in place to another account. Transferring shows the administrator nothing of the content, unless they
+transfers each in place to another account, which the form leaves unchosen until the
+administrator chooses. Transferring shows the administrator nothing of the content, unless they
 give it to themselves; the log keeps every transfer (`owner`).
 
 ## In the workspace
@@ -177,8 +179,12 @@ it does for invitations.
 - **Listed and revoked:** `/api/links` lists the links with who made them, when, until when and how many accounts opened
   them; administrators see every link, everyone else the links they made and those on what they manage. Whoever made a
   link, whoever manages its object and administrators revoke it.
-- Not yet: attachments of a page, such as a pasted image, are not part of a link, and wiki links in a frozen page lead
-  into the workspace.
+- **Attachments and links of a frozen page** (2026-11-20): the images pasted into the page, and into the pages it
+  released, come through the address of the link, `/s/<token>/p/<page>/attachments/<id>`: only those the frozen page
+  shows, and only while the maker of the link sees their page. A link of the page into the workspace (`/o/…` and every
+  other address of the application) becomes plain text, marked "Not part of this link", since whoever holds the link has
+  no way in there; a link to a heading of the page itself stays. A file of Files shown in the page is not part of a
+  link.
 
 ```text
 GET    /api/objects/<id>/shareables          the pages a page embeds, to release one by one
@@ -187,6 +193,7 @@ GET    /api/links[?object=<id>]              the links the viewer may see
 POST   /api/links/<id>/renew                 {"released": [...]}   freeze the page again
 DELETE /api/links/<id>                       revoke
 GET    /s/<token>                            the link; POST /s/<token>/password, GET /s/<token>/f/<file>, POST /s/<token>/upload
+GET    /s/<token>/p/<page>/attachments/<id>  an attachment the frozen page shows
 ```
 
 ## Export and import

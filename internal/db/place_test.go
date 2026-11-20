@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 )
 
 func order(t *testing.T, db *DB, parent string) []string {
@@ -208,6 +209,52 @@ func TestOnlyWhatIsAllYoursGoesPrivate(t *testing.T) {
 	}
 	if _, err := db.Move(ctx, own.ID, anna.ID, notes.ID, ""); err != nil {
 		t.Errorf("anna takes a folder of her own into her notes: %v", err)
+	}
+}
+
+// TestGoingPrivateWaitsForWhatComesInBelow: while anna takes her folder into My notes, bob makes a page deep inside it,
+// two levels below the folder. Her move waits for his and then finds his page, so it is refused; without the lock on
+// the whole tree it would take his page into her notes, where he would never see it again (ADR-29).
+func TestGoingPrivateWaitsForWhatComesInBelow(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	team, _ := db.createShared(ctx, anna, "Team")
+	folder, _ := db.CreateFolder(ctx, anna, "Drafts", team.ID)
+	sub, _ := db.CreateFolder(ctx, anna, "2026", folder.ID)
+	deep, err := db.CreatePage(ctx, anna, "November", sub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := myNotes(t, db, anna.ID)
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `INSERT INTO objects (id, kind, title, owner, parent, area) VALUES ('bbbbbbbbb1', 'page', 'Bob''s notes', $1, $2, 'docs')`,
+		bob.ID, deep.ID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := db.Move(ctx, folder.ID, anna.ID, notes.ID, "")
+		done <- err
+	}()
+	var moved error
+	select {
+	case moved = <-done:
+		t.Errorf("anna's move did not wait for bob's page: %v", moved)
+	case <-time.After(300 * time.Millisecond):
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		moved = <-done
+	}
+	if !errors.Is(moved, ErrForeignBelow) {
+		t.Errorf("anna took bob's page deep in her folder into her notes: %v", moved)
+	}
+	if got := role(t, db, "bbbbbbbbb1", bob.ID); got != RoleOwner {
+		t.Errorf("bob holds %q on his own page", got)
 	}
 }
 

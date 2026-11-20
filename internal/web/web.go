@@ -214,6 +214,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /s/{token}", h.share)
 	mux.HandleFunc("POST /s/{token}/password", h.sharePassword)
 	mux.HandleFunc("GET /s/{token}/f/{file}", h.shareFile)
+	mux.HandleFunc("GET /s/{token}/p/{page}/attachments/{attachment}", h.shareAttachment)
 	mux.HandleFunc("POST /s/{token}/upload", h.shareUpload)
 	doc("POST /api/objects/{id}/kind", h.apiConvert)
 	doc("POST /api/pages/{id}/blocks", h.apiAddBlock)

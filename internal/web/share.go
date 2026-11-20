@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"html"
 	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +21,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/markdown"
 	"github.com/Ollornog/UnderDoc/internal/store"
 )
 
@@ -420,7 +423,7 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 		}
 	case l.ObjectKind == db.KindPage || l.ObjectKind == db.KindNotes:
 		v.Kind = "page"
-		v.Frozen = template.HTML(l.Frozen) // #nosec G203 -- rendered and sanitized by the same pipeline as every page
+		v.Frozen = template.HTML(frozenForLink(l.Frozen, sharePath(token), l.Object)) // #nosec G203 -- rendered and sanitized by the same pipeline as every page; only addresses change
 		if !l.FrozenAt.IsZero() {
 			v.FrozenAt = l.FrozenAt.UTC().Format("2006-01-02 15:04 UTC")
 		}
@@ -509,6 +512,60 @@ func (h *handler) sharePassword(w http.ResponseWriter, r *http.Request) {
 
 // isLocal tells whether a request comes to the own machine, where cookies go over http.
 func isLocal(r *http.Request) bool { return strings.HasPrefix(requestOrigin(r), "http://") }
+
+// The addresses of a frozen page as rendered for the workspace: an attachment of a page, and a link to a place of the
+// application. The page was rendered and sanitized, so every attribute is quoted and escaped, and no text holds a quote.
+var (
+	frozenAttachment = regexp.MustCompile(`"/api/pages/([0-9a-hjkmnp-tv-z]{10}/attachments/a[1-9][0-9]{0,8})"`)
+	frozenLink       = regexp.MustCompile(`<a [^>]*>`)
+	frozenHref       = regexp.MustCompile(` href="(/[^/"][^"]*|/)"`)
+)
+
+// frozenForLink shows a frozen page through its link (ADR-29): its attachments, and those of the pages it released,
+// come through the address of the link, since whoever has the link has no account; a link to a heading of the page
+// itself stays in the page; every other link into the application becomes plain text, as it would lead to a sign-in.
+func frozenForLink(frozen, path, pageID string) string {
+	out := frozenAttachment.ReplaceAllString(frozen, `"`+path+`/p/${1}"`)
+	return frozenLink.ReplaceAllStringFunc(out, func(tag string) string {
+		href := frozenHref.FindStringSubmatchIndex(tag)
+		if href == nil {
+			return tag
+		}
+		target := html.UnescapeString(tag[href[2]:href[3]])
+		if strings.HasPrefix(target, path+"/") {
+			return tag
+		}
+		if page, anchor, ok := strings.Cut(strings.TrimPrefix(target, "/o/"), "#"); ok && strings.HasPrefix(target, "/o/") && page == pageID && anchor != "" {
+			if !strings.HasPrefix(anchor, "h-") {
+				anchor = markdown.Slug(anchor)
+			}
+			return tag[:href[0]] + ` href="#` + html.EscapeString(anchor) + `"` + tag[href[1]:]
+		}
+		return `<a data-not-shared title="Not part of this link">`
+	})
+}
+
+// shareAttachment sends an attachment that a frozen page of a link shows: of the page itself or of a page it released,
+// as the page was frozen. Its maker must still see that page.
+func (h *handler) shareAttachment(w http.ResponseWriter, r *http.Request) {
+	l, ok := h.sharedLink(w, r)
+	if !ok {
+		return
+	}
+	pageID, attachmentID := r.PathValue("page"), r.PathValue("attachment")
+	if !h.passed(r, l) || l.Mode != db.LinkRead || (l.ObjectKind != db.KindPage && l.ObjectKind != db.KindNotes) || h.options.Store == nil ||
+		!id.Valid(pageID) || !strings.Contains(l.Frozen, `"`+db.AttachmentPath(pageID, attachmentID)+`"`) ||
+		!h.options.DB.Below(r.Context(), pageID, pageID, l.CreatedBy) {
+		h.notFound(w, r)
+		return
+	}
+	a, err := h.options.DB.SharedAttachment(r.Context(), pageID, attachmentID)
+	if err != nil {
+		h.notFound(w, r)
+		return
+	}
+	h.serveBlob(w, r, a.Blob, a.Name, a.ContentType)
+}
 
 // shareFile sends a file of a link: the file of the link, or a file below its folder, as the current version.
 func (h *handler) shareFile(w http.ResponseWriter, r *http.Request) {

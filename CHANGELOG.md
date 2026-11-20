@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- A link to read a page shows the images pasted into it and into the pages it released (ADR-29): they come through the
+  address of the link (`/s/<token>/p/<page>/attachments/<id>`), only those the frozen page shows, and only while the
+  maker of the link sees their page. A link of the page into the workspace becomes plain text, since whoever holds the
+  link has no way in there; a link to a heading of the page itself stays.
+
 - Passwords in the text (ADR-7, M-5, [docs/secrets.md](docs/secrets.md), migration 028): the text holds only
   `::secret{id="…"}`; the value is sealed by the vault (`UNDERDOC_SECRET_KEY`), each version on its own, and comes from
   the server on a click only (`POST /api/secrets/<id>/reveal`, same origin, `no-store`, 20 a minute per account), logged
@@ -167,6 +172,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- Taking a folder into something private now waits for whatever is being made or handed over at any depth below it, not
+  only directly in it, so a page of someone else made at that moment deep inside never goes private with it (ADR-29).
+- The form to transfer what someone left behind chooses nobody until the administrator does, and does not offer the
+  account whose things they are; before, it chose the first account of the list, and sending it as it was gave the
+  object to that account.
+- The table of building blocks in the concept still named TipTap as the editor; it is CodeMirror 6 (ADR-21).
 - A page that went into the trash while one of its parts got a new master brought the part back a second time when it
   was restored: the part now leaves the page in the trash, and the version says where it went.
 - A block held at the edge of a page scrolled it by the frames the browser drew, so a busy browser scrolled less in the

@@ -302,3 +302,101 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 		t.Errorf("the link does not send the plan: %d %q", got.Code, got.Body.String())
 	}
 }
+
+// TestAFrozenPageShowsItsAttachments: a link to read a page shows the images pasted into it, and into the pages it
+// released, through the address of the link, for anyone with the link; an attachment the frozen page does not show, of
+// a page not released or added after the freeze, is not found through it. A link into the workspace becomes plain
+// text, since whoever has the link has no way in there; one to a heading of the page itself stays (ADR-29).
+func TestAFrozenPageShowsItsAttachments(t *testing.T) {
+	s := withFiles(t)
+	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
+	newPage := func(title string) string {
+		return decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"`+title+`","parent":"`+team.ID+`"}`, sameSite)).ID
+	}
+	attach := func(page, name, content string) string {
+		got := s.put(nil, `"page":"`+page+`"`, name, []byte(content), 64)
+		if got.Code != http.StatusCreated {
+			t.Fatalf("attachment = %d %s", got.Code, got.Body.String())
+		}
+		return decode[finished](t, got).URL
+	}
+	block := func(page, md string) {
+		body, _ := json.Marshal(map[string]string{"md": md})
+		if got := s.send(http.MethodPost, "/api/pages/"+page+"/blocks", string(body), sameSite); got.Code != http.StatusCreated {
+			t.Fatalf("block = %d %s", got.Code, got.Body.String())
+		}
+	}
+	png := "\x89PNG\r\n\x1a\nmenu"
+	prices, salaries, menu := newPage("Prices"), newPage("Salaries"), newPage("Menu")
+	ownImage, pricesImage, salariesImage := attach(menu, "menu.png", png), attach(prices, "prices.png", "\x89PNG\r\n\x1a\nprices"), attach(salaries, "salaries.png", "\x89PNG\r\n\x1a\n4711")
+	block(prices, "![prices]("+pricesImage+")")
+	block(salaries, "![salaries]("+salariesImage+")")
+	block(menu, "## Our menu\n\n![menu]("+ownImage+")\n\nSee [the prices](/o/"+prices+"), [the top](/o/"+menu+"#our-menu) and [elsewhere](https://example.org/).")
+	block(menu, "::embed{ref=\""+prices+"\"}")
+	block(menu, "::embed{ref=\""+salaries+"\"}")
+	link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+menu+"/links", `{"mode":"read","released":["`+prices+`"]}`, sameSite))
+	path := pathOf(t, link.URL)
+	later := attach(menu, "later.png", "\x89PNG\r\n\x1a\nlater")
+	page := s.anonymous(http.MethodGet, path, nil, nil).Body.String()
+	for _, want := range []string{`src="` + path + `/p/` + menu + `/attachments/`, `src="` + path + `/p/` + prices + `/attachments/`, `href="#h-our-menu"`, `href="https://example.org/"`, `<a data-not-shared title="Not part of this link">the prices</a>`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the frozen page lacks %s: %s", want, page)
+		}
+	}
+	for _, not := range []string{"/api/pages/", `href="/o/`, salaries + "/attachments"} {
+		if strings.Contains(page, not) {
+			t.Errorf("the frozen page holds %s: %s", not, page)
+		}
+	}
+	through := func(address string) *httptest.ResponseRecorder {
+		return s.anonymous(http.MethodGet, path+"/p/"+strings.TrimPrefix(address, "/api/pages/"), nil, nil)
+	}
+	if got := through(ownImage); got.Code != http.StatusOK || got.Body.String() != png {
+		t.Errorf("the image of the page through the link: %d %q", got.Code, got.Body.String())
+	}
+	if got := through(pricesImage); got.Code != http.StatusOK || !strings.HasSuffix(got.Body.String(), "prices") {
+		t.Errorf("the image of a released page through the link: %d %q", got.Code, got.Body.String())
+	}
+	for name, address := range map[string]string{"of a page not released": salariesImage, "added after the freeze": later} {
+		if got := through(address); got.Code != http.StatusNotFound {
+			t.Errorf("an attachment %s: %d %q", name, got.Code, got.Body.String())
+		}
+	}
+	if got := s.anonymous(http.MethodGet, ownImage, nil, nil).Code; got == http.StatusOK {
+		t.Errorf("the address of the workspace sends the image without an account")
+	}
+	// A released page that its maker no longer sees sends nothing through the link, though the frozen page shows it.
+	board := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Board","parent":"`+team.ID+`"}`, plain)).ID
+	boardImage := decode[finished](t, s.put(plain, `"page":"`+board+`"`, "board.png", []byte("\x89PNG\r\n\x1a\nboard"), 64)).URL
+	if got := s.send(http.MethodPost, "/api/pages/"+board+"/blocks", `{"md":"![board](`+boardImage+`)"}`, plain); got.Code != http.StatusCreated {
+		t.Fatalf("block = %d %s", got.Code, got.Body.String())
+	}
+	block(menu, "::embed{ref=\""+board+"\"}")
+	both := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+menu+"/links", `{"mode":"read","released":["`+board+`"]}`, sameSite))
+	bothPath := pathOf(t, both.URL)
+	viaBoth := bothPath + "/p/" + strings.TrimPrefix(boardImage, "/api/pages/")
+	if got := s.anonymous(http.MethodGet, viaBoth, nil, nil).Code; got != http.StatusOK {
+		t.Fatalf("the image of bob's released page: %d", got)
+	}
+	s.send(http.MethodPut, "/api/objects/"+board+"/inherit", `{"inherit":false}`, plain)
+	// Broken, the page holds what held from above, anna's role included; bob takes all of it back.
+	held := decode[struct {
+		Own []struct{ Kind, Who string } `json:"own"`
+	}](t, s.send(http.MethodGet, "/api/objects/"+board+"/rights", "", plain))
+	for _, g := range held.Own {
+		take, _ := json.Marshal(map[string]string{"kind": g.Kind, "who": g.Who, "role": ""})
+		if got := s.send(http.MethodPut, "/api/objects/"+board+"/grants", string(take), plain); got.Code != http.StatusNoContent {
+			t.Fatalf("take back %s = %d %s", take, got.Code, got.Body.String())
+		}
+	}
+	if check := decode[map[string]any](t, s.send(http.MethodGet, "/api/rights/check?object="+board, "", sameSite)); check["role"] != nil && check["role"] != "" {
+		t.Fatalf("anna still holds a role on Board: %v", check)
+	}
+	if got := s.anonymous(http.MethodGet, viaBoth, nil, nil); got.Code != http.StatusNotFound {
+		t.Errorf("the image of a page its maker no longer sees: %d %q", got.Code, got.Body.String())
+	}
+	s.send(http.MethodDelete, "/api/links/"+link.ID, "", sameSite)
+	if got := through(ownImage).Code; got != http.StatusNotFound {
+		t.Errorf("revoked, the link sends the image: %d", got)
+	}
+}

@@ -298,6 +298,12 @@ func (db *DB) SharedFile(ctx context.Context, fileID string) (FileVersion, error
 	return v, err
 }
 
+// SharedAttachment returns an attachment of a page for a link that shows the page frozen. The caller has checked that
+// the maker of the link sees the page now (Below) and that the frozen page shows the attachment.
+func (db *DB) SharedAttachment(ctx context.Context, pageID, attachmentID string) (Attachment, error) {
+	return scanAttachment(db.pool.QueryRow(ctx, `SELECT `+attachmentColumns+` FROM attachments WHERE page = $1 AND id = $2`, pageID, attachmentID))
+}
+
 // SettleUpload ends an upload whose size was only known as an upper bound when it began, such as one through a link: it
 // now has exactly n bytes, all received.
 func (db *DB) SettleUpload(ctx context.Context, uploadID, viewer string, n int64) error {
