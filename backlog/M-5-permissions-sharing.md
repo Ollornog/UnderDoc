@@ -63,3 +63,8 @@ hash sealed in the vault), managed through the companion without root; roles as 
 share (rights per folder, single files cannot break the inheritance in a shared library, a folder someone reads without
 the folder above becomes a share of its own), administrators list and remove Samba users. Open: the domain, and passwords
 in the text (ADR-7) with their attack round.
+
+**Settled on 2026-11-20 (ADR-7):** [ADR-7](ADR-7-passwords-outside-markdown.md) says how passwords in the text are built:
+secrets of a page sealed by the one vault, rights from their page (whoever reads it, or narrower to persons and groups),
+shown only on their own page, values never travelling with a copy, revealed on click only and logged, rotation with
+`underdoc rekey`.
