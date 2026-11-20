@@ -133,3 +133,27 @@ func TestTokens(t *testing.T) {
 		t.Error("the same token twice")
 	}
 }
+
+// TestRate: a key gets so many uses in a window, the next waits until the oldest leaves it, and keys do not share.
+func TestRate(t *testing.T) {
+	clock := time.Unix(1_800_000_000, 0)
+	r := NewRate(3, time.Minute)
+	r.now = func() time.Time { return clock }
+	for i := range 3 {
+		if ok, _ := r.Take("acme/anna"); !ok {
+			t.Fatalf("use %d refused", i+1)
+		}
+		clock = clock.Add(10 * time.Second)
+	}
+	ok, wait := r.Take("acme/anna")
+	if ok || wait != 30*time.Second {
+		t.Fatalf("the fourth use in a minute: %v, wait %v", ok, wait)
+	}
+	if ok, _ := r.Take("acme/bert"); !ok {
+		t.Error("another key is held back")
+	}
+	clock = clock.Add(31 * time.Second)
+	if ok, _ := r.Take("acme/anna"); !ok {
+		t.Error("still refused once the oldest use left the window")
+	}
+}

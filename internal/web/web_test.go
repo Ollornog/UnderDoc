@@ -433,6 +433,13 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "chip", "flex", "font-medium", "gap-2", "grid", "grid-cols-2", "hint", "input", "input-group", "items-center", "lab", "label", "max-h-[420px]", "modrow", "mt-2", "mt-3", "overflow-y-auto", "pad", "select", "shead", "spanel", "table", "text-muted-foreground", "text-sm"} {
 		used[class] = "the tab Rights and the rights dialog (rights.js)"
 	}
+	// Passwords in the text (ADR-7): the masks the server draws (api_secrets.go), the editor draws (web/editor) and the
+	// dialogs of secrets.js, which lie outside the workspace like the rights dialog.
+	for _, class := range []string{"badge", "inline-flex", "items-center", "gap-1", "gap-2", "secret-key", "chip", "dialog", "btn", "input",
+		"label", "text-sm", "text-muted-foreground", "flex", "flex-wrap", "justify-between", "grid", "mt-2", "mt-3", "font-medium", "table",
+		"max-h-[420px]", "overflow-y-auto"} {
+		used[class] = "passwords in the text (api_secrets.go, secrets.js, web/editor)"
+	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
 	if err != nil || len(files) == 0 {

@@ -92,3 +92,9 @@ keep the key apart from the backups.
 **Not a vault.** The documentation says plainly: this is operations documentation. Whoever runs the server and holds the
 key can read every value; there is no end-to-end encryption, no sharing outside the tenant, no password generator and no
 browser integration.
+
+**Built on 2026-11-20** ([docs/secrets.md](../docs/secrets.md), migration 028): as settled above. The mask, Reveal and
+Copy while reading come from the server and `secrets.js`; the editor draws its own masks with Change, and "Password" in
+the slash menu and the lock in the bar make a secret. The settings of a page list its secrets with versions, readers and
+deletion. Reveals are limited to 20 a minute per account. `underdoc rekey` and `UNDERDOC_SECRET_KEY_OLD` rotate the key
+of the whole vault. Open: a warning when Markdown looks like it holds a password (concept), and the attack round of M-5.

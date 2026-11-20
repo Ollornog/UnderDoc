@@ -379,6 +379,78 @@ class EmbedWidget extends WidgetType {
   }
 }
 
+// A password in the text (ADR-7): ::secret{id="…"} anywhere in a line. Away from the cursor it shows as a mask with
+// Reveal, Copy and Change; the value comes from the server through the workspace (secrets.js) and is masked again after a
+// while. At the cursor the reference shows as text.
+const SECRET = /::secret\{id="([0-9a-hjkmnp-tv-z]{10})"\}/g;
+const SECRET_MASK = '••••••••';
+
+class SecretWidget extends WidgetType {
+  constructor(id, secret) {
+    super();
+    this.id = id;
+    this.secret = secret;
+  }
+  eq(other) {
+    return other.id === this.id && other.secret === this.secret;
+  }
+  toDOM() {
+    const box = document.createElement('span');
+    box.className = 'inline-flex items-center gap-1';
+    box.dataset.edSecret = this.id;
+    const mask = document.createElement('span');
+    mask.className = 'secret-key';
+    mask.textContent = SECRET_MASK;
+    mask.setAttribute('aria-label', 'Password, hidden');
+    box.append(mask);
+    const secret = this.secret;
+    if (!secret) return box;
+    const button = (label, act) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = label;
+      b.dataset.edSact = act;
+      box.append(b);
+      return b;
+    };
+    const fail = (err) => (window.UDToast || window.alert)(secret.why ? secret.why(err) : 'The password could not be fetched.');
+    const show = button('Reveal', 'show');
+    show.addEventListener('click', () => {
+      if (mask.dataset.shown) {
+        clearTimeout(mask.hideTimer);
+        mask.textContent = SECRET_MASK;
+        delete mask.dataset.shown;
+        show.textContent = 'Reveal';
+        return;
+      }
+      secret.show(this.id).then((value) => {
+        mask.textContent = value;
+        mask.dataset.shown = '1';
+        show.textContent = 'Hide';
+        clearTimeout(mask.hideTimer);
+        mask.hideTimer = setTimeout(() => {
+          mask.textContent = SECRET_MASK;
+          delete mask.dataset.shown;
+          show.textContent = 'Reveal';
+        }, 30000);
+      }, fail);
+    });
+    const copy = button('Copy', 'copy');
+    copy.addEventListener('click', () => {
+      secret.copy(this.id).then(() => {
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 2000);
+      }, fail);
+    });
+    button('Change', 'change').addEventListener('click', () => secret.change(this.id));
+    return box;
+  }
+  ignoreEvent(event) {
+    return !!(event.target && event.target.closest && event.target.closest('button'));
+  }
+}
+
 // cellsOf splits a table row at the pipes that are not escaped.
 function cellsOf(line) {
   const cells = [];
@@ -581,6 +653,14 @@ function decorate(state) {
     } else if (/^::[a-z]+\{.*\}\s*$/.test(l.text)) {
       add(l.from, l.from, lineClass('cm-lp-directive'));
       add(l.from, l.to, mark('cm-lp-directive-chip'));
+    }
+    if (!inCode(l.from)) {
+      for (const match of l.text.matchAll(SECRET)) {
+        const from = l.from + match.index;
+        const to = from + match[0].length;
+        if (!isActive(from, to)) add(from, to, Decoration.replace({ widget: new SecretWidget(match[1], cfg.secret || null) }));
+        else add(from, to, mark('cm-lp-directive-chip'));
+      }
     }
     for (const match of l.text.matchAll(/\[\[([^\]\n]+)\]\]/g)) {
       const from = l.from + match.index;
@@ -980,6 +1060,13 @@ function pickSlash(view, k) {
   if (!value || !item || item.later) return false;
   const from = value.from;
   const to = view.state.selection.main.head;
+  if (item.k === 'secret') {
+    // The value is asked for outside the editor; its reference comes back and goes where the slash stood.
+    view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from }, effects: setSlash.of(null), userEvent: 'input.type' });
+    const made = call(view, 'secret');
+    if (made && made.then) made.then((ref) => ref && insertText(view, ref));
+    return true;
+  }
   const text = item.k === 'embed' ? '' : turnInto('', item.k);
   const caret = item.k === 'code' ? 4 : item.k === 'table' ? 2 : text.length;
   const end = item.k === 'table' ? 8 : caret;
@@ -1212,6 +1299,13 @@ function call(view, name, ...args) {
   return undefined;
 }
 
+// insertText puts text where the cursor is, in place of the selection.
+function insertText(view, text) {
+  const { from, to } = view.state.selection.main;
+  view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input' });
+  view.focus();
+}
+
 // ---- The editor of one page.
 
 class PageEditor {
@@ -1240,6 +1334,7 @@ class PageEditor {
       handle: options.handle,
       slash: options.slash || [],
       embed: options.embed,
+      secret: options.secret || null,
       usedIn: (id) => {
         const b = this.stored.find((x) => x.id === id);
         return b && b.usedIn.length ? b.usedIn.join(', ') : '';
@@ -1566,6 +1661,10 @@ class PageEditor {
     return this.view.hasFocus;
   }
 
+  /** insert puts text where the cursor is, such as the reference to a new password (ADR-7). */
+  insert(text) {
+    insertText(this.view, text);
+  }
   /** setAlign shows a block aligned center or right, or left with ''. */
   setAlign(id, align) {
     if (align) this.aligns.set(id, align);

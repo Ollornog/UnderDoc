@@ -510,6 +510,10 @@ func (db *DB) DeleteGroup(ctx context.Context, groupID string) error {
 		if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE kind = 'group' AND who = $1", groupID); err != nil {
 			return err
 		}
+		// A restricted password loses the group as a reader (ADR-7); nobody else gains anything.
+		if _, err := tx.Exec(ctx, "DELETE FROM page_secret_readers WHERE kind = 'group' AND who = $1", groupID); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, "DELETE FROM groups WHERE id = $1", groupID)
 		return err
 	})

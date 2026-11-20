@@ -68,3 +68,8 @@ in the text (ADR-7) with their attack round.
 secrets of a page sealed by the one vault, rights from their page (whoever reads it, or narrower to persons and groups),
 shown only on their own page, values never travelling with a copy, revealed on click only and logged, rotation with
 `underdoc rekey`.
+
+**Built on 2026-11-20 (ADR-7, [docs/secrets.md](../docs/secrets.md)):** passwords in the text: references in the text,
+values sealed by the vault in versions, revealed and copied on click and logged, by whoever reads the page or fewer named
+by its managers, never in search, exports, links or the share, and the key rotated by `underdoc rekey`. Open: the domain,
+and the attack round on passwords in the text.

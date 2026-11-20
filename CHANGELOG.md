@@ -8,6 +8,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Passwords in the text (ADR-7, M-5, [docs/secrets.md](docs/secrets.md), migration 028): the text holds only
+  `::secret{id="…"}`; the value is sealed by the vault (`UNDERDOC_SECRET_KEY`), each version on its own, and comes from
+  the server on a click only (`POST /api/secrets/<id>/reveal`, same origin, `no-store`, 20 a minute per account), logged
+  before it is answered. Whoever reads the page reveals and copies, or fewer that its managers name; a role lent by a
+  share link does not count. A reference shows only on the page of its secret (embedded too), elsewhere "not available
+  here", so copies, templates and imports take no values; moving a block takes its secrets along if the mover may reveal
+  them. Never in the search, exports, the versions of a page, frozen links, the share or the logs.
+- The editor makes passwords from the slash menu and the bar and shows them as masks with Reveal, Copy and Change; the
+  page shows masks with Reveal and Copy; the settings of a page list its passwords with versions, readers and deletion.
+- `underdoc rekey` with `UNDERDOC_SECRET_KEY_OLD`: every sealed value of every tenant (passwords of pages, TOTP, the
+  client secret of OIDC, Samba hashes) sealed again under a new key; while the old key is set, both open.
+
 - T-1, the part of LibreOffice ([backlog/T-1](backlog/T-1-measure-office-saving.md), `scripts/t1-libreoffice.sh`):
   LibreOffice 26.8 headless saves `.xlsx`, `.ods`, `.docx` and `.odt` over a real Samba share while smbd's audit records
   every operation. It saves into `lu<random>.tmp` and renames it over the file, so a right on a single file does not

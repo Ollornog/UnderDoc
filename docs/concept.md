@@ -229,11 +229,13 @@ The order can change between topics, not during one. M-12 in particular can move
 
 - **The value never enters Markdown.** It would otherwise sit in clear text on the share, in search, in versions,
   exports and backups. The text holds only the reference `::secret{id="…"}`.
-- **Storage:** encrypted in the database with a key from the environment, using a maintained library such as age.
-- **Separate permission per password.** Reading the page is not enough. The value arrives from the server on click,
-  never in the page HTML, and every reveal is logged.
+- **Storage:** encrypted in the database with a key from the environment: the vault of ADR-23 (AES-256-GCM of the Go
+  standard library, `UNDERDOC_SECRET_KEY`), one key for everything sealed.
+- **A permission per password:** by default whoever reads its page, narrower per password to persons and groups
+  (settled in ADR-7 on 2026-11-20; the plan before said reading the page is never enough). The value arrives from the
+  server on click, never in the page HTML, and every reveal is logged. Built: [secrets.md](secrets.md).
 - **Never included** in search, exports, reports, public shares or the API.
-- **Warning** when Markdown looks like it contains a password.
+- **Later:** a warning when Markdown looks like it contains a password.
 - **Honest limit:** whoever holds the server and the key can read everything. This is convenient operations
   documentation, not a vault. End-to-end encryption with groups is out of scope.
 

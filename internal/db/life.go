@@ -925,6 +925,10 @@ func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, 
 				return ErrNotFound
 			}
 		}
+		// The passwords of the block go with it, or the block stays (ADR-7).
+		if err := moveSecrets(ctx, tx, pageID, toPage, b.Body, viewer); err != nil {
+			return err
+		}
 		id, err = insertBlock(ctx, tx, toPage, after, b.Body, viewer, "moved from "+Address{Object: pageID, Block: blockID}.String())
 		if err != nil {
 			return err

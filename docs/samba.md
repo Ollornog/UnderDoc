@@ -78,7 +78,8 @@ wants SMB gets a companion of its own on its own directory and address; WebDAV i
 | `UNDERDOC_SAMBA_SERVER` | The name of the server as people type it, for share paths | none |
 | `UNDERDOC_SAMBA_UIDS` | The UIDs of Samba users, within an unprivileged container | `20000-29999` |
 
-Samba needs the database, the content store (`UNDERDOC_STORE_DIR`) and the vault (`UNDERDOC_SECRET_KEY`).
+Samba needs the database, the content store (`UNDERDOC_STORE_DIR`) and the vault (`UNDERDOC_SECRET_KEY`). Pages of the documents are not on the share, so neither are
+their passwords ([secrets.md](secrets.md)).
 
 ### The companion
 

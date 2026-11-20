@@ -401,7 +401,7 @@ func (h *handler) checkTOTP(ctx context.Context, a db.Account, code string) bool
 }
 
 // totpName binds a sealed TOTP secret to its account.
-func totpName(accountID string) string { return "totp:" + accountID }
+func totpName(accountID string) string { return db.TOTPSecretName(accountID) }
 
 // signOut ends the session of the browser.
 func (h *handler) signOut(w http.ResponseWriter, r *http.Request) {

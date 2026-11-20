@@ -68,7 +68,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 | `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |
 | `UNDERDOC_GATE` | `on` lets tenants trust the headers of a sign-in gate, `off` never; empty keeps it where a tenant has it | empty |
-| `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (TOTP, the client secret of OIDC); without it, these are not offered | none |
+| `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (TOTP, the client secret of OIDC, passwords in the text, app passwords of Samba); without it, these are not offered | none |
+| `UNDERDOC_SECRET_KEY_OLD` | The key before a rotation, until `underdoc rekey` sealed everything again ([docs/secrets.md](docs/secrets.md)) | none |
 | `UNDERDOC_MODULES` | Modules allowed, each on by default or with `:off` off by default ([docs/modules.md](docs/modules.md)) | every module |
 | `UNDERDOC_HOSTER_HOST` | With many tenants, the host name of the hoster administration | none |
 | `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
@@ -99,6 +100,11 @@ makes an app password in its profile, and saving in Office or LibreOffice become
 **Rights** hold for documents and files alike: an owner, and the roles manage, edit, comment and read for persons, groups
 (local, or taken over from OIDC and the gate) and the whole tenant, inherited down the tree and narrowed by breaking the
 inheritance. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+
+**Passwords in the text** are references, `::secret{id="…"}`: the value lives sealed in the database, shows as a mask
+with Reveal and Copy, comes from the server on a click only, and every reveal is logged. Whoever reads the page reveals
+it, or fewer if its managers say so; it never reaches the search, an export, a share link or the share. Operations
+documentation, not a vault: [docs/secrets.md](docs/secrets.md).
 
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from

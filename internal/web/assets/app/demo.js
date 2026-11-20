@@ -436,6 +436,7 @@ function gearHtml(t,i,hasSecs){
     <h3>Others can</h3><div class="setrow"><span>${d.acc?'Set here':'Inherited: '+ACC[othersOf(t.d)].toLowerCase()}</span>${isOwner(t.d)?seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit'):seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit').replace(/<button /g,'<button disabled title="Only the owner sets this" ')}</div>
     <p class="hint">${d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.'}</p>
     ${d.db?`<div class="setrow"><span>People, groups and links</span><button class="chip" data-act="rights" data-id="${t.d}">Rights and sharing</button></div>`:''}
+    ${d.db&&d.blocks?`<div class="setrow"><span>Passwords in the text</span><button class="chip" data-act="secrets" data-id="${t.d}">Passwords</button></div>`:''}
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}</aside>`;
 }
@@ -1051,6 +1052,9 @@ document.addEventListener('click',e=>{
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
     case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
     case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
+    /* Passwords in the text (ADR-7, secrets.js): asked for in a dialog, kept sealed, and the reference goes where the cursor is. */
+    case 'edsecret':{const e=EDS[t.d];if(e&&window.UDSecrets)UDSecrets.make(D[t.d].sid).then(ref=>{if(ref&&EDS[t.d]===e)e.ed.insert(ref);});return;}
+    case 'secrets':if(window.UDSecrets)UDSecrets.open(D[a.id].sid,D[a.id].n);return;
     case 'edtable':{const e=EDS[t.d];if(e&&!e.ed.table(a.k))toast(a.k==='rowDelete'?'The header row stays: a table needs one.':a.k==='colDelete'?'The last column stays: a table needs one.':'The cursor is not in a table.');return;}
     case 'edmove':{const e=EDS[t.d];if(e)e.ed.moveBlock(a.id,a.k);break;}
     case 'eddel':{const e=EDS[t.d];if(e)e.ed.deleteBlock(a.id);break;}
@@ -1480,7 +1484,7 @@ function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.
 const KINDS=[['p','Text','text'],['h1','Heading 1','heading'],['h2','Heading 2','heading'],['h3','Heading 3','heading'],['ul','Bulleted list','list'],
   ['ol','Numbered list','olist'],['todo','To-do list','check'],['quote','Quote','quote'],['code','Code','code']];
 const SLASH=[...KINDS.map(k=>({k:k[0],n:k[1],i:k[2]})),{k:'hr',n:'Divider',i:'hr'},{k:'table',n:'Table',i:'table'},
-  {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
+  {k:'embed',n:'Embed a block or page',i:'link',hint:'Paste the address from Copy address'},{k:'secret',n:'Password',i:'lock',hint:'Kept sealed on the server; the text holds only a reference (ADR-7)'},{k:'image',n:'Image',i:'images',later:'Comes with the store for files'},{k:'file',n:'File',i:'page',later:'Comes with the store for files'}];
 /* The table tools of the bar (M-8): shown while the cursor stands in a table; each writes the table again as Markdown. */
 Object.assign(I,{rowup:'<rect x="3" y="11" width="18" height="9" rx="1"/><path d="M12 3v6M9 6h6"/>',rowdown:'<rect x="3" y="4" width="18" height="9" rx="1"/><path d="M12 15v6M9 18h6"/>',
   colleft:'<rect x="11" y="3" width="9" height="18" rx="1"/><path d="M3 12h6M6 9v6"/>',colright:'<rect x="4" y="3" width="9" height="18" rx="1"/><path d="M15 12h6M18 9v6"/>',
@@ -1574,7 +1578,7 @@ function edBarHtml(key,i){
   const e=EDS[key];
   return `<div class="btool edbar" role="toolbar" aria-label="Write" data-edbar="${key}">
       <select class="btype" data-edtype="${key}" aria-label="Turn into" title="Turn into">${KINDS.map(k=>`<option value="${k[0]}"${k[0]===((e&&e.kind)||'p')?' selected':''}>${k[1]}</option>`).join('')}</select>
-      <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}
+      <span class="bsep"></span>${FMT.map(f=>`<button class="ic" data-act="edfmt" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}<button class="ic" data-act="edsecret" data-w="${i}" title="Password: kept sealed, the text holds a reference" aria-label="Password">${ic('lock')}</button>
       <span class="bgroup" data-edtable="${key}"${e&&e.table?'':' hidden'}><span class="bsep"></span>${TABLE.map(f=>`<button class="ic" data-act="edtable" data-w="${i}" data-k="${f[0]}" title="${f[1]}" aria-label="${f[1]}">${ic(f[2])}</button>`).join('')}</span>
       <span class="bgroup" data-edsel="${key}"${e&&e.marked?'':' hidden'}><span class="bsep"></span><button class="ic" data-act="edselcopy" data-w="${i}" title="Copy as text, with no tie" aria-label="Copy as text">${ic('copy')}</button><button class="ic" data-act="edselembed" data-w="${i}" title="Embed elsewhere: copies the address of the marked text" aria-label="Embed elsewhere">${ic('link')}</button><input data-edvalname="${key}" placeholder="Name it as a value" aria-label="Name of the value" size="14" maxlength="80"><button class="ic" data-act="edselvalue" data-w="${i}" title="Make the marked text a value with this name, and copy its address" aria-label="Make a value">${ic('list')}</button></span>
       <em data-edstatus="${key}">${esc((e&&e.status)||'')}</em></div>`;
@@ -1614,12 +1618,15 @@ function makeEditor(key){
     handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
     slash:SLASH.map(x=>({...x,icon:ic(x.i)})),
     embed:ref=>{const [sid,blk]=ref.split('#'),k=Object.keys(D).find(x=>D[x].sid===sid);return {label:(k?plain(D[k].n):'Page '+sid)+(blk?' · #'+blk:''),href:'/o/'+sid+(blk?'#'+blk:'')};},
+    /* Passwords in the text (ADR-7): the masks of the editor reveal, copy and change through secrets.js. */
+    secret:window.UDSecrets?UDSecrets.forEditor():null,
     on:{
       kind:k=>{e.kind=k;show('data-edtype',k,'value');},
       table:on=>{e.table=on;show('data-edtable',!on,'hidden');},
       selection:on=>{e.marked=on;show('data-edsel',!on,'hidden');},
       status:s=>{e.status=s;show('data-edstatus',s,'textContent');},
       hint:t=>toast(t),
+      secret:()=>window.UDSecrets?UDSecrets.make(d.sid):Promise.resolve(null),
       /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
       upload:f=>uploadAttachment(key,f),
       error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
@@ -1734,6 +1741,7 @@ async function removedAct(id,what,page){
   for(const k of Object.keys(D))if(D[k].db&&D[k].loaded&&!EDS[k]){D[k].loaded=false;loadDoc(k);}
 }
 function toast(text){S.toast=text;render();setTimeout(()=>{S.toast='';render();},2600);}
+window.UDToast=toast;
 const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
 async function loadVersions(id){
   if(!D[id].canEdit)return;
