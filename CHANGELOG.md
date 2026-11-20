@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- T-1, the part of LibreOffice ([backlog/T-1](backlog/T-1-measure-office-saving.md), `scripts/t1-libreoffice.sh`):
+  LibreOffice 26.8 headless saves `.xlsx`, `.ods`, `.docx` and `.odt` over a real Samba share while smbd's audit records
+  every operation. It saves into `lu<random>.tmp` and renames it over the file, so a right on a single file does not
+  survive a save (rights stay per folder) and a file without read access stays hidden. The recordings are fixtures in
+  `internal/share/testdata/t1`, replayed by `TestRecordedSaves` in every run.
+
 - Samba (ADR-30, M-2, M-5, [docs/samba.md](docs/samba.md), migration 027): the folder of the tenant, each account's own
   folder and collections switched on by their managers appear as SMB shares, served by a companion container
   (`deploy/samba/Dockerfile`, Samba 4.24, an example in `deploy/samba/compose.yml`) that UnderDoc steers over a Unix socket

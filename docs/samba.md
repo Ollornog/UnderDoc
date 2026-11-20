@@ -134,3 +134,6 @@ later (M-5).
   against them with `smbclient`: a save becomes a version, the save of Office through a rename keeps the ID, deleting
   goes to the trash, rights per folder hold, a user without a role sees nothing, a wrong app password is turned away, a
   removed app password stops at once, and a user of one tenant never reaches the other.
+- `scripts/t1-libreoffice.sh` (by hand, it mounts a share inside a container): LibreOffice saves over a real share while
+  smbd's audit records every operation; the recordings in `internal/share/testdata/t1` are replayed by
+  `TestRecordedSaves` in every run (T-1).

@@ -1,0 +1,13 @@
+# Built with the folder scripts/t1 as its context. LibreOffice headless with the kernel's SMB client, for the measurement of T-1 (scripts/t1-libreoffice.sh): it mounts a
+# share of the Samba companion and opens, changes and saves a file there as a person would. Only for that measurement;
+# never part of UnderDoc. LibreOffice comes from Debian 13 backports, the newest stable series a stable distribution
+# carries; base and packages are pinned.
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+ARG LO_VERSION=4:26.8.2.2-2~bpo13+1
+RUN echo 'deb http://deb.debian.org/debian trixie-backports main' > /etc/apt/sources.list.d/backports.list && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -t trixie-backports \
+      "libreoffice-calc-nogui=${LO_VERSION}" "libreoffice-writer-nogui=${LO_VERSION}" "python3-uno=${LO_VERSION}" cifs-utils && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY save.py /usr/local/bin/save.py
+ENTRYPOINT ["python3", "/usr/local/bin/save.py"]

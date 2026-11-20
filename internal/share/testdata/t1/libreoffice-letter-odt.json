@@ -1,0 +1,288 @@
+{
+  "client": "LibreOffice 26.8.2.2 680(Build:2); Version 4.24.7-Debian-4.24.7+dfsg-1~bpo13+1",
+  "file": "letter.odt",
+  "measured": "2026-11-20",
+  "steps": [
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nxcht.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "renameat",
+      "path": "lu312nxcht.tmp",
+      "to": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": "letter.odt"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.odt"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.odt#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.letter.odt#"
+    }
+  ],
+  "new_inode": true,
+  "file_right_survived": false,
+  "hidden_without_read": true,
+  "shown_after_the_save": true
+}

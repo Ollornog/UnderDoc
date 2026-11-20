@@ -1,0 +1,264 @@
+{
+  "client": "LibreOffice 26.8.2.2 680(Build:2); Version 4.24.7-Debian-4.24.7+dfsg-1~bpo13+1",
+  "file": "budget.xlsx",
+  "measured": "2026-11-20",
+  "steps": [
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nx5j2.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nx5j2.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": "lu312nx5j2.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nx5j2.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nx5j2.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "renameat",
+      "path": "lu312nx5j2.tmp",
+      "to": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.xlsx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.xlsx#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.budget.xlsx#"
+    }
+  ],
+  "new_inode": true,
+  "file_right_survived": false,
+  "hidden_without_read": true,
+  "shown_after_the_save": true
+}

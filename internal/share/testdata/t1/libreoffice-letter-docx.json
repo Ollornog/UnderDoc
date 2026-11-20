@@ -1,0 +1,264 @@
+{
+  "client": "LibreOffice 26.8.2.2 680(Build:2); Version 4.24.7-Debian-4.24.7+dfsg-1~bpo13+1",
+  "file": "letter.docx",
+  "measured": "2026-11-20",
+  "steps": [
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nxa54.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nxa54.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": "lu312nxa54.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nxa54.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nxa54.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "renameat",
+      "path": "lu312nxa54.tmp",
+      "to": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": "letter.docx"
+    },
+    {
+      "op": "create_file",
+      "path": "letter.docx"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.letter.docx#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.letter.docx#"
+    }
+  ],
+  "new_inode": true,
+  "file_right_survived": false,
+  "hidden_without_read": true,
+  "shown_after_the_save": true
+}

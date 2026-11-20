@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//go:build samba
+//go:build samba || t1
 
 package share
 
