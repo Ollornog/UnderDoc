@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Search over tables (ADR-31, M-2, [docs/tables.md](docs/tables.md#search)): the cells of the visible sheets of a
+  spreadsheet go to the search service, Meilisearch and OpenSearch alike, a record for each run of rows headed by its
+  sheet; a hit opens `<sheet>!<range>`. Hidden sheets, rows and columns are not found, cell addresses are kept out of the
+  text so they never match a code, and only readers of the file find it. The search source moves to version 5, so every
+  index is filled again once. One cache of spreadsheets serves the web and the search.
 - Tables of spreadsheets in pages (ADR-31, M-3, [docs/tables.md](docs/tables.md#tables-in-pages), migration 029): a
   sheet, a range, a defined name or an Excel table gets an ID local to its file when it is chosen (`POST
   /api/files/{id}/tables`), and `::embed{ref="<file>#x3"}` shows it live in a page, a name of one cell inside a paragraph

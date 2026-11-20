@@ -53,6 +53,9 @@ Everything a reader may read, and nothing else:
   was recognised in pixels (a model, then OCR on the server); each record says where its text came from (`origin`, type
   `file`). Files follow the rule of the documents: whoever holds a role on the file reads it (ADR-29,
   [rights.md](rights.md)), and the folder of a user is read by that user only. The folders and roots of the view Files are places, not content, and are not found themselves.
+- **Spreadsheets** (`.xlsx`, `.xlsm`, `.ods`, `.csv`, ADR-31, [tables.md](tables.md#search)) are found by the cells of
+  their visible sheets instead of the text the server reads: a record for each run of rows of a sheet, headed by the
+  sheet, and a hit opens the table view at `<sheet>!<range>`. Hidden sheets, rows and columns are not found.
 - A new version, a text read later and an attachment added or removed put the file or page into the queue by themselves
   (triggers of the database, migration 020), whichever way the text came.
 - Later sources only register with the indexer (`search.Source`): tables and lists (M-6) and cached views of sources

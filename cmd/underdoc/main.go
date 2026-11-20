@@ -64,6 +64,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/share"
+	"github.com/Ollornog/UnderDoc/internal/sheet"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -220,6 +221,9 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 				return fmt.Errorf("content store: %w", err)
 			}
 			database.SetLimits(files.Limits)
+			// One cache of spreadsheets for the web and the search, set before the indexers start (ADR-31).
+			options.Sheets = sheet.NewCache(options.Store, log)
+			database.SetSheets(options.Sheets)
 			if office := os.Getenv("UNDERDOC_OFFICE_URL"); office != "" {
 				options.Office = officeModule(office)
 			}

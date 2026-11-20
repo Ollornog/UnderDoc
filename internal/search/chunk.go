@@ -30,6 +30,9 @@ type Part struct {
 // positions), and a hit should open near its place.
 const maxSectionWords = 1500
 
+// MaxSectionWords is how many words a section of other sources holds at most, such as a run of rows of a sheet.
+const MaxSectionWords = maxSectionWords
+
 // directive matches the directives of ADR-7 and ADR-18, such as ::secret{id="…"} and ::embed{ref="…"}. Their attributes
 // are addresses and IDs, never text to find, and a secret's ID has no business in an index.
 var directive = regexp.MustCompile(`::[A-Za-z][A-Za-z0-9_-]*(?:\[[^\]\n]*\])?(?:\{[^}\n]*\})?`)

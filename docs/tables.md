@@ -86,6 +86,20 @@ Spreadsheets come from anyone who may upload or save over Samba, so each is read
 - A panic of the reader becomes such a reason.
 - Every text of a file is escaped in HTML and set as text in the browser.
 
+## Search
+
+The cells of the visible sheets of the current version are given to the search service (ADR-24, Meilisearch or
+OpenSearch) as records of the file, with the file's readers (ADR-29): a record for each run of rows of a sheet, up to
+1500 words, a row a line, its cells in English. A record is headed by its sheet, and its anchor is `<sheet>!<range>`,
+such as `Budget!A1:H12`, so a hit names the sheet and opens the table view at its rows, with the words marked there.
+
+- Hidden sheets, rows and columns give nothing to the search.
+- The addresses of cells are not written into the text: a code such as `E1042` would find the cell E1042 of every long
+  sheet (ADR-24 looks codes up exactly). A hit names the range of its rows, not the single cell.
+- At most 1 MiB of text of a workbook is given, as of any file.
+- A spreadsheet that cannot be read as tables is found by the text the server reads, as other files are.
+- The source of the search raised its version (5), so every index is filled again once.
+
 ## Tables in pages
 
 A sheet, a range, a defined name or an Excel table of a spreadsheet can be embedded in a page (M-3, ADR-31). It gets an

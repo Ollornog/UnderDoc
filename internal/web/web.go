@@ -33,6 +33,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/search"
 	"github.com/Ollornog/UnderDoc/internal/share"
+	"github.com/Ollornog/UnderDoc/internal/sheet"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -87,6 +88,8 @@ type Options struct {
 	TenantDomain string
 	// Store is the content store of the files (ADR-28). Without it, or without DB, there are no files.
 	Store *store.Store
+	// Sheets reads spreadsheets of the store as tables and keeps them (ADR-31); nil makes one over Store.
+	Sheets *sheet.Cache
 	// Office converts Office files to PDF for their preview, an optional module (docs/files.md); nil for none.
 	Office files.OfficeConverter
 	// TextWays are the ways of reading the text of files the hoster allows (ADR-24); the tenant and each user narrow them.
@@ -128,6 +131,9 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		throttle: auth.NewThrottle(), reveals: auth.NewRate(db.RevealsPerWindow, db.RevealWindow)}
 	if h.options.Modules.IsZero() {
 		h.options.Modules, _ = module.ParsePolicy("")
+	}
+	if h.options.Sheets == nil && h.options.Store != nil {
+		h.options.Sheets = sheet.NewCache(h.options.Store, log)
 	}
 	switch options.Gate {
 	case GateKeep, GateOn, GateOff:

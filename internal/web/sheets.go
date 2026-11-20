@@ -4,199 +4,24 @@ package web
 
 import (
 	"bytes"
-	"compress/gzip"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"mime"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
-	"github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/sheet"
 )
 
 // Spreadsheets as tables (ADR-31): a file of a type internal/sheet reads shows its visible sheets, names and tables, and
-// any rectangle of a sheet as a grid in the reader's language. What was read is kept beside the blob (derived) and in a
-// small cache in memory; at most two workbooks are read at once, each for at most sheetTime.
+// any rectangle of a sheet as a grid in the reader's language. Reading and keeping what was read is sheet.Cache's.
 
-const (
-	// sheetTime is how long reading one workbook may take.
-	sheetTime = 30 * time.Second
-	// sheetDerived is the name of what was read, beside the blob; its number moves when the model changes.
-	sheetDerived = "-sheet-1.json.gz"
-	// sheetFailed keeps why a blob could not be read, so a broken or too large file is not read again on every view.
-	sheetFailed = "-sheet-1.err"
-	// gridRows is the most rows one answer of a grid holds.
-	gridRows = 500
-)
-
-var (
-	// sheetReaders holds a place for each workbook being read.
-	sheetReaders = make(chan struct{}, 2)
-	// sheetCache keeps the workbooks read last, by tenant and blob.
-	sheetCache = &workbookCache{max: 8}
-)
-
-// workbookCache is a small cache of workbooks in memory, the oldest out first. A failure that may pass, such as the end
-// of the time, is kept for a while only.
-type workbookCache struct {
-	mu      sync.Mutex
-	max     int
-	order   []string
-	entries map[string]cachedWorkbook
-}
-
-type cachedWorkbook struct {
-	wb    *sheet.Workbook
-	err   error
-	until time.Time
-}
-
-func (c *workbookCache) get(key string) (cachedWorkbook, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	e, ok := c.entries[key]
-	if ok && !e.until.IsZero() && time.Now().After(e.until) {
-		delete(c.entries, key)
-		return cachedWorkbook{}, false
-	}
-	return e, ok
-}
-
-func (c *workbookCache) put(key string, e cachedWorkbook) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.entries == nil {
-		c.entries = map[string]cachedWorkbook{}
-	}
-	if _, ok := c.entries[key]; !ok {
-		c.order = append(c.order, key)
-	}
-	c.entries[key] = e
-	for len(c.order) > c.max {
-		delete(c.entries, c.order[0])
-		c.order = c.order[1:]
-	}
-}
-
-// workbook returns the workbook of a blob: from memory, from what was read before, or read now.
-func (h *handler) workbook(ctx context.Context, tenant, sha, contentType, name string) (*sheet.Workbook, error) {
-	key := tenant + "/" + sha
-	if e, ok := sheetCache.get(key); ok {
-		return e.wb, e.err
-	}
-	wb, err := h.readWorkbook(ctx, tenant, sha, contentType, name)
-	switch {
-	case err == nil:
-		sheetCache.put(key, cachedWorkbook{wb: wb})
-	case errors.Is(err, context.DeadlineExceeded):
-		err = &sheetError{"this file takes too long to read as tables"}
-		sheetCache.put(key, cachedWorkbook{err: err, until: time.Now().Add(10 * time.Minute)})
-	case errors.Is(err, context.Canceled):
-	default:
-		sheetCache.put(key, cachedWorkbook{err: err})
-	}
-	return wb, err
-}
-
-func (h *handler) readWorkbook(ctx context.Context, tenant, sha, contentType, name string) (*sheet.Workbook, error) {
-	done, err := h.options.Store.DerivedPath(tenant, sha+sheetDerived)
-	if err != nil {
-		return nil, err
-	}
-	failed, err := h.options.Store.DerivedPath(tenant, sha+sheetFailed)
-	if err != nil {
-		return nil, err
-	}
-	if wb, err := loadWorkbook(done); err == nil {
-		return wb, nil
-	}
-	if reason, err := os.ReadFile(failed); err == nil {
-		return nil, &sheetError{string(reason)}
-	}
-	select {
-	case sheetReaders <- struct{}{}:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	defer func() { <-sheetReaders }()
-	f, err := h.options.Store.Open(tenant, sha)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	// The time of reading runs on its own: a viewer who leaves does not end it, so the next one finds it done.
-	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sheetTime)
-	defer cancel()
-	wb, err := sheet.Read(readCtx, f, info.Size(), contentType, name)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, err
-		}
-		reason := sheetReason(err)
-		if werr := h.options.Store.WriteDerived(tenant, sha+sheetFailed, []byte(reason)); werr != nil {
-			h.log.Warn("sheet reason not kept", slog.String("error", werr.Error()))
-		}
-		return nil, &sheetError{reason}
-	}
-	var buf bytes.Buffer
-	z := gzip.NewWriter(&buf)
-	if err := json.NewEncoder(z).Encode(wb); err == nil && z.Close() == nil {
-		if err := h.options.Store.WriteDerived(tenant, sha+sheetDerived, buf.Bytes()); err != nil {
-			h.log.Warn("sheet not kept", slog.String("error", err.Error()))
-		}
-	}
-	return wb, nil
-}
-
-// sheetError is why a file cannot be shown as tables, a sentence for a person.
-type sheetError struct{ reason string }
-
-func (e *sheetError) Error() string { return e.reason }
-
-// sheetReason is the sentence a person reads when a file cannot be shown as tables.
-func sheetReason(err error) string {
-	var limit *sheet.LimitError
-	switch {
-	case errors.As(err, &limit):
-		return limit.Error()
-	case errors.Is(err, files.ErrBomb):
-		return "this file cannot be shown as tables: it unpacks to far more than it is"
-	}
-	return sheet.ErrUnreadable.Error()
-}
-
-func loadWorkbook(path string) (*sheet.Workbook, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	z, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, err
-	}
-	var wb sheet.Workbook
-	if err := json.NewDecoder(io.LimitReader(z, 1<<30)).Decode(&wb); err != nil {
-		return nil, err
-	}
-	return &wb, nil
-}
+// gridRows is the most rows one answer of a grid holds.
+const gridRows = 500
 
 // fileWorkbook reads the current version of a file the viewer may read. A file that is no spreadsheet is ErrNotFound.
 func (h *handler) fileWorkbook(r *http.Request, fileID string) (db.FileVersion, *sheet.Workbook, error) {
@@ -208,7 +33,7 @@ func (h *handler) fileWorkbook(r *http.Request, fileID string) (db.FileVersion, 
 	if !sheet.Readable(v.ContentType) {
 		return v, nil, db.ErrNotFound
 	}
-	wb, err := h.workbook(r.Context(), h.tenant(r), v.Blob, v.ContentType, v.Name)
+	wb, err := h.options.Sheets.Workbook(r.Context(), h.tenant(r), v.Blob, v.ContentType, v.Name)
 	return v, wb, err
 }
 
@@ -361,9 +186,9 @@ func (h *handler) sheetFailed(w http.ResponseWriter, err error) bool {
 	if err == nil {
 		return false
 	}
-	var reason *sheetError
+	var reason *sheet.Reason
 	if errors.As(err, &reason) {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": reason.reason})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": reason.Text})
 		return true
 	}
 	return h.failed(w, err, "sheet")

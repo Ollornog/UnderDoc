@@ -142,7 +142,7 @@ func TestSpreadsheetThatCannotBeRead(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if path, _ := s.store.DerivedPath("main", v.Blob+sheetFailed); !fileExists(path) {
+		if path, _ := s.store.DerivedPath("main", v.Blob+sheet.Failed); !fileExists(path) {
 			t.Errorf("%s: the reason is not kept", name)
 		}
 	}
