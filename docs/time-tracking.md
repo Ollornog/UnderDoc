@@ -18,13 +18,13 @@ core keeps the data, and its own web interface runs inside UnderDoc. Nothing of 
 ## In the workspace
 
 With the module on, **Time** and **Vacation** in the private area of nav1 are the time tracking; with it off they are gone
-from nav1. Their list in nav3 names the pages of EightPerDay (list, every week, the week by mode, all employers, reports
+from nav1. Their list in nav3 names the pages of EightPerDay (the sheet, the week by mode, all employers, reports
 and export, organizations; leave planning under Vacation), and each opens like a document in the active window. The
 window shows the page in a frame of the same origin, in which everything of EightPerDay works as on its own, its tab bar
 included. The workspace draws its windows anew as a whole, so the frame lives outside them, one per window, laid over
 the place its tab keeps free (`assets/app/timetracking.js`); a redraw of the workspace leaves it, and what is typed in
-it, as it was. The browser test `TestTimeTrackingInTheWorkspace` switches the module on, records a week in the frame by
-mouse and keyboard and checks that another tenant sees nothing of it.
+it, as it was. The browser test `TestTimeTrackingInTheWorkspace` switches the module on, records a week on the sheet in the
+frame by mouse and keyboard and checks that another tenant sees nothing of it.
 
 ## Tenants, organizations and persons
 

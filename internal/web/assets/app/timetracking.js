@@ -9,8 +9,7 @@ window.UnderDocTime = (() => {
 
   // The pages of the time tracking a list offers, with the path below /time.
   const pages = [
-    { path: "/", name: "List", icon: "list" },
-    { path: "/weeks", name: "Every week", icon: "list" },
+    { path: "/", name: "Sheet", icon: "list" },
     { path: "/week", name: "Week by mode", icon: "clock" },
     { path: "/all", name: "All employers", icon: "grid" },
     { path: "/reports", name: "Reports and export", icon: "table" },

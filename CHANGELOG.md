@@ -96,6 +96,10 @@ All notable changes to this project are documented in this file. The format foll
   top. Collections made before keep what they granted. The level "" at the top (`/access`) now means nobody instead of
   edit, and the overview of a collection at the top offers "Nobody".
 
+- The time tracking runs EightPerDay `f388147` (was `de9f1ea`, EightPerDay M-6): the start page is one sheet in three
+  views (table, journal, a grid per week) with a level of detail, each field saving itself, and the view kept per person.
+  Its list and every week are gone, so the list of Time in nav3 names the sheet instead
+  ([docs/time-tracking.md](docs/time-tracking.md)). No migration of its own changed; the embedding stays as it was.
 - The time tracking runs EightPerDay `de9f1ea` (was `338593b`): hours of half a day (`4v`, `4n`) and half a day of
   leave next to work, pay for half days, and standby with its pay and as working time
   ([docs/time-tracking.md](docs/time-tracking.md)). The embedding stays as it was.
