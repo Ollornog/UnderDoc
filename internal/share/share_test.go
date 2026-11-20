@@ -43,6 +43,8 @@ type fakeHelper struct {
 	acl   map[string]map[int]samba.Access
 	open  []samba.Open
 	who   []samba.Event
+	first uint64 // the numbers of the audit's oldest and newest event, as the companion answers them
+	last  uint64
 	calls map[string]int
 	boot  string
 }
@@ -67,7 +69,7 @@ func (f *fakeHelper) Do(_ context.Context, r samba.Request) (samba.Response, err
 	case samba.OpOpen:
 		return samba.Response{OK: true, Open: f.open}, nil
 	case samba.OpWho:
-		return samba.Response{OK: true, Who: f.who}, nil
+		return samba.Response{OK: true, Who: f.who, First: f.first, Last: f.last}, nil
 	case samba.OpPing:
 		return samba.Response{OK: true, Boot: f.boot}, nil
 	}
@@ -339,7 +341,8 @@ func TestOfficeSaveBecomesAVersion(t *testing.T) {
 	}
 }
 
-// A file saved in place becomes a version by the account the audit names, or by the owner of the file on disk.
+// A file saved in place becomes a version by the account the audit names, or by the Samba user that owns the file on
+// disk; never by the owner of the object (TestUnknownWriterIsPutBack).
 func TestSavedInPlace(t *testing.T) {
 	f := setup(t)
 	file := f.upload(anna.ID, f.company.ID, "notes.txt", "one")
@@ -490,6 +493,7 @@ func TestOpenOverSambaHoldsTheWebBack(t *testing.T) {
 	}
 	// A change on disk while it is open for writing waits.
 	f.write("open.txt", "half")
+	f.h.wrote("anna", f.path("open.txt"))
 	f.sync()
 	if len(f.versions(file.ID)) != 1 {
 		t.Error("a file open for writing became a version")

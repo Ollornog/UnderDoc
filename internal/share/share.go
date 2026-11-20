@@ -92,7 +92,8 @@ func New(database *db.DB, st *store.Store, v *vault.Vault, cfg Config, log *slog
 			return nil, err
 		}
 		m.tenants[t] = &tenantShare{m: m, tenant: t, dir: dir, helper: h, kick: make(chan struct{}, 1),
-			acl: map[string]string{}, roots: map[string]rootInfo{}}
+			acl: map[string]string{}, roots: map[string]rootInfo{}, former: map[string]string{}, formerUID: map[int]string{},
+			held: map[string]bool{}}
 		on[t] = true
 	}
 	database.SetSamba(on)
@@ -172,6 +173,13 @@ type tenantShare struct {
 	acl     map[string]string
 	roots   map[string]rootInfo // per shared library: its share name, for share paths
 	reaches map[string][]string // per account: the shares it reaches
+	seen    uint64              // the newest event of the audit the last pass saw
+
+	// former keeps the Samba users of earlier passes by name and UID, so a change made before an app password was
+	// removed is still taken as the account that made it.
+	former    map[string]string
+	formerUID map[int]string
+	held      map[string]bool // what the last pass reported, so the log says it once
 }
 
 // rootInfo is what a share path needs of a library.
@@ -236,6 +244,12 @@ type view struct {
 	open      map[string][]string
 	openWrite map[string]bool
 	busy      bool
+	// held is what this pass reported or would have: left alone, put back, kept on disk.
+	held map[string]bool
+	told map[string]bool // what the pass before reported
+	// refresh are the files that came to a path or an inode the companion has not set the ACL of: moved, new, or saved
+	// through a rename. Each gets the ACL of its folder again.
+	refresh []string
 }
 
 // pass brings the working copy and the database of the tenant in step, gives the companion its state and the ACLs, and
@@ -253,10 +267,24 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	v := &view{accounts: accounts, byName: map[string]string{}, byUID: map[int]string{}, who: map[string]string{},
-		open: map[string][]string{}, openWrite: map[string]bool{}}
+		open: map[string][]string{}, openWrite: map[string]bool{}, held: map[string]bool{}, told: ts.held}
+	defer func() { ts.held = v.held }()
+	for name, acc := range ts.former {
+		v.byName[name] = acc
+	}
+	for uid, acc := range ts.formerUID {
+		v.byUID[uid] = acc
+	}
 	for _, a := range accounts {
 		v.byName[a.Name] = a.Account
 		v.byUID[a.UID] = a.Account
+		ts.former[a.Name] = a.Account
+		ts.formerUID[a.UID] = a.Account
+	}
+	// A companion that started again has forgotten its users, its shares and its audit: they are applied again, and the
+	// numbers of the audit start anew.
+	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpPing}); err == nil && r.Boot != ts.boot {
+		ts.boot, ts.state, ts.seen = r.Boot, "", 0
 	}
 	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpWho}); err == nil {
 		for _, e := range r.Who {
@@ -267,6 +295,17 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 				}
 			}
 		}
+		// Events pushed out of the audit before this pass asked: whoever changed something then is unknown, and what
+		// they changed is put back (actor). Said in the log, since it is either a flood or a pass that came too late.
+		if ts.seen > 0 && r.First > ts.seen+1 {
+			lost := r.First - ts.seen - 1
+			ts.m.log.Warn("samba: the audit lost events before the pass read them; changes whose writer is unknown are put back",
+				"tenant", ts.tenant, "lost", lost)
+			_ = ts.m.db.Log(ctx, "", LogShare, "", fmt.Sprintf("the audit of the share lost %d events; changes whose writer is unknown were put back", lost))
+		}
+		if r.Last > 0 {
+			ts.seen = r.Last
+		}
 	}
 	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpOpen}); err == nil {
 		for _, o := range r.Open {
@@ -276,10 +315,6 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 			}
 		}
 	}
-	// A companion that started again has forgotten its users and shares: they are applied again.
-	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpPing}); err == nil && r.Boot != ts.boot {
-		ts.boot, ts.state = r.Boot, ""
-	}
 	keep := map[string]bool{}
 	var failed []string
 	for _, root := range roots {
@@ -288,7 +323,7 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 			failed = append(failed, fmt.Sprintf("%s: %v", root.ID, err))
 		}
 	}
-	ts.dropUnshared(ctx, keep)
+	ts.dropUnshared(ctx, keep, v)
 	if err := ts.applyRights(ctx, roots, v); err != nil {
 		failed = append(failed, err.Error())
 	}
@@ -302,8 +337,10 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 }
 
 // dropUnshared takes the directories of libraries that are no longer shared off the disk, with their records; the
-// store keeps everything. Only directories named like an object are touched.
-func (ts *tenantShare) dropUnshared(ctx context.Context, keep map[string]bool) {
+// store keeps everything. Only directories named like an object are touched. A last pass first takes what changed there
+// since the pass before into the database, as the account that changed it; a directory that still holds something the
+// database did not take stays on disk, said once in the log, and is looked at again with every pass.
+func (ts *tenantShare) dropUnshared(ctx context.Context, keep map[string]bool, v *view) {
 	list, err := os.ReadDir(ts.dir)
 	if err != nil {
 		return
@@ -312,12 +349,81 @@ func (ts *tenantShare) dropUnshared(ctx context.Context, keep map[string]bool) {
 		if !d.IsDir() || !validID(d.Name()) || keep[d.Name()] {
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(ts.dir, d.Name())); err != nil {
-			ts.m.log.Warn("samba: removing a library that is no longer shared", "root", d.Name(), "err", err)
+		dir := filepath.Join(ts.dir, d.Name())
+		root, err := ts.m.db.ShareRootInfo(ctx, d.Name())
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			ts.m.log.Warn("samba: a library that is no longer shared", "root", d.Name(), "err", err)
 			continue
 		}
-		_ = ts.m.db.DeleteShareRecords(ctx, d.Name())
+		root.ID = d.Name()
+		if err := ts.diskToDB(ctx, root, dir, v); err != nil {
+			ts.m.log.Warn("samba: the last pass over a library that is no longer shared", "root", root.ID, "err", err)
+			continue
+		}
+		left, err := ts.untaken(ctx, root.ID, dir)
+		if err != nil {
+			ts.m.log.Warn("samba: the last pass over a library that is no longer shared", "root", root.ID, "err", err)
+			continue
+		}
+		if len(left) > 0 {
+			if v.report("drop:" + root.ID) {
+				ts.m.log.Warn("samba: a library that is no longer shared stays on disk: it holds what the database did not take",
+					"root", root.ID, "paths", left)
+				_ = ts.m.db.Log(ctx, "", LogShare, root.ID, "no longer shared, but it stays on disk: the database did not take "+
+					strings.Join(left, ", "))
+			}
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			ts.m.log.Warn("samba: removing a library that is no longer shared", "root", root.ID, "err", err)
+			continue
+		}
+		_ = ts.m.db.DeleteShareRecords(ctx, root.ID)
 	}
+}
+
+// untaken lists what lies in the directory of a library that the database does not hold: an entry without an ID, or a
+// file that is neither the current version of its object nor what the last pass agreed on. At most ten.
+func (ts *tenantShare) untaken(ctx context.Context, rootID, dir string) ([]string, error) {
+	t, err := ts.tree(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
+	list, err := ts.m.db.ShareRecords(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
+	recs := map[string]db.ShareRecord{}
+	for _, r := range list {
+		recs[r.Object] = r
+	}
+	disk, err := scan(dir)
+	if err != nil {
+		return nil, err
+	}
+	var left []string
+	for p, e := range disk {
+		if p == "" {
+			continue
+		}
+		taken := e.id != ""
+		if taken && !e.dir {
+			r, had := recs[e.id]
+			taken = had && r.Path == p && r.Inode == e.inode && r.Size == e.size && r.MtimeNS == e.mtimeNS
+			if n, ok := t.nodes[e.id]; !taken && ok {
+				sha, _, err := hashFile(filepath.Join(dir, filepath.FromSlash(p)))
+				taken = err == nil && sha == n.SHA
+			}
+		}
+		if !taken {
+			left = append(left, p)
+		}
+	}
+	sort.Strings(left)
+	if len(left) > 10 {
+		left = append(left[:10], "…")
+	}
+	return left, nil
 }
 
 // full is the absolute path of a path of a library.
@@ -325,9 +431,10 @@ func (ts *tenantShare) full(rootID, rel string) string {
 	return filepath.Join(ts.dir, rootID, filepath.FromSlash(rel))
 }
 
-// actor returns the account that made a change on disk: the audit of the companion, else the owner of the file on
-// disk, else the fallback (the owner of the object or of the library), and whether it was known.
-func (v *view) actor(full string, e *entry, fallback string) (string, bool) {
+// actor returns the account that made a change on disk: the audit of the companion, else the owner of the file on disk
+// when that is a Samba user; ok false when neither knows. An unknown writer is never anyone else, not the owner of the
+// object nor of the library: what it changed is put back (ADR-30, after an attack round).
+func (v *view) actor(full string, e *entry) (string, bool) {
 	if acc := v.who[full]; acc != "" {
 		return acc, true
 	}
@@ -336,8 +443,38 @@ func (v *view) actor(full string, e *entry, fallback string) (string, bool) {
 			return acc, true
 		}
 	}
-	return fallback, false
+	return "", false
 }
+
+// report tells whether something is to be said in the log: not when the pass before said it already.
+func (v *view) report(key string) bool {
+	first := !v.held[key] && !v.told[key]
+	v.held[key] = true
+	return first
+}
+
+// putBack logs a change on disk whose writer is unknown and that the pass therefore does not take; the disk follows the
+// database again.
+func (ts *tenantShare) putBack(ctx context.Context, v *view, objectID, what string) {
+	if !v.report("back:" + objectID + ":" + what) {
+		return
+	}
+	ts.m.log.Warn("samba: a change whose writer is unknown is put back", "tenant", ts.tenant, "object", objectID, "change", what)
+	_ = ts.m.db.Log(ctx, "", LogShare, objectID, what+" over Samba was put back: the writer is unknown")
+}
+
+// leftAlone logs once that something new on disk was not taken, since its writer is unknown; it stays on disk.
+func (ts *tenantShare) leftAlone(ctx context.Context, v *view, root, rel string) {
+	if !v.report("new:" + root + "/" + rel) {
+		return
+	}
+	ts.m.log.Warn("samba: something new whose writer is unknown is not taken", "tenant", ts.tenant, "root", root, "path", rel)
+	_ = ts.m.db.Log(ctx, "", LogShare, root, rel+" is new on the share and was not taken: the writer is unknown")
+}
+
+// LogShare is the action of the log for what the working copy did on its own: put back or left alone what came from
+// an unknown writer, kept a file off the share.
+const LogShare = "samba"
 
 // syncRoot brings one library in step: first what changed on disk goes into the database, as the account that made it,
 // then the disk is made to show the database.
@@ -381,6 +518,13 @@ func (ts *tenantShare) tree(ctx context.Context, rootID string) (tree, error) {
 		if clean, err := db.CleanFileName(n.Name); err != nil || clean != n.Name {
 			continue
 		}
+		// A name the scan leaves out as temporary would vanish from the disk at the next pass and go to the trash; it
+		// stays off the disk. So does a file that breaks the inheritance: Samba knows rights per folder only, and its
+		// folder's ACL would show it to whoever reads the folder (ADR-29, ADR-30). The database refuses to let one in
+		// (perFolder); this holds for a library shared with one already in it, such as the folder of the tenant.
+		if ignored(n.Name, n.Kind == db.KindFolder) || (n.Kind == db.KindFile && n.Breaks) {
+			continue
+		}
 		if p, ok := t.paths[n.Parent]; ok {
 			t.paths[n.ID] = path.Join(p, n.Name)
 		}
@@ -414,6 +558,7 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 	if err != nil {
 		return err
 	}
+	ts.breakLinks(dir, disk, recs)
 	// Which entry carries which ID: one entry per ID, the one where the record says it lies when the ID is found twice.
 	byID := map[string]*entry{}
 	for _, e := range disk {
@@ -459,11 +604,12 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 			vanished[r.Path] = true
 			if inDB && t.paths[r.Object] == r.Path && !vanished[parentOf(r.Path)] {
 				full := ts.full(root.ID, r.Path)
-				actor, known := v.actor(full, nil, n.Owner)
-				if err := ts.m.db.Delete(ctx, n.ID, actor); err != nil {
+				actor, known := v.actor(full, nil)
+				if !known {
+					ts.putBack(ctx, v, n.ID, "a deletion")
+				} else if err := ts.m.db.Delete(ctx, n.ID, actor); err != nil {
 					ts.m.log.Warn("samba: a deletion was not taken", "object", n.ID, "account", actor, "err", err)
 				} else {
-					ts.note(ctx, actor, known, n.ID, "deleted over Samba")
 					_ = ts.m.db.DeleteShareRecords(ctx, root.ID, n.ID)
 				}
 			}
@@ -482,19 +628,20 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 					parent, ok = pe.id, true
 				}
 			}
-			actor, known := v.actor(full, e, n.Owner)
-			if ok && parent != n.Parent {
-				if _, err := ts.m.db.Move(ctx, n.ID, actor, parent, ""); err != nil {
-					ts.m.log.Warn("samba: a move was not taken", "object", n.ID, "account", actor, "err", err)
-				} else {
-					ts.note(ctx, actor, known, n.ID, "moved over Samba")
+			actor, known := v.actor(full, e)
+			switch {
+			case !known:
+				ts.putBack(ctx, v, n.ID, "a move or rename")
+			default:
+				if ok && parent != n.Parent {
+					if _, err := ts.m.db.Move(ctx, n.ID, actor, parent, ""); err != nil {
+						ts.m.log.Warn("samba: a move was not taken", "object", n.ID, "account", actor, "err", err)
+					}
 				}
-			}
-			if name := path.Base(e.path); name != n.Name {
-				if _, err := ts.m.db.Rename(ctx, n.ID, actor, name); err != nil {
-					ts.m.log.Warn("samba: a rename was not taken", "object", n.ID, "account", actor, "err", err)
-				} else {
-					ts.note(ctx, actor, known, n.ID, "renamed over Samba")
+				if name := path.Base(e.path); name != n.Name {
+					if _, err := ts.m.db.Rename(ctx, n.ID, actor, name); err != nil {
+						ts.m.log.Warn("samba: a rename was not taken", "object", n.ID, "account", actor, "err", err)
+					}
 				}
 			}
 		}
@@ -554,18 +701,17 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 			}
 			continue
 		}
-		owner := t.nodes[parent].Owner
-		if owner == "" {
-			owner = root.Owner
+		actor, known := v.actor(full, e)
+		if !known {
+			ts.leftAlone(ctx, v, root.ID, e.path)
+			continue
 		}
-		actor, known := v.actor(full, e, owner)
 		if e.dir {
 			o, err := ts.m.db.CreateFolder(ctx, accountUser(actor), name, parent)
 			if err != nil {
 				ts.m.log.Warn("samba: a new folder was not taken", "path", e.path, "account", actor, "err", err)
 				continue
 			}
-			ts.note(ctx, actor, known, o.ID, "made over Samba")
 			at[e.path] = o.ID
 			_ = writeID(full, o.ID)
 			continue
@@ -583,9 +729,6 @@ func (ts *tenantShare) diskToDB(ctx context.Context, root db.SharedRoot, dir str
 		if err != nil {
 			ts.m.log.Warn("samba: a new file was not taken", "path", e.path, "account", actor, "err", err)
 			continue
-		}
-		if !known {
-			ts.note(ctx, actor, known, o.ID, "made over Samba")
 		}
 		at[e.path] = o.ID
 		_ = writeID(full, o.ID)
@@ -608,22 +751,56 @@ func (ts *tenantShare) takeContent(ctx context.Context, root db.SharedRoot, e *e
 	if sha == n.SHA {
 		return
 	}
-	actor, known := v.actor(full, e, n.Owner)
-	if _, err := ts.m.db.ShareNewVersion(ctx, actor, n.ID, sha, size, contentType); err != nil {
-		ts.m.log.Warn("samba: a save was not taken", "object", n.ID, "account", actor, "err", err)
+	actor, known := v.actor(full, e)
+	if !known {
+		ts.putBack(ctx, v, n.ID, "a save")
 		return
 	}
-	if !known {
-		ts.note(ctx, actor, known, n.ID, "saved over Samba")
+	if _, err := ts.m.db.ShareNewVersion(ctx, actor, n.ID, sha, size, contentType); err != nil {
+		ts.m.log.Warn("samba: a save was not taken", "object", n.ID, "account", actor, "err", err)
 	}
 }
 
-// note logs a change of the share whose writer is unknown, so the log says it (ADR-30).
-func (ts *tenantShare) note(ctx context.Context, actor string, known bool, objectID, what string) {
-	if known {
-		return
+// breakLinks ends every hard link in a library before an ID is read or written (ADR-30, after an attack round): SMB2
+// makes one with FileLinkInformation, and Samba has no setting against it. Two names of one inode share its ID; the
+// pass would write the ID of a new object onto the inode of the old one and lose it. Of the names of an inode the one
+// the record of its ID names stays; when none does and all names lie in this library, the first by path; every other
+// name becomes a copy of its own, without an ID: a new file of whoever made the link (the audit names it, linkat).
+func (ts *tenantShare) breakLinks(dir string, disk map[string]*entry, recs map[string]db.ShareRecord) {
+	byInode := map[uint64][]*entry{}
+	for _, e := range disk {
+		if !e.dir && e.nlink > 1 {
+			byInode[e.inode] = append(byInode[e.inode], e)
+		}
 	}
-	_ = ts.m.db.Log(ctx, actor, "change", objectID, what+", the writer unknown")
+	for _, names := range byInode {
+		sort.Slice(names, func(i, j int) bool { return names[i].path < names[j].path })
+		keep := -1
+		for i, e := range names {
+			if r, ok := recs[e.id]; ok && e.id != "" && r.Path == e.path {
+				keep = i
+			}
+		}
+		if keep < 0 && uint64(len(names)) == names[0].nlink {
+			keep = 0
+		}
+		for i, e := range names {
+			if i == keep {
+				continue
+			}
+			full := filepath.Join(dir, filepath.FromSlash(e.path))
+			if err := copyOver(full); err != nil {
+				ts.m.log.Warn("samba: ending a hard link", "path", e.path, "err", err)
+				delete(disk, e.path) // left out of this pass, so its ID is neither read nor written
+				continue
+			}
+			if x := stat(dir, e.path); x != nil {
+				disk[e.path] = x
+			} else {
+				delete(disk, e.path)
+			}
+		}
+	}
 }
 
 // dbToDisk makes the disk show the database: folders and files where they belong, with their current content, and
@@ -660,6 +837,10 @@ func (ts *tenantShare) dbToDisk(ctx context.Context, root db.SharedRoot, dir str
 	for _, n := range t.order {
 		want, ok := t.paths[n.ID]
 		if !ok {
+			if n.Kind == db.KindFile && n.Breaks && v.report("off:"+n.ID) {
+				ts.m.log.Warn("samba: a file that breaks the inheritance is kept off the share", "tenant", ts.tenant, "object", n.ID)
+				_ = ts.m.db.Log(ctx, "", LogShare, n.ID, "kept off the share: it breaks the inheritance, and Samba knows rights per folder only")
+			}
 			continue
 		}
 		full := ts.full(root.ID, want)
@@ -737,6 +918,11 @@ func (ts *tenantShare) dbToDisk(ctx context.Context, root db.SharedRoot, dir str
 		rec := db.ShareRecord{Object: n.ID, Root: root.ID, Path: want, Kind: n.Kind, Inode: e.inode, Size: e.size, MtimeNS: e.mtimeNS}
 		if n.Kind == db.KindFile {
 			rec.SHA = n.SHA
+			// A file keeps the ACL it had where it was made: one that came to this path or is a new inode gets the ACL
+			// of its folder, whoever moved or saved it, so a move never carries the readers of the folder it left.
+			if old, had := recs[n.ID]; !had || old.Path != want || old.Inode != e.inode {
+				v.refresh = append(v.refresh, full)
+			}
 		}
 		if old, had := recs[n.ID]; !had || old != rec {
 			if err := ts.m.db.PutShareRecord(ctx, rec); err != nil {
@@ -745,10 +931,11 @@ func (ts *tenantShare) dbToDisk(ctx context.Context, root db.SharedRoot, dir str
 		}
 		delete(recs, n.ID)
 	}
-	// What the database no longer has in this library: off the disk, if it is still what was agreed on.
+	// What the database no longer has in this library, or keeps off the disk: off the disk, if it is still what was agreed
+	// on.
 	var gone []string
 	for id, r := range recs {
-		if _, inDB := t.nodes[id]; inDB {
+		if _, onDisk := t.paths[id]; onDisk {
 			continue
 		}
 		gone = append(gone, id)

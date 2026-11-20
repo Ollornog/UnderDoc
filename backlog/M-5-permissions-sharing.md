@@ -73,3 +73,9 @@ shown only on their own page, values never travelling with a copy, revealed on c
 values sealed by the vault in versions, revealed and copied on click and logged, by whoever reads the page or fewer named
 by its managers, never in search, exports, links or the share, and the key rotated by `underdoc rekey`. Open: the domain,
 and the attack round on passwords in the text.
+
+**Attack round on Samba and passwords in the text (2026-11-20):** an unknown writer on the share is nobody (its change is
+put back), hard links end, a moved file gets the ACL of its folder, a file that breaks the inheritance never reaches the
+share, a library that stops being shared gets a last pass, a Samba user never takes the name of a share, temporary
+patterns hold for files only, no `%` in share paths; a secret moved away is logged on the page it leaves (ADR-30, ADR-7).
+Open: passage above a share of one's own tells existing names from missing ones (decision of the maintainer), the domain.

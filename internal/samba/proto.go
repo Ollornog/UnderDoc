@@ -88,6 +88,10 @@ type Response struct {
 	Boot string  `json:"boot,omitempty"`
 	Open []Open  `json:"open,omitempty"`
 	Who  []Event `json:"who,omitempty"`
+	// First and Last number the oldest and the newest event the audit still keeps (who). A First beyond the Last a caller
+	// saw before means events were pushed out of the audit in between: who changed something then is unknown.
+	First uint64 `json:"first,omitempty"`
+	Last  uint64 `json:"last,omitempty"`
 }
 
 // Open is a file open over SMB.
@@ -221,7 +225,8 @@ func (r Request) Check(root string, uidMin, uidMax int) error {
 				return fmt.Errorf("share %q: not a valid or unique share name", s.Name)
 			}
 			shares[strings.ToLower(s.Name)] = true
-			if !Below(root, s.Path) || s.Path == root {
+			// smb.conf substitutes variables such as %U in a path: a path with '%' would be another one for each user.
+			if !Below(root, s.Path) || s.Path == root || strings.ContainsRune(s.Path, '%') {
 				return ErrPath
 			}
 			if strings.ContainsFunc(s.Comment, isControl) {

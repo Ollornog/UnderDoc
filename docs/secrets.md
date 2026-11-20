@@ -70,14 +70,16 @@ DELETE /api/secrets/<id>                        the secret and every version
 The reveal is the only answer that carries a value: a `POST` from a page of this application, for a signed-in account,
 answered with `Cache-Control: no-store`, at most 20 times a minute per account (then `429` with `Retry-After`), and only
 after the log took it down in the same transaction. A secret one may not reveal answers `404`, the same as one that does
-not exist. A value has 1 to 16384 characters.
+not exist. A value has 1 to 16384 characters. The limit per minute is kept in the memory of each instance: several
+instances multiply it, and a restart resets it (a known limit; the log takes down every reveal either way).
 
 ## The log
 
 Making, revealing, copying, changing, restoring, restricting, moving and deleting a secret are each logged on its page
 (`secret made`, `secret revealed`, `secret copied`, …), with the ID of the secret and the version where one was named,
 never a value; the tab Rights shows them like every entry ([rights.md](rights.md#the-log)), kept 365 days unless the
-administrators set 30 to 3650. Nothing of a private page is logged, as for everything private.
+administrators set 30 to 3650. Nothing of a private page is logged, as for everything private. A move is logged on both
+pages, so the page a secret leaves keeps the trace: it names the page it went to, or says only "into something private".
 
 ## The key
 

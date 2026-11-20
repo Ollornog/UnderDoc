@@ -22,7 +22,7 @@ func (h *helper) confPath() string { return filepath.Join(h.cfg.run, "smb.conf")
 
 // writeBase writes the configuration of smbd that never changes with the state; the shares come from an included file.
 func (h *helper) writeBase() error {
-	verbose := "create_file renameat unlinkat mkdirat pwrite_send"
+	verbose := "create_file renameat unlinkat mkdirat linkat pwrite_send"
 	if h.cfg.verbose {
 		verbose = "all"
 	}
@@ -174,7 +174,7 @@ func (h *helper) writeState(s samba.State) error {
 			sh.Name, sh.Path, strings.Join(sh.Users, " "))
 		if sh.Comment != "" {
 			fmt.Fprintf(&shares, "\tcomment = %s\n", strings.Map(func(r rune) rune {
-				if r < ' ' || r == '\\' {
+				if r < ' ' || r == '\\' || r == '%' {
 					return ' '
 				}
 				return r

@@ -72,7 +72,7 @@ func (w *watcher) watch(dir string) {
 		if !d.IsDir() {
 			return nil
 		}
-		if p != dir && ignored(d.Name()) {
+		if p != dir && ignored(d.Name(), true) {
 			return filepath.SkipDir
 		}
 		seen[p] = true
