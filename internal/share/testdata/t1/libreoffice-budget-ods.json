@@ -1,0 +1,288 @@
+{
+  "client": "LibreOffice 26.8.2.2 680(Build:2); Version 4.24.7-Debian-4.24.7+dfsg-1~bpo13+1",
+  "file": "budget.ods",
+  "measured": "2026-11-20",
+  "steps": [
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "pwrite_send",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "create_file",
+      "path": "lu312nx7uy.tmp"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "renameat",
+      "path": "lu312nx7uy.tmp",
+      "to": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": "budget.ods"
+    },
+    {
+      "op": "create_file",
+      "path": "budget.ods"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "openat",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "create_file",
+      "path": ".~lock.budget.ods#"
+    },
+    {
+      "op": "unlinkat",
+      "path": ".~lock.budget.ods#"
+    }
+  ],
+  "new_inode": true,
+  "file_right_survived": false,
+  "hidden_without_read": true,
+  "shown_after_the_save": true
+}

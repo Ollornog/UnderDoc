@@ -186,3 +186,7 @@ and inotify with a full scan as the safety net. In detail:
 - A backup still takes the database and the content store (ADR-28); the working copy is written again from them.
 - Tests start a real companion in a container: saving, renaming, deleting, rights per folder, a user without a role, a wrong
   app password and two tenants run against smbd itself (T-1, M-2, M-5).
+- **Measured on 2026-11-20 (T-1, LibreOffice 26.8 over Samba 4.24):** LibreOffice saves into `lu<random>.tmp` and renames
+  it over the file; the saved file is a new inode that takes the ACL of its folder, so a right on a single file does not
+  survive a save, and rights stay per folder. A file without read access stays hidden. The watcher takes the save as a
+  version of the same object; the recordings are fixtures of its tests. Real Excel stays the maintainer's acceptance.
