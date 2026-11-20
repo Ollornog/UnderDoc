@@ -59,6 +59,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/module"
+	"github.com/Ollornog/UnderDoc/internal/share"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -228,6 +229,19 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 			if text.Ways.Server || text.Ways.AI {
 				go worker.run(ctx, 5*time.Second)
 			}
+			sambaConfig, on, err := readSambaConfig()
+			if err != nil {
+				return err
+			}
+			if on {
+				if options.Share, err = share.New(database, options.Store, keys, sambaConfig, log); err != nil {
+					return err
+				}
+				options.Share.Start(ctx)
+				log.Info("samba: the working copy runs", slog.String("dir", sambaConfig.Dir))
+			}
+		} else if os.Getenv("UNDERDOC_SAMBA") != "" {
+			return fmt.Errorf("samba needs the content store (UNDERDOC_STORE_DIR)")
 		}
 		options.Search = startSearch(ctx, searching, database, lib, log)
 	} else if searching.engine != "" {

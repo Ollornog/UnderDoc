@@ -32,6 +32,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/search"
+	"github.com/Ollornog/UnderDoc/internal/share"
 	"github.com/Ollornog/UnderDoc/internal/store"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
@@ -94,6 +95,8 @@ type Options struct {
 	OCR, AIOCR files.OCR
 	// Search answers /api/search when there is a database (ADR-24). Without it, the folder is searched in memory.
 	Search *search.Service
+	// Share keeps the working copy of the libraries shared over Samba (ADR-30); nil without a companion.
+	Share *share.Manager
 }
 
 type handler struct {
@@ -264,6 +267,13 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("GET /api/pages/{id}/attachments", h.apiAttachments)
 	doc("GET /api/pages/{id}/attachments/{attachment}", h.apiAttachmentContent)
 	doc("POST /api/pages/{id}/attachments/{attachment}/move", h.apiMoveAttachment)
+	// Samba (ADR-30): the app password in the profile, the share of a collection, the Samba users for administrators.
+	mux.HandleFunc("GET /api/samba", h.apiSamba)
+	mux.HandleFunc("POST /api/samba/password", h.apiNewAppPassword)
+	mux.HandleFunc("DELETE /api/samba/password", h.apiRemoveAppPassword)
+	mux.HandleFunc("GET /api/samba/accounts", h.apiSambaAccounts)
+	mux.HandleFunc("DELETE /api/samba/accounts/{id}", h.apiRemoveAppPassword)
+	fil("PUT /api/files/roots/{id}/samba", h.apiSetRootSamba)
 	fil("GET /api/spaces/{id}/files", h.apiSpaceFiles)
 	fil("PUT /api/spaces/{id}/files", h.apiLinkSpaceFiles)
 	// Links from before the object addresses of ADR-18 keep working.

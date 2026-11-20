@@ -35,6 +35,18 @@ type apiRights struct {
 	// Role is the viewer's role on the object, Manage whether the viewer may change its rights.
 	Role   string `json:"role"`
 	Manage bool   `json:"manage"`
+	// Samba says what the share makes of the object (ADR-30); nil where the tenant has no companion.
+	Samba *apiSambaRights `json:"samba,omitempty"`
+}
+
+// apiSambaRights is what the rights dialog shows of Samba: whether the object lies in a shared library, that a file
+// there has rights per folder only on the share, where the viewer finds it, and the switch of a collection's share.
+type apiSambaRights struct {
+	Shared bool   `json:"shared"`
+	File   bool   `json:"file"`
+	Path   string `json:"path,omitempty"`
+	// Root is set for a collection of the view Files: whether its share is on.
+	Root *bool `json:"root,omitempty"`
 }
 
 func grantsOut(grants []db.Grant) []apiGrant {
@@ -69,9 +81,13 @@ func (h *handler) apiRights(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "rights") {
 		return
 	}
-	writeJSON(w, http.StatusOK, apiRights{Owner: rights.Owner, OwnerName: rights.OwnerName, Inherit: rights.Inherit,
+	out := apiRights{Owner: rights.Owner, OwnerName: rights.OwnerName, Inherit: rights.Inherit,
 		Own: grantsOut(rights.Own), Inherited: grantsOut(rights.Inherited), Role: role,
-		Manage: actor.Admin || db.Rank(role) >= db.Rank(db.RoleManage)})
+		Manage: actor.Admin || db.Rank(role) >= db.Rank(db.RoleManage)}
+	if h.options.Share != nil && h.options.Share.On(r.Context()) {
+		out.Samba = h.sambaRights(r, r.PathValue("id"), actor.ID)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // apiSetGrant grants a role on an object, or takes it back with an empty role.

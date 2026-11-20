@@ -38,6 +38,10 @@ type DB struct {
 	time *pgstore.Store
 	// limits are the sizes files may have (SetLimits); set once before the first request.
 	limits Limits
+	// samba names the tenants with a Samba companion, guard holds the web back from files open over SMB (ADR-30); both
+	// set once before the first request.
+	samba map[string]bool
+	guard func(ctx context.Context, objectID string) error
 }
 
 // Errors a caller can tell apart.
@@ -417,6 +421,15 @@ func (db *DB) Rename(ctx context.Context, objectID, viewer, title string) (Objec
 		return Object{}, err
 	}
 	if err := db.mayEdit(ctx, o, viewer); err != nil {
+		return Object{}, err
+	}
+	// A name of the view Files becomes a path on a share and in an export (ADR-30).
+	if o.Area == AreaFiles {
+		if title, err = CleanFileName(title); err != nil {
+			return Object{}, err
+		}
+	}
+	if err := db.guardFile(ctx, o); err != nil {
 		return Object{}, err
 	}
 	return scan(db.pool.QueryRow(ctx, `UPDATE objects SET title = $2, changed = now() WHERE id = $1 RETURNING `+columns, objectID, title))

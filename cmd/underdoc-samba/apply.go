@@ -1,0 +1,235 @@
+// SPDX-License-Identifier: MIT
+
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/Ollornog/UnderDoc/internal/samba"
+)
+
+// The files the helper writes, all below its run directory. The image links /etc/passwd and /etc/group there, so the
+// users of the companion are exactly the base users and the Samba users of the last state.
+func (h *helper) confPath() string { return filepath.Join(h.cfg.run, "smb.conf") }
+
+// writeBase writes the configuration of smbd that never changes with the state; the shares come from an included file.
+func (h *helper) writeBase() error {
+	verbose := "create_file renameat unlinkat mkdirat pwrite_send"
+	if h.cfg.verbose {
+		verbose = "all"
+	}
+	conf := fmt.Sprintf(`# Written by underdoc-samba (ADR-30) at every start; the shares follow in shares.conf.
+[global]
+	netbios name = %[1]s
+	server string = %[1]s
+	server role = standalone server
+	workgroup = WORKGROUP
+	security = user
+	passdb backend = smbpasswd:%[2]s/smbpasswd
+	map to guest = never
+	restrict anonymous = 2
+	server min protocol = SMB2_02
+	ntlm auth = ntlmv2-only
+	server signing = auto
+	smb encrypt = if_required
+	smb3 unix extensions = no
+	ea support = no
+	store dos attributes = no
+	map archive = no
+	map hidden = no
+	map system = no
+	map readonly = no
+	nt acl support = no
+	unix extensions = no
+	wide links = no
+	follow symlinks = no
+	disable netbios = yes
+	smb ports = 445
+	load printers = no
+	printing = bsd
+	printcap name = /dev/null
+	disable spoolss = yes
+	access based share enum = yes
+	hide unreadable = yes
+	hide unwriteable files = no
+	hide dot files = no
+	veto files = /.~underdoc-*/
+	delete veto files = no
+	create mask = 0660
+	directory mask = 0770
+	inherit acls = yes
+	inherit permissions = no
+	private dir = %[2]s/private
+	lock directory = %[2]s/lock
+	state directory = %[2]s/state
+	cache directory = %[2]s/cache
+	pid directory = %[2]s/pid
+	ncalrpc dir = %[2]s/ncalrpc
+	log level = 1
+	vfs objects = full_audit
+	full_audit:prefix = %%u
+	full_audit:success = %[3]s
+	full_audit:failure = none
+	full_audit:facility = LOCAL5
+	full_audit:priority = NOTICE
+	full_audit:syslog = yes
+
+[homes]
+	comment = My files
+	browseable = no
+	read only = no
+	valid users = %%S
+
+include = %[2]s/shares.conf
+`, h.cfg.name, h.cfg.run, verbose)
+	for _, d := range []string{"private", "lock", "state", "cache", "pid", "ncalrpc"} {
+		if err := os.MkdirAll(filepath.Join(h.cfg.run, d), 0o700); err != nil {
+			return err
+		}
+	}
+	return writeFile(h.confPath(), []byte(conf), 0o644)
+}
+
+// writeFile writes a file through a temporary one and a rename, so smbd and the system never read half of it.
+func writeFile(name string, data []byte, mode os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(name), ".tmp-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), name)
+}
+
+// base reads the users and groups the image brings, from the copies the image keeps (/etc/passwd.base, /etc/group.base).
+func base(name string) []string {
+	raw, err := os.ReadFile(name) // #nosec G304 -- fixed paths of the image
+	if err != nil {
+		return nil
+	}
+	var lines []string
+	for _, l := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
+		}
+	}
+	return lines
+}
+
+// writeState writes users, passwords and shares of a state. It changes nothing else; apply reloads smbd afterwards.
+func (h *helper) writeState(s samba.State) error {
+	users := append([]samba.User(nil), s.Users...)
+	sort.Slice(users, func(i, j int) bool { return users[i].Name < users[j].Name })
+	passwd := base("/etc/passwd.base")
+	group := base("/etc/group.base")
+	passwd = append(passwd, fmt.Sprintf("underdoc:x:%d:%d:UnderDoc:/nonexistent:/usr/sbin/nologin", h.cfg.owner, h.cfg.ownerGID))
+	group = append(group, fmt.Sprintf("underdoc:x:%d:", h.cfg.ownerGID))
+	var smbpasswd bytes.Buffer
+	lct := fmt.Sprintf("LCT-%08X", time.Now().Unix())
+	for _, u := range users {
+		home := u.Home
+		if home == "" {
+			home = "/nonexistent"
+		}
+		passwd = append(passwd, fmt.Sprintf("%s:x:%d:%d:Samba user:%s:/usr/sbin/nologin", u.Name, u.UID, u.UID, home))
+		group = append(group, fmt.Sprintf("%s:x:%d:", u.Name, u.UID))
+		fmt.Fprintf(&smbpasswd, "%s:%d:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:%s:[U          ]:%s:\n", u.Name, u.UID, u.NTHash, lct)
+	}
+	if err := writeFile(filepath.Join(h.cfg.run, "passwd"), []byte(strings.Join(passwd, "\n")+"\n"), 0o644); err != nil {
+		return err
+	}
+	if err := writeFile(filepath.Join(h.cfg.run, "group"), []byte(strings.Join(group, "\n")+"\n"), 0o644); err != nil {
+		return err
+	}
+	if err := writeFile(filepath.Join(h.cfg.run, "smbpasswd"), smbpasswd.Bytes(), 0o600); err != nil {
+		return err
+	}
+	var shares strings.Builder
+	shares.WriteString("# Written by underdoc-samba from the state UnderDoc applied (ADR-30).\n")
+	list := append([]samba.Share(nil), s.Shares...)
+	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
+	for _, sh := range list {
+		if len(sh.Users) == 0 {
+			continue
+		}
+		fmt.Fprintf(&shares, "\n[%s]\n\tpath = %s\n\tread only = no\n\tbrowseable = yes\n\tvalid users = %s\n",
+			sh.Name, sh.Path, strings.Join(sh.Users, " "))
+		if sh.Comment != "" {
+			fmt.Fprintf(&shares, "\tcomment = %s\n", strings.Map(func(r rune) rune {
+				if r < ' ' || r == '\\' {
+					return ' '
+				}
+				return r
+			}, sh.Comment))
+		}
+	}
+	return writeFile(filepath.Join(h.cfg.run, "shares.conf"), []byte(shares.String()), 0o644)
+}
+
+// apply makes the companion hold the state: it writes users, passwords and shares, closes the sessions of users that are
+// gone or whose password changed, and has smbd read its configuration again.
+func (h *helper) apply(s samba.State) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	before := map[string]samba.User{}
+	for _, u := range h.state.Users {
+		before[u.Name] = u
+	}
+	after := map[string]bool{}
+	var end []string
+	for _, u := range s.Users {
+		after[u.Name] = true
+		if old, ok := before[u.Name]; ok && (old.NTHash != u.NTHash || old.UID != u.UID) {
+			end = append(end, u.Name)
+		}
+	}
+	for name := range before {
+		if !after[name] {
+			end = append(end, name)
+		}
+	}
+	if err := h.writeState(s); err != nil {
+		return err
+	}
+	h.state = s
+	if h.smbd != nil {
+		_ = h.smbd.Signal(syscall.SIGHUP)
+	}
+	if len(end) > 0 {
+		h.endSessions(end)
+	}
+	return nil
+}
+
+// endSessions ends the processes of smbd that serve the named users, so a removed user or an old password stops at once.
+func (h *helper) endSessions(users []string) {
+	out, err := exec.Command("smbstatus", "--processes", "--json", "--configfile="+h.confPath()).Output() // #nosec G204
+	if err != nil {
+		h.log.Warn("smbstatus", "err", err)
+		return
+	}
+	for _, pid := range sessionPIDs(out, users) {
+		if h.smbd != nil && pid == h.smbd.Pid {
+			continue
+		}
+		_ = syscall.Kill(pid, syscall.SIGTERM)
+	}
+}

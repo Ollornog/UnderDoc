@@ -636,6 +636,9 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 		if target, err = db.Object(ctx, u.File, viewer); err == nil {
 			err = db.mayEdit(ctx, target, viewer)
 		}
+		if err == nil {
+			err = db.guardFile(ctx, target)
+		}
 	default:
 		if target, err = db.page(ctx, u.Page, viewer); err == nil {
 			err = db.mayEdit(ctx, target, viewer)
@@ -695,6 +698,9 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 			return fmt.Errorf("%w: a %s has this name", ErrPlace, existing.Kind)
 		case err == nil:
 			if err := db.mayEdit(ctx, existing, viewer); err != nil {
+				return err
+			}
+			if err := db.guardFile(ctx, existing); err != nil {
 				return err
 			}
 			done.File = existing
@@ -843,6 +849,9 @@ func (db *DB) RestoreVersion(ctx context.Context, fileID, viewer string, number 
 		return 0, err
 	}
 	if err := db.mayEdit(ctx, f.Object, viewer); err != nil {
+		return 0, err
+	}
+	if err := db.guardFile(ctx, f.Object); err != nil {
 		return 0, err
 	}
 	v, err := db.FileVersion(ctx, fileID, viewer, number)

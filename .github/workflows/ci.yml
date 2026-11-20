@@ -18,7 +18,7 @@ jobs:
   check:
     name: Tests and hygiene
     runs-on: ubuntu-latest   # public repository, so never self-hosted (fork pull requests)
-    timeout-minutes: 30
+    timeout-minutes: 40   # two runs of check.sh take about 20 minutes, the image and Samba a few more
     # The search engines the tests run against (ADR-24), started next to the job, also by ci-local. The images are the
     # pins of scripts/search/Dockerfile.*, which tests/test_repo.py holds them to.
     services:
@@ -79,3 +79,6 @@ jobs:
           UNDERDOC_TEST_OPENSEARCH_URL: http://localhost:9200
       - name: Container image
         run: scripts/check-image.sh
+      # The working copy against real Samba (ADR-30): two companions, built from deploy/samba/Dockerfile.
+      - name: Samba
+        run: scripts/check-samba.sh

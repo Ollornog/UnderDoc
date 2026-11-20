@@ -46,6 +46,7 @@ check("only neutral addresses", hygiene.pruefe_adressen(str(ROOT), FILES, POLICY
     r"keepachangelog\.com", r"semver\.org",
     r"tailwindcss\.com",  # the license comment in the compiled style pack
     r"scripts\.sil\.org",  # the license text of the font, which has to stay unchanged
+    r"deb\.debian\.org",  # the Debian backports Samba comes from (deploy/samba/Dockerfile)
 ]))
 # Reviewed by hand, not generated: a list that follows along would wave the next real customer name through.
 check("no unknown bare hostnames", hygiene.pruefe_blanke_adressen(str(ROOT), FILES, POLICY, grundstock=[

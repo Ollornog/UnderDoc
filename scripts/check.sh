@@ -51,9 +51,10 @@ if [[ -z "${UNDERDOC_TEST_MEILISEARCH_URL:-}" || -z "${UNDERDOC_TEST_OPENSEARCH_
 fi
 
 # The services next to UnderDoc (docs/services.md): the Compose file is valid, with every profile.
-step "deploy/compose.yml"
+step "deploy/compose.yml, deploy/samba/compose.yml"
 MEILI_MASTER_KEY=check docker compose -f deploy/compose.yml --profile opensearch --profile office config -q ||
     fail "deploy/compose.yml (docker compose config)"
+docker compose -f deploy/samba/compose.yml config -q || fail "deploy/samba/compose.yml (docker compose config)"
 
 # The browser test sits behind a tag, so it also has to pass vet and staticcheck explicitly.
 export GO_PRUEF_TAGS="browser"

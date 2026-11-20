@@ -57,3 +57,9 @@ collections that belong to their maker alone followed the same day (ADR-29).
 per tenant with smbd and a helper that takes a few defined requests over a Unix socket, so UnderDoc never runs as root;
 an app password per account (its NT hash sealed in the vault); POSIX ACLs per folder computed from the roles; a folder in
 which someone holds a role without reading the folder above becomes a share of its own for them. The domain stays later.
+
+**Built on 2026-11-20 (ADR-30, [docs/samba.md](../docs/samba.md)):** Samba users with an app password per account (NT
+hash sealed in the vault), managed through the companion without root; roles as POSIX ACLs per folder, the limit of a
+share (rights per folder, single files cannot break the inheritance in a shared library, a folder someone reads without
+the folder above becomes a share of its own), administrators list and remove Samba users. Open: the domain, and passwords
+in the text (ADR-7) with their attack round.

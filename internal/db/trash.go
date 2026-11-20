@@ -50,6 +50,9 @@ func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before 
 	if err := db.mayEdit(ctx, o, viewer); err != nil {
 		return err
 	}
+	if err := db.guardFile(ctx, o); err != nil {
+		return err
+	}
 	if o.Parent == "" && o.Owner != viewer {
 		return ErrNotAllowed
 	}

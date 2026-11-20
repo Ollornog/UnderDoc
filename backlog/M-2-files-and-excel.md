@@ -41,3 +41,10 @@ the watcher (T-1), the acceptance with real Excel.
 **Settled on 2026-11-20:** [ADR-30](ADR-30-samba-share.md) says how Samba is built: a working copy on disk only for
 shared libraries, the ID as an extended attribute, inotify with a full scan, the save through a temporary file and a
 rename, deleting into the trash, the web writing to disk, and no writing from the web while a file is open over SMB.
+
+**Built on 2026-11-20 (ADR-30, [docs/samba.md](../docs/samba.md)):** Samba with the working copy and the watcher: shared
+libraries on disk with the ID as an extended attribute, saves as versions (the save through a temporary file and a
+rename included), new files and folders, renames, moves and deletions into the trash as the user who made them; the web
+writes to disk and is held back while a file is open over SMB, and the facts panel shows each file's share path and who
+has it open. Tested against real Samba in the CI. Open in M-2: Excel as native tables (and search over tables), tags on
+files, the document types for PowerPoint, video and image collections, and the acceptance with real Excel.

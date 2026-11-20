@@ -99,6 +99,16 @@ updates:
       interval: weekly
     commit-message:
       prefix: "deps"
+  # The Samba companion (deploy/samba/Dockerfile, ADR-30). scripts/check-samba.sh in the CI accepts it against real
+  # Samba. The Samba package itself is pinned by version in the Dockerfile and moved by hand with its base.
+  - package-ecosystem: docker
+    directory: /deploy/samba
+    cooldown:
+      default-days: 3
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"
   # The services next to UnderDoc (deploy/compose.yml). scripts/check.sh only checks that the file is valid; nothing
   # starts them, so this ecosystem is not in the auto-merge and an update is looked at by hand.
   - package-ecosystem: docker-compose
