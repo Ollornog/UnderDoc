@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- A password typed as text (ADR-7, [docs/secrets.md](docs/secrets.md)): a line such as `Router password: hunter2`, or a
+  row of a table with such a label, holds the page back in the editor before anything is sent, and the editor asks below
+  the line: Keep it as a password makes a secret from the value and writes its reference in its place, It is not a
+  password saves it as typed. Code, comments, placeholders and values already stored never ask; the first letters of a
+  value being typed are not saved either.
 - A link to read a page shows the images pasted into it and into the pages it released (ADR-29): they come through the
   address of the link (`/s/<token>/p/<page>/attachments/<id>`), only those the frozen page shows, and only while the
   maker of the link sees their page. A link of the page into the workspace becomes plain text, since whoever holds the
@@ -178,6 +183,8 @@ All notable changes to this project are documented in this file. The format foll
   account whose things they are; before, it chose the first account of the list, and sending it as it was gave the
   object to that account.
 - The table of building blocks in the concept still named TipTap as the editor; it is CodeMirror 6 (ADR-21).
+- The limit of 20 reveals of passwords a minute per account is counted in the log of the database, under a lock per
+  account, so several instances behind one address no longer multiply it and a restart no longer resets it (ADR-7).
 - A page that went into the trash while one of its parts got a new master brought the part back a second time when it
   was restored: the part now leaves the page in the trash, and the version says where it went.
 - A block held at the edge of a page scrolled it by the frames the browser drew, so a busy browser scrolled less in the

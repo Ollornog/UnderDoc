@@ -14,6 +14,16 @@ a click only, and every time is logged.
 
 - **Writing:** "Password" in the slash menu or the bar of the editor asks for the value in a field that does not show it,
   makes the secret and writes its reference where the cursor is, also inside a sentence.
+- **A password typed as text** (2026-11-20): a line such as `Router password: hunter2`, or a row of a table with such a
+  label, holds the whole page back in the editor before anything is sent: the value is underlined, the status says "Not
+  saved: is this a password?", and below the line **Keep it as a password** makes a secret from the value and puts its
+  reference in its place, **It is not a password** saves the text as typed. Labels end in password, passwort or kennwort,
+  or are passphrase, pw, pwd, pin, secret, geheimnis, token or api key; the value is one word of 4 to 200 characters,
+  not a placeholder such as `***` or `<password>`. Code (fenced, indented, a label in inline code) and comments never
+  ask, nor does a value the stored block already holds. While the cursor is on such a line with a value of 1 to 3
+  characters, nothing is saved, so the first letters never reach a version. Closing the editor before answering leaves
+  the value out (`…`) and saves the rest. Only the editor asks: an import, the API of blocks and the files of Files do not
+  (ADR-7).
 - **Reading and writing alike**, the reference shows as a mask, `••••••••`, with **Reveal**, which shows the value in
   place until the page is drawn again, and **Copy**, which puts it on the clipboard without showing it.
 - **Hidden:** whoever reads the page but may not reveal this secret sees "Password hidden".
@@ -70,8 +80,10 @@ DELETE /api/secrets/<id>                        the secret and every version
 The reveal is the only answer that carries a value: a `POST` from a page of this application, for a signed-in account,
 answered with `Cache-Control: no-store`, at most 20 times a minute per account (then `429` with `Retry-After`), and only
 after the log took it down in the same transaction. A secret one may not reveal answers `404`, the same as one that does
-not exist. A value has 1 to 16384 characters. The limit per minute is kept in the memory of each instance: several
-instances multiply it, and a restart resets it (a known limit; the log takes down every reveal either way).
+not exist. A value has 1 to 16384 characters. The limit per minute is counted in the log, in the transaction that
+logs the reveal, under a lock per account (2026-11-20), so several instances behind one address share it and a restart
+does not reset it; the memory of each instance turns a burst away before the database and alone limits what lies in
+something private, which is not logged.
 
 ## The log
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
@@ -574,5 +575,46 @@ func TestASealedValueBelongsToItsVersion(t *testing.T) {
 		if _, err := keys.Open(tenant.Main, name, sealed); !errors.Is(err, vault.ErrSealed) {
 			t.Errorf("a value copied to %s version %d opens: %v", target.secret, target.number, err)
 		}
+	}
+}
+
+// TestRevealsCountedAtOnce: many reveals of one account at the same moment, each of another secret, stay within the
+// limit of a minute: the log counts them one after another (ADR-7).
+func TestRevealsCountedAtOnce(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	_, page := secretPage(t, db)
+	const many = 3 * RevealsPerWindow
+	ids := make([]string, many)
+	for i := range ids {
+		var err error
+		if ids[i], err = db.CreatePageSecret(ctx, page.ID, anna.ID, fakeSeal("value")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		revealed int
+	)
+	start := make(chan struct{})
+	for _, secretID := range ids {
+		wg.Go(func() {
+			<-start
+			_, err := reveal(db, secretID, carl.ID)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				revealed++
+			case !errors.Is(err, ErrTooManyReveals):
+				t.Errorf("reveal: %v", err)
+			}
+		})
+	}
+	close(start)
+	wg.Wait()
+	if revealed != RevealsPerWindow {
+		t.Errorf("%d of %d reveals at once went through, want %d", revealed, many, RevealsPerWindow)
 	}
 }

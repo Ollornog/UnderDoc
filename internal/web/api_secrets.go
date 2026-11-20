@@ -22,10 +22,10 @@ import (
 // the value comes from the server on a click only, through reveal, logged before it is answered. Nothing else ever
 // carries a value: not the page, not an embedding, not an export, not a frozen link.
 
-// Reveals per account and minute: enough to work through a page, too few to read out a workspace.
+// The limit of reveals per account (db.RevealsPerWindow) is held twice: in the memory of this instance, which turns a
+// burst away before it reaches the database and covers what lies in something private, and in the log, which every
+// instance shares and a start does not empty.
 const (
-	revealsPerWindow = 20
-	revealWindow     = time.Minute
 	// maxSecret is the longest value: a password, a key or a short certificate, not a document.
 	maxSecret = 16 << 10
 )
@@ -168,6 +168,10 @@ func (h *handler) secretFailed(w http.ResponseWriter, err error, what string) bo
 	switch {
 	case errors.Is(err, db.ErrSecretHeld):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return true
+	case errors.Is(err, db.ErrTooManyReveals):
+		w.Header().Set("Retry-After", strconv.Itoa(int(db.RevealWindow.Seconds())))
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Too many passwords revealed in a short time. Wait a moment."})
 		return true
 	case errors.Is(err, db.ErrReader):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

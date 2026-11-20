@@ -125,7 +125,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		options.Search = search.NewService(nil, TitleFallback(options.DB, store), tenant.Main, log)
 	}
 	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
-		throttle: auth.NewThrottle(), reveals: auth.NewRate(revealsPerWindow, revealWindow)}
+		throttle: auth.NewThrottle(), reveals: auth.NewRate(db.RevealsPerWindow, db.RevealWindow)}
 	if h.options.Modules.IsZero() {
 		h.options.Modules, _ = module.ParsePolicy("")
 	}
