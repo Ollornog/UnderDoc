@@ -209,7 +209,20 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	if got := b.eval(`JSON.stringify(window.writes)`); got != "[]" {
 		t.Errorf("the first letters of the value were sent: %s", got)
 	}
-	b.typeKeys(first[2:] + "\n\nMore notes")
+	// The rest of the value but its last two letters, then again a pause longer than the editor waits, as when the typist
+	// stops or a busy machine delivers the keys late: by now the start is long enough, and the editor asks about it.
+	start := first[:len(first)-2]
+	b.typeKeys(first[2:len(start)])
+	if !b.waitFor(`document.querySelector('.cm-content .cm-ud-plain')?.textContent === ` + strconv.Quote(start)) {
+		t.Fatalf("the editor does not ask about the start of the value: %q", b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent`))
+	}
+	// The last letters make the value longer: the question about its start goes at once, not only at the next save, so
+	// neither the mark nor Keep as password covers just a part of it (CI on 98f2f9a marked all but the last two, 2026-11-21).
+	b.typeKeys(first[len(start):])
+	if got := b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent || ''`); got != "" && got != first {
+		t.Errorf("the question about the start of the value stayed: %q", got)
+	}
+	b.typeKeys("\n\nMore notes")
 	if !b.waitFor(`!!document.querySelector('.cm-content [data-plain-ask]') && document.querySelector('[data-edstatus]')?.textContent === 'Not saved: is this a password?'`) {
 		t.Fatalf("the editor does not ask: %q | %q", b.eval(`document.querySelector('[data-edstatus]')?.textContent`), b.eval(edText))
 	}

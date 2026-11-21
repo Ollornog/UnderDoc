@@ -220,6 +220,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A password typed as text: once the start of a value was long enough, the editor asked about it, and letters typed
+  after it did not end the question until the next save. Meanwhile only the start was underlined, and Keep it as a
+  password would have made a secret of the start and left the rest as text in the page. A question now goes as soon as
+  its value is no longer the whole value of its line, and the next save asks about the whole value. Seen as a flaky
+  browser test in CI (`TestAPasswordTypedAsText`, all but the last two letters marked); the test now pauses before the
+  last letters and checks that the question about the start goes at once.
 - The scripts that run test containers (`scripts/search-engines.sh`, `check-image.sh`, `check-samba.sh`,
   `t1-libreoffice.sh`) removed them without their anonymous volumes, so every run left some behind. They are removed
   with `-v` now, and `tests/test_repo.py` holds every removal in `scripts/` to it.

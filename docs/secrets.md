@@ -22,7 +22,8 @@ a click only, and every time is logged.
   not a placeholder such as `***` or `<password>`; a `*` or `_` at its edge belongs to it unless it is Markdown (a pair
   around the value, as in `**hunter2**`, or the close of a bold label). Code (fenced, indented, a label in inline code) and comments never
   ask, nor does a value the stored block already holds. While the cursor is on such a line with a value of 1 to 3
-  characters, nothing is saved, so the first letters never reach a version. Closing the editor before answering leaves
+  characters, nothing is saved, so the first letters never reach a version. A value still growing is asked about anew:
+  letters typed after it end the question about its start at once. Closing the editor before answering leaves
   the value out (`…`) and saves the rest. Only the editor asks: an import, the API of blocks and the files of Files do not
   (ADR-7).
 - **Reading and writing alike**, the reference shows as a mask, `••••••••`, with **Reveal**, which shows the value in
