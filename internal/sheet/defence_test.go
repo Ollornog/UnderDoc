@@ -365,3 +365,20 @@ func TestTheAnchorOfAWideRangeIsNarrow(t *testing.T) {
 		t.Errorf("found: %v", found)
 	}
 }
+
+// TestSearchTextOfALoneCellFarOut: the text for the search goes through the cells there are, so a lone cell at
+// XFD1048576 gives two short lines, quickly.
+func TestSearchTextOfALoneCellFarOut(t *testing.T) {
+	wb, err := read(t, xlsx(t, `<row r="1"><c r="A1"><v>1</v></c></row><row r="1048576"><c r="XFD1048576"><v>2</v></c></row>`, noStr), TypeXLSX)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	got := wb.SearchText(1500, 1<<20)
+	if len(got) != 1 || got[0].Text != "1\n2\n" || got[0].Range != "A1:XFD1048576" {
+		t.Errorf("%+v", got)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("took %s", d)
+	}
+}

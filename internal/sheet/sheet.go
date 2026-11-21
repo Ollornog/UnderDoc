@@ -522,3 +522,68 @@ func (w *Workbook) FindAnchor(s *Sheet, anchor []string) [][2]int {
 	}
 	return found
 }
+
+// TextSection is a run of rows of a visible sheet as text for the search (ADR-31): the sheet, the range it covers, and
+// its cells in English, a row a line.
+type TextSection struct {
+	Sheet, Range, Text string
+}
+
+// SearchText returns the visible cells of the visible sheets as sections of at most maxWords words, at most maxBytes of
+// text in all; hidden sheets, rows and columns give nothing. It goes through the cells there are, never through the
+// empty cells of a rectangle, so a lone cell far out costs nothing.
+func (w *Workbook) SearchText(maxWords, maxBytes int) []TextSection {
+	var out []TextSection
+	total := 0
+	for i := range w.Sheets {
+		s := &w.Sheets[i]
+		if s.Hidden || len(s.Rows) == 0 {
+			continue
+		}
+		hiddenRow, hiddenCol := toSet(s.HiddenRows), toSet(s.HiddenCols)
+		used := s.Used()
+		var text strings.Builder
+		words, first, last := 0, 0, 0
+		flush := func() {
+			if text.Len() > 0 {
+				out = append(out, TextSection{Sheet: s.Name, Range: Rect{R1: first, C1: used.C1, R2: last, C2: used.C2}.String(), Text: text.String()})
+			}
+			text.Reset()
+			words = 0
+		}
+		for _, row := range s.Rows {
+			if hiddenRow[row.N] {
+				continue
+			}
+			var cells []string
+			for _, c := range row.Cells {
+				if hiddenCol[c.Col] {
+					continue
+				}
+				if t := w.Display(c, English); t != "" {
+					cells = append(cells, t)
+				}
+			}
+			if len(cells) == 0 {
+				continue
+			}
+			line := strings.Join(cells, " · ")
+			if total+len(line) > maxBytes {
+				flush()
+				return out
+			}
+			if words > 0 && words+len(strings.Fields(line)) > maxWords {
+				flush()
+			}
+			if words == 0 {
+				first = row.N
+			}
+			last = row.N
+			text.WriteString(line + "\n")
+			words += len(strings.Fields(line))
+			total += len(line) + 1
+		}
+		flush()
+	}
+	return out
+}

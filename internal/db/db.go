@@ -23,6 +23,8 @@ import (
 
 	"github.com/Ollornog/EightPerDay/core/pgstore"
 
+	"github.com/Ollornog/UnderDoc/internal/sheet"
+
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -42,7 +44,18 @@ type DB struct {
 	// set once before the first request.
 	samba map[string]bool
 	guard func(ctx context.Context, objectID string) error
+	// sheets reads spreadsheets as tables for the search (SetSheets, ADR-31); set once before the indexers start.
+	sheets SheetReader
 }
+
+// SheetReader reads the workbook of a blob of a tenant (sheet.Cache).
+type SheetReader interface {
+	Workbook(ctx context.Context, tenant, sha, contentType, name string) (*sheet.Workbook, error)
+}
+
+// SetSheets lets the search find spreadsheets by their cells (ADR-31); without it they are found by their text, as other
+// files are. Set once before the indexers start.
+func (db *DB) SetSheets(r SheetReader) { db.sheets = r }
 
 // Errors a caller can tell apart.
 var (

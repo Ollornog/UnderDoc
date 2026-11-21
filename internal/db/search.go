@@ -11,7 +11,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/search"
+	"github.com/Ollornog/UnderDoc/internal/sheet"
+	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // SourceObjects is the name of the source of collections, folders and pages in the search queue. The triggers of
@@ -101,8 +104,8 @@ func (objectSource) Name() string { return SourceObjects }
 
 // Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
 // of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29), 4 paths without
-// the names of levels not every reader sees (ADR-29).
-func (objectSource) Version() string { return "4" }
+// the names of levels not every reader sees (ADR-29), 5 the cells of spreadsheets by sheet and range (ADR-31).
+func (objectSource) Version() string { return "5" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
@@ -185,13 +188,17 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 		Changed: self.changed.Unix(), Readers: readers}
 	if self.kind == KindFile {
 		base.Type = search.TypeFile
-		var blob string
-		err := s.db.pool.QueryRow(ctx, `SELECT blob FROM file_versions WHERE file = $1 ORDER BY number DESC LIMIT 1`, objectID).Scan(&blob)
+		var blob, contentType, name string
+		err := s.db.pool.QueryRow(ctx, `SELECT blob, content_type, name FROM file_versions WHERE file = $1 ORDER BY number DESC LIMIT 1`,
+			objectID).Scan(&blob, &contentType, &name)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []search.Doc{base}, nil
 		}
 		if err != nil {
 			return nil, err
+		}
+		if docs, ok := s.sheetDocs(ctx, base, blob, contentType, name); ok {
+			return docs, nil
 		}
 		text, origin, err := s.bestText(ctx, blob)
 		if err != nil {
@@ -258,6 +265,32 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 		}
 	}
 	return docs, nil
+}
+
+// sheetDocs returns the records of a spreadsheet the reader reads (ADR-31): the cells of its visible sheets, a record for
+// each run of rows, headed by its sheet; a hit opens the table view at <sheet>!<range>. It reports false for a file the
+// search finds by its text: no reader set, another type, or a file that cannot be read as tables.
+func (s objectSource) sheetDocs(ctx context.Context, base search.Doc, blob, contentType, name string) ([]search.Doc, bool) {
+	if s.db.sheets == nil || !sheet.Readable(contentType) {
+		return nil, false
+	}
+	t, _ := tenant.From(ctx)
+	wb, err := s.db.sheets.Workbook(ctx, t, blob, contentType, name)
+	if err != nil {
+		return nil, false
+	}
+	base.Origin = files.TextServer
+	sections := wb.SearchText(search.MaxSectionWords, files.MaxText)
+	if len(sections) == 0 {
+		return []search.Doc{base}, true
+	}
+	docs := make([]search.Doc, len(sections))
+	for i, section := range sections {
+		doc := base
+		doc.Anchor, doc.Heading, doc.Body, doc.Rank = section.Sheet+"!"+section.Range, section.Sheet, section.Text, i
+		docs[i] = doc
+	}
+	return docs, true
 }
 
 // bestText returns the text of a blob the search takes, and where it came from: what the content says itself (server,

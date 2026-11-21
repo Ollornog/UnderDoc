@@ -16,7 +16,9 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/library"
 	"github.com/Ollornog/UnderDoc/internal/search"
 	"github.com/Ollornog/UnderDoc/internal/search/meili"
+	"github.com/Ollornog/UnderDoc/internal/search/opensearch"
 	"github.com/Ollornog/UnderDoc/internal/search/searchtest"
+	"github.com/Ollornog/UnderDoc/internal/sheet"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
@@ -319,5 +321,64 @@ func TestFilesAreFoundThroughTheService(t *testing.T) {
 	}
 	if got := find("E-3301&type=file", nil); len(got.Hits) != 1 {
 		t.Errorf("the filter by type knows files: %+v", got.Hits)
+	}
+}
+
+// TestSpreadsheetsAreFoundByTheirCells (ADR-31): the cells of the visible sheets of a workbook are found through each
+// search service, a hit names its sheet and opens the range of its rows; hidden sheets, rows and columns are not found,
+// the addresses of cells are no codes, and whoever may not read the file finds nothing of it.
+func TestSpreadsheetsAreFoundByTheirCells(t *testing.T) {
+	engines := map[string]func() search.Engine{
+		"meilisearch": func() search.Engine { return meiliEngine(t) },
+		"opensearch": func() search.Engine {
+			return opensearch.New(searchtest.URL(t, searchtest.EnvOpenSearch), "", "", searchtest.Prefix())
+		},
+	}
+	for name, make := range engines {
+		t.Run(name, func(t *testing.T) {
+			f := withFiles(t)
+			engine := make()
+			log := slog.New(slog.DiscardHandler)
+			options := Options{DB: f.db, Store: f.store, AdminGroup: "underdoc-admins"}
+			options.Sheets = sheet.NewCache(f.store, log)
+			f.db.SetSheets(options.Sheets)
+			f.site = newSite(t, options, sample)
+			options.Search = search.NewService(engine, TitleFallback(f.db, f.site.store), tenant.Main, log)
+			handler, err := New(f.site.store, log, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.http = handler
+			ctx := tenant.With(context.Background(), tenant.Main)
+			indexer := search.NewIndexer(engine, f.db, tenant.Main, log, f.db.SearchSource())
+			if err := indexer.Prepare(ctx); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = engine.Drop(context.Background(), tenant.Main) })
+			mine := f.root(nil, db.RootUser)
+			done := decode[finished](t, f.put(nil, `"parent":"`+mine.ID+`"`, "budget.xlsx", sheetFixture(t, "budget.xlsx"), 4096))
+			if err := indexer.Drain(ctx); err != nil {
+				t.Fatal(err)
+			}
+			find := func(q string, headers map[string]string) apiSearchResult {
+				return decode[apiSearchResult](t, f.getWith("/api/search?q="+q, merged(headers)))
+			}
+			got := find("Umlauten", nil)
+			if len(got.Hits) != 1 || got.Hits[0].ID != done.ID || got.Hits[0].Kind != search.TypeFile || got.Hits[0].Heading != "Odd <&> it's" ||
+				got.Hits[0].Anchor != "Odd <&> it's!A1:B2" || !strings.Contains(got.Hits[0].Snippet, "<mark>Umlaut") {
+				t.Fatalf("a cell of the workbook: %+v", got.Hits)
+			}
+			if got := find("Coffee", nil); len(got.Hits) != 1 || got.Hits[0].Heading != "Budget" || got.Hits[0].Anchor != "Budget!A1:H12" {
+				t.Errorf("a cell of the first sheet: %+v", got.Hits)
+			}
+			for _, q := range []string{"secret", "hidden", "A1", "B2"} {
+				if got := find(q, nil); len(got.Hits) != 0 {
+					t.Errorf("%s is found: %+v", q, got.Hits)
+				}
+			}
+			if got := find("Umlauten", bob); len(got.Hits) != 0 {
+				t.Errorf("bob finds Anna's workbook: %+v", got.Hits)
+			}
+		})
 	}
 }

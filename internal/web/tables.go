@@ -68,11 +68,11 @@ func (h *handler) tableOf(r *http.Request, fileID, id string) (tableView, error)
 		view.problem = f.Title + " is no longer a spreadsheet"
 		return view, nil
 	}
-	wb, err := h.workbook(ctx, h.tenant(r), v.Blob, v.ContentType, v.Name)
-	var reason *sheetError
+	wb, err := h.options.Sheets.Workbook(ctx, h.tenant(r), v.Blob, v.ContentType, v.Name)
+	var reason *sheet.Reason
 	switch {
 	case errors.As(err, &reason):
-		view.problem = f.Title + ": " + reason.reason
+		view.problem = f.Title + ": " + reason.Text
 		return view, nil
 	case err != nil:
 		return tableView{}, err
