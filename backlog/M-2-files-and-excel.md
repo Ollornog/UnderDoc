@@ -58,3 +58,6 @@ visible sheets in the search for readers of the file. Read only in this mileston
 `.ods`, `.csv`) with number formats in the reader's language, held against LibreOffice, and its limits, and the API of
 sheets, ranges and CSV. Open: the table view in the workspace, search over tables, embedding (M-3).
 Search over tables built the same day: the cells of the visible sheets by sheet and range of rows, for readers of the file.
+The table view in the workspace built the same day (sheets as buttons, sticky head, pages of rows, marking, Embed,
+CSV). Open in M-2: tags on files, the document types for PowerPoint, video and image collections, and the acceptance
+with real Excel (with the tables of ADR-31).
