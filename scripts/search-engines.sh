@@ -73,7 +73,7 @@ stop() {
     [[ -z "$ids" ]] && return 0
     # One id per line; word splitting is wanted here.
     # shellcheck disable=SC2086
-    dock rm -f $ids >/dev/null
+    dock rm -f -v $ids >/dev/null
 }
 
 case "${1:-}" in

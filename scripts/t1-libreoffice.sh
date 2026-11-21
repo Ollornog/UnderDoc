@@ -19,7 +19,7 @@ lo_image="underdoc-t1-lo:$run"
 work="$(mktemp -d)"
 chmod 755 "$work"
 cleanup() {
-    for t in main acme; do docker rm -f "$run-$t" >/dev/null 2>&1 || true; done
+    for t in main acme; do docker rm -f -v "$run-$t" >/dev/null 2>&1 || true; done
     docker network rm "$run" >/dev/null 2>&1 || true
     docker rmi -f "$samba_image" "$lo_image" >/dev/null 2>&1 || true
     docker run --rm -v "$work:$work" --entrypoint rm debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 -rf "$work/share" >/dev/null 2>&1 || true
