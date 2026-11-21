@@ -96,6 +96,25 @@ def search_engine_pins():
 
 check("the search services of ci.yml are the pins of scripts/search", search_engine_pins())
 
+
+def opensearch_ignores_the_disk():
+    """The OpenSearch of the tests switches its disk watermarks off: above 90 % of the host's disk it refuses to create
+    an index, so a test would turn red because the machine is full. The deployment template keeps the protection."""
+    setting = "cluster.routing.allocation.disk.threshold_enabled"
+    found = []
+    script = (ROOT / "scripts/search-engines.sh").read_text(encoding="utf-8")
+    if f"-e {setting}=false" not in script:
+        found.append(f"scripts/search-engines.sh does not start OpenSearch with {setting}=false")
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    if not re.search(rf'^          {re.escape(setting)}: "false"$', workflow, re.M):
+        found.append(f"the OpenSearch service of ci.yml does not set {setting}: \"false\"")
+    if setting in (ROOT / "deploy/compose.yml").read_text(encoding="utf-8"):
+        found.append(f"deploy/compose.yml touches {setting}: production keeps the disk watermarks")
+    return found
+
+
+check("the OpenSearch of the tests does not depend on the host's disk", opensearch_ignores_the_disk())
+
 # ---- Files
 check("scripts are executable", hygiene.pruefe_ausfuehrbar(str(ROOT), [
     "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "scripts/build-js.sh", "tests/test_repo.py"]))

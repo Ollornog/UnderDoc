@@ -47,10 +47,12 @@ start() {
         -e MEILI_NO_ANALYTICS=true -e MEILI_ENV=development "$(image meilisearch)" >/dev/null ||
         fail "Meilisearch does not start"
     # OpenSearch without its security plugin: it listens on loopback only, for the tests. Half a gigabyte of heap is
-    # plenty for the corpus.
+    # plenty for the corpus. The disk watermarks are off: they look at the disk of the host, and above 90 % OpenSearch
+    # refuses to create an index, so a test would depend on how full the machine is. deploy/compose.yml keeps them.
     local opensearch="$run-opensearch"
     dock run -d --rm --name "$opensearch" --label underdoc-search-test="$run" -p 127.0.0.1::9200 \
         -e discovery.type=single-node -e DISABLE_SECURITY_PLUGIN=true -e DISABLE_INSTALL_DEMO_CONFIG=true \
+        -e cluster.routing.allocation.disk.threshold_enabled=false \
         -e OPENSEARCH_JAVA_OPTS="-Xms512m -Xmx512m" "$(image opensearch)" >/dev/null ||
         { stop "$run"; fail "OpenSearch does not start"; }
     local meili_url opensearch_url

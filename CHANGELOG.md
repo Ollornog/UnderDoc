@@ -220,6 +220,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- The OpenSearch of the tests (`scripts/search-engines.sh`, the service in CI) no longer depends on how full the disk of
+  the host is: above 90 % its disk watermark blocked creating an index and the search tests failed with
+  `index_create_block_exception`. It runs with `cluster.routing.allocation.disk.threshold_enabled=false`;
+  `deploy/compose.yml` keeps the protection, and `tests/test_repo.py` holds both.
 - The browser tests of the search waited for a change to reach the index only as long as for the workspace to draw (five
   seconds), though it passes the queue, the indexer, the engine and a search; a stall of the engine under load made
   `TestQuickSearchJumpsToTheSection` fail. They now wait up to 30 seconds for the search to find it, and say what it

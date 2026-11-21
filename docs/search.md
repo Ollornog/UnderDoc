@@ -111,6 +111,10 @@ pinned by tag and digest in `scripts/search/Dockerfile.*`, which only carry the 
 runs the same images as `services:` of its job and names them this way; `tests/test_repo.py` holds the services to the
 pins, so a pin Dependabot moved turns the check red until `.github/workflows/ci.yml` follows.
 
+The OpenSearch of the tests runs with `cluster.routing.allocation.disk.threshold_enabled=false`: its disk watermarks
+look at the disk of the host, and above the high watermark (90 %) OpenSearch refuses to create an index, so a test would
+turn red because the machine is full. `deploy/compose.yml` keeps the watermarks: in production they protect the data.
+
 Every engine passes the same functional tests (`internal/search/searchtest`): readers, tenants, replacing and removing,
 filters, one hit per page, codes exactly and never through a typing error, typing errors in words, title before heading
 before text, marks, exact words.
