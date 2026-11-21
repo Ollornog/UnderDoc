@@ -44,3 +44,9 @@ sheet, a range, a defined name or an Excel table gets an ID local to its file (`
 points at; `::embed{ref=…}` embeds it as a block, a name of one cell inline as a value; a new version of the file is
 followed by names, and a range by its first row, with a notice where it cannot be followed, never quietly wrong. The
 file and its tables show where they are used.
+
+**Built on 2026-11-20 (ADR-31, [docs/tables.md](../docs/tables.md#tables-in-pages)):** Excel tables in pages: sheets,
+ranges, defined names and Excel tables with IDs local to their file, embedded as blocks, a name of one cell inline as a
+value, followed through new versions with a notice where they cannot be, rights and read links as for the file, where
+each is used for files and tables, and the problems. Open: choosing a table in the workspace (the table view), Mermaid
+(T-3), the origin of a text copied through the clipboard.

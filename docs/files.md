@@ -161,7 +161,8 @@ set, the files below `files/` next to the documents:
 ```text
 backup/
   files/
-    .underdoc-files.yaml        roots, IDs, owners, every version with its hash, the attachments of pages
+    .underdoc-files.yaml        roots, IDs, owners, every version with its hash, the attachments of pages,
+                                the tables of spreadsheets with their IDs
     Company/Contracts/plan.pdf  each file in its current version, under its folders
     .blobs/<sha256>             older versions and attachments, each once
 ```

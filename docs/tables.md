@@ -85,3 +85,59 @@ Spreadsheets come from anyone who may upload or save over Samba, so each is read
   eight workbooks in memory. A new version is a new blob and is read anew.
 - A panic of the reader becomes such a reason.
 - Every text of a file is escaped in HTML and set as text in the browser.
+
+## Tables in pages
+
+A sheet, a range, a defined name or an Excel table of a spreadsheet can be embedded in a page (M-3, ADR-31). It gets an
+ID local to its file when it is chosen, `x1`, `x2`, …, and is addressed as `<file>#x3`, such as `/o/7k2m9q4x1c#x3`. The
+file itself is never changed for it: UnderDoc keeps what the ID points at (`file_tables`, migration 029).
+
+| Kind | Chosen by | Followed through a new version by |
+|---|---|---|
+| `sheet` | its name | its name; a sheet renamed in Excel by its number (`sheetId`), when both versions were saved by Excel |
+| `range` | its sheet and address, such as `A1:D20` | its sheet and address, checked against its first row (the anchor); if that row moved, the range follows it |
+| `name` | a defined name on a visible sheet | its name (Excel and LibreOffice move names themselves) |
+| `table` | an Excel table, or a database range of OpenDocument | its name; it grows with its rows |
+
+```markdown
+::embed{ref="7k2m9q4x1c#x3"}
+VAT is :embed{ref="7k2m9q4x1c#x4"} this year.
+```
+
+- A line `::embed{ref="<file>#x3"}` shows the table as a block with a link back to the file: at most 200 rows, then a
+  link to the rest. An Excel table shows its header row as the head; a sheet, a range or a name when it was chosen with
+  `head`.
+- `:embed{ref="<file>#x4"}` inside a paragraph shows a table of one cell as a value; anything larger says so in place.
+- An embedding shows the current version of the file, rendered for each viewer, in their language. When the file has a
+  new version (a save over Samba, an upload, a restore, an import), each table is looked for again the first time it
+  shows:
+  - **followed:** rows inserted above a range, a name or table that moved, a sheet renamed in Excel: it shows, with
+    "Followed from Data!A1:B2 in version 2" above it;
+  - **changed:** the first row of a range holds other values and is found nowhere else, or more than once: it shows,
+    with a notice that its first row changed, and it is listed among the problems until whoever may edit the file keeps
+    it as it is (`POST /api/files/{id}/tables/{x}/keep`) or the page chooses again;
+  - **lost:** the sheet, name or table is gone, or its sheet is hidden now: in its place "Table Costs is no longer in
+    data.xlsx (version 4 of 20 Nov 2026)", never an empty gap and never the content of an older version. A sheet renamed
+    in LibreOffice is lost, since LibreOffice numbers its sheets by their place.
+- A file that cannot be read shows its reason in every embedding.
+
+**Rights** (ADR-29): a table is its file's. Whoever reads the file reads, lists and chooses its tables; choosing changes
+nothing in the file. A viewer of the page who may not read the file sees "Not to be found: <file>#x3", without a cell
+and without the name of the file, the sheet or the table. **Read links:** a page frozen for a link shows an embedded
+table only if its file was released for the link (the file is listed among what to release), as it read when the page
+was frozen; when the link is opened, a table whose file its maker no longer reads shows "Not shared", as attachments of
+a frozen page do.
+
+**Where used:** the file lists the pages that embed its tables (`usedIn` of `GET /api/files/{id}`), each table how many
+places use it, and the facts of a page name the tables it embeds (kind `table`). The list of problems names every
+embedded table that does not show, and every range whose first row changed.
+
+| Call | What it does |
+|---|---|
+| `POST /api/files/{id}/tables {"kind", "sheet", "range", "name", "head"}` | gives a table its ID, checked against the current version; the same table again gets the same ID (201 new, 200 known). Answers `id`, `ref`, `url`, `embed` (the line to paste), `label`, `range`, `head`, `state` |
+| `GET /api/files/{id}/tables` | the tables of the file that have an ID, each as found in the current version: `state` ok, moved, changed or lost, `moved`, `problem`, `uses` |
+| `POST /api/files/{id}/tables/{x}/keep` | a range whose first row changed keeps its place, with its first row as it is now; for whoever may edit the file |
+
+**Export:** the Markdown export writes the directive as it stands; the export of the files keeps the tables of each file
+with their IDs in `.underdoc-files.yaml` (`tables:`), and an import gives them back, looked for anew the first time they
+show.

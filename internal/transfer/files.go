@@ -52,7 +52,20 @@ type fileNode struct {
 	Quota       *int64        `yaml:"quota,omitempty"`
 	Path        string        `yaml:"path,omitempty"`
 	Versions    []versionMeta `yaml:"versions,omitempty"`
+	Tables      []tableMeta   `yaml:"tables,omitempty"`
 	Kids        []fileNode    `yaml:"kids,omitempty"`
+}
+
+// tableMeta is a table of a spreadsheet with its ID (ADR-31); where it was last found is looked for anew after import.
+type tableMeta struct {
+	ID          string   `yaml:"id"`
+	Kind        string   `yaml:"kind"`
+	Sheet       string   `yaml:"sheet"`
+	SheetNumber int      `yaml:"sheet_number,omitempty"`
+	Range       string   `yaml:"range,omitempty"`
+	Name        string   `yaml:"name,omitempty"`
+	Head        bool     `yaml:"head,omitempty"`
+	Anchor      []string `yaml:"anchor,omitempty,flow"`
 }
 
 type versionMeta struct {
@@ -109,6 +122,10 @@ func WriteFiles(dir *os.Root, roots []*db.FileNode, attachments []db.AttachmentR
 		here := path.Join(at, name)
 		if n.Kind == db.KindFile {
 			out.Path = here
+			for _, t := range n.Tables {
+				out.Tables = append(out.Tables, tableMeta{ID: t.ID, Kind: t.Kind, Sheet: t.Sheet, SheetNumber: t.SheetNumber, Range: t.Range,
+					Name: t.Name, Head: t.Head, Anchor: t.Anchor})
+			}
 			for i, v := range n.Versions {
 				out.Versions = append(out.Versions, versionMeta{Number: v.Number, SHA256: v.Blob, Size: v.Size, Name: v.Name, Type: v.ContentType,
 					Author: v.Author, At: v.At.UTC()})
@@ -244,6 +261,10 @@ func ReadFiles(dir *os.Root) (FilesToImport, error) {
 			source(v.SHA256, current)
 			n.Versions = append(n.Versions, db.FileVersion{Number: v.Number, Blob: v.SHA256, Size: v.Size, Name: v.Name, ContentType: v.Type,
 				Author: v.Author, At: v.At})
+		}
+		for _, t := range f.Tables {
+			n.Tables = append(n.Tables, db.FileTable{ID: t.ID, Kind: t.Kind, Sheet: t.Sheet, SheetNumber: t.SheetNumber, Range: t.Range,
+				Name: t.Name, Head: t.Head, Anchor: t.Anchor})
 		}
 		for _, k := range f.Kids {
 			kid, err := walk(k)

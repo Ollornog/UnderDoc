@@ -423,7 +423,7 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 		}
 	case l.ObjectKind == db.KindPage || l.ObjectKind == db.KindNotes:
 		v.Kind = "page"
-		v.Frozen = template.HTML(frozenForLink(l.Frozen, sharePath(token), l.Object)) // #nosec G203 -- rendered and sanitized by the same pipeline as every page; only addresses change
+		v.Frozen = template.HTML(frozenForLink(h.frozenTables(r, l.Frozen, l.CreatedBy), sharePath(token), l.Object)) // #nosec G203 -- rendered and sanitized by the same pipeline as every page; only addresses change
 		if !l.FrozenAt.IsZero() {
 			v.FrozenAt = l.FrozenAt.UTC().Format("2006-01-02 15:04 UTC")
 		}

@@ -136,7 +136,12 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
 - **The facts panel** of a page names what it embeds, in the order of its blocks: a value by its name and the page it
   lives in, a part, a section, a block or a whole page by its kind (`embeds` of `GET /api/doc/{id}`).
 
+## Tables of spreadsheets
+
+A sheet, a range, a defined name or an Excel table of a spreadsheet file is embedded the same way, by an address local
+to its file, `<file>#x3`, and a name of one cell inside a paragraph as a value: [tables.md](tables.md#tables-in-pages).
+
 ## Still to come in M-3
 
-Excel tables in pages, Mermaid (T-3), and where a text copied through the clipboard came from (the excerpt knows it,
-the editor does not hand it on to the version of the block it lands in yet): see M-3.
+Mermaid (T-3), and where a text copied through the clipboard came from (the excerpt knows it, the editor does not hand
+it on to the version of the block it lands in yet): see M-3.

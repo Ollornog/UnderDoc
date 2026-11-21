@@ -117,6 +117,11 @@ func TestBackupOfTheFiles(t *testing.T) {
 	if _, err := first.AddBlock(ctx, page.ID, anna.ID, "", "![shot]("+db.AttachmentPath(page.ID, shot.Attachment)+")"); err != nil {
 		t.Fatal(err)
 	}
+	// A table of a spreadsheet with its ID (ADR-31) travels with its file.
+	if _, _, err := first.ChooseTable(ctx, plan.ID, anna.ID, db.FileTable{Kind: db.TableRange, Sheet: "Budget", Range: "A1:B2",
+		Anchor: []string{"Item", "Amount"}, FoundBlob: "seen"}); err != nil {
+		t.Fatal(err)
+	}
 
 	out := filepath.Join(t.TempDir(), "backup")
 	t.Setenv("UNDERDOC_DATABASE_URL", url)
@@ -165,6 +170,10 @@ func TestBackupOfTheFiles(t *testing.T) {
 	}
 	if !slices.Equal(roles, []string{"tenant:Company", "user:My files", "collection:Team"}) || back[2].Quota != 12345 || back[0].Writers != "admins" {
 		t.Errorf("roots: %v %+v", roles, back)
+	}
+	if table, err := second.FileTableOf(ctx, plan.ID, "x1", "u-anna"); err != nil || table.Kind != db.TableRange || table.Sheet != "Budget" ||
+		table.Range != "A1:B2" || !slices.Equal(table.Anchor, []string{"Item", "Amount"}) || table.FoundBlob != "" {
+		t.Errorf("the table of the file: %+v %v", table, err)
 	}
 	if got := content(t, second, s2, "u-bob", secret.ID, 0); got != "bob only" {
 		t.Errorf("bob's file: %q", got)

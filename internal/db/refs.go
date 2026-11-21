@@ -16,8 +16,9 @@ import (
 
 // EmbedLine is a line of a block that embeds something of another page by its address (ADR-18, ADR-22):
 // ::embed{ref="<object id>#<block id>"} a block, without "#<block id>" the whole page, with ".<part id>" after the block a
-// part inside a paragraph, with ".section" the section the block opens. It stands on a line of its own.
-var EmbedLine = regexp.MustCompile(`(?m)^[ \t]*::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8})(?:\.(t[1-9][0-9]{0,8}|section))?)?"\}[ \t]*$`)
+// part inside a paragraph, with ".section" the section the block opens; "#x<n>" a table of a spreadsheet file (ADR-31).
+// It stands on a line of its own; group 2 is the target within the object.
+var EmbedLine = regexp.MustCompile(`(?m)^[ \t]*::embed\{ref="([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8}(?:\.(?:t[1-9][0-9]{0,8}|section))?|x[1-9][0-9]{0,8}))?"\}[ \t]*$`)
 
 // Section is what follows a block ID in the address of the section it opens.
 const Section = "section"
@@ -29,13 +30,20 @@ type Address struct {
 	Sub string
 }
 
-var addressForm = regexp.MustCompile(`^([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8})(?:\.(t[1-9][0-9]{0,8}|section))?)?$`)
+var (
+	addressForm = regexp.MustCompile(`^([0-9a-hjkmnp-tv-z]{10})(?:#(b[1-9][0-9]{0,8})(?:\.(t[1-9][0-9]{0,8}|section))?|#(x[1-9][0-9]{0,8}))?$`)
+	tableID     = regexp.MustCompile(`^x[1-9][0-9]{0,8}$`)
+)
 
-// ParseAddress reads an address such as 7k2m9q4x1c#b3.t2.
+// ParseAddress reads an address such as 7k2m9q4x1c#b3.t2, or 7k2m9q4x1c#x3 for a table of a file (ADR-31), which is
+// kept as its Block.
 func ParseAddress(s string) (Address, bool) {
 	m := addressForm.FindStringSubmatch(s)
 	if m == nil {
 		return Address{}, false
+	}
+	if m[4] != "" {
+		return Address{Object: m[1], Block: m[4]}, true
 	}
 	return Address{Object: m[1], Block: m[2], Sub: m[3]}, true
 }
@@ -85,12 +93,12 @@ func RefsIn(body string) [][2]string {
 		}
 	}
 	for _, m := range EmbedLine.FindAllStringSubmatch(body, -1) {
-		add([2]string{m[1], Address{Block: m[2], Sub: m[3]}.Target()})
+		add([2]string{m[1], m[2]})
 	}
 	if strings.Contains(body, ":embed{") {
 		text := inlineCode.ReplaceAllString(fencedCode.ReplaceAllString(body, ""), "")
 		for _, m := range markdown.InlineEmbed.FindAllStringSubmatch(text, -1) {
-			add([2]string{m[1], m[2] + "." + m[3]})
+			add([2]string{m[1], markdown.InlineTarget(m)})
 		}
 	}
 	return out
@@ -131,14 +139,18 @@ type Embed struct {
 	Title   string
 	// Name is the name of a part that is a value; empty for everything else.
 	Name string
+	// Table is the label of a table of a spreadsheet (ADR-31): its name, its sheet, or its sheet and range.
+	Table string
 }
 
 // Embeds returns what a page embeds, each once, in the order of its blocks, from pages the viewer sees that are not in the
 // trash. A part that is gone, or a block, has no name.
 func (db *DB) Embeds(ctx context.Context, pageID, viewer string) ([]Embed, error) {
-	rows, err := db.pool.Query(ctx, `SELECT DISTINCT ON (r.target, r.target_block) r.target, r.target_block, o.title, coalesce(b.body, ''), p.position
+	rows, err := db.pool.Query(ctx, `SELECT DISTINCT ON (r.target, r.target_block) r.target, r.target_block, o.title, coalesce(b.body, ''), p.position,
+		coalesce(CASE ft.kind WHEN 'range' THEN ft.sheet || '!' || ft.range WHEN 'sheet' THEN ft.sheet ELSE ft.name END, '')
 		FROM refs r JOIN objects o ON o.id = r.target JOIN blocks p ON p.page = r.page AND p.id = r.block
 		LEFT JOIN blocks b ON b.page = r.target AND b.id = split_part(r.target_block, '.', 1)
+		LEFT JOIN file_tables ft ON ft.file = r.target AND ft.id = r.target_block
 		WHERE r.page = $2 AND o.deleted_at IS NULL AND `+visible+`
 		ORDER BY r.target, r.target_block, p.position`, viewer, pageID)
 	if err != nil {
@@ -151,7 +163,7 @@ func (db *DB) Embeds(ctx context.Context, pageID, viewer string) ([]Embed, error
 	found, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (row, error) {
 		var x row
 		var target, body string
-		err := r.Scan(&x.embed.Address.Object, &target, &x.embed.Title, &body, &x.position)
+		err := r.Scan(&x.embed.Address.Object, &target, &x.embed.Title, &body, &x.position, &x.embed.Table)
 		x.embed.Address.Block, x.embed.Address.Sub = BlockOf(target), subOf(target)
 		if sub := x.embed.Address.Sub; sub != "" && sub != Section {
 			if p, ok := markdown.FindPart(body, sub); ok {
