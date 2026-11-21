@@ -115,6 +115,23 @@ def opensearch_ignores_the_disk():
 
 check("the OpenSearch of the tests does not depend on the host's disk", opensearch_ignores_the_disk())
 
+
+def containers_take_their_volumes():
+    """A container removed with `docker rm` leaves its anonymous volumes behind (the images of Meilisearch, OpenSearch
+    and Samba declare some), one set per test run, until the disk is full. Every removal in scripts/ takes them along."""
+    found = []
+    removal = re.compile(r"\b(?:docker|dock) rm\b(?!i)((?:\s+-[\w-]+)*)")
+    for path in sorted((ROOT / "scripts").glob("*.sh")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for m in removal.finditer(line):
+                flags = m.group(1).split()
+                if not any(f == "--volumes" or (not f.startswith("--") and "v" in f) for f in flags):
+                    found.append(f"{path.relative_to(ROOT)}:{number} removes a container without its volumes (-v)")
+    return found
+
+
+check("test containers are removed with their volumes", containers_take_their_volumes())
+
 # ---- Files
 check("scripts are executable", hygiene.pruefe_ausfuehrbar(str(ROOT), [
     "scripts/check.sh", "scripts/_go_check.sh", "scripts/_residue_check.sh", "scripts/build-js.sh", "tests/test_repo.py"]))

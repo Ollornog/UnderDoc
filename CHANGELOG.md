@@ -220,6 +220,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- The scripts that run test containers (`scripts/search-engines.sh`, `check-image.sh`, `check-samba.sh`,
+  `t1-libreoffice.sh`) removed them without their anonymous volumes, so every run left some behind. They are removed
+  with `-v` now, and `tests/test_repo.py` holds every removal in `scripts/` to it.
 - The OpenSearch of the tests (`scripts/search-engines.sh`, the service in CI) no longer depends on how full the disk of
   the host is: above 90 % its disk watermark blocked creating an index and the search tests failed with
   `index_create_block_exception`. It runs with `cluster.routing.allocation.disk.threshold_enabled=false`;

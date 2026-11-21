@@ -9,7 +9,7 @@ fail() { printf '✗ %s\n' "$1" >&2; docker logs "$name" 2>&1 | tail -20 >&2 || 
 image="underdoc-check:$$"
 name="underdoc-check-$$"
 notes="$(mktemp -d)"
-trap 'docker rm -f "$name" >/dev/null 2>&1 || true; docker rmi -f "$image" >/dev/null 2>&1 || true; rm -rf "$notes"' EXIT
+trap 'docker rm -f -v "$name" >/dev/null 2>&1 || true; docker rmi -f "$image" >/dev/null 2>&1 || true; rm -rf "$notes"' EXIT
 
 chmod 755 "$notes"
 printf -- '---\nid: first\n---\n# First version\n' >"$notes/page.md"

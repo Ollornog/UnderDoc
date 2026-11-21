@@ -16,7 +16,7 @@ image="underdoc-samba-test:$run"
 work="$(mktemp -d)"
 chmod 755 "$work"
 cleanup() {
-    for t in main acme; do dock rm -f "$run-$t" >/dev/null 2>&1 || true; done
+    for t in main acme; do dock rm -f -v "$run-$t" >/dev/null 2>&1 || true; done
     dock rmi -f "$image" >/dev/null 2>&1 || true
     # Files the companions made belong to the UIDs of Samba users; a container of the same image takes them away.
     dock run --rm -v "$work:$work" --entrypoint rm debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 -rf "$work/share" >/dev/null 2>&1 || true
