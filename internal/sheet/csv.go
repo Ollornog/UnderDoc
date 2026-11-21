@@ -36,12 +36,8 @@ func readCSV(ctx context.Context, r io.ReaderAt, size int64, name string, tabs b
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
 	reader.ReuseRecord = true
-	title := strings.TrimSuffix(path.Base(name), path.Ext(name))
-	if title == "" || title == "." || title == "/" {
-		title = "Sheet1"
-	}
-	sh := Sheet{Name: clipRunes(title, MaxNameRunes)}
-	cells := 0
+	sh := Sheet{Name: csvTitle(name)}
+	cells, text := 0, 0
 	for row := 1; ; row++ {
 		record, err := reader.Read()
 		if errors.Is(err, io.EOF) {
@@ -70,7 +66,11 @@ func readCSV(ctx context.Context, r io.ReaderAt, size int64, name string, tabs b
 			if cells > MaxCells {
 				return nil, &LimitError{What: "cells", Limit: MaxCells}
 			}
-			out.Cells = append(out.Cells, Cell{Col: i + 1, Kind: Text, Value: clipRunes(field, MaxCellText)})
+			value := clipRunes(field, MaxCellText)
+			if text += len(value); text > MaxText {
+				return nil, &LimitError{What: textLimit, Limit: MaxText}
+			}
+			out.Cells = append(out.Cells, Cell{Col: i + 1, Kind: Text, Value: value})
 		}
 		if len(out.Cells) > 0 {
 			out.N = row
@@ -78,6 +78,15 @@ func readCSV(ctx context.Context, r io.ReaderAt, size int64, name string, tabs b
 		}
 	}
 	return &Workbook{Sheets: []Sheet{sh}, Formats: []string{"General"}}, nil
+}
+
+// csvTitle is the name of the one sheet of a CSV: the name of its file without its extension.
+func csvTitle(name string) string {
+	title := strings.TrimSuffix(path.Base(name), path.Ext(name))
+	if title == "" || title == "." || title == "/" {
+		title = "Sheet1"
+	}
+	return clipRunes(title, MaxNameRunes)
 }
 
 // separator picks the separator that the first line, outside quotes, holds most of.

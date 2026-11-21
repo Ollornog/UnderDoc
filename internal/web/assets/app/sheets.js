@@ -254,7 +254,8 @@
     if (!b) return;
     switch (b.dataset.sheetAct) {
       case 'prev': await page(v, { from: Math.max(0, v.from - 500) }).catch(err => say(err.message)); v.mark = 0; draw(v); break;
-      case 'next': await page(v, { from: v.from + 500 }).catch(err => say(err.message)); v.mark = 0; draw(v); break;
+      /* A page stops early when its text is long (sheet.MaxGridText): the next one starts after the rows it holds. */
+      case 'next': await page(v, { from: v.from + ((v.grid && v.grid.rows.length) || 500) }).catch(err => say(err.message)); v.mark = 0; draw(v); break;
       case 'embed': choose(v, v.sel ? { kind: 'range', sheet: v.sheet, range: rangeOf(v.sel), head: !!v.head } : { kind: 'sheet', sheet: v.sheet, head: !!v.head }); break;
       case 'embed-named': choose(v, { kind: b.dataset.kind, name: b.dataset.name, head: !!v.head }, b.dataset.kind === 'name'); break;
       case 'copy': await copy(b.dataset.embed); say('Copied ' + b.dataset.embed); break;

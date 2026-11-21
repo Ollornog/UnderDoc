@@ -19,6 +19,10 @@ type odsReader struct {
 	wb           *Workbook
 	hiddenTables map[string]bool // styles of tables that are not displayed
 	cells        int
+	// text counts the bytes of text of the cells, a repeated cell as often as it repeats (MaxText).
+	text int
+	// hidden counts the hidden rows and columns kept (MaxHidden).
+	hidden int
 }
 
 func readODS(ctx context.Context, r io.ReaderAt, size int64) (*Workbook, error) {
@@ -220,6 +224,10 @@ func (o *odsReader) readTable(d *xml.Decoder, se xml.StartElement) error {
 				if err != nil {
 					return err
 				}
+				text := 0
+				for _, c := range cells {
+					text += len(c.Value)
+				}
 				for range n {
 					row++
 					if row > MaxRows {
@@ -232,6 +240,9 @@ func (o *odsReader) readTable(d *xml.Decoder, se xml.StartElement) error {
 						o.cells += len(cells)
 						if o.cells > MaxCells {
 							return &LimitError{What: "cells", Limit: MaxCells}
+						}
+						if o.text += text; o.text > MaxText {
+							return &LimitError{What: textLimit, Limit: MaxText}
 						}
 						sh.Rows = append(sh.Rows, Row{N: row, Cells: cells})
 					}
@@ -260,6 +271,9 @@ func (o *odsReader) readTable(d *xml.Decoder, se xml.StartElement) error {
 				}
 			}
 		}
+	}
+	if o.hidden += sh.trimHidden(); o.hidden > MaxHidden {
+		return &LimitError{What: "hidden rows and columns", Limit: MaxHidden}
 	}
 	o.wb.Sheets = append(o.wb.Sheets, sh)
 	return nil

@@ -30,6 +30,10 @@ type xlsxReader struct {
 	// styles maps the index of a cell style to an index of wb.Formats.
 	styles []int
 	cells  int
+	// textBytes counts the bytes of text of the cells, a shared string as often as it stands (MaxText).
+	textBytes int
+	// hidden counts the hidden rows and columns kept (MaxHidden).
+	hidden int
 }
 
 func readXLSX(ctx context.Context, r io.ReaderAt, size int64) (*Workbook, error) {
@@ -303,6 +307,8 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 	}
 	var tableRels []string
 	row := 0
+	// A column hidden again and again is one column: the hidden columns are a set of Excel's columns.
+	hiddenCols := make([]bool, MaxCols+1)
 	err = x.walk(name, func(d *xml.Decoder, se xml.StartElement) error {
 		switch se.Name.Local {
 		case "col":
@@ -310,7 +316,7 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 			hi, err2 := strconv.Atoi(attr(se, "max"))
 			if err1 == nil && err2 == nil && truthy(attr(se, "hidden")) {
 				for c := max(lo, 1); c <= min(hi, MaxCols); c++ {
-					sh.HiddenCols = append(sh.HiddenCols, c)
+					hiddenCols[c] = true
 				}
 			}
 		case "row":
@@ -322,7 +328,7 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 			if row < 1 || row > MaxRows {
 				return &LimitError{What: "rows", Limit: MaxRows}
 			}
-			if truthy(attr(se, "hidden")) {
+			if n := len(sh.HiddenRows); truthy(attr(se, "hidden")) && (n == 0 || sh.HiddenRows[n-1] != row) {
 				sh.HiddenRows = append(sh.HiddenRows, row)
 			}
 			return x.readRow(d, sh, row)
@@ -347,8 +353,14 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 	}
 	slices.Sort(sh.HiddenRows)
 	sh.HiddenRows = slices.Compact(sh.HiddenRows)
-	slices.Sort(sh.HiddenCols)
-	sh.HiddenCols = slices.Compact(sh.HiddenCols)
+	for c, hidden := range hiddenCols {
+		if hidden {
+			sh.HiddenCols = append(sh.HiddenCols, c)
+		}
+	}
+	if x.hidden += sh.trimHidden(); x.hidden > MaxHidden {
+		return &LimitError{What: "hidden rows and columns", Limit: MaxHidden}
+	}
 	for _, rel := range tableRels {
 		target, ok := targets[rel]
 		if !ok || !x.has(target) {
@@ -408,6 +420,9 @@ func (x *xlsxReader) readRow(d *xml.Decoder, sh *Sheet, row int) error {
 				x.cells++
 				if x.cells > MaxCells {
 					return &LimitError{What: "cells", Limit: MaxCells}
+				}
+				if x.textBytes += len(cell.Value); x.textBytes > MaxText {
+					return &LimitError{What: textLimit, Limit: MaxText}
 				}
 				r.Cells = append(r.Cells, cell)
 			}

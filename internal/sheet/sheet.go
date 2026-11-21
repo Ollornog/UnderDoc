@@ -35,6 +35,16 @@ const (
 	MaxGridCols = 256
 	// MaxArea is the most cells a rectangle written out whole (CSV) may cover, empty ones included.
 	MaxArea = 1_000_000
+	// MaxText is the most bytes of text the cells of a workbook hold together, a text counted as often as it stands: a
+	// shared string or a repeated cell of a few bytes in the file must not become gigabytes once written out.
+	MaxText = 100 << 20
+	// MaxHidden is the most hidden rows and columns a workbook keeps, those beyond the last row and column with content
+	// not counted.
+	MaxHidden = 2 * MaxRows
+	// MaxGridText is the most bytes of text one page of a grid holds; the rows beyond it are counted as more.
+	MaxGridText = 8 << 20
+	// MaxAnchorText is the most characters of a cell an anchor keeps.
+	MaxAnchorText = 256
 )
 
 // Kinds of a cell.
@@ -187,6 +197,28 @@ func (w *Workbook) Display(c Cell, l Lang) string {
 	return c.Value
 }
 
+// textLimit names MaxText in a LimitError.
+const textLimit = "bytes of text in cells"
+
+// trimHidden drops the hidden rows and columns beyond the last row and column with content, which change nothing that
+// shows (LibreOffice writes the rows below the content hidden up to the end of the sheet), and returns how many are kept.
+func (s *Sheet) trimHidden() int {
+	used := s.Used()
+	if i, _ := slices.BinarySearch(s.HiddenRows, used.R2+1); i < len(s.HiddenRows) {
+		s.HiddenRows = slices.Clone(s.HiddenRows[:i])
+	}
+	if i, _ := slices.BinarySearch(s.HiddenCols, used.C2+1); i < len(s.HiddenCols) {
+		s.HiddenCols = slices.Clone(s.HiddenCols[:i])
+	}
+	if len(s.HiddenRows) == 0 {
+		s.HiddenRows = nil
+	}
+	if len(s.HiddenCols) == 0 {
+		s.HiddenCols = nil
+	}
+	return len(s.HiddenRows) + len(s.HiddenCols)
+}
+
 // Used is the rectangle from A1 to the last row and column with content; zero for an empty sheet.
 func (s *Sheet) Used() Rect {
 	var r Rect
@@ -331,13 +363,12 @@ type GridCell struct {
 }
 
 // Grid returns the visible part of a rectangle of the sheet, at most limit rows from the visible row skip on (limit 0:
-// all), with text in the language.
+// all), with text in the language. It costs what the page costs: merged areas are cut at the edges of the page, a cell
+// is looked up once, and a page stops at MaxGridText bytes of text, the rows beyond counted as more.
 func (w *Workbook) Grid(s *Sheet, rect Rect, l Lang, skip, limit int) Grid {
-	hiddenRow := toSet(s.HiddenRows)
-	hiddenCol := toSet(s.HiddenCols)
 	g := Grid{Cols: []int{}}
 	for c := rect.C1; c <= rect.C2; c++ {
-		if hiddenCol[c] {
+		if hidden(s.HiddenCols, c) {
 			continue
 		}
 		if len(g.Cols) == MaxGridCols {
@@ -349,72 +380,113 @@ func (w *Workbook) Grid(s *Sheet, rect Rect, l Lang, skip, limit int) Grid {
 	if g.MoreCols > 0 {
 		rect.C2 = g.Cols[len(g.Cols)-1]
 	}
-	// The visible rows of the rectangle, as numbers; a sheet has at most a million, so this is a slice of ints at most.
-	cells := map[int][]Cell{}
-	for _, row := range s.Rows {
-		if row.N >= rect.R1 && row.N <= rect.R2 {
-			cells[row.N] = row.Cells
+	// The visible rows of the page, in order.
+	var page []int
+	visible := 0
+	for r := rect.R1; r <= rect.R2; r++ {
+		if hidden(s.HiddenRows, r) {
+			continue
+		}
+		switch {
+		case visible < skip:
+		case limit > 0 && visible >= skip+limit:
+			g.More++
+		default:
+			page = append(page, r)
+		}
+		visible++
+	}
+	g.Rows = []GridRow{}
+	if len(page) == 0 || len(g.Cols) == 0 {
+		g.Rows = make([]GridRow, len(page))
+		for i, r := range page {
+			g.Rows[i] = GridRow{N: r, Cells: []GridCell{}}
+		}
+		return g
+	}
+	at := make(map[int]int, len(page)) // row → its place on the page
+	for i, r := range page {
+		at[r] = i
+	}
+	colAt := make(map[int]int, len(g.Cols))
+	for j, c := range g.Cols {
+		colAt[c] = j
+	}
+	// The cells of the page, each found once: cells[i*width+j] is the cell of page[i] and g.Cols[j].
+	width := len(g.Cols)
+	cells := make([]*Cell, len(page)*width)
+	var byRow map[int][]Cell // every row by its number, made only when a merge needs a cell off the page
+	for k := range s.Rows {
+		i, ok := at[s.Rows[k].N]
+		if !ok {
+			continue
+		}
+		row := s.Rows[k].Cells
+		for n := range row {
+			if j, ok := colAt[row[n].Col]; ok && cells[i*width+j] == nil {
+				cells[i*width+j] = &row[n]
+			}
 		}
 	}
 	type span struct{ rows, cols int }
-	starts := map[[2]int]span{}
-	covered := map[[2]int]bool{}
+	starts := map[int]span{}
+	covered := map[int]bool{}
+	// Merges are cut at the edges of the page; merges over cells already covered, as no program writes them, are left
+	// out, and the work on merges stays within a few times the cells of the page.
+	work := 4 * len(page) * width
 	for _, m := range s.Merges {
 		m = clip(m, rect)
-		if m.R1 == 0 {
+		if m.R1 == 0 || work <= 0 {
 			continue
 		}
-		// Spans count visible rows and columns; a merge whose first cell is hidden starts at its first visible cell.
-		var vr, vc []int
-		for r := m.R1; r <= m.R2; r++ {
-			if !hiddenRow[r] {
-				vr = append(vr, r)
-			}
-		}
-		for c := m.C1; c <= m.C2; c++ {
-			if !hiddenCol[c] {
-				vc = append(vc, c)
-			}
-		}
-		if len(vr) == 0 || len(vc) == 0 {
+		i0, _ := slices.BinarySearch(page, m.R1)
+		i1, _ := slices.BinarySearch(page, m.R2+1)
+		j0, _ := slices.BinarySearch(g.Cols, m.C1)
+		j1, _ := slices.BinarySearch(g.Cols, m.C2+1)
+		if i0 >= i1 || j0 >= j1 {
 			continue
 		}
-		starts[[2]int{vr[0], vc[0]}] = span{len(vr), len(vc)}
-		for _, r := range vr {
-			for _, c := range vc {
-				if r != vr[0] || c != vc[0] {
-					covered[[2]int{r, c}] = true
+		start := i0*width + j0
+		if _, taken := starts[start]; taken || covered[start] {
+			continue
+		}
+		starts[start] = span{i1 - i0, j1 - j0}
+		for i := i0; i < i1 && work > 0; i++ {
+			for j := j0; j < j1; j++ {
+				if i != i0 || j != j0 {
+					covered[i*width+j] = true
+				}
+				work--
+			}
+		}
+		// The text of a merge is in its first cell; it shows in the first visible cell of the merge, even when the first
+		// cell is hidden, and only on the page where the merge starts to show.
+		first, firstCol := page[i0], g.Cols[j0]
+		if (first != m.R1 || firstCol != m.C1) && visibleBetween(s.HiddenRows, m.R1, first) == 0 && visibleBetween(s.HiddenCols, m.C1, firstCol) == 0 {
+			if byRow == nil {
+				byRow = make(map[int][]Cell, len(s.Rows))
+				for _, r := range s.Rows {
+					byRow[r.N] = r.Cells
 				}
 			}
-		}
-		// The text of a merge is in its first cell, even when that is hidden.
-		if (vr[0] != m.R1 || vc[0] != m.C1) && cellAt(cells[m.R1], m.C1) != nil {
-			first := *cellAt(cells[m.R1], m.C1)
-			first.Col = vc[0]
-			cells[vr[0]] = append(withoutCol(cells[vr[0]], vc[0]), first)
+			if c := cellAt(byRow[m.R1], m.C1); c != nil {
+				cells[start] = c
+			}
 		}
 	}
-	visible := 0
-	for r := rect.R1; r <= rect.R2; r++ {
-		if hiddenRow[r] {
-			continue
+	text := 0
+	for i, r := range page {
+		if text > MaxGridText {
+			g.More += len(page) - i
+			break
 		}
-		if visible < skip {
-			visible++
-			continue
-		}
-		if limit > 0 && visible >= skip+limit {
-			g.More++
-			continue
-		}
-		visible++
 		row := GridRow{N: r, Cells: []GridCell{}}
-		for _, c := range g.Cols {
-			if covered[[2]int{r, c}] {
+		for j, c := range g.Cols {
+			if covered[i*width+j] {
 				continue
 			}
 			gc := GridCell{Col: c}
-			if sp, ok := starts[[2]int{r, c}]; ok {
+			if sp, ok := starts[i*width+j]; ok {
 				if sp.rows > 1 {
 					gc.RowSpan = sp.rows
 				}
@@ -422,17 +494,42 @@ func (w *Workbook) Grid(s *Sheet, rect Rect, l Lang, skip, limit int) Grid {
 					gc.ColSpan = sp.cols
 				}
 			}
-			if cell := cellAt(cells[r], c); cell != nil {
+			if cell := cells[i*width+j]; cell != nil {
 				gc.Text, gc.Kind = w.Display(*cell, l), cell.Kind
+				text += len(gc.Text)
 			}
 			row.Cells = append(row.Cells, gc)
 		}
 		g.Rows = append(g.Rows, row)
 	}
-	if g.Rows == nil {
-		g.Rows = []GridRow{}
+	// A page cut short: no merge spans beyond its last row.
+	for i := range g.Rows {
+		for k := range g.Rows[i].Cells {
+			if c := &g.Rows[i].Cells[k]; c.RowSpan > len(g.Rows)-i {
+				c.RowSpan = len(g.Rows) - i
+				if c.RowSpan == 1 {
+					c.RowSpan = 0
+				}
+			}
+		}
 	}
 	return g
+}
+
+// hidden tells whether a row or column is in a sorted list of hidden ones.
+func hidden(sorted []int, n int) bool {
+	_, found := slices.BinarySearch(sorted, n)
+	return found
+}
+
+// visibleBetween counts the rows or columns from a to b, b not included, that are not in a sorted list of hidden ones.
+func visibleBetween(sorted []int, a, b int) int {
+	if b <= a {
+		return 0
+	}
+	lo, _ := slices.BinarySearch(sorted, a)
+	hi, _ := slices.BinarySearch(sorted, b)
+	return b - a - (hi - lo)
 }
 
 func clip(m, r Rect) Rect {
@@ -452,26 +549,9 @@ func cellAt(cells []Cell, col int) *Cell {
 	return nil
 }
 
-func withoutCol(cells []Cell, col int) []Cell {
-	out := cells[:0:0]
-	for _, c := range cells {
-		if c.Col != col {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-func toSet(xs []int) map[int]bool {
-	m := make(map[int]bool, len(xs))
-	for _, x := range xs {
-		m[x] = true
-	}
-	return m
-}
-
-// Anchor returns the texts of one row of a rectangle in English, hidden columns included, at most MaxGridCols of them: what a range is found again by
-// when its file changes (ADR-31). It is never shown.
+// Anchor returns the texts of one row of a rectangle in English, hidden columns included, at most MaxGridCols of them
+// and at most MaxAnchorText characters of each: what a range is found again by when its file changes (ADR-31). It is
+// never shown.
 func (w *Workbook) Anchor(s *Sheet, row, c1, c2 int) []string {
 	c2 = min(c2, c1+MaxGridCols-1) // at most as wide as a grid shows
 	var cells []Cell
@@ -481,19 +561,21 @@ func (w *Workbook) Anchor(s *Sheet, row, c1, c2 int) []string {
 			break
 		}
 	}
-	out := make([]string, 0, c2-c1+1)
-	for c := c1; c <= c2; c++ {
-		text := ""
-		if cell := cellAt(cells, c); cell != nil {
-			text = w.Display(*cell, English)
+	out := make([]string, c2-c1+1)
+	for _, c := range cells {
+		if c.Col >= c1 && c.Col <= c2 {
+			out[c.Col-c1] = w.anchorText(c)
 		}
-		out = append(out, text)
 	}
 	return out
 }
 
+func (w *Workbook) anchorText(c Cell) string { return clipRunes(w.Display(c, English), MaxAnchorText) }
+
 // FindAnchor looks for the rows of a sheet that hold the anchor, as wide as it is, anywhere: the top left cell of each
-// place, at most two (more than one is no answer). An anchor of empty texts is found nowhere.
+// place, at most two (more than one is no answer). An anchor of empty texts is found nowhere. Each cell is shown once,
+// and a place is given up at its first cell that differs, so a sheet where every cell looks like the start of the anchor
+// costs a pass over its cells and the width of the anchor for each, no more.
 func (w *Workbook) FindAnchor(s *Sheet, anchor []string) [][2]int {
 	first := -1
 	for i, a := range anchor {
@@ -506,18 +588,47 @@ func (w *Workbook) FindAnchor(s *Sheet, anchor []string) [][2]int {
 		return nil
 	}
 	var found [][2]int
+	var texts []string // the texts of a row by column, filled when the row holds the anchor's first text
 	for _, r := range s.Rows {
+		filled := false
 		for _, c := range r.Cells {
 			start := c.Col - first
-			if start < 1 || start+len(anchor)-1 > MaxCols || w.Display(c, English) != anchor[first] {
+			if start < 1 || start+len(anchor)-1 > MaxCols {
 				continue
 			}
-			if slices.Equal(w.Anchor(s, r.N, start, start+len(anchor)-1), anchor) {
-				found = append(found, [2]int{r.N, start})
-				if len(found) > 1 {
-					return found
+			if !filled {
+				if w.anchorText(c) != anchor[first] {
+					continue
+				}
+				if texts == nil {
+					texts = make([]string, MaxCols+1)
+				}
+				for _, other := range r.Cells {
+					texts[other.Col] = w.anchorText(other)
+				}
+				filled = true
+			}
+			if texts[c.Col] != anchor[first] {
+				continue
+			}
+			same := true
+			for i, a := range anchor {
+				if texts[start+i] != a {
+					same = false
+					break
 				}
 			}
+			if same {
+				found = append(found, [2]int{r.N, start})
+			}
+		}
+		if filled {
+			for _, other := range r.Cells {
+				texts[other.Col] = ""
+			}
+		}
+		if len(found) > 1 {
+			return found
 		}
 	}
 	return found
@@ -540,7 +651,6 @@ func (w *Workbook) SearchText(maxWords, maxBytes int) []TextSection {
 		if s.Hidden || len(s.Rows) == 0 {
 			continue
 		}
-		hiddenRow, hiddenCol := toSet(s.HiddenRows), toSet(s.HiddenCols)
 		used := s.Used()
 		var text strings.Builder
 		words, first, last := 0, 0, 0
@@ -552,26 +662,32 @@ func (w *Workbook) SearchText(maxWords, maxBytes int) []TextSection {
 			words = 0
 		}
 		for _, row := range s.Rows {
-			if hiddenRow[row.N] {
+			if hidden(s.HiddenRows, row.N) {
 				continue
 			}
-			var cells []string
+			// The line of the row, given up as soon as it would pass the size of the whole text.
+			var b strings.Builder
 			for _, c := range row.Cells {
-				if hiddenCol[c.Col] {
+				if hidden(s.HiddenCols, c.Col) {
 					continue
 				}
-				if t := w.Display(c, English); t != "" {
-					cells = append(cells, t)
+				t := w.Display(c, English)
+				if t == "" {
+					continue
 				}
+				if b.Len() > 0 {
+					b.WriteString(" · ")
+				}
+				if total+b.Len()+len(t) > maxBytes {
+					flush()
+					return out
+				}
+				b.WriteString(t)
 			}
-			if len(cells) == 0 {
+			if b.Len() == 0 {
 				continue
 			}
-			line := strings.Join(cells, " · ")
-			if total+len(line) > maxBytes {
-				flush()
-				return out
-			}
+			line := b.String()
 			if words > 0 && words+len(strings.Fields(line)) > maxWords {
 				flush()
 			}
