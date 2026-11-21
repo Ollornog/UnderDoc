@@ -308,8 +308,8 @@ func TestOutputIsEscapedAndDefused(t *testing.T) {
 	if err := WriteCSV(&b, wb, &s, Rect{R1: 1, C1: 1, R2: 1, C2: 10}); err != nil {
 		t.Fatal(err)
 	}
-	// +1 and -89.90 are plain numbers, which start no formula.
-	want := `<script>alert(1)</script>,'=cmd|' /C calc'!A0,'@SUM(1+1),+1,'-2+3,'` + "\t" + `=1,-5,7,-89.90,"a` + "\n" + `b"` + "\n"
+	// +1 and -89.90 are plain numbers, which start no formula. Every field is quoted.
+	want := `"<script>alert(1)</script>","'=cmd|' /C calc'!A0","'@SUM(1+1)","+1","'-2+3","'` + "\t" + `=1","-5","7","-89.90","a` + "\n" + `b"` + "\n"
 	if b.String() != want {
 		t.Errorf("csv:\n%q\nwant\n%q", b.String(), want)
 	}

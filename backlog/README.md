@@ -8,7 +8,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Meilensteine
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 2/2 erledigt
-* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 1/3 erledigt
+* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 1/4 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
 * ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — noch keine Aufgaben
@@ -54,6 +54,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Fehler
 
 * ☑ **[B-1](B-1-folder-links-broken.md)** Links to folders count as broken · M-1
+* ☐ **[B-2](B-2-spreadsheet-attack-round-leftovers.md)** Spreadsheets, what the attack round of ADR-31 left open · M-2
 
 ## Entscheidungen (ADR)
 

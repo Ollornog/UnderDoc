@@ -3,7 +3,7 @@
 package sheet
 
 import (
-	"encoding/csv"
+	"bufio"
 	"html"
 	"io"
 	"strconv"
@@ -58,9 +58,11 @@ func writeRow(b *strings.Builder, r GridRow, tag string) {
 
 // WriteCSV writes a grid as CSV. A text that a spreadsheet program would read as a formula (it starts with =, +, -, @,
 // a tab or a carriage return) gets an apostrophe in front; a number is written as the plain number it holds, which never
-// starts a formula. Merged cells are written once, in their first cell.
+// starts a formula. Every field is quoted: a program that splits at another separator than the comma, as German Excel
+// and LibreOffice split at the semicolon, would otherwise start a field, and maybe a formula, inside a text such as
+// "x;=1+1". Merged cells are written once, in their first cell.
 func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
-	out := csv.NewWriter(w)
+	out := bufio.NewWriter(w)
 	// The rectangle is written whole, empty cells too: one far out to the right and down would be billions of them.
 	rows, cols := rect.R2-rect.R1+1, rect.C2-rect.C1+1
 	for _, n := range s.HiddenRows {
@@ -112,12 +114,19 @@ func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
 				line[c-rect.C1] = nil
 			}
 		}
-		if err := out.Write(record); err != nil {
+		for i, field := range record {
+			if i > 0 {
+				_ = out.WriteByte(',')
+			}
+			_ = out.WriteByte('"')
+			_, _ = out.WriteString(strings.ReplaceAll(field, `"`, `""`))
+			_ = out.WriteByte('"')
+		}
+		if err := out.WriteByte('\n'); err != nil {
 			return err
 		}
 	}
-	out.Flush()
-	return out.Error()
+	return out.Flush()
 }
 
 func csvField(wb *Workbook, c Cell) string {

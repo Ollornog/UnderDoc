@@ -257,6 +257,11 @@ All notable changes to this project are documented in this file. The format foll
   go through the cells once; the directory of a zip is counted before Go's reader loads it (for Office text too). The
   one sheet of a CSV is named after its own file when another file has the same bytes. What was read is kept as
   `-sheet-2`, so every workbook is read once more.
+- Spreadsheets as tables, attack round (ADR-31, [docs/tables.md](docs/tables.md#csv-without-formulas)): a CSV download
+  quotes every field, since German Excel and LibreOffice split at the semicolon and a text such as `x;=1+1` written bare
+  became a formula there. A file keeps at most 10 000 tables with an ID and an anchor at most 256 texts of 256
+  characters, so a reader who chooses tables cannot fill the database. An OpenDocument sheet hidden by a common style of
+  `styles.xml` stays hidden.
 
 - Samba, known limit ([docs/samba.md](docs/samba.md), ADR-30): a user who reaches a folder only through passage on the
   way to their own share can confirm a guessed name there, not list it or read it. Not fixed on purpose (it would need

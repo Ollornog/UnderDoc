@@ -203,11 +203,13 @@ func locate(rec db.FileTable, wb *sheet.Workbook, blob string) db.FileTable {
 	if !ok {
 		return lost(lostGone)
 	}
+	// An anchor kept before anchors were short compares as it would be kept now.
+	anchor := sheet.ClipAnchor(rec.Anchor)
 	current := wb.Anchor(s, rect.R1, rect.C1, rect.C2)
-	if slices.Equal(current, rec.Anchor) || !slices.ContainsFunc(rec.Anchor, func(a string) bool { return a != "" }) {
+	if slices.Equal(current, anchor) || !slices.ContainsFunc(anchor, func(a string) bool { return a != "" }) {
 		return next
 	}
-	found := wb.FindAnchor(s, rec.Anchor)
+	found := wb.FindAnchor(s, anchor)
 	if len(found) != 1 {
 		next.Changed = true
 		return next

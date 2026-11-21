@@ -572,6 +572,16 @@ func (w *Workbook) Anchor(s *Sheet, row, c1, c2 int) []string {
 
 func (w *Workbook) anchorText(c Cell) string { return clipRunes(w.Display(c, English), MaxAnchorText) }
 
+// ClipAnchor cuts an anchor kept before anchors were short to what Anchor makes now: at most MaxGridCols texts of at
+// most MaxAnchorText characters.
+func ClipAnchor(anchor []string) []string {
+	out := slices.Clone(anchor[:min(len(anchor), MaxGridCols)])
+	for i := range out {
+		out[i] = clipRunes(out[i], MaxAnchorText)
+	}
+	return out
+}
+
 // FindAnchor looks for the rows of a sheet that hold the anchor, as wide as it is, anywhere: the top left cell of each
 // place, at most two (more than one is no answer). An anchor of empty texts is found nowhere. Each cell is shown once,
 // and a place is given up at its first cell that differs, so a sheet where every cell looks like the start of the anchor

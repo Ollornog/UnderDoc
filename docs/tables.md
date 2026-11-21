@@ -29,7 +29,8 @@ answers why it cannot be read.
   1904) are covered. Colours are left out; a negative number whose format would show it only in red keeps its minus.
   Booleans show as `TRUE`/`FALSE` or `WAHR`/`FALSCH`.
 - **Merged cells** span their rows and columns; a merge across the edge of a range is cut there.
-- **Hidden stays hidden:** hidden and very hidden sheets are not listed and their cells are never read; hidden rows
+- **Hidden stays hidden:** hidden and very hidden sheets (in OpenDocument by an automatic style of `content.xml` or a
+  common style of `styles.xml`) are not listed and their cells are never read; hidden rows
   (filtered rows too) and hidden columns are left out of every grid and CSV. This is no protection of the data: whoever
   reads the file may download it.
 - Fonts, fills, borders, widths, charts, pictures, comments and conditional formats are not taken over.
@@ -76,7 +77,9 @@ Each answers only to whoever may read the file (ADR-29), else 404 as for any fil
 
 A CSV of a table puts an apostrophe before every text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return,
 unless it is a plain number such as `-89.90`: no spreadsheet program reads it as a formula, and no command of DDE runs
-from it. Numbers are written as the plain numbers they hold, booleans as `TRUE`/`FALSE`.
+from it. Numbers are written as the plain numbers they hold, booleans as `TRUE`/`FALSE`. Every field is quoted: German
+Excel and LibreOffice split a CSV at the semicolon, and a text such as `x;=1+1` written bare would start a field, and a
+formula, after it.
 
 ## Limits
 
@@ -165,7 +168,8 @@ VAT is :embed{ref="7k2m9q4x1c#x4"} this year.
 - A file that cannot be read shows its reason in every embedding.
 
 **Rights** (ADR-29): a table is its file's. Whoever reads the file reads, lists and chooses its tables; choosing changes
-nothing in the file. A viewer of the page who may not read the file sees "Not to be found: <file>#x3", without a cell
+nothing in the file. Since every reader chooses, a file keeps at most 10 000 tables with an ID (a table chosen again
+keeps its ID), and the anchor of a range at most 256 texts of 256 characters. A viewer of the page who may not read the file sees "Not to be found: <file>#x3", without a cell
 and without the name of the file, the sheet or the table. **Read links:** a page frozen for a link shows an embedded
 table only if its file was released for the link (the file is listed among what to release), as it read when the page
 was frozen; when the link is opened, a table whose file its maker no longer reads shows "Not shared", as attachments of

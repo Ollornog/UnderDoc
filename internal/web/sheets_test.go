@@ -101,7 +101,7 @@ func TestSpreadsheetAsTables(t *testing.T) {
 		!strings.HasPrefix(csv.Header().Get("Content-Disposition"), "attachment") || csv.Header().Get("Content-Security-Policy") != fileCSP {
 		t.Fatalf("the CSV: %d %v", csv.Code, csv.Header())
 	}
-	if got := csv.Body.String(); got != "'=cmd|' /C calc'!A0\n'@SUM(1+1)\n'-2+3\n<script>alert(1)</script>\n" {
+	if got := csv.Body.String(); got != "\"'=cmd|' /C calc'!A0\"\n\"'@SUM(1+1)\"\n\"'-2+3\"\n\"<script>alert(1)</script>\"\n" {
 		t.Errorf("the CSV starts formulas: %q", got)
 	}
 	// Bob reads nothing of Anna's file.
@@ -167,7 +167,7 @@ func TestALoneCellFarOutThroughTheAPI(t *testing.T) {
 	if got := s.get("/api/files/" + up.ID + "/sheets/csv?sheet=One"); got.Code != http.StatusBadRequest || !strings.Contains(got.Body.String(), "too large") {
 		t.Errorf("the CSV of the whole grid: %d %s", got.Code, got.Body.String())
 	}
-	if got := s.get("/api/files/" + up.ID + "/sheets/csv?sheet=One&range=A1:B2"); got.Code != http.StatusOK || got.Body.String() != "1,\n,\n" {
+	if got := s.get("/api/files/" + up.ID + "/sheets/csv?sheet=One&range=A1:B2"); got.Code != http.StatusOK || got.Body.String() != "\"1\",\"\"\n\"\",\"\"\n" {
 		t.Errorf("a small range: %d %q", got.Code, got.Body.String())
 	}
 }
