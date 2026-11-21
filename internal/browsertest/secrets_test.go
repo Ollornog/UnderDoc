@@ -199,7 +199,8 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	b.ready("Network plan")
 	page := makePage(b, "Router", "Notes")
 	b.openEditing(base, page, "Router")
-	first := randomPassword(t)
+	// The value ends in a mark of emphasis, which belongs to it: one random value in 64 did, and lost it (2026-11-21).
+	first := randomPassword(t) + "_"
 	b.lineWith("Notes")
 	// The first letters of the value, typed, then a pause longer than the editor waits before it saves: too short to ask
 	// about, but the start of a value, so nothing is saved while the cursor is on that line.

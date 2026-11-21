@@ -30,16 +30,34 @@ export function isLabel(key) {
   return LABEL.test(k);
 }
 
+/** count tells how often mark stands in text. */
+const count = (text, mark) => text.split(mark).length - 1;
+
 /**
  * valueAt finds the value that follows a label in text from start on: one word of 4 to 200 characters, maybe in bold or
  * in inline code. It answers [from, to, partial] within text, or null; partial is a word of 1 to 3 characters, which
  * may be the start of a value still being typed.
+ *
+ * The marks of emphasis (* and _) around the value are dropped only when they are Markdown: the end of a bold label
+ * before a space (`**Password:** x`), a pair around the value (`**x**`), or the close of a bold that opened before
+ * the label (`**Password: x**`). Any other * or _ belongs to the value: `hunter2_` keeps its last character.
  */
 function valueAt(text, start, end) {
   let from = start;
-  while (from < end && /[\s*_]/.test(text[from])) from++;
+  for (;;) {
+    while (from < end && /\s/.test(text[from])) from++;
+    const closing = /^[*_]+(?=\s)/.exec(text.slice(from, end));
+    if (!closing) break;
+    from += closing[0].length;
+  }
   let to = end;
-  while (to > from && /[\s*_]/.test(text[to - 1])) to--;
+  while (to > from && /\s/.test(text[to - 1])) to--;
+  while (to - from > 1 && /[*_]/.test(text[from]) && text[to - 1] === text[from]) {
+    from++;
+    to--;
+  }
+  const close = /[*_]+$/.exec(text.slice(from, to));
+  if (close && !/[*_]/.test(text[from]) && count(text.slice(0, start), close[0]) % 2 === 1) to -= close[0].length;
   if (text[from] === '`') {
     const close = text.indexOf('`', from + 1);
     if (close < 0 || close + 1 !== to) return null;

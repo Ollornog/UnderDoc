@@ -215,6 +215,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A password typed as text that ended in `_` or `*` (`hunter2_`) lost that character: the editor took it for the close of
+  an emphasis, made a secret without it and left it in the page. Marks of emphasis are now dropped only when they are
+  Markdown: a pair around the value, the end of a bold label, or the close of a bold opened before the label (ADR-7).
 - A save over SMB that a quota turned away was written over by the database's content in the same pass, so it was lost
   instead of staying on disk without a version as ADR-30 says; now it stays, and each pass takes it up again (ADR-30).
 - Taking a folder into something private now waits for whatever is being made or handed over at any depth below it, not

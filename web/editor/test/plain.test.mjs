@@ -18,6 +18,22 @@ test('a label, a colon or an equals sign, and one word', () => {
     ['Adminpasswort: x9!kLm', 'x9!kLm'],
     ['Password: `Q8z!r2`', 'Q8z!r2'],
     ['Token = **abcd1234**', 'abcd1234'],
+    ['Password: _ab12_', 'ab12'],
+    ['**Password: hunter2**', 'hunter2'],
+    ['**Password:** **hunter2**', 'hunter2'],
+  ]) {
+    assert.deepEqual(values(md), [want], md);
+  }
+});
+
+test('a * or _ at the edge of a value is part of it', () => {
+  for (const [md, want] of [
+    ['Router password: pw-Xy7_', 'pw-Xy7_'],
+    ['Password: hunt2__', 'hunt2__'],
+    ['Password: hunt2*', 'hunt2*'],
+    ['Password: _abc12', '_abc12'],
+    ['**Password:** hunter2_', 'hunter2_'],
+    ['| Password | hunter2_ |', 'hunter2_'],
   ]) {
     assert.deepEqual(values(md), [want], md);
   }

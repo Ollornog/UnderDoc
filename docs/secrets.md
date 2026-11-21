@@ -19,7 +19,8 @@ a click only, and every time is logged.
   saved: is this a password?", and below the line **Keep it as a password** makes a secret from the value and puts its
   reference in its place, **It is not a password** saves the text as typed. Labels end in password, passwort or kennwort,
   or are passphrase, pw, pwd, pin, secret, geheimnis, token or api key; the value is one word of 4 to 200 characters,
-  not a placeholder such as `***` or `<password>`. Code (fenced, indented, a label in inline code) and comments never
+  not a placeholder such as `***` or `<password>`; a `*` or `_` at its edge belongs to it unless it is Markdown (a pair
+  around the value, as in `**hunter2**`, or the close of a bold label). Code (fenced, indented, a label in inline code) and comments never
   ask, nor does a value the stored block already holds. While the cursor is on such a line with a value of 1 to 3
   characters, nothing is saved, so the first letters never reach a version. Closing the editor before answering leaves
   the value out (`…`) and saves the rest. Only the editor asks: an import, the API of blocks and the files of Files do not
