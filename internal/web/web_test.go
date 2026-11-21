@@ -440,6 +440,13 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		"max-h-[420px]", "overflow-y-auto"} {
 		used[class] = "passwords in the text (api_secrets.go, secrets.js, web/editor)"
 	}
+	// Tables of spreadsheets (ADR-31): what the server draws into a page (internal/sheet, tables.go) and the table view
+	// (sheets.js).
+	for _, class := range []string{"table-container", "overflow-x-auto", "overflow-auto", "max-h-96", "table", "text-right", "tabular-nums",
+		"text-sm", "text-warning", "text-muted-foreground", "badge", "lab", "note", "hint", "flex", "flex-wrap",
+		"items-center", "gap-1", "gap-2", "mt-2", "chip", "seg", "sticky", "top-0", "left-0", "z-10", "bg-background", "bg-accent", "font-mono"} {
+		used[class] = "tables of spreadsheets (internal/sheet, tables.go, sheets.js)"
+	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
 	if err != nil || len(files) == 0 {

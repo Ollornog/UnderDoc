@@ -116,7 +116,7 @@ func sheetRect(r *http.Request, wb *sheet.Workbook) (*sheet.Sheet, sheet.Rect, s
 }
 
 // apiSheetGrid answers a rectangle of a visible sheet as it shows, in pages of rows: ?sheet=, ?range= (the used range
-// without it), ?from= the first visible row to show, counted from 0.
+// without it), ?from= the first visible row to show, counted from 0, or ?at= a row whose page to show.
 func (h *handler) apiSheetGrid(w http.ResponseWriter, r *http.Request) {
 	if !h.filesReady(w) {
 		return
@@ -131,6 +131,20 @@ func (h *handler) apiSheetGrid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	from, _ := strconv.Atoi(r.URL.Query().Get("from"))
+	// ?at= a row: the page that holds the first visible row from it on, as a hit of the search opens it.
+	if at, err := strconv.Atoi(r.URL.Query().Get("at")); err == nil && at > 0 {
+		hidden := map[int]bool{}
+		for _, n := range s.HiddenRows {
+			hidden[n] = true
+		}
+		index := 0
+		for n := rect.R1; n < min(at, rect.R2+1); n++ {
+			if !hidden[n] {
+				index++
+			}
+		}
+		from = index / gridRows * gridRows
+	}
 	out := struct {
 		Sheet string `json:"sheet"`
 		Range string `json:"range"`

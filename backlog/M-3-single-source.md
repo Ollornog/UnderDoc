@@ -50,3 +50,5 @@ ranges, defined names and Excel tables with IDs local to their file, embedded as
 value, followed through new versions with a notice where they cannot be, rights and read links as for the file, where
 each is used for files and tables, and the problems. Open: choosing a table in the workspace (the table view), Mermaid
 (T-3), the origin of a text copied through the clipboard.
+Choosing a table in the workspace built the same day (the table view of a file: a marked range, a sheet, a name or an
+Excel table, Embed). Open in M-3: Mermaid (T-3), the origin of a text copied through the clipboard.

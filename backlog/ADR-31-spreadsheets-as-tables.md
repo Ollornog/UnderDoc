@@ -215,3 +215,22 @@ Spreadsheets come from anyone who may upload or save over Samba, so the reader t
   every index is filled again once.
 - Open for later: writing cells from the web; pinning an embedding to a version; reading `.xls`; formats of OpenDocument
   in the reader's language; charts.
+
+## Built on 2026-11-20, and settled while building
+
+Built in four steps ([docs/tables.md](../docs/tables.md)): the reader and its API, tables in pages, the search, the table
+view in the workspace. Settled on the way:
+
+- **Keeping a changed range** is for whoever may **edit the file**, not whoever may change a page: the ID is the
+  file's, and every page that embeds it follows. Whoever may change a page can always choose again.
+- **A hit of the search names the sheet and the range of its rows,** not the single cell: the addresses of cells stay
+  out of the indexed text, since ADR-24 looks codes up exactly and `E1042` would find the cell E1042 of every long sheet.
+  The table view opens at those rows.
+- **Numbers align to the right** in embedded tables and in read links; inside the workspace C22 sets the alignment of
+  table cells itself, so they align to the right there once C22 lets a cell say so (asked of C22).
+- **The sheets** show as a segmented control of the workspace rather than tabs; C22's tabs are not styled inside it.
+- **A lone cell far out** (XFD1048576) makes the used range Excel's whole grid: a page of a grid is at most 256 columns
+  wide (the rest counted), the anchor of a range at most 256 texts, a CSV at most a million cells, and the text for the
+  search goes through the cells there are, never the empty cells of a rectangle. Found while building.
+- The table of the IDs is `file_tables` (migration 029); one cache of read workbooks serves the web and the search
+  (`sheet.Cache`).
