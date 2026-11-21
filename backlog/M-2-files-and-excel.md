@@ -53,3 +53,7 @@ files, the document types for PowerPoint, video and image collections, and the a
 UnderDoc's own for `.xlsx`/`.xlsm`, `.ods` and `.csv` (excelize weighed and left), cached values without a formula engine,
 number formats in the reader's language, hidden stays hidden, limits against bombs and huge sheets, and the cells of the
 visible sheets in the search for readers of the file. Read only in this milestone.
+
+**Built on 2026-11-20 (ADR-31, [docs/tables.md](../docs/tables.md)):** the reader of spreadsheets (`.xlsx`, `.xlsm`,
+`.ods`, `.csv`) with number formats in the reader's language, held against LibreOffice, and its limits, and the API of
+sheets, ranges and CSV. Open: the table view in the workspace, search over tables, embedding (M-3).

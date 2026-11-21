@@ -90,7 +90,8 @@ Markdown files with front matter, and a hidden comment before each block that ke
 
 **Files** need the database and `UNDERDOC_STORE_DIR`: the view Files has the folder of the company, a folder of each user
 and collections, with uploads that resume, versions, quotas and a trash. Every version lies once in a content store named
-by its hash, and an export takes the files along. How it works: [docs/files.md](docs/files.md).
+by its hash, and an export takes the files along. How it works: [docs/files.md](docs/files.md). Spreadsheets (`.xlsx`,
+`.xlsm`, `.ods`, `.csv`) show as tables, read by UnderDoc itself: [docs/tables.md](docs/tables.md).
 
 **Samba** shows the folder of the company, each user's own folder and shared collections as network drives
 (`UNDERDOC_SAMBA`): a companion container runs smbd, UnderDoc steers it over a Unix socket without root, each account

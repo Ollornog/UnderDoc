@@ -79,7 +79,7 @@ type OfficeConverter interface {
 func IsOffice(contentType string) bool {
 	switch contentType {
 	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel.sheet.macroEnabled.12",
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 		"application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
 		"application/vnd.oasis.opendocument.presentation", "application/msword", "application/vnd.ms-excel",

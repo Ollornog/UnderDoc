@@ -1,0 +1,12 @@
+"Item";"Amount";"Share";"Date";"Done";;;19%
+"Rent";1,234.50 €;25.6%;15.03.2023;TRUE;;"hidden column";
+"Power";-89.90;3.1%;2023-04-15 18:00;FALSE;;;
+"Coffee & <tea>";1.5M;50.0%;01.01.2024;TRUE;;;
+"Ümlaut ✓";" 1/8";150.0%;01.03.1900;FALSE;;;
+"Total";1501144 5/7;"#DIV/0!";36:00;1.23E+04;;;
+"hidden row";;;;;;;
+;;;;;;;
+"Merged over three";;;;;"=cmd|' /C calc'!A0";;
+;;;;;"@SUM(1+1)";;
+;;;;;"-2+3";;
+;;;;;"<script>alert(1)</script>";;
