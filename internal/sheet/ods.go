@@ -34,6 +34,18 @@ func readODS(ctx context.Context, r io.ReaderAt, size int64) (*Workbook, error) 
 		return nil, fmt.Errorf("%w: no content", ErrUnreadable)
 	}
 	o := &odsReader{pkg: p, wb: &Workbook{Formats: []string{"General"}, App: "libreoffice"}, hiddenTables: map[string]bool{}}
+	// A sheet may be hidden by a common style of styles.xml as well as by an automatic style of content.xml.
+	if p.has("styles.xml") {
+		err = o.walk("styles.xml", func(d *xml.Decoder, se xml.StartElement) error {
+			if se.Name.Local == "style" && attr(se, "family") == "table" {
+				return o.readTableStyle(d, attr(se, "name"))
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
 	err = o.walk("content.xml", func(d *xml.Decoder, se xml.StartElement) error {
 		switch se.Name.Local {
 		case "style":

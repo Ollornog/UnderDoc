@@ -345,3 +345,16 @@ func TestTablesInReadLinks(t *testing.T) {
 		t.Errorf("the maker no longer reads the file: %s", got)
 	}
 }
+
+// TestAnAnchorKeptLongIsComparedShort: an anchor kept before anchors were cut to sheet.MaxAnchorText characters still
+// finds its range, rather than turning every range of long texts into one whose first row changed.
+func TestAnAnchorKeptLongIsComparedShort(t *testing.T) {
+	long := strings.Repeat("q", sheet.MaxCellText)
+	wb := &sheet.Workbook{Formats: []string{"General"}, Sheets: []sheet.Sheet{{Name: "S", Rows: []sheet.Row{{N: 2, Cells: []sheet.Cell{
+		{Col: 1, Kind: sheet.Text, Value: long}, {Col: 2, Kind: sheet.Text, Value: "b"}}}}}}}
+	rec := db.FileTable{Kind: db.TableRange, Sheet: "S", Range: "A2:B3", Anchor: []string{long, "b"}, FoundBlob: "old"}
+	next := locate(rec, wb, "new")
+	if next.Changed || next.Lost != "" || next.Range != "A2:B3" || next.MovedFrom != "" {
+		t.Errorf("a long anchor: %+v", next)
+	}
+}

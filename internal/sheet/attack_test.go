@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"io"
 	"runtime"
 	"strings"
 	"testing"
@@ -85,15 +86,23 @@ func TestAGridOfAHugeMergeCostsAPage(t *testing.T) {
 	if len(next.Rows) != 500 || len(next.Rows[0].Cells) != 1 || next.Rows[0].Cells[0].Text != "" || next.Rows[0].Cells[0].RowSpan != 500 {
 		t.Errorf("the merge on the next page: %+v", next.Rows[0])
 	}
-	// Many merges over the same cells, as no program writes them, cost no more than the cells of the page.
-	s.Merges = nil
-	for range 3000 {
-		s.Merges = append(s.Merges, Rect{R1: 1, C1: 1, R2: 500, C2: 256})
+	// Many merges over the same cells, as no program writes them, cost no more than the cells of the page: 3000 of them
+	// take about as long as one (a ratio, not a time, so a slow or busy machine does not decide).
+	took := func(n int) time.Duration {
+		s.Merges = nil
+		for range n {
+			s.Merges = append(s.Merges, Rect{R1: 1, C1: 1, R2: 500, C2: 256})
+		}
+		best := time.Duration(1 << 62)
+		for range 3 {
+			start := time.Now()
+			wb.Grid(s, s.Used(), English, 0, 500)
+			best = min(best, time.Since(start))
+		}
+		return best
 	}
-	start := time.Now()
-	wb.Grid(s, s.Used(), English, 0, 500)
-	if d := time.Since(start); d > 2*time.Second {
-		t.Errorf("3000 overlapping merges took %v", d)
+	if one, many := took(1), took(3000); many > 5*one {
+		t.Errorf("3000 overlapping merges took %v, one %v", many, one)
 	}
 }
 
@@ -227,25 +236,36 @@ func TestHiddenRowsCostNoMoreThanTheSheet(t *testing.T) {
 	}
 }
 
-// TestWritingAWideRangeIsLinear: a CSV of a range of wide rows looks each cell up once, not along its row (which took
-// two seconds for this range, and longer the wider the rows).
+// TestWritingAWideRangeIsLinear: a CSV of a range of wide rows looks each cell up once, not along its row. The same
+// number of cells in rows 16 times as wide must not take much longer (looking along the row took 16 times as long); a
+// ratio, not a time, so a slow or busy machine does not decide.
 func TestWritingAWideRangeIsLinear(t *testing.T) {
 	wb := &Workbook{Formats: []string{"General"}}
-	s := &Sheet{Name: "S"}
-	for r := 1; r <= 40; r++ {
-		row := Row{N: r}
-		for c := MaxCols; c >= 1; c-- { // the order of the file, which need not be the order of the columns
-			row.Cells = append(row.Cells, Cell{Col: c, Kind: Number, Value: "1"})
+	sheetOf := func(rows, cols int) *Sheet {
+		s := &Sheet{Name: "S"}
+		for r := 1; r <= rows; r++ {
+			row := Row{N: r}
+			for c := cols; c >= 1; c-- { // the order of the file, which need not be the order of the columns
+				row.Cells = append(row.Cells, Cell{Col: c, Kind: Number, Value: "1"})
+			}
+			s.Rows = append(s.Rows, row)
 		}
-		s.Rows = append(s.Rows, row)
+		return s
 	}
-	start := time.Now()
-	var b bytes.Buffer
-	if err := WriteCSV(&b, wb, s, s.Used()); err != nil {
-		t.Fatal(err)
+	took := func(s *Sheet) time.Duration {
+		best := time.Duration(1 << 62)
+		for range 3 {
+			start := time.Now()
+			if err := WriteCSV(io.Discard, wb, s, s.Used()); err != nil {
+				t.Fatal(err)
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
 	}
-	if d := time.Since(start); d > time.Second {
-		t.Errorf("a CSV of 650000 cells took %v", d)
+	wide, narrow := took(sheetOf(40, MaxCols)), took(sheetOf(640, 1024))
+	if wide > 4*narrow {
+		t.Errorf("650000 cells in rows of 16384 took %v, in rows of 1024 %v", wide, narrow)
 	}
 }
 
@@ -291,5 +311,41 @@ func TestAZipDirectoryIsCountedBeforeItIsRead(t *testing.T) {
 	wantLimit(t, err, "parts in the archive")
 	if n > 8<<20 {
 		t.Errorf("a directory of 200000 parts allocated %d MiB before it was refused", n>>20)
+	}
+}
+
+// TestEveryCSVFieldIsQuoted: a spreadsheet program that splits a CSV at another separator than the comma (the semicolon,
+// as German Excel and LibreOffice do) starts a new field after it; "x;=1+1" written bare became the formula =1+1 there
+// (LibreOffice 26.8, checked by hand). Every field is quoted, so it stays one field whatever the separator.
+func TestEveryCSVFieldIsQuoted(t *testing.T) {
+	wb := &Workbook{Formats: []string{"General"}}
+	s := &Sheet{Name: "S", Rows: []Row{{N: 1, Cells: []Cell{{Col: 1, Kind: Text, Value: "x;=1+1"}, {Col: 2, Kind: Number, Value: "5"},
+		{Col: 4, Kind: Text, Value: `a"b`}, {Col: 5, Kind: Text, Value: "c\t@SUM(1)"}}}}}
+	var b bytes.Buffer
+	if err := WriteCSV(&b, wb, s, Rect{R1: 1, C1: 1, R2: 1, C2: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if want := `"x;=1+1","5","","a""b","c` + "\t" + `@SUM(1)"` + "\n"; b.String() != want {
+		t.Errorf("csv:\n%q\nwant\n%q", b.String(), want)
+	}
+}
+
+// TestASheetHiddenByACommonStyleStaysHidden: OpenDocument may hide a sheet by a style of styles.xml as well as by an
+// automatic style of content.xml.
+func TestASheetHiddenByACommonStyleStaysHidden(t *testing.T) {
+	content := `<?xml version="1.0"?><office:document-content xmlns:office="o" xmlns:table="t" xmlns:text="x" xmlns:style="s"><office:body><office:spreadsheet>` +
+		`<table:table table:name="Secret" table:style-name="Hide"><table:table-row><table:table-cell office:value-type="string"><text:p>salary</text:p></table:table-cell></table:table-row></table:table>` +
+		`<table:table table:name="Open"><table:table-row><table:table-cell office:value-type="string"><text:p>ok</text:p></table:table-cell></table:table-row></table:table>` +
+		`</office:spreadsheet></office:body></office:document-content>`
+	styles := `<?xml version="1.0"?><office:document-styles xmlns:office="o" xmlns:style="s"><office:styles><style:style style:name="Hide" style:family="table"><style:table-properties table:display="false"/></style:style></office:styles></office:document-styles>`
+	wb, err := read(t, pack(t, part{name: "mimetype", body: TypeODS}, part{name: "styles.xml", body: styles}, part{name: "content.xml", body: content}), TypeODS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, visible := wb.Sheet("Secret"); visible || s == nil || len(s.Rows) != 0 {
+		t.Errorf("the sheet hidden by a common style: %+v", s)
+	}
+	if fmt.Sprint(wb.Visible()) != "[Open]" {
+		t.Errorf("visible: %v", wb.Visible())
 	}
 }

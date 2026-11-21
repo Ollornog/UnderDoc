@@ -6,10 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Ollornog/UnderDoc/internal/sheet"
 )
 
 // Tables of spreadsheet files (ADR-31): what something uses of a spreadsheet gets an ID local to its file, x1, x2, …,
@@ -26,6 +29,13 @@ const (
 
 // ErrTable is a table chosen with something missing or wrong.
 var ErrTable = errors.New("a table is a sheet, a range of a sheet, a defined name or an Excel table of the file")
+
+// MaxFileTables is the most tables of one file that get an ID. Every reader of a file chooses its tables, so without a
+// limit a reader could fill the database.
+const MaxFileTables = 10_000
+
+// errTooManyTables is a table chosen past MaxFileTables.
+var errTooManyTables = fmt.Errorf("%w: a file has at most %d tables with an ID", ErrTable, MaxFileTables)
 
 // FileTable is a table of a spreadsheet file.
 type FileTable struct {
@@ -74,6 +84,9 @@ func validTable(t FileTable) error {
 	switch {
 	case t.Sheet == "" || len(t.Sheet) > 1024 || len(t.Name) > 1024 || len(t.Range) > 40:
 		return ErrTable
+	case len(t.Anchor) > sheet.MaxGridCols || slices.ContainsFunc(t.Anchor, func(a string) bool { return len(a) > 4*sheet.MaxAnchorText }):
+		// An anchor is never wider or longer than sheet.Anchor makes one.
+		return ErrTable
 	case t.Kind == TableSheet && t.Range == "" && t.Name == "":
 	case t.Kind == TableRange && t.Range != "" && t.Name == "":
 	case (t.Kind == TableName || t.Kind == TableTable) && t.Name != "":
@@ -109,9 +122,12 @@ func (db *DB) ChooseTable(ctx context.Context, fileID, viewer string, t FileTabl
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		var next int
-		if err := tx.QueryRow(ctx, `SELECT coalesce(max(substr(id, 2)::int), 0) + 1 FROM file_tables WHERE file = $1`, fileID).Scan(&next); err != nil {
+		var next, count int
+		if err := tx.QueryRow(ctx, `SELECT coalesce(max(substr(id, 2)::int), 0) + 1, count(*) FROM file_tables WHERE file = $1`, fileID).Scan(&next, &count); err != nil {
 			return err
+		}
+		if count >= MaxFileTables {
+			return errTooManyTables
 		}
 		made = true
 		out, err = scanFileTable(tx.QueryRow(ctx, `INSERT INTO file_tables (file, id, kind, sheet, sheet_number, range, name, head,
@@ -213,6 +229,7 @@ func (db *DB) tablesForExport(ctx context.Context) (map[string][]FileTable, erro
 // importTable puts a table of an export back, with its ID, inside the transaction of the import. It is looked for anew
 // in the file's current version the first time it shows.
 func importTable(ctx context.Context, tx pgx.Tx, fileID, owner string, t FileTable) error {
+	t.Anchor = sheet.ClipAnchor(t.Anchor)
 	if err := validTable(t); err != nil || !tableID.MatchString(t.ID) {
 		return fmt.Errorf("table %s of file %s: %w", t.ID, fileID, ErrTable)
 	}
