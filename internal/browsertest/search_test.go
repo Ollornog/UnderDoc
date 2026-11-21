@@ -7,6 +7,7 @@ package browsertest
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,14 +63,35 @@ func setupSearchWith(t *testing.T, options web.Options) (*browser, string) {
 	return setupWith(t, options, nil)
 }
 
+// indexPatience is how long a change may take to reach the search. It passes the queue, the indexer, two tasks of the
+// engine and a search, so every stall of one of them under load adds up (2026-11-21: a stalled engine pushed it past the
+// five seconds of evalPatience), and a batch the engine turned away comes back only after five seconds. A change that
+// never arrives still fails.
+const indexPatience = 30 * time.Second
+
+// searchFinds asks the search in the page until the answer r meets condition, a JavaScript expression of r, and answers
+// whether it did within indexPatience, with the last answer.
+func (b *browser) searchFinds(query, condition string) (bool, string) {
+	b.t.Helper()
+	b.eval(`window.sfDone = false; window.sfStop = false; window.sfLast = null; (async () => { while (!window.sfStop) {
+		const r = await (await fetch('/api/search?' + ` + strconv.Quote(query) + `)).json(); window.sfLast = r;
+		if (` + condition + `) { window.sfDone = true; return; } await new Promise(f => setTimeout(f, 50)); } })()`)
+	deadline := time.Now().Add(indexPatience)
+	for b.eval(`window.sfDone === true`) != "true" {
+		if time.Now().After(deadline) {
+			b.eval(`window.sfStop = true`)
+			return false, b.eval(`JSON.stringify(window.sfLast)`)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return true, ""
+}
+
 // indexed waits until the search finds a word, so the indexer has done its work.
 func (b *browser) indexed(word string) {
 	b.t.Helper()
-	b.eval(`window.found = false; (async () => { for (let i = 0; i < 200 && !window.found; i++) {
-		const r = await (await fetch('/api/search?q=' + encodeURIComponent(` + strconv.Quote(word) + `))).json();
-		window.found = r.engine === 'meilisearch' && r.hits.length > 0; if (!window.found) await new Promise(f => setTimeout(f, 50)); } })()`)
-	if !b.waitFor(`window.found === true`) {
-		b.t.Fatalf("%q did not reach the index", word)
+	if ok, last := b.searchFinds("q="+url.QueryEscape(word), `r.engine === 'meilisearch' && r.hits.length > 0`); !ok {
+		b.t.Fatalf("%q did not reach the index: %s", word, last)
 	}
 }
 
@@ -139,11 +161,8 @@ func TestResultsPageWithFilters(t *testing.T) {
 	other := makePage(b, "Kasse bedienen", "## Kartenzahlung", "Karte vorhalten.")
 	b.eval(`fetch('/api/objects/` + other + `/tags', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tags: ['kasse']})})`)
 	b.indexed("Kartenzahlung")
-	b.eval(`window.tagged = false; (async () => { for (let i = 0; i < 200 && !window.tagged; i++) {
-		const r = await (await fetch('/api/search?q=Kartenzahlung&tag=kasse')).json(); window.tagged = r.hits.length === 1;
-		if (!window.tagged) await new Promise(f => setTimeout(f, 50)); } })()`)
-	if !b.waitFor(`window.tagged === true`) {
-		t.Fatal("the tag did not reach the index")
+	if ok, last := b.searchFinds("q=Kartenzahlung&tag=kasse", `r.hits.length === 1`); !ok {
+		t.Fatalf("the tag did not reach the index: %s", last)
 	}
 	b.open(base + "/")
 	b.ready("")

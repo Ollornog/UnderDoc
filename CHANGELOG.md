@@ -215,6 +215,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- The browser tests of the search waited for a change to reach the index only as long as for the workspace to draw (five
+  seconds), though it passes the queue, the indexer, the engine and a search; a stall of the engine under load made
+  `TestQuickSearchJumpsToTheSection` fail. They now wait up to 30 seconds for the search to find it, and say what it
+  answered last.
 - A password typed as text that ended in `_` or `*` (`hunter2_`) lost that character: the editor took it for the close of
   an emphasis, made a secret without it and left it in the page. Marks of emphasis are now dropped only when they are
   Markdown: a pair around the value, the end of a bold label, or the close of a bold opened before the label (ADR-7).
