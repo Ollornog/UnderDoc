@@ -24,10 +24,11 @@ import (
 const (
 	// ReadTime is how long reading one workbook may take.
 	ReadTime = 30 * time.Second
-	// Derived is the name of what was read, after the hash of the blob; its number moves when the model changes.
-	Derived = "-sheet-1.json.gz"
+	// Derived is the name of what was read, after the hash of the blob (and -csv or -tsv for text); its number moves
+	// when the model or the limits change: 2 keeps no hidden rows beyond the content and counts the text of cells.
+	Derived = "-sheet-2.json.gz"
 	// Failed keeps why a blob could not be read, so a broken or too large file is not read again on every view.
-	Failed = "-sheet-1.err"
+	Failed = "-sheet-2.err"
 )
 
 // Reason is why a file cannot be shown as tables, a sentence for a person.
@@ -90,10 +91,13 @@ func (c *Cache) put(key string, e cached) {
 
 // Workbook returns the workbook of a blob: from memory, from what was read before, or read now. A file that cannot be read
 // gives a *Reason; a reason that may pass, the end of the time, is kept for ten minutes only.
+//
+// Files with the same bytes share a blob. A CSV and a TSV of the same bytes are read apart, and the one sheet of either
+// is named after the file it is read for, never after another file of the same bytes.
 func (c *Cache) Workbook(ctx context.Context, tenant, sha, contentType, name string) (*Workbook, error) {
-	key := tenant + "/" + sha
+	key := tenant + "/" + sha + variant(contentType)
 	if e, ok := c.get(key); ok {
-		return e.wb, e.err
+		return named(e.wb, contentType, name), e.err
 	}
 	wb, err := c.read(ctx, tenant, sha, contentType, name)
 	switch {
@@ -105,15 +109,37 @@ func (c *Cache) Workbook(ctx context.Context, tenant, sha, contentType, name str
 	case errors.As(err, new(*Reason)):
 		c.put(key, cached{err: err})
 	}
-	return wb, err
+	return named(wb, contentType, name), err
+}
+
+// variant tells apart what is read of the same bytes by their type: as CSV, as TSV, or as a workbook.
+func variant(contentType string) string {
+	switch contentType {
+	case TypeCSV:
+		return "-csv"
+	case TypeTSV:
+		return "-tsv"
+	}
+	return ""
+}
+
+// named gives the one sheet of a CSV or TSV the name of the file it is read for, on a copy: the workbook kept is shared.
+func named(wb *Workbook, contentType, name string) *Workbook {
+	if wb == nil || variant(contentType) == "" || len(wb.Sheets) != 1 {
+		return wb
+	}
+	out := *wb
+	out.Sheets = []Sheet{wb.Sheets[0]}
+	out.Sheets[0].Name = csvTitle(name)
+	return &out
 }
 
 func (c *Cache) read(ctx context.Context, tenant, sha, contentType, name string) (*Workbook, error) {
-	done, err := c.blobs.DerivedPath(tenant, sha+Derived)
+	done, err := c.blobs.DerivedPath(tenant, sha+variant(contentType)+Derived)
 	if err != nil {
 		return nil, err
 	}
-	failed, err := c.blobs.DerivedPath(tenant, sha+Failed)
+	failed, err := c.blobs.DerivedPath(tenant, sha+variant(contentType)+Failed)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +173,7 @@ func (c *Cache) read(ctx context.Context, tenant, sha, contentType, name string)
 			return nil, err
 		}
 		reason := reasonOf(err)
-		if werr := c.blobs.WriteDerived(tenant, sha+Failed, []byte(reason)); werr != nil {
+		if werr := c.blobs.WriteDerived(tenant, sha+variant(contentType)+Failed, []byte(reason)); werr != nil {
 			c.log.Warn("sheet reason not kept", slog.String("error", werr.Error()))
 		}
 		return nil, &Reason{reason}
@@ -155,7 +181,7 @@ func (c *Cache) read(ctx context.Context, tenant, sha, contentType, name string)
 	var buf bytes.Buffer
 	z := gzip.NewWriter(&buf)
 	if err := json.NewEncoder(z).Encode(wb); err == nil && z.Close() == nil {
-		if err := c.blobs.WriteDerived(tenant, sha+Derived, buf.Bytes()); err != nil {
+		if err := c.blobs.WriteDerived(tenant, sha+variant(contentType)+Derived, buf.Bytes()); err != nil {
 			c.log.Warn("sheet not kept", slog.String("error", err.Error()))
 		}
 	}

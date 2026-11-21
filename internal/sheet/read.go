@@ -62,6 +62,10 @@ type pkg struct {
 }
 
 func openPkg(ctx context.Context, r io.ReaderAt, size int64) (*pkg, error) {
+	// The directory is counted before Go's reader reads all of it into memory.
+	if files.ZipParts(r, size, files.MaxParts) > files.MaxParts {
+		return nil, &LimitError{What: "parts in the archive", Limit: files.MaxParts}
+	}
 	archive, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreadable, err)

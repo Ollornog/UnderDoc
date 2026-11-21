@@ -84,25 +84,34 @@ Spreadsheets come from anyone who may upload or save over Samba, so each is read
 
 | Limit | Value |
 |---|---|
-| parts of the zip | 2000 |
+| parts of the zip | 2000, counted in the directory before Go's reader reads it into memory |
 | one part unpacked | 100 MiB, and at most 200 times its packed size, checked before it is unpacked |
 | all parts read, unpacked | 100 MiB |
 | sheets | 256 |
 | cells with content in a workbook | 1 000 000 (a repeated row or column of OpenDocument counts as what it repeats) |
 | rows, columns | 1 048 576, 16 384 |
 | shared strings | 1 000 000 |
-| a cell's text | 32 767 characters |
+| a cell's text | 32 767 characters, also as a format shows it (`@@@` shows a text three times) |
+| text of the cells of a workbook | 100 MiB, a text counted as often as it stands: a shared string or a repeated cell of a few bytes in the file must not become gigabytes once written out |
+| hidden rows and columns kept | 2 097 152 in a workbook; those beyond the last row and column with content are not kept, as LibreOffice writes the rows below the content hidden up to the end of the sheet |
 | a format code | 255 characters |
 | merged areas | 100 000 |
 | time to read one workbook | 30 seconds; at most two at once |
 | columns of one page of a grid | 256 (the rest counted as `moreCols`), so one cell far out does not make every view as wide as Excel |
+| text of one page of a grid | 8 MiB; the rows beyond are counted as `more`, and the next page starts after the rows the page holds |
+| text of a cell in the anchor of a range | 256 characters |
 | cells of a range written out as CSV | 1 000 000, empty cells included; a larger range is refused with a sentence |
 
 - A document type in any XML part is refused, and Go's decoder expands no entity besides the five of XML, so no
   external entity is fetched and no entity grows.
-- A broken file, or one past a limit, gives its reason; the reason is kept beside the blob (`<sha>-sheet-1.err`), so it
-  is not read again. What was read is kept beside the blob too (`<sha>-sheet-1.json.gz`, derived, ADR-28) and the last
-  eight workbooks in memory. A new version is a new blob and is read anew.
+- A broken file, or one past a limit, gives its reason; the reason is kept beside the blob (`<sha>-sheet-2.err`), so it
+  is not read again. What was read is kept beside the blob too (`<sha>-sheet-2.json.gz`, `-csv-` or `-tsv-` before `sheet` for text, derived, ADR-28) and the last
+  eight workbooks in memory. A new version is a new blob and is read anew. Two files with the same bytes share what was
+  read, but the one sheet of a CSV is named after the file it is read for, never after the other file.
+- A page of a grid costs what the page costs, whatever the sheet holds: merged areas are cut at the edges of the page (a
+  merge that runs on shows on the next page as an empty cell of its own), merges over cells another merge covers, as no
+  program writes them, are left out, and a cell is looked up once. Writing a range out as CSV, looking for the first row
+  of a range and building the text for the search go through the cells once, too.
 - A panic of the reader becomes such a reason.
 - Every text of a file is escaped in HTML and set as text in the browser.
 

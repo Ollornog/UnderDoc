@@ -137,6 +137,10 @@ var officeParts = map[string]*regexp.Regexp{
 // officeText reads the text of an Office file: a zip archive of XML parts. Every part is checked against its packed size
 // before a byte is unpacked, and the unpacking stops at the limits, so a zip bomb costs nothing.
 func officeText(ctx context.Context, r io.ReaderAt, size int64, kind string) (string, error) {
+	// The directory is counted before Go's reader reads all of it into memory.
+	if n := ZipParts(r, size, MaxParts); n > MaxParts {
+		return "", fmt.Errorf("%w: more than %d parts", ErrBomb, MaxParts)
+	}
 	archive, err := zip.NewReader(r, size)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrNoText, err)

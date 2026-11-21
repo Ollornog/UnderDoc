@@ -244,6 +244,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- Spreadsheets as tables, attack round (ADR-31, [docs/tables.md](docs/tables.md#limits)): small files could exhaust
+  memory or CPU after reading, in the reader, the table view, embeddings, CSV downloads and the search indexer. The text
+  of the cells of a workbook now counts as often as it stands (100 MiB; a shared string or a repeated cell of a few
+  bytes could become gigabytes once written out); a format shows a cell's text at most 32 767 characters long; hidden
+  rows and columns are kept once and only up to the content (2 097 152 in a workbook); a page of a grid cuts merged areas
+  at its edges and stops at 8 MiB of text; finding the first row of a range, writing a CSV and building the search text
+  go through the cells once; the directory of a zip is counted before Go's reader loads it (for Office text too). The
+  one sheet of a CSV is named after its own file when another file has the same bytes. What was read is kept as
+  `-sheet-2`, so every workbook is read once more.
+
 - Samba, known limit ([docs/samba.md](docs/samba.md), ADR-30): a user who reaches a folder only through passage on the
   way to their own share can confirm a guessed name there, not list it or read it. Not fixed on purpose (it would need
   `CAP_SYS_ADMIN` in the companion); the test holds that listing and reading stay closed.

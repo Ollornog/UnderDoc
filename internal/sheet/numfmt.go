@@ -1172,10 +1172,19 @@ func FormatText(text, code string) string {
 	if !found {
 		return text
 	}
-	return replaceTokens(s, func(t token) string {
-		if t.kind == tAt {
-			return text
+	// A code may show the text more than once ("@ @"); a cell shows at most MaxCellText characters all the same, and the
+	// writing stops there.
+	var out strings.Builder
+	for _, t := range s.tokens {
+		if out.Len() >= MaxCellText*4 {
+			break
 		}
-		return ""
-	})
+		switch t.kind {
+		case tLit:
+			out.WriteString(t.text)
+		case tAt:
+			out.WriteString(text)
+		}
+	}
+	return clipRunes(out.String(), MaxCellText)
 }

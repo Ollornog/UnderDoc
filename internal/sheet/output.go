@@ -61,7 +61,6 @@ func writeRow(b *strings.Builder, r GridRow, tag string) {
 // starts a formula. Merged cells are written once, in their first cell.
 func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
 	out := csv.NewWriter(w)
-	hiddenRow, hiddenCol := toSet(s.HiddenRows), toSet(s.HiddenCols)
 	// The rectangle is written whole, empty cells too: one far out to the right and down would be billions of them.
 	rows, cols := rect.R2-rect.R1+1, rect.C2-rect.C1+1
 	for _, n := range s.HiddenRows {
@@ -83,20 +82,35 @@ func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
 			cells[r.N] = r.Cells
 		}
 	}
+	// Each row is laid out once by column, so a cell is looked up once and not along its row.
+	var visibleCols []int
+	for c := rect.C1; c <= rect.C2; c++ {
+		if !hidden(s.HiddenCols, c) {
+			visibleCols = append(visibleCols, c)
+		}
+	}
+	line := make([]*Cell, rect.C2-rect.C1+1)
+	record := make([]string, len(visibleCols))
 	for r := rect.R1; r <= rect.R2; r++ {
-		if hiddenRow[r] {
+		if hidden(s.HiddenRows, r) {
 			continue
 		}
-		var record []string
-		for c := rect.C1; c <= rect.C2; c++ {
-			if hiddenCol[c] {
-				continue
+		row := cells[r]
+		for i := range row {
+			if c := row[i].Col; c >= rect.C1 && c <= rect.C2 && line[c-rect.C1] == nil {
+				line[c-rect.C1] = &row[i]
 			}
-			field := ""
-			if cell := cellAt(cells[r], c); cell != nil {
-				field = csvField(wb, *cell)
+		}
+		for i, c := range visibleCols {
+			record[i] = ""
+			if cell := line[c-rect.C1]; cell != nil {
+				record[i] = csvField(wb, *cell)
 			}
-			record = append(record, field)
+		}
+		for i := range row {
+			if c := row[i].Col; c >= rect.C1 && c <= rect.C2 {
+				line[c-rect.C1] = nil
+			}
 		}
 		if err := out.Write(record); err != nil {
 			return err
