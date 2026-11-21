@@ -37,6 +37,8 @@ jobs:
           DISABLE_SECURITY_PLUGIN: "true"
           DISABLE_INSTALL_DEMO_CONFIG: "true"
           OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+          # The disk of the runner must not decide a test: above the high watermark OpenSearch refuses new indexes.
+          cluster.routing.allocation.disk.threshold_enabled: "false"
         ports: ["9200:9200"]
         options: >-
           --memory=2g --health-cmd "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"
