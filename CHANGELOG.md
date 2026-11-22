@@ -309,6 +309,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- Browser tests that failed on a loaded host and passed alone: `TestEveryPageIsClean` read `document.fonts.check` once
+  after the page was drawn, but a font loads when the first text needs it, so it now waits for it; the drag tests waited
+  a fixed 500 ms before reloading and expected the order or the access level already stored, so they now wait for the
+  requests of the page to be answered (`settled`) and for the order to show. `UNDERDOC_BROWSERTEST_LATENCY_MS` and
+  `UNDERDOC_BROWSERTEST_CPU_SLOWDOWN` slow the browser down to try this; with a latency of 250 ms the old tests failed and
+  the new ones pass. `TestTheWaysOfAPartInUse` could not be made to fail again, so its failure message now carries the
+  status history of the editor.
 - A password typed as text whose value is emphasis to Markdown (`pw-_x_`): the editor hid the marks inside the value
   while it asked about it, so the question showed `pw-x` in italics while Keep it as a password seals `pw-_x_`. A value
   the editor asks about now shows as typed; Markdown that reaches into it is neither hidden nor drawn. This, not a lost

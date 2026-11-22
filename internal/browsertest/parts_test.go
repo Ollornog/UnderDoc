@@ -59,9 +59,13 @@ func TestTheWaysOfAPartInUse(t *testing.T) {
 			if !b.waitFor(`document.querySelector('[data-ways] [data-way="everywhere"]').getAttribute('aria-pressed') === 'true' && !document.querySelector('[data-ways] [data-act="waysgo"]').disabled`) {
 				t.Fatalf("the choice does not take")
 			}
+			// The status the editor shows is written down with its time, so a save that does not come says what it did instead
+			// (Register 2026-11-22: "Not saved yet" after the choice, only on a loaded host, not reproduced since).
+			b.eval(`window.edlog = []; const n = document.querySelector('[data-edstatus]'), t0 = performance.now(); new MutationObserver(() => window.edlog.push(Math.round(performance.now() - t0) + 'ms ' + n.textContent + (document.querySelector('[data-ways]') ? ' (dialog)' : ''))).observe(n, {childList: true, characterData: true, subtree: true})`)
 			press(`[data-ways] [data-act="waysgo"]`)
 			if !b.waitFor(`!document.querySelector('[data-ways]') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
-				t.Fatalf("the change is not saved: %s", b.eval(`document.querySelector('[data-edstatus]')?.textContent`))
+				t.Fatalf("the change is not saved: %s | %s | requests on their way: %s", b.eval(`document.querySelector('[data-edstatus]')?.textContent`),
+					b.eval(`window.edlog.join(' > ')`), b.eval(`window.inflight`))
 			}
 			if got := b.stored(errors); got != "b1:Error 42: it. Free space." {
 				t.Errorf("the server: %q", got)
