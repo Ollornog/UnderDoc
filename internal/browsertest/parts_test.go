@@ -198,7 +198,7 @@ func TestTheFactsNameWhatAPageEmbeds(t *testing.T) {
 	b.open(base + "/o/" + invoice)
 	b.ready("Invoice")
 	b.clickOn(`[data-act="gear"]`, 1)
-	uses := `[...document.querySelectorAll('.facts li')].map(li => li.innerText.replace(/\s+/g, ' ').trim()).join(' | ')`
+	uses := `[...document.querySelectorAll('[data-facts] dt')].map(dt => (dt.innerText + ' ' + dt.nextElementSibling.innerText).replace(/\s+/g, ' ').trim()).join(' | ')`
 	if !b.waitFor(uses + `.includes('Value vat Rates #b1.t1') && ` + uses + `.includes('Block Rates #b2')`) {
 		t.Fatalf("the facts do not name what Invoice embeds: %s", b.eval(uses))
 	}

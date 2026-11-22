@@ -22,20 +22,20 @@ func TestTheGearKeepsWidthAndContents(t *testing.T) {
 	b.ready("Viewed")
 	b.watch()
 	b.clickOn(`[data-win="0"] [data-act="gear"][aria-label="Document settings"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.fdrawer [data-act="setw"]')`) {
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] [data-act="setw"]')`) {
 		t.Fatal("the gear did not open")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.fdrawer [data-act="settoc"]')].map(x => x.textContent).join(',') + ' | ' + document.querySelector('.fdrawer .hint').textContent`); got != "marker,side,hidden | Both are kept with this document, for everyone who opens it." {
+	if got := b.eval(`[...document.querySelectorAll('aside[data-drawer] [data-act="settoc"]')].map(x => x.textContent).join(',') + ' | ' + document.querySelector('aside[data-drawer] p.text-muted-foreground').textContent`); got != "marker,side,hidden | Both are kept with this document, for everyone who opens it." {
 		t.Errorf("the gear of a page of the database: %q", got)
 	}
 	// The second choice is held on its way to the server: the page must not be read again before it is stored, which
 	// under load made this test red (2026-11-17).
 	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/view", "requestStage": "Request"}}}, nil)
-	b.clickOn(`.fdrawer [data-act="setw"][data-id="full"]`, 1)
+	b.clickOn(`aside[data-drawer] [data-act="setw"][data-id="full"]`, 1)
 	var paused struct{ RequestID string }
 	_ = json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &paused)
 	b.call("Fetch.continueRequest", map[string]any{"requestId": paused.RequestID}, nil)
-	b.clickOn(`.fdrawer [data-act="settoc"][data-id="side"]`, 1)
+	b.clickOn(`aside[data-drawer] [data-act="settoc"][data-id="side"]`, 1)
 	_ = json.Unmarshal(b.waitEvent("Fetch.requestPaused"), &paused)
 	if !b.waitFor(`window.written.filter(w => w.endsWith('/view')).length === 1`) {
 		t.Errorf("the first choice is stored: %s", b.eval(`window.written.join(', ')`))

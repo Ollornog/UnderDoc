@@ -46,6 +46,15 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   editor found in C22 (flow inside a wrapper and an embedding, to-dos in typeset, the active handle in a line editor, the
   frame of a used block over sibling lines, the gap of a held block, continued frames of a part, touch on handles and
   bubbles, the bubble within the pack's padding) C22 closed in #145; the bridges UnderDoc had for them meanwhile are gone.
+- Step 4 (2026-11-22): menus, drawers, panels and the other views (C22 at `ec39f36`, recipes `workspace-views.html` and
+  `workspace-more.html`): `.context-menu`, `.dropdown-menu`, `.command`, the popover of New, `.toaster`, the drawer
+  `aside[data-drawer]` for the gear, the comments (`ol.timeline`) and the assistant (`.bubble`), a `.card` in nav3 for
+  profile, settings, administration and Rights, `.item` lists for mail, news, to-dos, hits and modules,
+  `table.month-sheet`, `.board`, `.filter-bar`, and for content without blocks `.alert`, `.table`, `.empty`,
+  `figure.card`; the class `doc` is gone, every menu hangs inside `.workspace`. Bridged with C22's utilities until C22
+  has them: the current hit of Find (`mark[aria-current]`), the element whose comments are open
+  (`data-comment-focus`), the size of an icon in the head of a drawer. Open in C22: menu entries of `.context-menu` at the
+  pack's size, the drawer below the head of the window as in the mockup.
 
 ## Done when
 

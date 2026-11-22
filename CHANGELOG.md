@@ -173,6 +173,21 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Menus, drawers, panels and the other views of the workspace from C22's building blocks
+  ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), step 4, C22 at `ec39f36`,
+  [docs/editor.md](docs/editor.md#the-workspace-around-it)): right-click menus and the menus of the tab row are C22's
+  `.context-menu`, More a `.dropdown-menu`, New in nav2 and in a collection a `.command`, New of the top row the popover of
+  its button, the quick search a `.command`, a message `.toaster > .toast`; the gear, the comments and the assistant are the
+  window's `aside[data-drawer]` (settings as `.button-group`, facts as `dl`, comments as `ol.timeline`, the assistant's
+  bubbles in a log); profile, settings, administration and the tab Rights are a `.card` in nav3 with `.item` lists; mail
+  and news are `.item` entries, to-dos `label.item` with a checkbox (ticked on change), the month `table.month-sheet`, a
+  board `.board`, a saved search a `.filter-bar` with hits as `.item`s; content without blocks uses `.alert`,
+  `table.table`, `code`, `.empty[data-dropzone]` and `figure.card`, so the class `doc` is gone. Every menu and popup hangs
+  inside the `.workspace`. What shows differently: menus are the pack's (16px icons, a heading line), the drawer lies over
+  the head of the window as C22's does, the clock-in is an outline button that stays pressed, the general tab no longer
+  vanishes from the tab row while it is dragged, and a toast does not slide in again with every redraw. Two looks C22 does
+  not have yet are bridged with its utilities (`bridge until C22` in the code): the current hit of Find on the page and the
+  element whose comments are open.
 - The editor and its parts from C22's building blocks ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), step
   3, C22 at `ec39f36`, [docs/editor.md](docs/editor.md#built-from-c22)): the page in the editor is C22's `.editor`, each
   block while reading a `div[data-block]` in the typeset flow with its handle `.editor-handle` (the class `doc` of the

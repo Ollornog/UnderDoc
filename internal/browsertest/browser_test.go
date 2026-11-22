@@ -783,7 +783,7 @@ func TestNewCollectionByHand(t *testing.T) {
 		if !b.waitFor(`document.activeElement?.dataset?.nfilter !== undefined`) {
 			t.Fatalf("the filter of New did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 		}
-		b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
+		b.clickOn(probe(b, `[data-menu="new"] [role="menuitem"]`, "Collection"), 1)
 		if !b.waitFor(`document.getElementById('udrights')?.open && document.activeElement?.dataset?.newTitle !== undefined`) {
 			t.Fatalf("the dialog does not ask for the name: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 		}
@@ -817,7 +817,7 @@ func TestNewCollectionByHand(t *testing.T) {
 		t.Fatalf("Enter makes it: %s", b.eval(`document.querySelector('[aria-label=Nav2]').innerText.replace(/\s+/g, ' ')`))
 	}
 	b.rightClickOn(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "Operations"))
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].find(n => n.textContent.trim() === 'Delete')?.disabled`); got != "false" {
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].find(n => n.textContent.trim() === 'Delete')?.disabled`); got != "false" {
 		t.Errorf("a collection just made is one's own: Delete is offered at once, got %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
@@ -845,16 +845,16 @@ func TestNewMenuFilters(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	visible := `[...document.querySelectorAll('.cmdpop [role="menuitem"]')].filter(n => n.offsetParent).map(n => n.textContent.trim()).join(', ')`
+	visible := `[...document.querySelectorAll('[data-menu="new"] [role="menuitem"]')].filter(n => n.offsetParent).map(n => n.textContent.trim()).join(', ')`
 	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Make, Set apart, Bring in" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Make, Set apart, Bring in" {
 		t.Errorf("the groups of New in nav2: %q", got)
 	}
 	b.shot("new-menu-nav2")
 	if got := b.eval(visible); got != "Collection, Line, Space, Import, Link" {
 		t.Errorf("what New in nav2 offers: %q", got)
 	}
-	if got := b.eval(`(() => { const s = getComputedStyle(document.activeElement); return document.activeElement.dataset.nfilter !== undefined && s.outlineStyle + ' ' + s.borderTopStyle; })()`); got != "none none" {
+	if got := b.eval(`(() => { const s = getComputedStyle(document.activeElement); return document.activeElement.dataset.nfilter !== undefined && s.outlineStyle + ' ' + s.borderTopWidth; })()`); got != "none 0px" {
 		t.Errorf("the filter has no box of its own: %q", got)
 	}
 	b.typeText("spa")
@@ -863,7 +863,7 @@ func TestNewMenuFilters(t *testing.T) {
 	}
 	before := b.eval(`document.querySelectorAll('#clist [data-deco][data-deco="space"]').length`)
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!document.querySelector('.cmdpop') && document.querySelectorAll('#clist [data-deco][data-deco="space"]').length === ` + before + ` + 1 && document.querySelector('#clist').lastElementChild.dataset.deco === 'space'`) {
+	if !b.waitFor(`!document.querySelector('[data-menu="new"]') && document.querySelectorAll('#clist [data-deco][data-deco="space"]').length === ` + before + ` + 1 && document.querySelector('#clist').lastElementChild.dataset.deco === 'space'`) {
 		t.Errorf("Enter adds a space at the end of nav2: %q", b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`))
 	}
 	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
@@ -872,7 +872,7 @@ func TestNewMenuFilters(t *testing.T) {
 		t.Errorf("nothing matches: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
-	if !b.waitFor(`!document.querySelector('.cmdpop')`) {
+	if !b.waitFor(`!document.querySelector('[data-menu="new"]')`) {
 		t.Error("Escape closes New")
 	}
 
@@ -880,15 +880,15 @@ func TestNewMenuFilters(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "From a template, Tables, Databases, Records, Boards and lists, Media, Organize, Set apart, Bring in" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [role="heading"]')].map(n => n.textContent).join(', ')`); got != "From a template, Tables, Databases, Records, Boards and lists, Media, Organize, Set apart, Bring in" {
 		t.Errorf("New in a collection, in blocks: %q", got)
 	}
 	b.shot("new-menu-blocks")
-	if got := b.eval(`(() => { const m = document.querySelector('.cmdpop [role="menu"]'); return [getComputedStyle(m).scrollbarWidth, m.scrollHeight > m.clientHeight].join(' '); })()`); got != "thin true" {
+	if got := b.eval(`(() => { const m = document.querySelector('[data-menu="new"] [role="menu"]'); return [getComputedStyle(m).scrollbarWidth !== 'none', m.scrollHeight > m.clientHeight].join(' '); })()`); got != "true true" {
 		t.Errorf("the long list of New shows its scrollbar: %q", got)
 	}
 	// A page first, then the templates a page can start from (M-8), then tables.
-	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="menuitem"]')].slice(0, 7).map(n => n.dataset.filter).join(', ')`); got != "Page, Meeting notes, How-to, Runbook, Decision, Table, Excel file" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [role="menuitem"]')].slice(0, 7).map(n => n.dataset.filter).join(', ')`); got != "Page, Meeting notes, How-to, Runbook, Decision, Table, Excel file" {
 		t.Errorf("what is needed most comes first: %q", got)
 	}
 	b.typeText("lin")
@@ -897,7 +897,7 @@ func TestNewMenuFilters(t *testing.T) {
 		t.Errorf("New in a collection, filtered: %q", got)
 	}
 	b.press("ArrowDown", "ArrowDown", 40, 0)
-	if got := b.eval(`document.querySelector('.cmdpop .active')?.textContent.trim()`); got != "Line" {
+	if got := b.eval(`document.querySelector('[data-menu="new"] .active')?.textContent.trim()`); got != "Line" {
 		t.Errorf("the arrow skips what is not built: %q", got)
 	}
 	b.press("Enter", "Enter", 13, 0)
@@ -930,7 +930,7 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	b.ready("Team")
 
 	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
-	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
+	b.clickOn(`[data-menu="new"] [data-act="add"][data-id="page"]`, 1)
 	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('[data-edbar]')`) {
 		t.Fatalf("a new page opens in the editor, ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
@@ -944,7 +944,7 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('article.typeset h2') && !!document.querySelector('article.typeset [data-block="b2"] p') && !document.querySelector('.cm-editor')`) {
 		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
-	if got := b.eval(`document.querySelector('article.typeset [data-block="b2"] > .editor-handle > button')?.title + ' ' + !document.querySelector('article.typeset .blk')`); got != "Block #b2: address, editing, comments true" {
+	if got := b.eval(`document.querySelector('article.typeset [data-block="b2"] > .editor-handle > button')?.title + ' ' + !document.querySelector('article.typeset [data-act="blocklink"]')`); got != "Block #b2: address, editing, comments true" {
 		t.Errorf("a block has its handle, to embed it by, and no chip of its own: %q", got)
 	}
 	b.open(base + "/o/" + page)
@@ -954,8 +954,8 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	}
 	b.clickOn(`[data-act="gear"]`, 1)
 	// Each block was made with its text: one version each, newest first.
-	if !b.waitFor(`[...document.querySelectorAll('.fdrawer li')].map(li => (li.textContent.match(/#b\d+ \S+/) || [''])[0]).join(', ') === '#b2 Two, #b1 ##'`) {
-		t.Errorf("the versions list both blocks: %s", b.eval(`document.querySelector('.fdrawer')?.innerText.replace(/\s+/g, ' ')`))
+	if !b.waitFor(`[...document.querySelectorAll('aside[data-drawer] [data-facts] dd')].map(dd => (dd.textContent.match(/#b\d+ \S+/) || [''])[0]).filter(Boolean).join(', ') === '#b2 Two, #b1 ##'`) {
+		t.Errorf("the versions list both blocks: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText.replace(/\s+/g, ' ')`))
 	}
 }
 

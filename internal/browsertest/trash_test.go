@@ -34,18 +34,18 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	b.clickOn(rowNamed(b, "B"), 1)
 	b.ready("B")
 	b.rightClickOn(rowNamed(b, "B"))
-	if got := b.eval(`(() => { const l = document.querySelector('.ctxpop').lastElementChild; return l.textContent.trim() + '|' + l.previousElementSibling.tagName + '|' + !!l.querySelector('svg'); })()`); got != "Delete|HR|true" {
+	if got := b.eval(`(() => { const l = document.querySelector('[data-cm-panel]').lastElementChild; return l.textContent.trim() + '|' + l.previousElementSibling.tagName + '|' + !!l.querySelector('svg'); })()`); got != "Delete|HR|true" {
 		t.Errorf("Delete is last, after a line, with its icon: %q", got)
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Delete"), 1)
-	if got := b.eval(`document.querySelector('.ctxpop')?.lastElementChild.textContent.trim()`); got != "Delete? Yes" {
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Delete"), 1)
+	if got := b.eval(`document.querySelector('[data-cm-panel]')?.lastElementChild.textContent.trim()`); got != "Delete? Yes" {
 		t.Fatalf("the first click asks in place: %q", got)
 	}
 	b.shot("delete-asks")
 	if got := tops(); got != "A, B, C" {
 		t.Errorf("asking deletes nothing: %q", got)
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Delete? Yes"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Delete? Yes"), 1)
 	if !b.waitFor(`![...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B')`) {
 		t.Fatalf("B is still listed: %q", tops())
 	}
@@ -64,12 +64,12 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	}
 	// In nav2, the own collection may go, the private notes stay.
 	b.rightClickOn(probe(b, `#clist > [data-favid]`, "Team"))
-	if got := b.eval(`(() => { const l = document.querySelector('.ctxpop').lastElementChild; return l.textContent.trim() + '|' + l.disabled; })()`); got != "Delete|false" {
+	if got := b.eval(`(() => { const l = document.querySelector('[data-cm-panel]').lastElementChild; return l.textContent.trim() + '|' + l.disabled; })()`); got != "Delete|false" {
 		t.Errorf("Delete of a collection in nav2: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
 	b.rightClickOn(probe(b, `#clist > [data-favid]`, "My notes"))
-	if got := b.eval(`(() => { const l = document.querySelector('.ctxpop').lastElementChild; return l.textContent.trim() + '|' + l.disabled + '|' + l.title; })()`); got != "Delete|true|Private notes stay" {
+	if got := b.eval(`(() => { const l = document.querySelector('[data-cm-panel]').lastElementChild; return l.textContent.trim() + '|' + l.disabled + '|' + l.title; })()`); got != "Delete|true|Private notes stay" {
 		t.Errorf("Delete of the private notes: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
@@ -79,10 +79,10 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": h - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
 	}
-	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+	if !b.waitFor(`!!document.querySelector('[data-cm-panel]')`) {
 		t.Fatal("no menu on the free part of nav2")
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Trash"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 2`) {
 		t.Fatalf("the trash page: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
@@ -141,7 +141,7 @@ func TestEmptyTheTrash(t *testing.T) {
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": h - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Trash"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 2`) {
 		t.Fatalf("two in the trash: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}

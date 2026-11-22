@@ -16,7 +16,7 @@ func (b *browser) signInAs(login, name string) {
 }
 
 // drawer returns the text of the comments drawer in one line, or "none".
-const drawer = `(document.querySelector('.fdrawer[aria-label="Comments"]')?.innerText.replace(/\s+/g, ' ').trim() || 'none')`
+const drawer = `(document.querySelector('aside[data-drawer][aria-label="Comments"]')?.innerText.replace(/\s+/g, ' ').trim() || 'none')`
 
 // Comments on a page of the database, on the whole page and on its blocks: written, answered, resolved, changed and
 // deleted in the drawer, counted at the head and beside each block, kept by the server, opened from the bar while editing
@@ -51,25 +51,25 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0'`) {
 		t.Fatalf("the drawer opens with its field: %s", b.eval(drawer))
 	}
-	if got := b.eval(drawer); !strings.Contains(got, "The whole page") || !strings.Contains(got, "No comments on this yet.") {
+	if got := b.eval(drawer); !strings.Contains(strings.ToLower(got), "the whole page") || !strings.Contains(got, "No comments on this yet.") {
 		t.Errorf("the whole page, nothing yet: %q", got)
 	}
 	b.typeText(`Looks good. <img src=x onerror="window.hacked=1">`)
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!!document.querySelector('.fdrawer .cmtrow') && document.querySelector('[data-win="0"] [role=toolbar] [data-act="cmt"]')?.dataset.count === '1'`) {
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] [data-cmt]') && document.querySelector('[data-win="0"] [role=toolbar] [data-act="cmt"]')?.dataset.count === '1'`) {
 		t.Fatalf("the comment shows and the head counts it: %s", b.eval(drawer))
 	}
-	if got := b.eval(`document.querySelector('.fdrawer .cmtrow p').textContent + ' | ' + !!document.querySelector('.fdrawer .cmtrow img') + ' ' + !!window.hacked + ' | ' + document.querySelector('.fdrawer .cmtrow b').textContent`); got != `Looks good. <img src=x onerror="window.hacked=1"> | false false | Anna Berg` {
+	if got := b.eval(`document.querySelector('aside[data-drawer] [data-cmt] > p').textContent + ' | ' + !!document.querySelector('aside[data-drawer] [data-cmt] img') + ' ' + !!window.hacked + ' | ' + document.querySelector('aside[data-drawer] [data-cmt] > header > b').textContent`); got != `Looks good. <img src=x onerror="window.hacked=1"> | false false | Anna Berg` {
 		t.Errorf("the text stays text: %q", got)
 	}
 
 	// A speech bubble beside a block opens the comments on that block.
-	b.clickOn(`[data-win="0"] .fdrawer [data-act="cmt"]`, 1)
+	b.clickOn(`[data-win="0"] aside[data-drawer] [data-act="cmt"]`, 1)
 	b.clickOn(`article.typeset [data-comment][data-id="b2"]`, 1)
-	if !b.waitFor(`document.querySelector('.fdrawer .cfor em')?.textContent === '#b2' && document.activeElement?.dataset?.addcmt === '0'`) {
+	if !b.waitFor(`document.querySelector('aside[data-drawer] [data-cfor] small')?.textContent === '#b2' && document.activeElement?.dataset?.addcmt === '0'`) {
 		t.Fatalf("the drawer on block b2: %s", b.eval(drawer))
 	}
-	if got := b.eval(`document.querySelector('.fdrawer .cfor span').textContent + ' | ' + !!document.querySelector('article.typeset [data-block="b2"].cfocus')`); got != "Two in the rack. | true" {
+	if got := b.eval(`document.querySelector('aside[data-drawer] [data-cfor] span').textContent + ' | ' + !!document.querySelector('article.typeset [data-block="b2"][data-comment-focus]')`); got != "Two in the rack. | true" {
 		t.Errorf("it names the block and marks it: %q", got)
 	}
 	b.typeText("Which rack?")
@@ -82,50 +82,50 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	}
 
 	// Reply, resolve, open again.
-	b.clickOn(`.fdrawer [data-act="cmtreply"]`, 1)
+	b.clickOn(`aside[data-drawer] [data-act="cmtreply"]`, 1)
 	if !b.waitFor(`document.activeElement?.dataset?.replycmt === '0'`) {
 		t.Fatal("Reply opens a field")
 	}
 	b.typeText("Rack 2.")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`document.querySelector('.fdrawer .cmtrow.reply p')?.textContent === 'Rack 2.'`) {
+	if !b.waitFor(`document.querySelector('.timeline .timeline > [data-cmt] > p')?.textContent === 'Rack 2.'`) {
 		t.Fatalf("the reply shows under its thread: %s", b.eval(drawer))
 	}
-	if got := b.eval(`document.querySelector('article.typeset [data-comment][data-id="b2"]')?.dataset.count + ' ' + document.querySelectorAll('.fdrawer .cmtrow.reply [data-act="cmtreply"], .fdrawer .cmtrow.reply [data-act="cmtres"]').length`); got != "2 0" {
+	if got := b.eval(`document.querySelector('article.typeset [data-comment][data-id="b2"]')?.dataset.count + ' ' + document.querySelectorAll('.timeline .timeline > [data-cmt] [data-act="cmtreply"], .timeline .timeline > [data-cmt] [data-act="cmtres"]').length`); got != "2 0" {
 		t.Errorf("the reply counts, and is neither answered nor resolved on its own: %q", got)
 	}
 	b.shot("comments")
-	b.clickOn(`.fdrawer [data-act="cmtres"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.fdrawer .cmtrow.done') && !document.querySelector('article.typeset [data-comment][data-id="b2"][data-count]')`) {
+	b.clickOn(`aside[data-drawer] [data-act="cmtres"]`, 1)
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] [data-cmt][data-state="done"]') && !document.querySelector('article.typeset [data-comment][data-id="b2"][data-count]')`) {
 		t.Fatalf("resolved, it counts no more: %s", b.eval(drawer))
 	}
 	if got := b.eval(drawer + ` + ' | ' + document.querySelector('[data-win="0"] [role=toolbar] [data-act="cmt"]')?.dataset.count`); !strings.Contains(got, "Resolved by Anna Berg") || !strings.Contains(got, "Reopen") || !strings.HasSuffix(got, "| 1") {
 		t.Errorf("who resolved it, and the head counts only what is open: %q", got)
 	}
-	b.clickOn(`.fdrawer [data-act="cmtres"]`, 1)
-	if !b.waitFor(`!document.querySelector('.fdrawer .cmtrow.done') && document.querySelector('article.typeset [data-comment][data-id="b2"]')?.dataset.count === '2'`) {
+	b.clickOn(`aside[data-drawer] [data-act="cmtres"]`, 1)
+	if !b.waitFor(`!document.querySelector('aside[data-drawer] [data-cmt][data-state="done"]') && document.querySelector('article.typeset [data-comment][data-id="b2"]')?.dataset.count === '2'`) {
 		t.Fatalf("open again: %s", b.eval(drawer))
 	}
 
 	// Change one's own comment, then delete it with its reply.
-	b.clickOn(`.fdrawer .cmtrow:not(.reply) [data-act="cmtedit"]`, 1)
+	b.clickOn(`aside[data-drawer] > .timeline > [data-cmt] [data-act="cmtedit"]`, 1)
 	if !b.waitFor(`document.activeElement?.dataset?.editcmt === '0'`) {
 		t.Fatal("Edit opens a field")
 	}
 	b.typeText("Which rack, exactly?")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`document.querySelector('.fdrawer .cmtrow p')?.textContent === 'Which rack, exactly?'`) {
+	if !b.waitFor(`document.querySelector('aside[data-drawer] [data-cmt] > p')?.textContent === 'Which rack, exactly?'`) {
 		t.Fatalf("changed: %s", b.eval(drawer))
 	}
-	if got := b.eval(`document.querySelector('.fdrawer .cmtrow em').textContent`); !strings.HasSuffix(got, "· edited") {
+	if got := b.eval(`document.querySelector('aside[data-drawer] [data-cmt] > header > time').textContent`); !strings.HasSuffix(got, "· edited") {
 		t.Errorf("it says it was changed: %q", got)
 	}
-	b.clickOn(`.fdrawer .cmtrow:not(.reply) [data-act="cmtdel"]`, 1)
-	if got := b.eval(`document.querySelector('.fdrawer .cmtrow:not(.reply) [data-act="cmtdel"]').textContent + ' ' + document.querySelectorAll('.fdrawer .cmtrow').length`); got != "Delete? Yes 2" {
+	b.clickOn(`aside[data-drawer] > .timeline > [data-cmt] [data-act="cmtdel"]`, 1)
+	if got := b.eval(`document.querySelector('aside[data-drawer] > .timeline > [data-cmt] [data-act="cmtdel"]').textContent + ' ' + document.querySelectorAll('aside[data-drawer] [data-cmt]').length`); got != "Delete? Yes 2" {
 		t.Errorf("deleting asks first: %q", got)
 	}
-	b.clickOn(`.fdrawer .cmtrow:not(.reply) [data-act="cmtdel"]`, 1)
-	if !b.waitFor(`!document.querySelector('.fdrawer .cmtrow') && !document.querySelector('article.typeset [data-comment][data-id="b2"][data-count]')`) {
+	b.clickOn(`aside[data-drawer] > .timeline > [data-cmt] [data-act="cmtdel"]`, 1)
+	if !b.waitFor(`!document.querySelector('aside[data-drawer] [data-cmt]') && !document.querySelector('article.typeset [data-comment][data-id="b2"][data-count]')`) {
 		t.Fatalf("deleted with its reply: %s", b.eval(drawer))
 	}
 
@@ -150,7 +150,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 		t.Fatalf("Comment in the menu of the handle is on: %s", b.eval(`document.querySelector('.editor-handle [role=menu]')?.innerHTML.slice(0, 200)`))
 	}
 	b.clickOn(`.editor-handle [role=menu] [data-act="bcmt"]`, 1)
-	if !b.waitFor(`document.querySelector('.fdrawer .cfor em')?.textContent === '#b1' && document.activeElement?.dataset?.addcmt === '0'`) {
+	if !b.waitFor(`document.querySelector('aside[data-drawer] [data-cfor] small')?.textContent === '#b1' && document.activeElement?.dataset?.addcmt === '0'`) {
 		t.Fatalf("the handle opens the comments on its block: %s %s", b.eval(drawer), b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 	}
 	b.typeText("Is this the right heading?")
@@ -161,7 +161,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	}
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	b.eval(`commentOn(at(S.focus).d, 'b2')`)
-	if !b.waitFor(`document.querySelector('.fdrawer .cfor em')?.textContent === '#b2' && document.activeElement?.dataset?.addcmt === '0'`) {
+	if !b.waitFor(`document.querySelector('aside[data-drawer] [data-cfor] small')?.textContent === '#b2' && document.activeElement?.dataset?.addcmt === '0'`) {
 		t.Errorf("commentOn opens the drawer on a block: %s", b.eval(drawer))
 	}
 
@@ -173,17 +173,17 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	b.open(base + "/o/" + notes)
 	b.ready("Notes")
 	b.clickOn(`[data-win="0"] [role=toolbar] [data-act="cmt"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.fdrawer .cgo[data-id="b1"]')`) {
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] [data-act="cblk"][data-id="b1"]')`) {
 		t.Fatalf("the block that is gone is listed: %s", b.eval(drawer))
 	}
-	if got := b.eval(`document.querySelector('.fdrawer .cgo[data-id="b1"]').textContent`); got != "A block that is gone#b1 · 1" {
+	if got := b.eval(`document.querySelector('aside[data-drawer] [data-act="cblk"][data-id="b1"]').textContent`); got != "A block that is gone#b1 · 1" {
 		t.Errorf("named as gone: %q", got)
 	}
-	b.clickOn(`.fdrawer .cgo[data-id="b1"]`, 1)
-	if !b.waitFor(`document.querySelector('.fdrawer .cfor em')?.textContent === '#b1'`) {
+	b.clickOn(`aside[data-drawer] [data-act="cblk"][data-id="b1"]`, 1)
+	if !b.waitFor(`document.querySelector('aside[data-drawer] [data-cfor] small')?.textContent === '#b1'`) {
 		t.Fatalf("its comments open: %s", b.eval(drawer))
 	}
-	if got := b.eval(drawer + ` + ' | ' + !!document.querySelector('.fdrawer [data-addcmt]') + ' ' + !!document.querySelector('.fdrawer [data-act="cmtreply"]')`); !strings.Contains(got, "Is this the right heading?") || !strings.Contains(got, "This block is gone") || !strings.HasSuffix(got, "| false true") {
+	if got := b.eval(drawer + ` + ' | ' + !!document.querySelector('aside[data-drawer] [data-addcmt]') + ' ' + !!document.querySelector('aside[data-drawer] [data-act="cmtreply"]')`); !strings.Contains(got, "Is this the right heading?") || !strings.Contains(got, "This block is gone") || !strings.HasSuffix(got, "| false true") {
 		t.Errorf("no new thread on it, but its thread can be answered: %q", got)
 	}
 	b.shot("comments")
@@ -204,10 +204,10 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 		t.Errorf("read only, a bubble only where there are comments: %q", got)
 	}
 	b.clickOn(`[data-win="0"] [role=toolbar] [data-act="cmt"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.fdrawer .cmtrow')`) {
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] [data-cmt]')`) {
 		t.Fatalf("Bob reads the comments: %s", b.eval(drawer))
 	}
-	if got := b.eval(drawer + ` + ' | ' + document.querySelectorAll('.fdrawer input, .fdrawer [data-act^="cmt"]:not([data-act="cmt"])').length`); !strings.Contains(got, "Looks good.") || !strings.Contains(got, "comments can be read, not added") || !strings.HasSuffix(got, "| 0") {
+	if got := b.eval(drawer + ` + ' | ' + document.querySelectorAll('aside[data-drawer] input, aside[data-drawer] [data-act^="cmt"]:not([data-act="cmt"])').length`); !strings.Contains(got, "Looks good.") || !strings.Contains(got, "comments can be read, not added") || !strings.HasSuffix(got, "| 0") {
 		t.Errorf("no field and nothing to change: %q", got)
 	}
 }

@@ -68,10 +68,17 @@ window.UDRights = (() => {
     const first = choose ? '<option value="" selected disabled>Choose someone</option>' : "";
     return `<select class="select" name="${name}" aria-label="Person"${choose ? " required" : ""}>${first}${p.people.filter((x) => x.id !== without).map((x) => `<option value="${esc(x.id)}"${x.id === current ? " selected" : ""}>${esc(x.name)} (${esc(x.login)})</option>`).join("")}</select>`;
   };
-  // small is a small button: a chip in the workspace, a button of C22 in the dialog, which lies outside the workspace.
-  const small = (attrs, label, inDialog) =>
-    inDialog ? `<button class="btn" data-variant="outline" data-size="sm" type="button" ${attrs}>${label}</button>` : `<button class="chip" type="button" ${attrs}>${label}</button>`;
-  const problem = () => (st.error ? `<p class="hint text-sm" role="alert" data-rights-error>✗ ${esc(st.error)}</p>` : "");
+  // small is a small outline button of C22: xs in the panel of the workspace, sm in the dialog.
+  const small = (attrs, label, inDialog) => `<button class="btn" data-variant="outline" data-size="${inDialog ? "sm" : "xs"}" type="button" ${attrs}>${label}</button>`;
+  const submit = (label) => `<button class="btn" data-variant="outline" data-size="xs" type="submit">${label}</button>`;
+  const problem = () => (st.error ? `<p class="text-sm" role="alert" data-rights-error>✗ ${esc(st.error)}</p>` : "");
+  // The parts of the panel in nav3, from C22: a heading, a quiet hint, entries of a list (an .item with a quiet line and
+  // its buttons at the end).
+  const head = (t) => `<h3 class="font-semibold">${t}</h3>`;
+  const hint = (t, attrs = "") => `<p class="text-muted-foreground text-xs"${attrs}>${t}</p>`;
+  const entry = (attrs, name, sub, side) =>
+    `<div class="item" data-variant="outline" data-size="sm" role="listitem" ${attrs}><section><h4>${name}</h4>${sub ? `<p class="text-muted-foreground text-xs">${sub}</p>` : ""}</section>${side ? `<aside class="flex flex-wrap gap-1">${side}</aside>` : ""}</div>`;
+  const entries = (attrs, inner) => `<div class="item-group" role="list" ${attrs}>${inner}</div>`;
 
   // --- The tab Rights
 
@@ -86,52 +93,53 @@ window.UDRights = (() => {
     else if (sec === "links") body = linksHtml();
     else if (sec === "log") body = logHtml();
     else body = checkHtml();
-    return `<div class="spanel" data-rights="${esc(sec)}">${problem()}${body}</div>`;
+    return `<div><aside class="card gap-3 px-4 py-4" data-rights="${esc(sec)}">${problem()}${body}</aside></div>`;
   }
 
   function groupsHtml() {
     load("groups", "/api/groups");
-    if (st.groups === null) return '<p class="lab">Loading…</p>';
+    if (st.groups === null) return hint("Loading…");
     const rows = st.groups.map((g) => {
       const open = st.members[g.id];
       const local = g.source === "local";
-      const list = open ? open.map((m) => `<li class="modrow"><span>${esc(m.name)}<small>${esc(m.login)}</small></span>${me.admin && local ? `<button class="chip" data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}">Take out</button>` : ""}</li>`).join("") : "";
-      const add = open && me.admin && local ? `<form class="flex items-center gap-2 mt-2" data-rform="member" data-g="${esc(g.id)}">${personSelect("account", "")}<button class="chip" type="submit">Add</button></form>` : "";
-      return `<div class="modrow" data-group="${esc(g.name)}"><span>${esc(g.name)}<small>${g.members} ${g.members === 1 ? "member" : "members"} · ${local ? "local" : "from the sign-in, read only"}${g.description ? " · " + esc(g.description) : ""}</small></span>
-        <button class="chip" data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}">Members</button>${me.admin && local ? `<button class="chip" data-ract="delgroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}">Delete</button>` : ""}</div>${open ? `<ul class="pad">${list || '<li class="lab">Nobody yet.</li>'}</ul>${add}` : ""}`;
+      const list = open ? open.map((m) => entry("", esc(m.name), esc(m.login), me.admin && local ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "")).join("") : "";
+      const add = open && me.admin && local ? `<form class="flex items-center gap-2" data-rform="member" data-g="${esc(g.id)}">${personSelect("account", "")}${submit("Add")}</form>` : "";
+      return entry(`data-group="${esc(g.name)}"`, esc(g.name), `${g.members} ${g.members === 1 ? "member" : "members"} · ${local ? "local" : "from the sign-in, read only"}${g.description ? " · " + esc(g.description) : ""}`,
+        small(`data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}"`, "Members") + (me.admin && local ? small(`data-ract="delgroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}"`, "Delete") : "")) +
+        (open ? `<div class="flex flex-col gap-2 ps-4">${list ? entries("", list) : hint("Nobody yet.")}${add}</div>` : "");
     });
     const make = me.admin
-      ? `<form class="grid gap-2 mt-3" data-rform="group"><div class="shead">New group</div><input class="input" name="name" maxlength="200" required placeholder="Name" aria-label="Name of the group"><input class="input" name="description" maxlength="1000" placeholder="What it is for (optional)" aria-label="Description"><button class="chip" type="submit">Make the group</button></form>`
+      ? `<form class="grid gap-2" data-rform="group">${head("New group")}<input class="input" name="name" maxlength="200" required placeholder="Name" aria-label="Name of the group"><input class="input" name="description" maxlength="1000" placeholder="What it is for (optional)" aria-label="Description"><div>${submit("Make the group")}</div></form>`
       : "";
-    return `<div class="shead">Groups</div><p class="hint">${me.admin ? "Every group of this workspace. Groups from the sign-in come with it and can only be read here." : "The groups you belong to."}</p>${rows.join("") || '<p class="lab">No group yet.</p>'}${make}`;
+    return `${head("Groups")}${hint(me.admin ? "Every group of this workspace. Groups from the sign-in come with it and can only be read here." : "The groups you belong to.")}${rows.length ? entries("", rows.join("")) : hint("No group yet.")}${make}`;
   }
 
   function usersHtml() {
     if (!me.admin) {
       const p = st.people;
-      if (p === null) return '<p class="lab">Loading…</p>';
-      return `<div class="shead">Users</div><p class="hint">Who works in this workspace. Administrators manage their rights.</p>${p.people.map((x) => `<div class="modrow"><span>${esc(x.name)}<small>${esc(x.login)}</small></span></div>`).join("")}`;
+      if (p === null) return hint("Loading…");
+      return `${head("Users")}${hint("Who works in this workspace. Administrators manage their rights.")}${entries("", p.people.map((x) => entry("", esc(x.name), esc(x.login), "")).join(""))}`;
     }
     load("users", "/api/users");
-    if (st.users === null) return '<p class="lab">Loading…</p>';
-    return `<div class="shead">Users</div><p class="hint">Administrators manage rights, not content. Accounts of the gate or of single sign-on are administrators through their group at the sign-in.</p>${st.users
+    if (st.users === null) return hint("Loading…");
+    return `${head("Users")}${hint("Administrators manage rights, not content. Accounts of the gate or of single sign-on are administrators through their group at the sign-in.")}${entries("", st.users
       .map((u) => {
         const local = u.source === "local";
-        const act = local ? `<button class="chip" data-ract="admin" data-id="${esc(u.id)}" data-on="${u.admin ? "0" : "1"}">${u.admin ? "Take back administrator" : "Make administrator"}</button>` : "";
-        return `<div class="modrow" data-user="${esc(u.login)}"><span>${esc(u.name)}<small>${esc(u.login)} · ${esc(u.source)}${u.admin ? " · ✓ administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}</small></span>${act}<button class="chip" data-ract="heldby" data-id="${esc(u.id)}">What may they do</button></div>${st.heldFor === u.id ? heldHtml() : ""}`;
+        const act = local ? small(`data-ract="admin" data-id="${esc(u.id)}" data-on="${u.admin ? "0" : "1"}"`, u.admin ? "Take back administrator" : "Make administrator") : "";
+        return entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)} · ${esc(u.source)}${u.admin ? " · ✓ administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}`, act + small(`data-ract="heldby" data-id="${esc(u.id)}"`, "What may they do")) + (st.heldFor === u.id ? heldHtml() : "");
       })
-      .join("")}`;
+      .join(""))}`;
   }
 
   function linksHtml() {
     load("links", "/api/links");
-    if (st.links === null) return '<p class="lab">Loading…</p>';
-    return `<div class="shead">Share links</div><p class="hint">${me.admin ? "Every link of this workspace." : "The links you made, and those on what you manage."} A link is made in the rights of a document, folder or file.</p>${linkRows(st.links, true)}`;
+    if (st.links === null) return hint("Loading…");
+    return `${head("Share links")}${hint(`${me.admin ? "Every link of this workspace." : "The links you made, and those on what you manage."} A link is made in the rights of a document, folder or file.`)}${linkRows(st.links, true)}`;
   }
 
   const MODEWORD = { read: "read", comment: "comment", edit: "edit", upload: "upload only" };
   function linkRows(links, withTitle, inDialog) {
-    if (!links.length) return inDialog ? '<p class="text-sm text-muted-foreground">No link.</p>' : '<p class="lab">No link.</p>';
+    if (!links.length) return inDialog ? '<p class="text-sm text-muted-foreground">No link.</p>' : hint("No link.");
     return `<table class="table" data-links><thead><tr>${withTitle ? "<th>Of</th>" : ""}<th>Mode</th><th>Made by</th><th>Ends</th><th></th></tr></thead><tbody>${links
       .map(
         (l) =>
@@ -155,17 +163,18 @@ window.UDRights = (() => {
   function keepHtml() {
     load("keep", "/api/log/keep");
     if (st.keep === null) return "";
-    if (!me.admin) return `<p class="hint" data-keep>Entries are kept ${st.keep.days} days.</p>`;
-    return `<form class="flex items-center gap-2" data-rform="keep" data-keep><label class="lab" for="udkeep">Keep entries for</label><input class="input" id="udkeep" type="number" name="days" min="${st.keep.min}" max="${st.keep.max}" value="${st.keep.days}" required aria-label="Days the log keeps an entry"><span class="lab">days</span><button class="chip" type="submit">Save</button></form>`;
+    if (!me.admin) return hint(`Entries are kept ${st.keep.days} days.`, " data-keep");
+    // A number with its unit is C22's input group.
+    return `<form class="flex flex-wrap items-center gap-2" data-rform="keep" data-keep><label class="text-sm" for="udkeep">Keep entries for</label><div class="input-group w-28"><input class="input" id="udkeep" type="number" name="days" min="${st.keep.min}" max="${st.keep.max}" value="${st.keep.days}" required aria-label="Days the log keeps an entry"><span data-align="inline-end">days</span></div>${submit("Save")}</form>`;
   }
 
   function logHtml() {
     load("log", "/api/log?limit=200");
-    if (st.log === null) return '<p class="lab">Loading…</p>';
-    return `<div class="shead">Log</div><p class="hint">${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.</p>${keepHtml()}${
+    if (st.log === null) return hint("Loading…");
+    return `${head("Log")}${hint(`${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.`)}${keepHtml()}${
       st.log.length
-        ? `<ul class="pad" data-log>${st.log.map((e) => `<li class="modrow" data-entry="${esc(e.action)}"><span>${ACTION[e.action] || esc(e.action)}${e.objectTitle ? ": " + esc(e.objectTitle) : ""}<small>${when(e.at)} · ${e.actor ? esc(e.actorName) : "someone with a link"}${e.detail ? " · " + named(e.detail) : ""}</small></span></li>`).join("")}</ul><button class="chip" data-ract="reloadlog">Newer entries</button>`
-        : '<p class="lab">Nothing logged yet.</p>'
+        ? `${entries("data-log", st.log.map((e) => entry(`data-entry="${esc(e.action)}"`, `${ACTION[e.action] || esc(e.action)}${e.objectTitle ? ": " + esc(e.objectTitle) : ""}`, `${when(e.at)} · ${e.actor ? esc(e.actorName) : "someone with a link"}${e.detail ? " · " + named(e.detail) : ""}`, "")).join(""))}<div>${small('data-ract="reloadlog"', "Newer entries")}</div>`
+        : hint("Nothing logged yet.")
     }`;
   }
 
@@ -174,25 +183,25 @@ window.UDRights = (() => {
   function heldHtml() {
     return st.held
       ? st.held.length
-        ? `<ul class="pad" data-held>${st.held.map((x) => `<li class="modrow" data-held-row="${esc(x.object)}"><span>${esc(x.title)}<small>${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}</small></span>${me.admin && x.via === "owner" && st.heldFor !== me.id ? `<form class="flex items-center gap-2" data-rform="transfer" data-id="${esc(x.object)}">${personSelect("to", "", true, st.heldFor)}<button class="chip" type="submit">Transfer</button></form>` : ""}</li>`).join("")}</ul>${me.admin && st.held.some((x) => x.via === "owner") && st.heldFor !== me.id ? '<p class="hint">Whoever left owns what is listed with Transfer. Give it to someone else: you see its title and its rights, not its content.</p>' : ""}`
-        : '<p class="lab">Nothing of their own: what they see comes from everyone.</p>'
+        ? `${entries("data-held", st.held.map((x) => entry(`data-held-row="${esc(x.object)}"`, esc(x.title), `${ROLEWORD[x.role] || esc(x.role)} · ${VIA[x.via] || esc(x.via)}${x.name ? " " + esc(x.name) : ""}`, me.admin && x.via === "owner" && st.heldFor !== me.id ? `<form class="flex items-center gap-2" data-rform="transfer" data-id="${esc(x.object)}">${personSelect("to", "", true, st.heldFor)}${submit("Transfer")}</form>` : "")).join(""))}${me.admin && st.held.some((x) => x.via === "owner") && st.heldFor !== me.id ? hint("Whoever left owns what is listed with Transfer. Give it to someone else: you see its title and its rights, not its content.") : ""}`
+        : hint("Nothing of their own: what they see comes from everyone.")
       : "";
   }
 
   function checkHtml() {
-    const forWhom = me.admin ? `<form class="flex items-center gap-2" data-rform="held">${personSelect("account", st.heldFor || me.id)}<button class="chip" type="submit">Show</button></form>` : "";
+    const forWhom = me.admin ? `<form class="flex items-center gap-2" data-rform="held">${personSelect("account", st.heldFor || me.id)}${submit("Show")}</form>` : "";
     const held = heldHtml();
     const who = st.who
-      ? `<div data-who>${st.who.private ? `<p class="hint">Private: only ${esc(st.who.ownerName)} sees it.</p>` : `<p class="hint">Owner: ${esc(st.who.ownerName)}${st.who.inherit ? "" : " · takes no roles from above"}</p>${grantList(st.who.own, false)}${st.who.inherited.length ? `<div class="lab">From above</div>${grantList(st.who.inherited, true)}` : ""}`}</div>`
+      ? `<div class="flex flex-col gap-2" data-who>${st.who.private ? hint(`Private: only ${esc(st.who.ownerName)} sees it.`) : `${hint(`Owner: ${esc(st.who.ownerName)}${st.who.inherit ? "" : " · takes no roles from above"}`)}${grantList(st.who.own, false)}${st.who.inherited.length ? `<h4 class="text-sm font-medium">From above</h4>${grantList(st.who.inherited, true)}` : ""}`}</div>`
       : "";
-    const check = st.check ? `<p class="hint" data-check>${st.check.role ? `Role: ${ROLEWORD[st.check.role]}` : "No role: sees nothing of it"}${st.check.reasons.map((r) => ` · ${ROLEWORD[r.role]} ${VIA[r.via] || esc(r.via)}${r.name ? " " + esc(r.name) : ""} on ${esc(r.title)}`).join("")}</p>` : "";
-    return `<div class="shead">What may someone do</div>${forWhom}${held}
-      <div class="shead">Who sees something</div><form class="grid gap-2" data-rform="who"><input class="input" name="object" required placeholder="Address or ID, such as /o/7k2m9q4x1c" aria-label="Address of the object">${me.admin ? personSelect("account", me.id) : ""}<button class="chip" type="submit">Check</button></form>${who}${check}`;
+    const check = st.check ? `<p class="text-muted-foreground text-xs" data-check>${st.check.role ? `Role: ${ROLEWORD[st.check.role]}` : "No role: sees nothing of it"}${st.check.reasons.map((r) => ` · ${ROLEWORD[r.role]} ${VIA[r.via] || esc(r.via)}${r.name ? " " + esc(r.name) : ""} on ${esc(r.title)}`).join("")}</p>` : "";
+    return `${head("What may someone do")}${forWhom}${held}
+      ${head("Who sees something")}<form class="grid gap-2" data-rform="who"><input class="input" name="object" required placeholder="Address or ID, such as /o/7k2m9q4x1c" aria-label="Address of the object">${me.admin ? personSelect("account", me.id) : ""}<div>${submit("Check")}</div></form>${who}${check}`;
   }
 
   const grantName = (g) => (g.kind === "tenant" ? "Everyone" : g.kind === "group" ? `Group ${esc(g.name)}` : esc(g.name));
   const grantList = (list, from) =>
-    list.length ? `<ul class="pad">${list.map((g) => `<li class="modrow"><span>${grantName(g)}<small>${ROLEWORD[g.role] || esc(g.role)}${from ? "" : ""}</small></span></li>`).join("")}</ul>` : '<p class="lab">Nothing granted here.</p>';
+    list.length ? entries("", list.map((g) => entry("", grantName(g), ROLEWORD[g.role] || esc(g.role), "")).join("")) : hint("Nothing granted here.");
 
   // --- The rights dialog
 

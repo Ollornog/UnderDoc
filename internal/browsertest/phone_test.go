@@ -60,7 +60,7 @@ const unreachable = `(() => {
 	const name = e => (e.dataset.act ? e.dataset.act + (e.dataset.id ? ':' + e.dataset.id : '') + ' ' : '') + JSON.stringify((e.getAttribute('aria-label') || e.title || e.textContent || e.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 30)) + ' ' + e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
 	const scrolls = s => /(auto|scroll)/.test(s);
 	// Columns, windows, drawers and menus do not scroll sideways: what is wider than they are is cut off for a hand.
-	for (const p of document.querySelectorAll('#root :is([aria-label=Nav1], [aria-label=Nav2], [aria-label=Nav3], #tree, [data-sc], .page, .fdrawer, .spanel, .pop, .ctxpop, .editor-handle [role=menu], .cm-editor .command, .workspace-windows, .workspace-window)')) {
+	for (const p of document.querySelectorAll('#root :is([aria-label=Nav1], [aria-label=Nav2], [aria-label=Nav3], #tree, [data-sc], [data-drawer], aside.card, [data-cm-panel], [data-menu], .editor-handle [role=menu], .cm-editor .command, .workspace-windows, .workspace-window)')) {
 		if (p.getClientRects().length && getComputedStyle(p).overflowX !== 'visible' && p.scrollWidth > p.clientWidth + 1) bad.push('scrolls sideways (' + p.scrollWidth + ' > ' + p.clientWidth + '): ' + name(p));
 	}
 	// Text cut by an edge that does not scroll, without the dots that say there is more.
@@ -79,7 +79,7 @@ const unreachable = `(() => {
 			if (t.left < q.left - 2 || t.right > q.right + 2) bad.push('text cut off by ' + name(p) + ' (' + Math.round(t.left) + '-' + Math.round(t.right) + ' in ' + Math.round(q.left) + '-' + Math.round(q.right) + '): ' + JSON.stringify(n.textContent.trim().slice(0, 30)));
 			break; }
 	}
-	const layer = '[data-popover], .pop, .tabmenu, .ctxpop, .cmdpop, .fdrawer, .editor-handle [role=menu], .cm-editor .command, .btool, .aidrawer, .toast, [aria-label=Nav2], [aria-label=Nav3]';
+	const layer = '[data-popover], [data-cm-panel], [data-menu], [data-drawer], .editor-handle [role=menu], .cm-editor .command, .editor-bar, .toaster, [aria-label=Nav2], [aria-label=Nav3]';
 	for (const e of document.querySelectorAll('#root :is(button, input, textarea, select, a[href], [role=menuitem]):not([data-grip])')) {
 		if (!e.getClientRects().length || getComputedStyle(e).visibility === 'hidden') continue;
 		let r = e.getBoundingClientRect();
@@ -157,7 +157,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.reach("plan")
 			b.clickOn(`[data-act=winmenu]`, 1)
 			b.reach("window-menu")
-			b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
+			b.clickOn(probe(b, `[data-cm-panel] button`, "Keep as a tab of its own"), 1)
 			b.reach("tabs")
 			for _, act := range []string{"tablist", "menu", "fly", "find", "aid"} {
 				open := `[data-win="0"] [data-act="` + act + `"]`
@@ -167,7 +167,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 				case "fly", "find":
 					b.clickOn(open, 1)
 				case "aid":
-					b.clickOn(`.aidrawer [data-act="aid"]`, 1)
+					b.clickOn(`aside[data-drawer][aria-label="AI assistant"] [data-act="aid"]`, 1)
 				}
 				b.press("Escape", "Escape", 27, 0)
 			}
@@ -198,12 +198,12 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.press("Escape", "Escape", 27, 0)
 			b.longPressFreeNav2()
 			b.reach("nav2-menu")
-			b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
+			b.clickOn(probe(b, `[data-cm-panel] button`, "Problems"), 1)
 			b.ready("Problems")
 			b.reach("problems")
 			b.clickOn(`[aria-label=Nav1] [data-id="workspace"]`, 1)
 			b.longPressFreeNav2()
-			b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
+			b.clickOn(probe(b, `[data-cm-panel] button`, "Trash"), 1)
 			b.ready("Trash")
 			b.reach("trash")
 			b.clickOn(`[aria-label=Nav1] [data-id="search"]`, 1)
@@ -216,7 +216,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.reach("page")
 			b.clickOn(`[data-win="0"] [role=toolbar] [data-act="cmt"]`, 1)
 			b.reach("comments")
-			b.clickOn(`[data-win="0"] .fdrawer [data-act="cmt"]`, 1)
+			b.clickOn(`[data-win="0"] aside[data-drawer] [data-act="cmt"]`, 1)
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
 			b.reach("gear")
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
@@ -224,8 +224,8 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.reach("block-menu")
 			b.clickOn(`.workspace-main > header > h1`, 1)
 			// The drawer lies over the whole window, its head too (as C22's drawer does): it closes first.
-			if b.eval(`!!document.querySelector('.fdrawer [data-act="gear"]')`) == "true" {
-				b.clickOn(`.fdrawer [data-act="gear"]`, 1)
+			if b.eval(`!!document.querySelector('aside[data-drawer] [data-act="gear"]')`) == "true" {
+				b.clickOn(`aside[data-drawer] [data-act="gear"]`, 1)
 			}
 			b.clickOn(`[data-act="edit"]`, 1)
 			b.waitFor(`!!document.querySelector('.cm-editor .cm-line')`)
@@ -313,17 +313,17 @@ func TestLongPressIsTheRightClick(t *testing.T) {
 	b.ready("plain")
 	b.clickOn(`[aria-label=Nav1] [data-id="workspace"]`, 1)
 	b.longPress(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "Network plan"))
-	if !b.waitFor(`document.querySelector('.ctxpop > b')?.textContent === 'Network plan'`) {
-		t.Fatalf("a long press opens the menu of the entry: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
+	if !b.waitFor(`document.querySelector('[data-cm-panel] > [role=heading]')?.textContent === 'Network plan'`) {
+		t.Fatalf("a long press opens the menu of the entry: %s", b.eval(`document.querySelector('[data-cm-panel]')?.innerText`))
 	}
 	time.Sleep(200 * time.Millisecond)
-	if got := b.eval(`document.querySelector('.workspace-main > header > h1')?.textContent + ' ' + !!document.querySelector('.ctxpop')`); got != "plain true" {
+	if got := b.eval(`document.querySelector('.workspace-main > header > h1')?.textContent + ' ' + !!document.querySelector('[data-cm-panel]')`); got != "plain true" {
 		t.Errorf("lifting the finger opens nothing and keeps the menu: %q", got)
 	}
 	b.shot("phone-long-press")
 	b.press("Escape", "Escape", 27, 0)
 	b.longPressFreeNav2()
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].map(n => n.textContent.trim()).join(', ')`); !strings.Contains(got, "Problems") || !strings.Contains(got, "Trash") {
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].map(n => n.textContent.trim()).join(', ')`); !strings.Contains(got, "Problems") || !strings.Contains(got, "Trash") {
 		t.Errorf("the free part of nav2 offers the problems and the trash: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)

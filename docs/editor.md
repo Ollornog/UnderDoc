@@ -178,6 +178,31 @@ to-do of a list, the handle of the block with the cursor, one frame round the li
 a dragged block, the frames of a part over several lines, a handle that takes a finger, handles and bubbles on touch
 screens) C22 has had since `ec39f36`; UnderDoc keeps no look of its own for them.
 
+### The workspace around it
+
+The menus, drawers, panels and other views of the workspace are C22's building blocks too (T-12 step 4, 2026-11-22),
+after the recipes of C22's `workspace-views.html` and `workspace-more.html`. Every menu and popup hangs inside the
+`.workspace`, so the pack gives it the mockup's size; `c22.js` is not loaded, the script draws open what is open.
+
+| Part | C22 |
+|---|---|
+| A right click, the menu of a tab, Opened here before, All tabs, Window and tabs | `.context-menu > [data-cm-panel]` fixed at the pointer or its button (`data-style`), a heading `[role=heading]`, entries `[role=menuitem]`, Delete `data-variant="destructive"` |
+| More in the tools of a window | `.dropdown-menu` with its `[data-popover]` |
+| New in nav2 and in a collection | `.command` fixed below its head (`data-menu="new"`), groups with headings, a template `div > span + small` |
+| New in the top row | `.popover` of the New button (`data-menu="quick"`): where it goes as a `.button-group`, an `.input`, templates and types as `a.item` in a grid |
+| The quick search (Ctrl+K) | `.command` (`.udpal`), hits as entries with their place and excerpt |
+| A short message | `.toaster > .toast` |
+| The gear, the comments, the assistant | `.workspace-main > aside[data-drawer]`: settings as `.button-group`, facts as `dl`, comments as `ol.timeline` (a reply nested, a resolved thread `data-state="done"`), the assistant's `[role=log]` of `.bubble`s, fields in an `.input-group` |
+| Profile, settings, administration, a source, the tab Rights | a `.card` in nav3 with `h3`, rows of a name and a control, `.item` lists, small outline buttons |
+| Mail and news | `a.item` with sender and `time` over the subject, `data-state="unread"`, the open one `aria-current`; the message `dl` first in the article |
+| To-dos | `label.item` with a checkbox, done is checked (C22 strikes it through), the due date a `time`; in nav3 `data-size="xs"` |
+| The month, a board, a saved search | `table.month-sheet`, `.board` of `.card` columns, `.filter-bar` with hits as `.item`s, each straight in the window's `section` |
+| Content without blocks | `.alert` for a hint, `.table-container > table.table`, `code` for a value, `a.item` for what lies below, `.empty[data-dropzone]`, `figure.card` for a preview |
+
+Where C22 has no look yet, the script bridges with C22's utilities, marked `bridge until C22` in the code: the current
+hit of Find on the page (`mark[aria-current]`, a ring), the element whose comments are open (`data-comment-focus`,
+the accent ground) and the icon in the head of a drawer (`size-4`).
+
 ## Build
 
 The editor is built from `web/editor` with esbuild into `internal/web/assets/app/editor/`: `editor.js`, `editor.css` and

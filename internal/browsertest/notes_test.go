@@ -18,7 +18,7 @@ func TestQuickNotes(t *testing.T) {
 	b.ready("Network plan")
 	b.watch()
 	b.clickOn(`[data-act="newmenu"]`, 1)
-	if got := b.eval(`document.querySelector('.newpop [data-act="into"][data-id="qn"]')?.getAttribute('aria-pressed') + ' ' + document.querySelector('.newpop [data-act="into"][data-id="qn"]')?.disabled`); got != "true false" {
+	if got := b.eval(`document.querySelector('[data-menu="quick"] [data-act="into"][data-id="qn"]')?.getAttribute('aria-pressed') + ' ' + document.querySelector('[data-menu="quick"] [data-act="into"][data-id="qn"]')?.disabled`); got != "true false" {
 		t.Fatalf("New lands in Quick notes at first: %q", got)
 	}
 	b.typeText("Call the crane company")
@@ -41,7 +41,7 @@ func TestQuickNotes(t *testing.T) {
 	// The last choice stays: a collection chosen in New is chosen again after a reload.
 	coll := b.eval(`(() => { const p = Object.keys(D).find(k => D[k].sid === '` + team + `'); let c = p; while (PARENT[c]) c = PARENT[c]; return COLL[p] ? COLL[p].id : c; })()`)
 	b.clickOn(`[data-act="newmenu"]`, 1)
-	b.clickOn(`.newpop [data-act="into"][data-id="`+coll+`"]`, 1)
+	b.clickOn(`[data-menu="quick"] [data-act="into"][data-id="`+coll+`"]`, 1)
 	b.press("Escape", "Escape", 27, 0)
 	b.settingsSent()
 	b.open(base + "/o/" + board)
@@ -50,7 +50,7 @@ func TestQuickNotes(t *testing.T) {
 		t.Errorf("after a reload the board shows its cards: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 	b.clickOn(`[data-act="newmenu"]`, 1)
-	if got := b.eval(`document.querySelector('.newpop [aria-pressed="true"][data-act="into"]')?.dataset.id`); got != coll {
+	if got := b.eval(`document.querySelector('[data-menu="quick"] [aria-pressed="true"][data-act="into"]')?.dataset.id`); got != coll {
 		t.Errorf("New keeps the last choice: %q, want %q", got, coll)
 	}
 	b.clean("quick notes")

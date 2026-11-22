@@ -140,7 +140,7 @@ func TestFilesByHand(t *testing.T) {
 	b.shot("file-in-window")
 	// A new version through its button, then the first one back.
 	b.filesSettled()
-	b.choose(probe(b, `article.typeset button.chip`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
+	b.choose(probe(b, `article.typeset [data-file-actions] button`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
 	versions := `document.querySelectorAll('article.typeset table tr').length - 1`
 	if !b.waitFor(versions + ` === 2`) {
 		t.Fatalf("versions: %s", b.eval(versions))
@@ -180,8 +180,8 @@ func TestFilesByHand(t *testing.T) {
 		t.Fatalf("the new folder: %q", b.eval(fileRows))
 	}
 	b.clickOn(probe(b, `[aria-label=Nav3] li > div > button[data-act="fdir"]:not([data-toggle])`, "Scans"), 1)
-	if !b.waitFor(`document.querySelector('[aria-label=Nav3] .hint')?.textContent.startsWith('My files › Scans')`) {
-		t.Fatalf("the path: %q", b.eval(`document.querySelector('[aria-label=Nav3] .hint')?.textContent`))
+	if !b.waitFor(`document.querySelector('[aria-label=Nav3] [data-fpath]')?.textContent.startsWith('My files › Scans')`) {
+		t.Fatalf("the path: %q", b.eval(`document.querySelector('[aria-label=Nav3] [data-fpath]')?.textContent`))
 	}
 	b.shot("files-folder")
 }
@@ -345,7 +345,7 @@ func TestImagesInTheEditor(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
-	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
+	b.clickOn(`[data-menu="new"] [data-act="add"][data-id="page"]`, 1)
 	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
 		t.Fatal("the new page is not in the editor")
 	}

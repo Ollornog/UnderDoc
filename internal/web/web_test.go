@@ -424,12 +424,12 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range []string{"editor-embed", "badge", "btn", "flex", "flex-wrap", "items-center", "gap-2"} {
 		used[class] = "the embedding of blocks (api_pages.go, api_life.go)"
 	}
-	// The script draws these, and their look comes only from C22: the preview of a file, an upload.
-	for _, class := range []string{"preview", "progress", "cur"} {
+	// The script draws these, and their look comes only from C22: an upload, the toast, the menus of the workspace.
+	for _, class := range []string{"progress", "toaster", "toast", "toast-content", "context-menu", "command", "dropdown-menu", "popover"} {
 		used[class] = "the workspace script (demo.js, search.js)"
 	}
-	// The tab Rights and the rights dialog (rights.js, ADR-29); the dialog lies outside the workspace, so it takes C22's own.
-	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "chip", "flex", "font-medium", "gap-2", "grid", "grid-cols-2", "hint", "input", "input-group", "items-center", "lab", "label", "max-h-[420px]", "modrow", "mt-2", "mt-3", "overflow-y-auto", "pad", "select", "shead", "spanel", "table", "text-muted-foreground", "text-sm"} {
+	// The tab Rights and the rights dialog (rights.js, ADR-29); both take C22's own (the tab as a card in nav3).
+	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "card", "flex", "font-medium", "font-semibold", "gap-2", "grid", "grid-cols-2", "input", "input-group", "item", "item-group", "items-center", "label", "max-h-[420px]", "mt-2", "mt-3", "overflow-y-auto", "select", "table", "text-muted-foreground", "text-sm", "text-xs"} {
 		used[class] = "the tab Rights and the rights dialog (rights.js)"
 	}
 	// Passwords in the text (ADR-7): the masks the server draws (api_secrets.go), the editor draws (web/editor) and the

@@ -125,7 +125,7 @@ func TestDividersInNav2(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	b.rightClickOn(`[aria-label=Nav2] [data-favid="ops"]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Line below it"), 1)
 	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).slice(0, 8).join(' ')`); !strings.Contains(got, "ops line") {
 		t.Fatalf("the line is below ops: %q", got)
 	}
@@ -155,7 +155,7 @@ func TestDividersInNav2(t *testing.T) {
 	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="pro"]`, 2)
 	b.shot("nav2-line-and-kept-open")
 	b.rightClickOn(`#clist [data-deco]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Remove"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Remove"), 1)
 	if got := b.eval(`document.querySelectorAll('#clist [data-deco]').length`); got != "0" {
 		t.Errorf("removed: %s", got)
 	}
@@ -175,7 +175,7 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 		t.Fatalf("the pages of the team: %q", got)
 	}
 	b.rightClickOn(probe(b, `[aria-label=Nav3] li > div`, "A"))
-	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Line below it"), 1)
 	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) {
 		t.Fatalf("no line: %q", names())
 	}
@@ -198,7 +198,7 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 	}
 	b.shot("nav3-line")
 	b.rightClickOn(`[aria-label=Nav3] li > div[data-deco]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Remove"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Remove"), 1)
 	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 0`) {
 		t.Error("the line was not removed")
 	}
@@ -541,7 +541,7 @@ func TestSelectSeveralAndMove(t *testing.T) {
 		t.Fatalf("nav2 selects with Ctrl and click, and pins nothing: %q", got)
 	}
 	b.rightClickOn(`#clist [aria-selected="true"]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Keep them open"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Keep them open"), 1)
 	if got := b.eval(`document.querySelectorAll('[aria-label=Nav2] [data-pinned]').length`); got != "2" {
 		t.Errorf("the right click keeps both open: %s", got)
 	}
@@ -651,26 +651,26 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 		t.Errorf("the copy lands where it was dropped, the original stays: %q", got)
 	}
 	b.rightClickOn(rowNamed(b, "B"))
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].every(n => n.querySelector('svg'))`); got != "true" {
-		t.Errorf("an entry of the menu has no icon: %s", b.eval(`[...document.querySelectorAll('.ctxpop button')].filter(n => !n.querySelector('svg')).map(n => n.textContent).join()`))
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].every(n => n.querySelector('svg'))`); got != "true" {
+		t.Errorf("an entry of the menu has no icon: %s", b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].filter(n => !n.querySelector('svg')).map(n => n.textContent).join()`))
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Duplicate"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Duplicate"), 1)
 	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B (copy)')`) {
 		t.Fatalf("Duplicate: %q", tops())
 	}
 	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
-	b.clickOn(probe(b, `.ctxpop button`, "Sort its children Z to A"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Sort its children Z to A"), 1)
 	if got := tops(); got != "C (copy), C, B (copy), B, A" {
 		t.Errorf("sorted Z to A: %q", got)
 	}
 	// A line stays where it is: each group around it is sorted on its own.
 	b.rightClickOn(rowNamed(b, "B (copy)"))
-	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Line below it"), 1)
 	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) {
 		t.Fatal("no line")
 	}
 	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
-	b.clickOn(probe(b, `.ctxpop button`, "Sort its children A to Z"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Sort its children A to Z"), 1)
 	want := "B (copy), C, C (copy), line, A, B"
 	if got := tops(); got != want {
 		t.Errorf("sorted A to Z around the line: %q", got)
@@ -693,11 +693,11 @@ func TestOneWindowShowsNoTabs(t *testing.T) {
 		t.Fatalf("no tabs, a window button: %q", got)
 	}
 	b.clickOn(`[data-act=winmenu]`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].every(n => n.querySelector('svg')) && !!document.querySelector('.ctxpop')`); got != "true" {
-		t.Errorf("the window menu, with icons: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].every(n => n.querySelector('svg')) && !!document.querySelector('[data-cm-panel]')`); got != "true" {
+		t.Errorf("the window menu, with icons: %s", b.eval(`document.querySelector('[data-cm-panel]')?.innerText`))
 	}
 	b.shot("window-menu")
-	b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Keep as a tab of its own"), 1)
 	if got := b.eval(`[document.querySelectorAll('.workspace-tabs').length, document.querySelectorAll('[data-act=winmenu]').length].join(' ')`); got != "1 0" {
 		t.Errorf("a tab of its own brings the tabs back: %q", got)
 	}
@@ -733,7 +733,7 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 		t.Errorf("a collection of the database has the icon of a collection, not of a folder: %s rects", got)
 	}
 	b.rightClickOn(rowNamed(b, "L2"))
-	b.clickOn(probe(b, `.ctxpop button`, "Show in nav2"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Show in nav2"), 1)
 	if !b.waitFor(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`) {
 		t.Fatalf("L2 is shown in nav2: %q", inNav2())
 	}
@@ -762,7 +762,7 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 		t.Errorf("L2 left L1: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
 	b.rightClickOn(`#clist [data-alias]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Remove from nav2"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Remove from nav2"), 1)
 	if got := b.eval(`document.querySelectorAll('#clist [data-alias]').length`); got != "0" {
 		t.Errorf("removed from nav2: %q", inNav2())
 	}
@@ -784,21 +784,21 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 		t.Errorf("the database has a folder: %q", got)
 	}
 	b.rightClickOn(rowNamed(b, "Drawings"))
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Show in nav2'))`); got != "false" {
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].some(n => n.textContent.includes('Show in nav2'))`); got != "false" {
 		t.Error("a folder offers to show in nav2")
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Turn into a collection"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Turn into a collection"), 1)
 	time.Sleep(300 * time.Millisecond)
 	if got := kind("Drawings"); got != "collection" {
 		t.Errorf("the database has a collection: %q", got)
 	}
 	b.rightClickOn(rowNamed(b, "Drawings"))
-	b.clickOn(probe(b, `.ctxpop button`, "Show in nav2"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Show in nav2"), 1)
 	if !b.waitFor(`[...document.querySelectorAll('#clist [data-alias]')].some(n => n.textContent.trim() === 'Drawings')`) {
 		t.Fatal("Drawings is not shown in nav2")
 	}
 	b.rightClickOn(rowNamed(b, "Drawings"))
-	b.clickOn(probe(b, `.ctxpop button`, "Turn into a folder"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Turn into a folder"), 1)
 	time.Sleep(300 * time.Millisecond)
 	if got := kind("Drawings"); got != "folder" {
 		t.Errorf("and back into a folder: %q", got)
@@ -807,7 +807,7 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 		t.Error("a folder stays shown in nav2")
 	}
 	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
-	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Turn into') || n.textContent.includes('Show in nav2'))`); got != "false" {
+	if got := b.eval(`[...document.querySelectorAll('[data-cm-panel] button')].some(n => n.textContent.includes('Turn into') || n.textContent.includes('Show in nav2'))`); got != "false" {
 		t.Error("a collection at the top offers to become a folder or to be shown in nav2")
 	}
 }
@@ -817,7 +817,7 @@ func TestMenusStayInTheWindow(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	inside := `(() => { const r = document.querySelector('.ctxpop').getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; })()`
+	inside := `(() => { const r = document.querySelector('[data-cm-panel]').getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; })()`
 	h := b.eval(`innerHeight`)
 	hf, _ := strconv.ParseFloat(h, 64)
 	n2 := b.rect(`[aria-label=Nav2]`)
@@ -825,29 +825,29 @@ func TestMenusStayInTheWindow(t *testing.T) {
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": hf - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
 	}
-	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+	if !b.waitFor(`!!document.querySelector('[data-cm-panel]')`) {
 		t.Fatal("no menu on the free part of nav2")
 	}
 	if got := b.eval(inside); got != "true" {
-		t.Errorf("a menu opened at the bottom leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.ctxpop').getBoundingClientRect())`))
+		t.Errorf("a menu opened at the bottom leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('[data-cm-panel]').getBoundingClientRect())`))
 	}
 	// A long one, in the corner: inside too, and it scrolls.
 	b.eval(`S.ctx = {kind: 'win', x: innerWidth - 10, y: innerHeight - 10}; render()`)
 	if got := b.eval(inside); got != "true" {
-		t.Errorf("a menu in the corner leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.ctxpop').getBoundingClientRect())`))
+		t.Errorf("a menu in the corner leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('[data-cm-panel]').getBoundingClientRect())`))
 	}
-	if got := b.eval(`getComputedStyle(document.querySelector('.ctxpop')).overflowY`); got != "auto" {
+	if got := b.eval(`getComputedStyle(document.querySelector('[data-cm-panel]')).overflowY`); got != "auto" {
 		t.Errorf("a long menu scrolls: %q", got)
 	}
 	// New near the bottom opens above its place, inside the window.
 	b.eval(`S.ctx = null; S.addIn = 'n2'; S.addQ = ''; S.addAt = {x: 40, y: innerHeight - 20, up: innerHeight - 40}; render()`)
-	if got := b.eval(`(() => { const r = document.querySelector('.cmdpop').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; })()`); got != "true" {
-		t.Errorf("New leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.cmdpop').getBoundingClientRect())`))
+	if got := b.eval(`(() => { const r = document.querySelector('[data-menu="new"]').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; })()`); got != "true" {
+		t.Errorf("New leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('[data-menu="new"]').getBoundingClientRect())`))
 	}
 	// The menu of a tab at the right edge moves in.
 	b.eval(`S.addIn = null; const w = S.wins[0]; w.tabs.push(newTab(w.tabs[0].d)); S.tmenu = {w: 0, t: 1, x: innerWidth}; render()`)
-	if got := b.eval(`(() => { const r = document.querySelector('.tabctx').getBoundingClientRect(); return r.right <= innerWidth; })()`); got != "true" {
-		t.Errorf("the menu of a tab leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('.tabctx').getBoundingClientRect())`))
+	if got := b.eval(`(() => { const r = document.querySelector('[data-menu="tab"] > [data-cm-panel]').getBoundingClientRect(); return r.right <= innerWidth; })()`); got != "true" {
+		t.Errorf("the menu of a tab leaves the window: %s", b.eval(`JSON.stringify(document.querySelector('[data-menu="tab"] > [data-cm-panel]').getBoundingClientRect())`))
 	}
 }
 
@@ -912,7 +912,7 @@ func TestSettingsInTheOverview(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Settings and name"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Settings and name"), 1)
 	if !b.waitFor(`document.activeElement?.id === 'cname' && document.querySelector('.workspace-main > header > h1')?.textContent === 'Team'`) {
 		t.Fatalf("the overview of Team opens with its name ready: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 	}
@@ -957,7 +957,7 @@ func TestSettingsFollowTheAccount(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
-	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Line below it"), 1)
 	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="`+team+`"]`, 2) // kept open
 	b.eval(`S.s2 = 2; render()`)
 	state := func() string {
@@ -1042,8 +1042,8 @@ func TestTimesShowInTheTimeZoneOfTheDevice(t *testing.T) {
 	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
 	b.ready("A")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-	if got := b.eval(`(() => { const t = document.querySelector('.fdrawer')?.innerText || ''; return /\d{4}-\d\d-\d\dT/.test(t) + ' ' + /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d \d\d:\d\d/.test(t); })()`); got != "false true" {
-		t.Errorf("changed shows as a local moment: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	if got := b.eval(`(() => { const t = document.querySelector('aside[data-drawer]')?.innerText || ''; return /\d{4}-\d\d-\d\dT/.test(t) + ' ' + /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d \d\d:\d\d/.test(t); })()`); got != "false true" {
+		t.Errorf("changed shows as a local moment: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText`))
 	}
 	b.call("Emulation.setTimezoneOverride", map[string]any{"timezoneId": ""}, nil)
 }
@@ -1121,8 +1121,8 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	b.clickOn(`article.typeset figure.editor-embed figcaption a`, 1)
 	b.ready("Plan")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-	if got := b.eval(`document.querySelector('.fdrawer')?.innerText.includes('Rack (block #b2)')`); got != "true" {
-		t.Errorf("Plan says where it is used: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	if got := b.eval(`document.querySelector('aside[data-drawer]')?.innerText.includes('Rack (block #b2)')`); got != "true" {
+		t.Errorf("Plan says where it is used: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText`))
 	}
 	// In editing, the handle says where a block is used, and an empty one in use asks before it goes.
 	b.clickOn(`[data-act="edit"]`, 1)
@@ -1157,7 +1157,7 @@ func TestEditingIsFound(t *testing.T) {
 	}
 	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
 	if got := b.eval(`(() => { try { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); openNew(id); render();
-		const p = document.querySelector('.cmdpop [data-act="add"][data-id="page"]'); return id + ' ' + (p ? p.disabled + ' ' + p.title : 'none'); } catch (e) { return 'error ' + e.message; } })()`); !strings.HasSuffix(got, "true The folder source is read only. Pages are made in collections of the database") {
+		const p = document.querySelector('[data-menu="new"] [data-act="add"][data-id="page"]'); return id + ' ' + (p ? p.disabled + ' ' + p.title : 'none'); } catch (e) { return 'error ' + e.message; } })()`); !strings.HasSuffix(got, "true The folder source is read only. Pages are made in collections of the database") {
 		t.Errorf("Page in New of the folder source: %q", got)
 	}
 	b.eval(`S.addIn = null; render()`)
@@ -1268,8 +1268,8 @@ func TestTheHandleOfABlock(t *testing.T) {
 		t.Errorf("the menu for someone who may comment: %q", got)
 	}
 	b.clickOn(`.editor-handle [role=menu] [data-act="bcmt"]`, 1)
-	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0' && document.querySelector('.cfor em')?.textContent === '#b1'`) {
-		t.Errorf("Comment opens the comments of b1, ready to write: %s", b.eval(`document.querySelector('.cfor')?.textContent`))
+	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0' && document.querySelector('[data-cfor] small')?.textContent === '#b1'`) {
+		t.Errorf("Comment opens the comments of b1, ready to write: %s", b.eval(`document.querySelector('[data-cfor]')?.textContent`))
 	}
 }
 
@@ -1297,10 +1297,10 @@ func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": y - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
 	}
-	if !b.waitFor(`!!document.querySelector('.ctxpop')`) {
+	if !b.waitFor(`!!document.querySelector('[data-cm-panel]')`) {
 		t.Fatal("no menu on the free part of nav2")
 	}
-	b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
+	b.clickOn(probe(b, `[data-cm-panel] button`, "Problems"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-problem]').length === 1`) {
 		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 300)`))
 	}
@@ -1334,27 +1334,27 @@ func TestTagsOfAPage(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-	b.clickOn(`.fdrawer [data-addtag]`, 1)
+	b.clickOn(`aside[data-drawer] [data-addtag]`, 1)
 	b.typeText("Network")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`[...document.querySelectorAll('.fdrawer [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#network'`) {
-		t.Fatalf("the tag is added: %s", b.eval(`document.querySelector('.fdrawer')?.innerText`))
+	if !b.waitFor(`[...document.querySelectorAll('aside[data-drawer] [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#network'`) {
+		t.Fatalf("the tag is added: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText`))
 	}
-	b.clickOn(`.fdrawer [data-addtag]`, 1)
+	b.clickOn(`aside[data-drawer] [data-addtag]`, 1)
 	b.typeText("rack")
 	b.press("Enter", "Enter", 13, 0)
-	b.waitFor(`document.querySelectorAll('.fdrawer [data-act="tagsearch"]').length === 2`)
+	b.waitFor(`document.querySelectorAll('aside[data-drawer] [data-act="tagsearch"]').length === 2`)
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
 	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .workspace-main > header .badge[data-act="tagsearch"]')].map(x => x.textContent).join(' ')`); got != "#network #rack" {
 		t.Errorf("the server keeps them, the head shows them: %q", got)
 	}
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-	b.clickOn(`.fdrawer [data-act="tagdel"][data-tag="network"]`, 1)
-	if !b.waitFor(`[...document.querySelectorAll('.fdrawer [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#rack'`) {
-		t.Errorf("the x takes it off: %s", b.eval(`document.querySelector('.fdrawer .tagrow')?.innerText`))
+	b.clickOn(`aside[data-drawer] [data-act="tagdel"][data-tag="network"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('aside[data-drawer] [data-act="tagsearch"]')].map(x => x.textContent).join(' ') === '#rack'`) {
+		t.Errorf("the x takes it off: %s", b.eval(`document.querySelector('aside[data-drawer] [data-tags]')?.innerText`))
 	}
-	b.clickOn(`.fdrawer [data-act="tagsearch"][data-tag="rack"]`, 1)
+	b.clickOn(`aside[data-drawer] [data-act="tagsearch"][data-tag="rack"]`, 1)
 	if !b.waitFor(`['Rack', 'Other'].every(n => [...document.querySelectorAll('[aria-label=Nav3] [data-id]')].some(x => D[x.dataset.id]?.n === n))`) {
 		t.Errorf("the tag finds the page, and one never opened: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText.slice(0, 200)`))
 	}
@@ -1363,7 +1363,7 @@ func TestTagsOfAPage(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-	if got := b.eval(`[document.querySelectorAll('.fdrawer [data-act="tagsearch"]').length, !!document.querySelector('.fdrawer [data-addtag]'), !!document.querySelector('.fdrawer [data-act="tagdel"]'), document.querySelector('.fdrawer .tagrow + .hint')?.textContent].join(' | ')`); got != "1 | false | false | Only who may change this adds tags." {
+	if got := b.eval(`[document.querySelectorAll('aside[data-drawer] [data-act="tagsearch"]').length, !!document.querySelector('aside[data-drawer] [data-addtag]'), !!document.querySelector('aside[data-drawer] [data-act="tagdel"]'), document.querySelector('aside[data-drawer] [data-tags] + p')?.textContent].join(' | ')`); got != "1 | false | false | Only who may change this adds tags." {
 		t.Errorf("for a reader: %q", got)
 	}
 }
@@ -1388,24 +1388,24 @@ func TestDeletingSomethingInUse(t *testing.T) {
 	b.open(base + "/o/" + b.eval(`window.made`))
 	b.ready("Team")
 	b.rightClickOn(rowNamed(b, "Plan"))
-	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
-	if !b.waitFor(`document.querySelector('.ctxpop [data-uses]')?.textContent === 'Embedded in Rack. You choose what happens there.'`) {
-		t.Fatalf("the question names Rack: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
+	b.clickOn(`[data-cm-panel] [data-act="delobj"]`, 1)
+	if !b.waitFor(`document.querySelector('[data-cm-panel] [data-uses]')?.textContent === 'Embedded in Rack. You choose what happens there.'`) {
+		t.Fatalf("the question names Rack: %s", b.eval(`document.querySelector('[data-cm-panel]')?.innerText`))
 	}
 	b.press("Escape", "Escape", 27, 0)
 	b.rightClickOn(rowNamed(b, "Rack"))
-	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	b.clickOn(`[data-cm-panel] [data-act="delobj"]`, 1)
 	b.eval(`new Promise(r => setTimeout(r, 300))`)
-	if got := b.eval(`document.querySelector('.ctxpop [data-act="delobj"]')?.textContent + ' | ' + !!document.querySelector('.ctxpop [data-uses]')`); got != "Delete? Yes | false" {
+	if got := b.eval(`document.querySelector('[data-cm-panel] [data-act="delobj"]')?.textContent + ' | ' + !!document.querySelector('[data-cm-panel] [data-uses]')`); got != "Delete? Yes | false" {
 		t.Errorf("what is used nowhere just asks: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
 	// Deleting Plan goes through what of it is used, with nothing chosen in advance (ADR-22): a copy in Rack, then the
 	// trash.
 	b.rightClickOn(rowNamed(b, "Plan"))
-	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
-	b.waitFor(`!!document.querySelector('.ctxpop [data-uses]')`)
-	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
+	b.clickOn(`[data-cm-panel] [data-act="delobj"]`, 1)
+	b.waitFor(`!!document.querySelector('[data-cm-panel] [data-uses]')`)
+	b.clickOn(`[data-cm-panel] [data-act="delobj"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-ways] [data-wayitem]')`) {
 		t.Fatalf("deleting a page in use asks for the ways")
 	}
