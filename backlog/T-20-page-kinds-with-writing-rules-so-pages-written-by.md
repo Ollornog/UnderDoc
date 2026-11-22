@@ -18,4 +18,12 @@ One source, not two wikis (ADR-8):
 - Facts that are really records (customers, cases, persons) live in database tables (ADR-27), and pages show them; they are not copied into prose.
 - A check points out pages that break the rules of their kind, for example a page made only of bullet points without an opening sentence.
 
+Kinds share facts, they do not copy them:
+
+- **Every fact lives in one place.** Values that change (addresses, ports, paths, roles, limits, contacts) live in a reference or a record. A how-to or an explanation embeds the part (`:embed{ref=…}`, `::embed{ref=…}`, ADR-22) or links to it, and never writes the value down again. A changed value is changed once; a changed procedure only in the how-to.
+- **Before changing a part, "used in" shows** which guides embed it (M-3).
+- **The check also finds copied values:** a value written in a how-to or an explanation that also stands in a reference or a record is reported as "embed instead of copying", naming the source.
+- **Small topics stay one page** with sections in this order: what it is for, the steps, the values, the background. Separate pages pay off only when several guides use one reference, or a guide grows long.
+- Write the reference first; a how-to only for tasks that come up often. Not every topic needs all four kinds.
+
 Starts with an ADR.
