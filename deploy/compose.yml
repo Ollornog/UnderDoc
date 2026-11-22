@@ -78,7 +78,7 @@ services:
   # than UnderDoc, so it is a module of its own.
   gotenberg:
     profiles: [office]
-    image: gotenberg/gotenberg:9.5.1@sha256:a0f596c2aeee6391c24ccf2953737971f13976b14d4240525a447f209185e2c8
+    image: gotenberg/gotenberg:9.9.0@sha256:2f4945f698c3d02f691a27d56bb8e7ba4585e6ab50bd233329a36eb0423ae587
     restart: unless-stopped
     command: ["gotenberg", "--api-timeout=60s", "--chromium-disable-javascript=true", "--chromium-allow-list=file:///tmp/.*"]
     ports:
