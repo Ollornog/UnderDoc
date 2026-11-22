@@ -129,6 +129,13 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	if !b.waitFor(`[...document.querySelectorAll('` + grid + ` td')].some(td => td.textContent.startsWith('Längerer Text'))`) {
 		t.Error("the sheet of the hit shows no cells")
 	}
+	// The row the hit named is the current row of C22's sheet (th[scope=row][aria-current]), not a selected one: its
+	// number bold on a ground of its own, unlike the number of the next row.
+	if got := b.eval(`(() => { const h = document.querySelector('` + grid + ` th[data-row="1"]'), n = document.querySelector('` + grid + ` th[data-row="2"]'); if (!h || !n) return 'none';
+		const a = getComputedStyle(h), c = getComputedStyle(n);
+		return [h.getAttribute('aria-current'), String(h.getAttribute('aria-selected')), +a.fontWeight >= 600 && +c.fontWeight < 600, a.backgroundColor !== c.backgroundColor].join(' '); })()`); got != "true null true true" {
+		t.Errorf("the row of the hit is the current row: %q", got)
+	}
 	if got := b.eval(`performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin)).join(' ')`); got != "" {
 		t.Errorf("loaded from elsewhere: %s", got)
 	}

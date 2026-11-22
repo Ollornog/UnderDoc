@@ -1,10 +1,15 @@
 /* SPDX-License-Identifier: MIT */
-/* The inside of the editor: CodeMirror's parts (.cm-*) and the live preview. The page in the editor is C22's .editor; the
-   bar, the slash menu (.command), the handles (.editor-handle), the questions in place (.item), embeddings (.badge),
-   parts ([data-part]) and a block used elsewhere ([data-used]) come from C22 with its pack underdoc, colours from its
-   tokens. .editor sits on CodeMirror's root, so these rules outrank its base theme, which comes later in the cascade
-   (adopted style sheets come last). Nothing here gives a part of C22 a look of its own. */
+/* The inside of the editor: only what CodeMirror's own parts (.cm-*) need to sit in C22's .editor. Every look comes from
+   C22 with its pack underdoc: the page in the editor is .editor, the live preview says what a line, a mark or a widget is
+   by data-md (C22 draws it; heading sizes are the pack's --editor-h1…-h4), the bar, the slash menu (.command), the handles
+   (.editor-handle), the questions in place (.item), embeddings (.badge), parts ([data-part]) and a block used elsewhere
+   ([data-used]) are C22's as well. .editor sits on CodeMirror's root, so these rules outrank its base theme, which comes
+   later in the cascade (adopted style sheets come last). Each rule below undoes a default of CodeMirror's base theme or
+   lays out one of its parts; none gives a part a look of its own. One bridge, marked, keeps the room around headings
+   until C22 has it. */
 
+/* CodeMirror sets a monospace font and a ground of its own: the editor takes the page's font, colour and ground, as the
+   page reads. Its dotted outline on focus goes; the page in the editor is the field, the cursor shows where one writes. */
 .cm-editor.editor {
   font: inherit;
   color: inherit;
@@ -15,30 +20,29 @@
   outline: none;
 }
 
-/* The handles stand left of the text, outside the editor's box: nothing may clip them. */
+/* The handles stand left of the text, outside the editor's box: nothing may clip them. CodeMirror's scroller sets a
+   monospace font and a tight line height; the lines take the page's font and the leading of its paragraphs when read
+   (leading-relaxed), so the text does not jump between reading and writing. */
 .cm-editor.editor .cm-scroller {
   overflow: visible;
   font-family: inherit;
-  /* As the paragraphs of the page when it is read (leading-relaxed). */
   line-height: 1.625;
 }
 
-/* A blank line between paragraphs and blocks away from the cursor is as high as the space between paragraphs when the
-   page is read (C22's typeset flow, --flow), so the editor keeps the rhythm of the page (2026-11-10). */
-.cm-editor.editor .cm-line.cm-ud-sep {
-  height: var(--flow);
-  line-height: var(--flow);
-}
-
+/* Room below the last line, so it can be clicked and is not glued to the end of the window; the caret in the text's
+   colour (CodeMirror's default is black, unreadable on the dark ground). */
 .cm-editor.editor .cm-content {
   padding: 4px 0 40px;
   caret-color: var(--foreground);
 }
 
+/* CodeMirror indents every line by a few pixels; the text stands where the page's text stands when read. */
 .cm-editor.editor .cm-line {
   padding: 0;
 }
 
+/* The cursor and the selection CodeMirror draws itself (drawSelection), in C22's tokens: black and a light blue are
+   CodeMirror's defaults and unreadable on the dark ground. */
 .cm-editor.editor .cm-cursor {
   border-left-color: var(--foreground);
 }
@@ -48,175 +52,35 @@
   background: color-mix(in oklab, var(--primary) 22%, transparent);
 }
 
-
-/* The slash menu is a tooltip of CodeMirror; the menu itself is C22's .command. */
+/* The slash menu is a tooltip of CodeMirror, which gives it a frame and a ground; the menu inside is C22's .command. */
 .cm-editor.editor .cm-tooltip.cm-tooltip {
   background: transparent;
   border: 0;
 }
 
-
-/* Markers that stay visible on the cursor line are muted. */
-.cm-editor.editor .tok-processingInstruction,
-.cm-editor.editor .tok-meta {
-  color: var(--muted-foreground);
+/* bridge until C22 gives a heading in .editor the room around it that a heading has in .typeset (1.8 × --flow above it,
+   half a --flow below h2 to h4): C22's editor rules set no room, so a heading stood as close to the paragraph before it
+   as a paragraph does, and the page jumped between reading and writing. The same room as .typeset: above the heading
+   instead of the blank line before it (directly, or with the hidden marker of its block between), half the blank line
+   below it. On the cursor a blank line is a whole line again (no data-md). */
+.cm-editor.editor .cm-line[data-md~='blank']:is(:has(+ .cm-line:is([data-md~='h1'], [data-md~='h2'], [data-md~='h3'], [data-md~='h4'])), :has(+ .cm-ud-marker + .cm-line:is([data-md~='h1'], [data-md~='h2'], [data-md~='h3'], [data-md~='h4']))) {
+  height: 0;
+  line-height: 0;
+  overflow: hidden;
 }
 
-.cm-editor.editor .cm-lp-h1 {
-  font-size: 1.6em;
-  font-weight: 600;
-  line-height: 1.3;
-  padding-top: 0.3em;
+/* Not on the first line of the page, which stands at its top as when read (the marker of the first block may precede it). */
+.cm-editor.editor .cm-line:is([data-md~='h1'], [data-md~='h2'], [data-md~='h3'], [data-md~='h4']):not(:first-child, .cm-ud-marker:first-child + *) {
+  padding-top: calc(var(--flow) * 1.8);
 }
 
-.cm-editor.editor .cm-lp-h2 {
-  font-size: 1.25em;
-  font-weight: 600;
-  line-height: 1.35;
-  padding-top: 0.5em;
+.cm-editor.editor .cm-line:is([data-md~='h2'], [data-md~='h3'], [data-md~='h4']) + .cm-line[data-md~='blank'] {
+  height: calc(var(--flow) * 0.5);
+  line-height: calc(var(--flow) * 0.5);
 }
 
-.cm-editor.editor .cm-lp-h3 {
-  font-size: 1.1em;
-  font-weight: 600;
-  padding-top: 0.3em;
-}
-
-.cm-editor.editor .cm-lp-h4,
-.cm-editor.editor .cm-lp-h5,
-.cm-editor.editor .cm-lp-h6 {
-  font-weight: 600;
-}
-
-.cm-editor.editor .cm-lp-strong {
-  font-weight: 700;
-}
-
-.cm-editor.editor .cm-lp-em {
-  font-style: italic;
-}
-
-.cm-editor.editor .cm-lp-strike {
-  text-decoration: line-through;
-}
-
-.cm-editor.editor .cm-lp-icode {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.9em;
-  padding: 0.1em 0.3em;
-  border-radius: 4px;
-  background: var(--muted);
-}
-
-.cm-editor.editor .cm-lp-link,
-.cm-editor.editor .cm-lp-wiki {
-  color: var(--primary);
-  text-decoration: underline;
-}
-
-.cm-editor.editor .cm-lp-wiki {
-  text-decoration-style: dotted;
-}
-
-.cm-editor.editor .cm-lp-url {
-  color: var(--muted-foreground);
-}
-
-.cm-editor.editor .cm-lp-bullet-dot {
-  display: inline-block;
-  width: 1ch;
-  font-weight: 700;
-}
-
-.cm-editor.editor .cm-lp-checkbox {
-  margin: 0 0.4em 0 0;
-  vertical-align: middle;
-  cursor: pointer;
-}
-
-.cm-editor.editor .cm-lp-done {
-  text-decoration: line-through;
-  color: var(--muted-foreground);
-}
-
-.cm-editor.editor .cm-lp-quote {
-  border-left: 3px solid var(--border);
-  padding-left: 12px;
-  color: var(--muted-foreground);
-}
-
-.cm-editor.editor .cm-lp-code {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.9em;
-  background: var(--muted);
-  padding-left: 12px;
-}
-
-.cm-editor.editor .cm-lp-code-first {
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-}
-
-.cm-editor.editor .cm-lp-code-last {
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-.cm-editor.editor .cm-lp-code-info {
-  font-size: 0.8em;
-  color: var(--muted-foreground);
-}
-
-.cm-editor.editor .cm-lp-hr-line {
-  display: inline-block;
-  width: 100%;
-  border-top: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.cm-editor.editor .cm-lp-image {
-  max-width: 100%;
-  vertical-align: middle;
-}
-
-.cm-editor.editor .cm-lp-image-alt {
-  padding: 0 4px;
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  color: var(--muted-foreground);
-}
-
-/* A table drawn in place of its source is C22's .table (editor.js); only its distance to the lines around it is set here. */
-.cm-editor.editor .cm-lp-table-widget {
-  margin: 4px 0;
-}
-
-.cm-editor.editor .cm-lp-align-right {
-  text-align: right;
-}
-
-.cm-editor.editor .cm-lp-align-center {
-  text-align: center;
-}
-
-.cm-editor.editor .cm-lp-align-left {
-  text-align: left;
-}
-
-.cm-editor.editor .cm-lp-table-source {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.9em;
-}
-
-.cm-editor.editor .cm-lp-directive-chip {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.85em;
-  padding: 0.15em 0.5em;
-  border-radius: 4px;
-  border: 1px dashed var(--border);
-}
-
-/* The place where a dragged block would land holds copies of its lines as they look. */
+/* The place where a dragged block would land holds copies of its lines as they look; CodeMirror's lines keep their
+   spaces and break long lines, so the copies do too (C22 draws the gap, .dropgap). */
 .cm-editor.editor .cm-ud-gap {
   white-space: pre-wrap;
 }

@@ -149,7 +149,7 @@ func TestTheEditorRoundTripChangesNothing(t *testing.T) {
 	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-marker').length + ' ' + document.querySelectorAll('.cm-editor .cm-ud-marker .editor-handle > button').length + ' ' + !document.querySelector('textarea')`); got != "8 8 true" {
 		t.Errorf("one hidden marker with a handle per block, no field: %q", got)
 	}
-	if got := b.eval(`[...document.querySelectorAll('.cm-editor .cm-line')].some(l => /<!-- block b\d -->/.test(l.textContent) && !l.closest('.cm-lp-code'))`); got != "false" {
+	if got := b.eval(`[...document.querySelectorAll('.cm-editor .cm-line')].some(l => /<!-- block b\d -->/.test(l.textContent) && !l.closest('[data-md~=codeblock]'))`); got != "false" {
 		t.Errorf("a marker shows as text")
 	}
 	b.shot("editor-round-trip")
@@ -183,8 +183,12 @@ func TestTheEditorSavesAsYouType(t *testing.T) {
 	b.openEditing(base, page, "Typing")
 	b.lineWith("First")
 	b.typeKeys("\n\n## Heading")
-	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-lp-h2')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-line[data-md~=h2]')`) {
 		t.Errorf("a heading typed shows as a heading")
+	}
+	// On the cursor's line its sign stays, muted (data-md="mark"): not in the colour of the heading.
+	if got := b.eval(`(() => { const l = document.querySelector('.cm-editor .cm-line[data-md~=h2]'), m = l && [...l.querySelectorAll('[data-md~=mark]')].find(x => x.textContent === '##'); return !!m && getComputedStyle(m).color !== getComputedStyle(l).color; })()`); got != "true" {
+		t.Errorf("the sign of a heading on the cursor's line is muted: %q", got)
 	}
 	if !b.edWait(`t.includes('<!-- block b3 -->\n## Heading')`) {
 		t.Fatalf("the new paragraph did not become block b3: %q", b.eval(edText))
@@ -193,21 +197,49 @@ func TestTheEditorSavesAsYouType(t *testing.T) {
 		t.Errorf("the cursor stays after what was typed: %q", got)
 	}
 	// Live shortcuts, each typed with real keys into a paragraph of its own at the end of the page. The blank line before
-	// it is put there directly: Enter after a list item would continue the list, as it should.
-	for _, c := range []struct{ typed, selector string }{
-		{"**bold** and *it* and `code`", ".cm-lp-strong"},
-		{"- item", ".cm-lp-bullet"},
-		{"1. one", ".cm-lp-ordered"},
-		{"> quoted", ".cm-lp-quote"},
-		{"[ ] todo", ".cm-lp-task"},
-		{"[a link](/o/x)", ".cm-lp-link"},
-		{"---", ".cm-lp-hr"},
-	} {
+	// it is put there directly: Enter after a list item would continue the list, as it should. The live preview says what
+	// a line, a mark or a widget is by C22's data-md; what shows on the cursor's line is looked for at once, a widget that
+	// stands in for Markdown (the dot, the box, the rule) once the cursor has left the line.
+	shortcuts := []struct {
+		typed, shown string
+		away         bool
+	}{
+		{"**bold** and *it* and `code`", `!!q('.cm-line [data-md~=strong]') && !!q('.cm-line [data-md~=em]') && !!q('.cm-line [data-md~=code]')`, false},
+		{"- item", `!!q('.cm-line [data-md~=bullet]')`, true},
+		// The number of an ordered list is never hidden: it stays as a muted sign.
+		{"1. one", `[...document.querySelectorAll('.cm-editor .cm-line [data-md~=mark]')].some(m => m.textContent === '1.')`, false},
+		{"> quoted", `!!q('.cm-line[data-md~=quote]')`, false},
+		{"[ ] todo", `!!q('.cm-line input[type=checkbox][data-md~=task]')`, true},
+		{"[a link](/o/x)", `!!q('.cm-line [data-md~=link]') && !!q('.cm-line [data-md~=url]')`, false},
+		{"---", `!!q('.cm-line [data-md~=rule]')`, true},
+	}
+	shown := func(c string) bool {
+		return b.waitFor(`(() => { const q = s => document.querySelector('.cm-editor ' + s); return ` + c + `; })()`)
+	}
+	for _, c := range shortcuts {
 		b.eval(`(() => { const v = EDS[at(0).d].ed.view, n = v.state.doc.length; v.dispatch({changes: {from: n, insert: '\n\n'}, selection: {anchor: n + 2}}); })()`)
 		b.typeKeys(c.typed)
-		if !b.waitFor(`!!document.querySelector('.cm-editor ` + c.selector + `')`) {
-			t.Errorf("%q does not convert: %s", c.typed, c.selector)
+		if !c.away && !shown(c.shown) {
+			t.Errorf("%q does not convert: %s", c.typed, c.shown)
 		}
+	}
+	// The cursor leaves for the first line: every widget stands in for its Markdown.
+	b.eval(`(() => { const v = EDS[at(0).d].ed.view; v.dispatch({selection: {anchor: v.state.doc.toString().indexOf('First')}}); })()`)
+	for _, c := range shortcuts {
+		if c.away && !shown(c.shown) {
+			t.Errorf("%q does not convert away from the cursor: %s", c.typed, c.shown)
+		}
+	}
+	// The look is C22's, not a rule of the editor's own: its rules sit in a layer, CodeMirror's base theme does not, so
+	// this proves that nothing of CodeMirror's covers them. A heading takes the pack's size of its level (--editor-h2),
+	// bold is bold, a quote stands in with its bar, the rule is a line, the dot of a list is bold.
+	look := `(() => { const q = s => document.querySelector('.cm-editor ' + s), cs = s => getComputedStyle(q(s)), ed = getComputedStyle(q('.cm-content').closest('.editor'));
+		const px = v => { const d = document.createElement('div'); d.style.width = v; q('.cm-content').closest('.editor').append(d); const w = d.getBoundingClientRect().width; d.remove(); return w; };
+		return [Math.abs(parseFloat(cs('.cm-line[data-md~=h2]').fontSize) - px(ed.getPropertyValue('--editor-h2'))) < 0.5, +cs('[data-md~=strong]').fontWeight >= 700,
+			parseFloat(cs('.cm-line[data-md~=quote]').marginInlineStart) > 0 && cs('.cm-line[data-md~=quote]').fontStyle === 'italic', cs('[data-md~=rule]').borderTopStyle === 'solid',
+			+cs('[data-md~=bullet]').fontWeight >= 700].join(' '); })()`
+	if got := b.eval(look); got != "true true true true true" {
+		t.Errorf("the live preview has C22's look (heading size, bold, quote, rule, dot): %q", got)
 	}
 	if !b.edWait(`t.includes('- [ ] todo')`) {
 		t.Errorf("[ ] becomes a to-do item: %q", b.eval(edText))
@@ -563,7 +595,7 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 		}
 	}
 	// In code a blank line is a line: two lines of code apart.
-	if got := b.eval(`(() => { const l = [...document.querySelectorAll('.cm-line.cm-lp-code')].find(x => !x.textContent), j = [...document.querySelectorAll('.cm-line.cm-lp-code')].find(x => x.textContent === 'Juliet');
+	if got := b.eval(`(() => { const l = [...document.querySelectorAll('.cm-line[data-md~=codeblock]')].find(x => !x.textContent), j = [...document.querySelectorAll('.cm-line[data-md~=codeblock]')].find(x => x.textContent === 'Juliet');
 		return !!l && Math.abs(l.getBoundingClientRect().height - j.getBoundingClientRect().height) < 1; })()`); got != "true" {
 		t.Errorf("a blank line in code stays a line: %.1f px from Juliet to Kilo", edit[9])
 	}
@@ -616,7 +648,7 @@ func TestTheTableTools(t *testing.T) {
 	if got := b.eval(`document.querySelector('[data-edtable]').hidden`); got != "true" {
 		t.Errorf("the table tools hide while the cursor is in no table: %q", got)
 	}
-	b.clickOn(`.cm-editor .cm-lp-table-widget td`, 1)
+	b.clickOn(`.cm-editor table[data-md~=table] td`, 1)
 	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
 		t.Fatalf("the table tools did not show in the table: %s", b.eval(edText))
 	}
@@ -674,7 +706,7 @@ func TestTheTableToolsOnAPhone(t *testing.T) {
 	b.ready("Network plan")
 	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
 	b.openEditing(base, page, "Tables")
-	b.tap(`.cm-editor .cm-lp-table-widget tr:nth-child(2) td:nth-child(2)`)
+	b.tap(`.cm-editor table[data-md~=table] tr:nth-child(2) td:nth-child(2)`)
 	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
 		// A finger on the drawn table may land beside its text; the line of the table takes the cursor as well.
 		t.Fatalf("a finger on the table puts the cursor into it, and the table tools show: %s", b.eval(edText))

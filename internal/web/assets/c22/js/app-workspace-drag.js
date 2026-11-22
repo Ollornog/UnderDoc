@@ -1,11 +1,12 @@
-// C22 app workspace: dragging entries of nav2 and nav3 (approved in UnderDoc, 2026-11-09).
+// C22: dragging entries of a list, e.g. nav2 and nav3 of the workspace (.workspace-tree; approved in UnderDoc, 2026-11-09).
+// The file keeps its old name (apps vendor it under that name); the old app workspace it was made for is archived (T-20).
 //
 // An entry is carried through its list as it looks when held: no picture floats over the rest. Where it would land it
 // stands in a .dropgap, framed by a dashed line, and the entries around it slide apart. Up and down it always goes
 // between entries; waiting a moment on the middle of an entry puts it below that entry (.drop-into), and in a tree the
 // left edge picks the depth at once: level with the entry above, beside it; further right, below it; further left, out
 // towards the top. The lists are measured once without the held entries, so the gap moving never moves the place under
-// the pointer. Escape gives up. While dragging, entries do not answer the pointer (body.dragging, app-workspace.css), so
+// the pointer. Escape gives up. While dragging, entries do not answer the pointer (body.dragging, components.css), so
 // the click that ends a drag lands on no button.
 //
 // The behaviour is generic; what may go where is the app's. Load the script, then:

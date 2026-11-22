@@ -173,6 +173,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- C22 vendored at `a023d57`, its old app workspace removed there (C22 T-20), and the last bridges of the switch gone
+  ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), done, [docs/editor.md](docs/editor.md#built-from-c22)):
+  the live preview of the editor says what a line, a mark or a widget is by C22's `data-md` and takes its look from C22,
+  so `editor.css` keeps no look of its own, only what CodeMirror's parts need to sit in `.editor` (each rule says why);
+  headings in the editor now have the sizes of the page when read (the pack's `--editor-h1`…`-h4`), a quote stands in
+  with a bar and is italic as when read, inline code and a code block look as when read, and a Markdown sign left
+  visible on the cursor's line is muted by C22; until C22 has it, a bridge in `editor.css` keeps the room above and below
+  a heading as when read. The syntax colouring of CodeMirror (`@lezer/highlight`) went with it: no
+  rule used it. Choosing whom to share with, in the rights dialog and when making a collection, is C22's grouped
+  combobox, filtered by typing, each entry with the icon of its kind: the workspace loads Basecoat's core and its
+  combobox alone, which take over nothing the workspace draws (a test proves it). The row of a spreadsheet a hit named
+  is C22's current row (`aria-current`), no longer drawn as a selected one.
 - Dialogs, the pages outside the workspace and the table view of a spreadsheet from C22's building blocks, and the root
   class of C22's old app workspace is gone ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), steps 5 and 6,
   [docs/editor.md](docs/editor.md#dialogs-and-pages-outside-the-workspace)): UnderDoc emits no class of the old block any

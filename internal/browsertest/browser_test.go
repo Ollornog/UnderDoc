@@ -802,13 +802,13 @@ func TestNewCollectionByHand(t *testing.T) {
 	}
 	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
 	b.call("Fetch.disable", map[string]any{}, nil)
-	if !b.waitFor(`!!document.querySelector('#udrights [data-share-step] optgroup[label="People"] option')`) {
+	if !b.waitFor(`!!document.querySelector('#udrights [data-share-step] .combobox [role=group] [role=option][data-value^="person:"]')`) {
 		t.Fatalf("the people came: %s", b.eval(`document.getElementById('udrights').innerHTML.slice(0, 300)`))
 	}
 	if got := b.eval(selected); got != "New collection (1)|0|18" {
 		t.Errorf("drawn again with the people, the name keeps its focus and selection: %q", got)
 	}
-	if got := b.eval(`!!document.querySelector('#udrights [data-only-me]') && !!document.querySelector('#udrights [data-share-step] select[name="who"]')`); got != "true" {
+	if got := b.eval(`!!document.querySelector('#udrights [data-only-me]') && document.querySelector('#udrights [data-share-step] .combobox > input[name="who"]')?.value === 'tenant:'`); got != "true" {
 		t.Errorf("the step Share with starts with only me: %s", b.eval(`document.getElementById('udrights').innerText`))
 	}
 	b.typeText("Operations")

@@ -571,6 +571,8 @@ func TestAssetsArrive(t *testing.T) {
 		"/assets/app/demo.js":                     "javascript",
 		"/assets/app/blockdrag.js":                "javascript",
 		"/assets/c22/js/app-workspace-drag.js":    "javascript",
+		"/assets/c22/js/basecoat.min.js":          "javascript",
+		"/assets/c22/js/basecoat-combobox.min.js": "javascript",
 		"/assets/app/theme.js":                    "javascript",
 		"/assets/logo.svg":                        "image/svg+xml",
 		"/favicon.ico":                            "image/",

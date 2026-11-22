@@ -3959,18 +3959,14 @@ document.addEventListener('basecoat:initialized', function (e) {
   };
 })();
 
-// The gallery examples of dragging (app-workspace-drag.js): an app of its own in a few lines, which moves the entries in
-// the page. A real app decides by its data what may go where, and draws itself after a drop. Two lists use it: the old
-// app workspace (.row, ul.t) and the .workspace-tree building block (li > div, nested ul), named by one set of selectors each.
+// The gallery example of dragging (app-workspace-drag.js): an app of its own in a few lines, which moves the entries in
+// the page. A real app decides by its data what may go where, and draws itself after a drop. The list is the
+// .workspace-tree building block (rows li > div, nested ul).
 (function () {
   'use strict';
-  var KINDS = [
-    { scan: '.c22-app-workspace [data-drag-demo]', row: '.row[data-demo-id]', head: '.cheadrow', both: '.cheadrow, .row',
-      top: 'ul.t.top', sub: 'ul.t', subClass: 't', empty: 'ul.t:not(.top)' },
-    { scan: '.workspace-nav[data-drag-demo]', row: 'li > div[data-demo-id]', head: 'section > header', both: 'section > header, li > div',
-      top: 'ul.workspace-tree', sub: 'ul', subClass: '', empty: 'ul:not(.workspace-tree)' }
-  ];
-  function wire(box, K) {
+  var K = { scan: '.workspace-nav[data-drag-demo]', row: 'li > div[data-demo-id]', head: 'section > header', both: 'section > header, li > div',
+            top: 'ul.workspace-tree', sub: 'ul', empty: 'ul:not(.workspace-tree)' };
+  function wire(box) {
     if (!window.C22AppWorkspaceDrag || box.dataset.dragWired) return;
     box.dataset.dragWired = '1';
     var held = function (n) { return !!n.closest('.dropgap'); };
@@ -3979,7 +3975,7 @@ document.addEventListener('basecoat:initialized', function (e) {
     var listOf = function (row) {
       if (row.matches(K.head)) return box.querySelector(K.top);
       var li = row.closest('li'), ul = li.querySelector(':scope > ' + K.sub);
-      if (!ul) { ul = document.createElement('ul'); if (K.subClass) ul.className = K.subClass; li.appendChild(ul); }
+      if (!ul) { ul = document.createElement('ul'); li.appendChild(ul); }
       return ul;
     };
     window.C22AppWorkspaceDrag.attach({
@@ -3993,8 +3989,7 @@ document.addEventListener('basecoat:initialized', function (e) {
       strip: ['data-demo-id'],
       zones: function () {
         var top = box.querySelector(K.top), probe = document.createElement('ul');
-        if (K.subClass) probe.className = K.subClass;
-        (K.subClass ? top : top.querySelector('li') || top).appendChild(probe);
+        (top.querySelector('li') || top).appendChild(probe);
         var indent = parseFloat(getComputedStyle(probe).paddingInlineStart || getComputedStyle(probe).paddingLeft); probe.remove();
         var rows = [].filter.call(box.querySelectorAll(K.both), function (n) { return !held(n); }).map(function (n) {
           return n.matches(K.head) ? { el: n, id: '', head: true, depth: -1, hold: true } : { el: n, id: n.dataset.demoId, depth: depthOf(n), hold: true };
@@ -4020,6 +4015,6 @@ document.addEventListener('basecoat:initialized', function (e) {
       }
     });
   }
-  function scan() { KINDS.forEach(function (K) { document.querySelectorAll(K.scan).forEach(function (b) { wire(b, K); }); }); }
+  function scan() { document.querySelectorAll(K.scan).forEach(wire); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
 })();
