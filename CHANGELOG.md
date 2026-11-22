@@ -173,6 +173,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Every page takes C22's layout pack `underdoc` (`c22-underdoc.css`, C22 at `6cff0e0`) instead of `vega`: UnderDoc's own
+  look on C22's building blocks, the first step of moving the workspace off C22's old app workspace
+  ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md)). Corners are a notch tighter and prose leads a little
+  closer on the sign-in, share and message pages; the workspace itself does not change yet. The class check now also
+  reads every class the scripts of the workspace and the editor write.
 - A file or folder of the view Files is made and renamed only with a name a file system takes (not `.` or `..`, no `/`,
   `\` or control characters), as an upload already required; one from before stays off the share. In a library shared over Samba a single file no longer breaks the inheritance (ADR-29).
 

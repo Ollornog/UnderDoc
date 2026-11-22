@@ -15,7 +15,8 @@ git -C "$work/c22" checkout --quiet "$commit"
 "$work/c22/scripts/fetch-tailwind.sh"
 "$work/c22/scripts/build-gallery.sh" >/dev/null
 
-cp "$work/c22/c22/static/css/c22-vega.css" "$target/css/"
+rm -f "$target/css/"c22-*.css
+cp "$work/c22/c22/static/css/c22-underdoc.css" "$target/css/"
 cp "$work/c22/c22/static/fonts/inter.woff2" "$target/fonts/"
 cp "$work/c22/c22/static/js/c22.js" "$work/c22/c22/static/js/workspace-boot.js" "$work/c22/c22/static/js/app-workspace-drag.js" "$target/js/"
 cp "$work/c22/c22/vendor/basecoat/dist/js/all.min.js" "$target/js/basecoat.all.min.js"
