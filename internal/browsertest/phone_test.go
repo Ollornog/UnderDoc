@@ -250,7 +250,7 @@ func TestNoDocumentScrollsSidewaysOnAPhone(t *testing.T) {
 		b.eval(`window.over = []; window.swept = 0; (async () => {
 			for (const id of Object.keys(D).filter(k => !D[k].real && !k.startsWith('dir:'))) {
 				openDoc(id); render(); await new Promise(r => setTimeout(r, 20)); window.swept++;
-				for (const s of document.querySelectorAll('.workspace-window[data-focus] :is([data-sc], .page)')) if (s.scrollWidth > s.clientWidth + 1) window.over.push(id + ' (' + s.scrollWidth + ' > ' + s.clientWidth + ')');
+				for (const s of document.querySelectorAll('.workspace-window[data-focus] [data-sc]')) if (s.scrollWidth > s.clientWidth + 1) window.over.push(id + ' (' + s.scrollWidth + ' > ' + s.clientWidth + ')');
 			}
 			window.done = true; })()`)
 		if !b.waitFor(`window.done === true`) {

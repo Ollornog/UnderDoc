@@ -3,8 +3,8 @@
    and again; this script keeps one view per file as DOM and puts it back into the placeholder <div data-sheets="<id>">
    each time, as the PDF preview does. Every text from the file goes in through textContent, never as HTML.
 
-   The view: the visible sheets as a segmented control, a head of column letters and a column of row numbers that stay while the table
-   scrolls, rows in pages of 500, a range marked with the mouse (drag, Shift+click) or the keyboard (arrows, Shift+arrows),
+   The view: the visible sheets as C22's tabs, the sheet as C22's grid (.table[data-variant=grid][data-sticky=sheet]), whose
+   head of column letters and column of row numbers stay while it scrolls, rows in pages of 500, a range marked with the mouse (drag, Shift+click) or the keyboard (arrows, Shift+arrows),
    and for the marked range, a sheet, a name or an Excel table: Embed (its line goes to the clipboard) and Download CSV.
    Below, the tables of the file that pages use, with what became of each in the current version. */
 (function () {
@@ -31,9 +31,9 @@
   /* A view of one file: its sheets, the shown sheet and page, the marked range, and its DOM. */
   function view(id) {
     if (VIEWS[id]) return VIEWS[id];
-    const v = VIEWS[id] = { id, meta: null, sheet: '', from: 0, grid: null, sel: null, anchor: null, tables: [], root: el('div', ''), failed: '' };
+    const v = VIEWS[id] = { id, meta: null, sheet: '', from: 0, grid: null, sel: null, anchor: null, tables: [], root: el('div', 'grid gap-3'), failed: '' };
     v.root.dataset.sheetview = id;
-    v.root.append(el('p', 'lab', 'Loading the tables…'));
+    v.root.append(quiet('Loading the tables…'));
     load(v);
     return v;
   }
@@ -64,30 +64,43 @@
     try { v.tables = await json(api(v.id) + '/tables'); } catch (e) { v.tables = []; }
   }
 
+  /* The parts of C22 the view is made of: a quiet line, a notice, a small outline button. */
+  const quiet = text => el('p', 'text-muted-foreground text-sm', text);
+  const notice = text => { const n = el('div', 'alert'); n.append(el('section', '', text)); return n; };
+
   const STATE = { ok: 'shows as chosen', moved: 'followed to its new place', changed: 'its first row changed: check it', lost: 'no longer to be found' };
 
   function draw(v) {
     const root = v.root;
     root.replaceChildren();
-    if (v.failed) { root.append(el('div', 'note', 'This file shows no tables: ' + v.failed)); return; }
-    if (!v.meta) { root.append(el('p', 'lab', 'Loading the tables…')); return; }
-    if (!v.meta.sheets.length) { root.append(el('div', 'note', 'This workbook has no visible sheet.')); return; }
-    /* The sheets as a segmented control of the workspace (C22 .seg), which scrolls when there are many. */
-    const tabs = el('div', 'overflow-x-auto');
-    const list = el('div', 'seg');
-    list.setAttribute('role', 'group');
+    if (v.failed) { root.append(notice('This file shows no tables: ' + v.failed)); return; }
+    if (!v.meta) { root.append(quiet('Loading the tables…')); return; }
+    if (!v.meta.sheets.length) { root.append(notice('This workbook has no visible sheet.')); return; }
+    /* The sheets as C22's tabs; the shown sheet is the one panel. The script switches them itself (no Basecoat): a click
+       loads the sheet. Every tab stays in the order of the Tab key, as the buttons of before were. */
+    const tabs = el('div', 'tabs');
+    const list = el('nav');
+    list.setAttribute('role', 'tablist');
     list.setAttribute('aria-label', 'Sheets');
-    v.meta.sheets.forEach(s => {
+    v.meta.sheets.forEach((s, i) => {
       const b = el('button', '', s.name);
       b.type = 'button';
-      b.setAttribute('aria-pressed', String(s.name === v.sheet));
+      b.setAttribute('role', 'tab');
+      b.id = 'udsheet-' + v.id + '-' + i;
+      b.setAttribute('aria-controls', 'udsheet-' + v.id + '-panel');
+      b.setAttribute('aria-selected', String(s.name === v.sheet));
       b.dataset.sheetTab = s.name;
       list.append(b);
     });
-    tabs.append(list);
+    const panel = el('div', 'grid gap-2');
+    panel.id = 'udsheet-' + v.id + '-panel';
+    panel.setAttribute('role', 'tabpanel');
+    const on = list.querySelector('[aria-selected="true"]');
+    if (on) panel.setAttribute('aria-labelledby', on.id);
+    tabs.append(list, panel);
     root.append(tabs);
     const g = v.grid || { rows: [], cols: [], more: 0, from: 0 };
-    const bar = el('div', 'flex flex-wrap items-center gap-2 mt-2');
+    const bar = el('div', 'flex flex-wrap items-center gap-2');
     const shown = g.rows.length ? `Rows ${g.rows[0].n}–${g.rows[g.rows.length - 1].n}${g.more ? `, ${g.more} more` : ''}${g.moreCols ? `; the first ${g.cols.length} columns, ${g.moreCols} more: download it for all` : ''}` : 'An empty sheet';
     bar.append(el('span', 'text-sm text-muted-foreground', shown));
     if (v.from > 0) bar.append(button('Previous rows', 'prev'));
@@ -95,96 +108,134 @@
     const sel = v.sel ? rangeOf(v.sel) : '';
     const embed = button(sel ? 'Embed ' + sel : 'Embed this sheet', 'embed');
     bar.append(embed);
-    const head = el('label', 'flex items-center gap-1 text-sm');
-    const box = el('input');
+    const head = el('label', 'label');
+    const box = el('input', 'input');
     box.type = 'checkbox';
     box.dataset.sheetHead = '1';
     box.checked = !!v.head;
     head.append(box, document.createTextNode('First row is the head'));
     bar.append(head);
-    const csv = el('a', 'chip', 'Download CSV');
+    const csv = el('a', 'btn', 'Download CSV');
+    csv.dataset.variant = 'outline';
+    csv.dataset.size = 'xs';
     csv.href = api(v.id) + '/sheets/csv?' + new URLSearchParams(Object.assign({ sheet: v.sheet }, sel ? { range: sel } : {}));
     csv.dataset.sheetCsv = '1';
     bar.append(csv);
-    root.append(bar);
-    root.append(gridTable(v, g));
-    const said = el('p', 'hint', '');
+    panel.append(bar, gridTable(v, g));
+    const said = quiet('');
     said.dataset.sheetSay = '1';
     said.setAttribute('aria-live', 'polite');
-    root.append(said);
+    panel.append(said);
     const named = [...v.meta.names.map(n => ({ kind: 'name', name: n.name, label: n.name, where: n.sheet + '!' + n.range, value: n.value })),
       ...v.meta.tables.map(t => ({ kind: 'table', name: t.name, label: t.name, where: t.sheet + '!' + t.range }))];
+    /* The names and tables of the file, and the tables pages use: C22's entries, the name over a quiet line, the buttons
+       at the end. */
     if (named.length) {
       root.append(el('h3', '', 'Names and tables'));
-      const ul = el('ul');
+      const list = entries();
       named.forEach(x => {
-        const li = el('li', 'flex flex-wrap items-center gap-2');
-        li.append(el('span', '', x.label), el('span', 'text-sm text-muted-foreground', (x.kind === 'table' ? 'Excel table, ' : x.value ? 'value, ' : 'name, ') + x.where));
         const b = button('Embed', 'embed-named');
         b.dataset.kind = x.kind;
         b.dataset.name = x.name;
-        li.append(b);
-        ul.append(li);
+        list.append(entry(x.label, (x.kind === 'table' ? 'Excel table, ' : x.value ? 'value, ' : 'name, ') + x.where, '', [b]));
       });
-      root.append(ul);
+      root.append(list);
     }
     root.append(el('h3', '', 'Used in pages'));
-    if (!v.tables.length) root.append(el('p', 'lab', 'No table of this file has been embedded yet.'));
+    if (!v.tables.length) root.append(quiet('No table of this file has been embedded yet.'));
     else {
-      const ul = el('ul');
+      const list = entries();
       v.tables.forEach(t => {
-        const li = el('li', 'flex flex-wrap items-center gap-2');
-        li.dataset.sheetTable = t.id;
-        li.dataset.state = t.state;
-        li.append(el('span', '', t.label), el('span', 'text-sm text-muted-foreground', `#${t.id}, ${STATE[t.state] || t.state}${t.moved ? ' (from ' + t.moved + ')' : ''}, used in ${t.uses} place${t.uses === 1 ? '' : 's'}`));
-        if (t.problem) li.append(el('span', 'text-sm', t.problem));
+        const acts = [];
         if (t.state === 'changed') {
           const keep = button('Keep it as it is now', 'keep');
           keep.dataset.table = t.id;
-          li.append(keep);
+          acts.push(keep);
         }
         const b = button('Copy the line', 'copy');
         b.dataset.embed = t.embed;
-        li.append(b);
-        ul.append(li);
+        acts.push(b);
+        const item = entry(t.label, `#${t.id}, ${STATE[t.state] || t.state}${t.moved ? ' (from ' + t.moved + ')' : ''}, used in ${t.uses} place${t.uses === 1 ? '' : 's'}`, t.problem || '', acts);
+        item.dataset.sheetTable = t.id;
+        item.dataset.state = t.state;
+        list.append(item);
       });
-      root.append(ul);
+      root.append(list);
     }
   }
 
   function button(text, act) {
-    const b = el('button', 'chip', text);
+    const b = el('button', 'btn', text);
     b.type = 'button';
+    b.dataset.variant = 'outline';
+    b.dataset.size = 'xs';
     b.dataset.sheetAct = act;
     return b;
   }
 
+  function entries() {
+    const n = el('div', 'item-group');
+    n.setAttribute('role', 'list');
+    return n;
+  }
+
+  function entry(name, line, problem, acts) {
+    const n = el('article', 'item');
+    n.dataset.variant = 'outline';
+    n.dataset.size = 'sm';
+    n.setAttribute('role', 'listitem');
+    const body = el('section');
+    body.append(el('h4', '', name), el('p', 'text-muted-foreground text-xs', line));
+    if (problem) body.append(el('p', 'text-xs', problem));
+    const side = el('aside', 'flex flex-wrap gap-1');
+    side.append(...acts);
+    n.append(body, side);
+    return n;
+  }
+
+  /* The sheet is C22's grid: the head and the row numbers stick, the box scrolls both ways within 24rem (C22's
+     .table-container around a sticky table), numbers stand at the end (data-type="number"). A marked range is
+     aria-selected on its cells and on the letters and numbers of its columns and rows, the cell it started from is
+     data-active; the row a hit of the search named is aria-current on its number. */
   function gridTable(v, g) {
-    const wrap = el('div', 'table-container overflow-auto max-h-96 mt-2');
+    const wrap = el('div', 'table-container');
     const table = el('table', 'table');
     table.dataset.variant = 'grid';
+    table.dataset.sticky = 'sheet';
+    table.setAttribute('role', 'grid');
+    table.setAttribute('aria-multiselectable', 'true');
     table.dataset.sheetGrid = v.id;
     table.tabIndex = 0;
     table.setAttribute('aria-label', 'Sheet ' + v.sheet + ', mark a range with the mouse or with Shift and the arrows');
-    const thead = el('thead', 'sticky top-0 z-10 bg-background');
+    const thead = el('thead');
     const hr = el('tr');
-    hr.append(el('th', 'sticky left-0 bg-background', ''));
-    g.cols.forEach(c => hr.append(el('th', 'font-mono text-sm', colName(c))));
+    const corner = el('th');
+    corner.scope = 'col';
+    corner.append(el('span', 'sr-only', 'Row'));
+    hr.append(corner);
+    g.cols.forEach(c => { const th = el('th', '', colName(c)); th.scope = 'col'; th.dataset.col = c; hr.append(th); });
     thead.append(hr);
     table.append(thead);
     const tbody = el('tbody');
     g.rows.forEach(row => {
       const tr = el('tr');
-      const th = el('th', 'sticky left-0 bg-background font-mono text-sm' + (v.mark === row.n ? ' bg-accent' : ''), String(row.n));
+      const th = el('th', '', String(row.n));
+      th.scope = 'row';
       th.dataset.row = row.n;
+      /* bridge until C22 has a current row in a grid: the number of the row a hit named is drawn as a selected one. */
+      if (v.mark === row.n) { th.setAttribute('aria-current', 'true'); th.setAttribute('aria-selected', 'true'); }
       tr.append(th);
       row.cells.forEach(c => {
-        const td = el('td', (c.k === 'n' || c.k === 'm') ? 'text-right tabular-nums' : '', c.t || '');
+        const td = el('td', '', c.t || '');
+        /* The kind comes as the number of its letter (a byte in Go's JSON): n a number, m a number as shown, f a formula
+           never calculated. */
+        const kind = String.fromCharCode(c.k || 0);
+        if (kind === 'n' || kind === 'm') td.dataset.type = 'number';
         td.dataset.r = row.n;
         td.dataset.c = c.c;
         if (c.rs) td.rowSpan = c.rs;
         if (c.cs) td.colSpan = c.cs;
-        if (c.k === 'f') td.title = 'This formula was never calculated: open and save the file in Excel or LibreOffice';
+        if (kind === 'f') td.title = 'This formula was never calculated: open and save the file in Excel or LibreOffice';
         tr.append(td);
       });
       tbody.append(tr);
@@ -206,9 +257,11 @@
     const r1 = Math.min(s.r1, s.r2), r2 = Math.max(s.r1, s.r2), c1 = Math.min(s.c1, s.c2), c2 = Math.max(s.c1, s.c2);
     table.querySelectorAll('td[data-r]').forEach(td => {
       const r = +td.dataset.r, c = +td.dataset.c, on = r >= r1 && r <= r2 && c >= c1 && c <= c2;
-      td.classList.toggle('bg-accent', on);
       td.setAttribute('aria-selected', String(on));
+      td.toggleAttribute('data-active', r === s.r1 && c === s.c1);
     });
+    table.querySelectorAll('th[data-row]').forEach(th => th.setAttribute('aria-selected', String(+th.dataset.row >= r1 && +th.dataset.row <= r2)));
+    table.querySelectorAll('th[data-col]').forEach(th => th.setAttribute('aria-selected', String(+th.dataset.col >= c1 && +th.dataset.col <= c2)));
   }
 
   /* After the marking changed: the bar names the range, without drawing the table anew. */

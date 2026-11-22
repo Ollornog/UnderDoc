@@ -13,8 +13,8 @@ import (
 	"testing"
 )
 
-// TestSpreadsheetInTheWorkspace (ADR-31): a workbook saved by LibreOffice opens as tables: its visible sheets as tabs, a
-// head that stays while the table scrolls, hidden rows and columns left out, text from the file as text; a range marked
+// TestSpreadsheetInTheWorkspace (ADR-31): a workbook saved by LibreOffice opens as tables: its visible sheets as C22's
+// tabs, the sheet as C22's grid with a head and row numbers that stay while it scrolls, hidden rows and columns left out, text from the file as text; a range marked
 // with the mouse and with Shift and the arrows is embedded from the view, and the page shows it; an address of a hit of
 // the search opens the view at its sheet. Nothing is loaded from elsewhere.
 func TestSpreadsheetInTheWorkspace(t *testing.T) {
@@ -34,7 +34,7 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('` + grid + ` td[data-r="2"][data-c="2"]')`) {
 		t.Fatalf("no table view: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 600)`))
 	}
-	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-sheet-tab]')].map(n => n.textContent + ':' + n.getAttribute('aria-pressed')).join(', ')`); got != "Budget:true, Odd <&> it's:false" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-sheet-tab]')].map(n => n.textContent + ':' + n.getAttribute('role') + ':' + n.getAttribute('aria-selected')).join(', ')`); got != "Budget:tab:true, Odd <&> it's:tab:false" {
 		t.Errorf("the tabs: %q", got)
 	}
 	// Numbers read in the language of the browser (Accept-Language), German or English.
@@ -53,13 +53,18 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 			t.Errorf("%d,%d: %q, want %q", c.r, c.col, got, c.want)
 		}
 	}
+	// A number stands at the end of its cell (C22's data-type="number"), a text does not.
+	if got := b.eval(`[2, 1].map(c => document.querySelector('` + grid + ` td[data-r="2"][data-c="' + c + '"]').dataset.type + ':' + getComputedStyle(document.querySelector('` + grid + ` td[data-r="2"][data-c="' + c + '"]')).textAlign).join(' ')`); got != "number:end undefined:start" {
+		t.Errorf("numbers at the end: %q", got)
+	}
 	if b.exists(grid + ` script`) {
 		t.Error("text of the file became markup")
 	}
 	if got := b.eval(`document.querySelector('` + grid + ` td[data-r="9"][data-c="1"]').colSpan`); got != "3" {
 		t.Errorf("the merged cells span %s", got)
 	}
-	if got := b.eval(`getComputedStyle(document.querySelector('` + grid + ` thead')).position + ' ' + getComputedStyle(document.querySelector('` + grid + ` tbody th')).position`); got != "sticky sticky" {
+	// The head row and the row numbers stay: C22 makes the cells of the head and the first cell of a row sticky.
+	if got := b.eval(`getComputedStyle(document.querySelector('` + grid + ` thead th')).position + ' ' + getComputedStyle(document.querySelector('` + grid + ` tbody th')).position`); got != "sticky sticky" {
 		t.Errorf("the head and the row numbers do not stay: %s", got)
 	}
 	b.shot("sheet-view")
@@ -77,6 +82,16 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	}
 	if got := b.eval(`document.querySelectorAll('` + grid + ` td[aria-selected="true"]').length`); got != "9" {
 		t.Errorf("marked cells: %s", got)
+	}
+	// C22's grid draws the range from attributes: the letters and numbers of its columns and rows are selected too, the
+	// cell it began at is the active one, and a marked cell is framed, not only tinted (T-12).
+	if got := b.eval(`[...document.querySelectorAll('` + grid + ` th[aria-selected="true"]')].map(n => n.textContent).join(',') + ' ' +
+		[...document.querySelectorAll('` + grid + ` td[data-active]')].map(n => n.dataset.r + ':' + n.dataset.c).join(',')`); got != "A,B,C,1,2,3 1:1" {
+		t.Errorf("the head and the active cell of the range: %q", got)
+	}
+	if got := b.eval(`[document.querySelector('` + grid + `').getAttribute('role'), document.querySelector('` + grid + `').getAttribute('aria-multiselectable'),
+		getComputedStyle(document.querySelector('` + grid + ` td[aria-selected="true"]:not([data-active])')).boxShadow !== 'none'].join(' ')`); got != "grid true true" {
+		t.Errorf("an interactive grid, a marked cell framed: %q", got)
 	}
 	// With the keyboard: a click on B2, then Shift and the arrows.
 	b.clickOn(grid+` td[data-r="2"][data-c="2"]`, 1)
@@ -108,7 +123,7 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	// An address of a hit of the search opens the view at its sheet.
 	file := b.eval(`(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/doc/` + page + `', false); x.send(); return JSON.parse(x.responseText).embeds[0].ref.split('#')[0]; })()`)
 	b.open(base + "/o/" + file + "#" + url.PathEscape("Odd <&> it's!A1:B2"))
-	if !b.waitFor(`document.querySelector('article.typeset [data-sheet-tab][aria-pressed="true"]')?.textContent === "Odd <&> it's"`) {
+	if !b.waitFor(`document.querySelector('article.typeset [data-sheet-tab][aria-selected="true"]')?.textContent === "Odd <&> it's"`) {
 		t.Fatalf("the hit does not open its sheet: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 400)`))
 	}
 	if !b.waitFor(`[...document.querySelectorAll('` + grid + ` td')].some(td => td.textContent.startsWith('Längerer Text'))`) {

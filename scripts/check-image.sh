@@ -34,7 +34,7 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
 gate=(-H 'Remote-User: image-check')
 # The answers go into variables first: with pipefail, grep -q could end curl early and fail the pipe at random.
 page="$(curl -fsS "${gate[@]}" "$url")" || fail "the workspace does not answer"
-[[ "$page" == *'class="c22-app-workspace"'* ]] || fail "the workspace does not show"
+[[ "$page" == *'<div id="root"'* ]] || fail "the workspace does not show"
 head="$(curl -fsSI "${gate[@]}" "$url")" || fail "the workspace does not answer"
 grep -qi '^content-security-policy:' <<<"$head" || fail "the page has no CSP"
 doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" || fail "the page does not answer"

@@ -1197,14 +1197,18 @@ func TestEditingIsFound(t *testing.T) {
 		return [s.top <= p.top + 2, s.bottom >= h.bottom - 2, s.right <= Math.min(p.left, h.left), Math.abs(s.width - s.height) < 1].join(' '); })()`); got != "true true true true" {
 		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
 	}
+	// The editor's bundle loads on demand (on the button's hover, or when the page is idle), so the editor comes a moment
+	// after the click: the state is waited for, not read at once (it was read at once and lost the race under load).
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.typeset .cm-editor').length + ' ' + document.querySelectorAll('[data-win="0"] .workspace-main > [data-edbar]').length`); got != "false Editing | Editing. Click to read 1 1" {
-		t.Errorf("the button turns it to editing, one editor and one bar for the page: %q", got)
+	editing := status + ` + ' ' + document.querySelectorAll('article.typeset .cm-editor').length + ' ' + document.querySelectorAll('[data-win="0"] .workspace-main > [data-edbar]').length`
+	if !b.waitFor(`(` + editing + `) === "false Editing | Editing. Click to read 1 1"`) {
+		t.Errorf("the button turns it to editing, one editor and one bar for the page: %q", b.eval(editing))
 	}
 	// What the editor and its bar do is tested in editor_test.go.
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	if got := b.eval(status + ` + ' ' + document.querySelectorAll('.cm-editor').length`); got != "false Reading | Reading. Click to edit 0" {
-		t.Errorf("and back to reading: %q", got)
+	reading := status + ` + ' ' + document.querySelectorAll('.cm-editor').length`
+	if !b.waitFor(`(` + reading + `) === "false Reading | Reading. Click to edit 0"`) {
+		t.Errorf("and back to reading: %q", b.eval(reading))
 	}
 	// The setting opens documents for editing.
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)

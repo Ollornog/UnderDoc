@@ -11,10 +11,10 @@
   <script src="/assets/app/theme.js?v={{.Version}}"></script>
 </head>
 <body>
-  <main class="mx-auto w-full max-w-3xl p-4" data-share="{{.Kind}}">
-    <header class="mb-4">
+  <main class="mx-auto grid w-full max-w-3xl gap-4 p-4" data-share="{{.Kind}}">
+    <header>
       <h1 class="text-2xl font-semibold" data-test="share-title">{{.Title}}</h1>
-      <p class="text-sm text-muted-foreground">Shared through a link{{if .Expires}} until {{.Expires}}{{end}}.{{if .FrozenAt}} As it was on {{.FrozenAt}}.{{end}}</p>
+      <p class="text-muted-foreground text-sm">Shared through a link{{if .Expires}} until {{.Expires}}{{end}}.{{if .FrozenAt}} As it was on {{.FrozenAt}}.{{end}}</p>
     </header>
     {{- if .Problem}}
     <div class="alert" data-variant="destructive" role="alert" data-test="share-problem"><p>{{.Problem}}</p></div>
@@ -26,13 +26,13 @@
     <form class="card w-full max-w-md" method="post" action="/s/{{.Token}}/password">
       <header><h2 class="card-title">This link has a password</h2></header>
       <section>
-        <div class="field"><label for="password">Password</label>
+        <div class="field"><label class="label" for="password">Password</label>
           <input class="input" id="password" name="password" type="password" autocomplete="off" required maxlength="1000" autofocus></div>
       </section>
       <footer><button class="btn" type="submit">Open</button></footer>
     </form>
     {{- else if eq .Kind "page"}}
-    <article data-test="share-page">{{.Frozen}}</article>
+    <article class="typeset" data-test="share-page">{{.Frozen}}</article>
     {{- else if eq .Kind "upload"}}
     <form class="card w-full max-w-md" method="post" action="/s/{{.Token}}/upload" enctype="multipart/form-data">
       <header><h2 class="card-title">Send a file</h2>
@@ -41,22 +41,24 @@
       <footer><button class="btn" type="submit">Send</button></footer>
     </form>
     {{- else if or (eq .Kind "file") (eq .Kind "folder")}}
-    {{- if .Up}}<p class="mb-2"><a class="btn" data-variant="outline" href="{{.Up}}">Back to the top</a></p>{{end}}
-    <table class="table" data-test="share-files">
-      <thead><tr><th>Name</th><th>Size</th></tr></thead>
+    {{- if .Up}}<p><a class="btn" data-variant="outline" href="{{.Up}}">Back to the top</a></p>{{end}}
+    <div class="table-container">
+    <table class="table" data-wrap data-test="share-files">
+      <thead><tr><th>Name</th><th data-type="number">Size</th></tr></thead>
       <tbody>
         {{- range .Files}}
-        <tr><td><a href="{{.Href}}">{{if .Folder}}{{.Title}}/{{else}}{{.Title}}{{end}}</a></td><td>{{.Size}}</td></tr>
+        <tr><td><a class="underline underline-offset-4" href="{{.Href}}">{{if .Folder}}{{.Title}}/{{else}}{{.Title}}{{end}}</a></td><td data-type="number">{{.Size}}</td></tr>
         {{- else}}
         <tr><td colspan="2">Nothing here yet.</td></tr>
         {{- end}}
       </tbody>
     </table>
+    </div>
     {{- else}}
     <p data-test="share-workspace">This link opens in the workspace for an account of this workspace.</p>
     {{- end}}
     {{- if .SignIn}}
-    <p class="mt-4"><a class="btn" href="{{.SignIn}}" data-test="share-sign-in">Sign in to {{.Mode}}</a></p>
+    <p><a class="btn" href="{{.SignIn}}" data-test="share-sign-in">Sign in to {{.Mode}}</a></p>
     {{- end}}
   </main>
 </body>

@@ -41,7 +41,7 @@ func TestWorkspaceAnswersEveryAddress(t *testing.T) {
 	s := newSite(t, Options{}, sample)
 	for _, target := range []string{"/", "/o/plan", "/o/~ops/no-id.md", "/f/", "/f/ops/net", "/profile"} {
 		body := s.body(target)
-		if !strings.Contains(body, `<div id="root" class="c22-app-workspace">`) || !strings.Contains(body, "/assets/app/demo.js") {
+		if !strings.Contains(body, `<div id="root">`) || !strings.Contains(body, "/assets/app/demo.js") {
 			t.Errorf("%s does not load the workspace", target)
 		}
 	}

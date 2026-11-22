@@ -253,9 +253,9 @@ const off=(kind,id)=>later(kind,id)?' disabled data-later="1"':'';
 const addTypes=()=>ADDTYPES.filter(k=>!MODTYPE[k]||S.mods[MODTYPE[k]]);
 function treeHtml(){
   const open=openColls();
-  if(!open.length) return '<p class="text-muted-foreground">No collection is open. Pick one in nav2.</p>';
+  if(!open.length) return '<p class="text-muted-foreground text-xs">No collection is open. Pick one in nav2.</p>';
   /* One section per open collection: its head on the pack's band, the lock when others may not edit, New at the end. */
-  return open.map(c=>`<section><header data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><a href="#" class="font-medium underline underline-offset-4" data-act="open" data-id="${c.id}" title="Open ${c.n}"><span>${c.n}</span>${othersOf(c.id)!=='edit'?`${icon('lock').replace('<svg ',`<svg data-lock aria-label="${ACC[othersOf(c.id)]}" `).replace(' aria-hidden="true"','')}`:''}</a>${canPlace(c.id)?newBtn(`data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="New in ${c.n}"`):''}</header>
+  return open.map(c=>`<section><header data-cdrop="${c.id}" data-ctx="coll" data-ctxid="${c.id}"><a href="#" data-act="open" data-id="${c.id}" title="Open ${c.n}"><span>${c.n}</span>${othersOf(c.id)!=='edit'?`${icon('lock').replace('<svg ',`<svg data-lock aria-label="${ACC[othersOf(c.id)]}" `).replace(' aria-hidden="true"','')}`:''}</a>${canPlace(c.id)?newBtn(`data-act="addmenu" data-id="${c.id}" aria-expanded="${S.addIn===c.id}" aria-label="New in ${c.n}" title="New in ${c.n}"`):''}</header>
     <ul class="workspace-tree">${c.top.map(rowHtml).join('')}</ul></section>`).join('');
 }
 /* New at the head of nav2 or of a collection: C22's small outline button with the word and the plus. */
@@ -766,7 +766,8 @@ function adminHtml(sec){
 /* A row of a list in nav3 that opens one thing (C22 tree row); the column at its end is a small. */
 const listRow=(id,ico,label,side='')=>{const t=at(S.focus);return `<li><div><span data-toggle aria-hidden="true"></span><button type="button" data-act="open" data-id="${id}" title="${label}"${t&&t.d===id?' aria-current="page"':''}>${icon(ico)}<span>${label}</span></button>${side?`<small>${side}</small>`:''}</div></li>`;};
 const colLabel=t=>`<span class="workspace-label"><span>${t}</span></span>`;
-const muted=t=>`<p class="text-muted-foreground">${t}</p>`;
+/* A quiet line in nav3: the size of the hints there (the old block set 13px for everything in nav3). */
+const muted=t=>`<p class="text-muted-foreground text-xs">${t}</p>`;
 const BM=[{id:'bar',n:'Toolbar',i:'star',items:[{n:'Ticket system',u:'https://tickets.example.com',d:'Open tickets of the team.'},{n:'Supplier portal',u:'https://supplier.example.net',d:'Orders and licenses.'},{n:'Weather radar',u:'https://weather.example.org',d:'Before crane work.'}]},
   {id:'work',n:'Work',i:'folder',items:[{n:'Switch manual',u:'https://docs.example.com/switch',d:'Firmware 9, chapter on VLANs.'},{n:'Crane company',u:'https://crane.example.net',d:'Booking and phone numbers.'}]},
   {id:'read',n:'Reading list',i:'list',items:[{n:'Antenna mounting guide',u:'https://example.org/antenna',d:'Read before the mounting.'}]}];
@@ -788,10 +789,10 @@ const PROFADM=[['mods','Modules','grid'],['users','Users and groups','user'],['s
 const tickRow=(l,k,x)=>{const t=at(S.focus),id=`ti:${l.id}/${k}`;return `<label class="item" data-size="xs" role="listitem"${t&&t.d===id?' aria-current="page"':''}><input class="input" type="checkbox" data-act="tick" data-l="${l.id}" data-id="${k}" aria-label="Done: ${esc(x.t)}"${x.done?' checked':''}><section><h4><button type="button" data-act="open" data-id="${id}" title="${esc(x.t)}">${esc(x.t)}</button></h4></section>${x.due?`<aside><time>${x.due}</time></aside>`:''}</label>`;};
 /* Private lists follow the rule of collections: a click opens one and closes what is not kept open, a double click keeps one open. */
 function privPart(v,sec){
-  const pinned=(S.spin[v]||{})[sec],hd=(n,doc,add='')=>`<section><header data-sechead="${sec}"><a href="#" class="font-medium underline underline-offset-4" data-act="open" data-id="${doc}" title="Open ${esc(n)}">${pinned?pinMark():''}<span>${esc(n)}</span></a>${add}</header>`;
+  const pinned=(S.spin[v]||{})[sec],hd=(n,doc,add='')=>`<section><header data-sechead="${sec}"><a href="#" data-act="open" data-id="${doc}" title="Open ${esc(n)}">${pinned?pinMark():''}<span>${esc(n)}</span></a>${add}</header>`;
   if(v==='todo'){const l=TL.find(x=>x.id===sec);if(!l)return '';return hd(l.n,'tl:'+l.id,newBtn(`data-act="tadd" data-id="${l.id}" aria-label="Add a to-do in ${esc(l.n)}" title="Add a to-do"`))+`<div class="item-group" role="list">${l.items.map((x,k)=>tickRow(l,k,x)).join('')}</div></section>`;}
   if(v==='cal'){const cs=sec==='all'?CALS:CALS.filter(c=>c.id===sec);if(!cs.length)return '';const ev=cs.flatMap(c=>Object.entries(c.ev).map(([d,n])=>[+d,n,c])).sort((a,b)=>a[0]-b[0]);
-    return hd(sec==='all'?'All calendars':cs[0].n,'cal:'+sec)+`<ul class="workspace-tree">${ev.map(e=>listRow(`ev:${e[2].id}/${e[0]}`,'clock',e[1],'Nov '+e[0])).join('')}</ul>${sec!=='all'&&cs[0].src?`<p class="text-muted-foreground">${cs[0].src}.</p>`:''}</section>`;}
+    return hd(sec==='all'?'All calendars':cs[0].n,'cal:'+sec)+`<ul class="workspace-tree">${ev.map(e=>listRow(`ev:${e[2].id}/${e[0]}`,'clock',e[1],'Nov '+e[0])).join('')}</ul>${sec!=='all'&&cs[0].src?`<p class="text-muted-foreground text-xs">${cs[0].src}.</p>`:''}</section>`;}
   if(v==='time'){const P={week:['priv:time','This week',[['Mon','8:12'],['Tue','8:27'],['Wed','7:45'],['Thu','7:16']]],last:['time:last','Last week',[['Mon','8:00'],['Tue','8:05'],['Wed','8:30'],['Thu','7:50'],['Fri','6:10']]],oct:['time:oct','October',[['Week 40','39:10'],['Week 41','40:05'],['Week 42','38:20'],['Week 43','40:00']]]}[sec];if(!P)return '';
     return hd(P[1],P[0])+`<ul class="workspace-tree">${P[2].map(r=>listRow(P[0],'cal',r[0],r[1])).join('')}</ul></section>`;}
   if(v==='vac'){const P={y26:['priv:vac','2026',[['Mar 02 – 13','10 days ✓'],['Jul 20 – 27','8 days ✓'],['Nov 24 – 28','5 days △']]],y27:['vac:27','2027',[]]}[sec];if(!P)return '';
@@ -1488,8 +1489,9 @@ const savedHits=o=>Object.keys(D).filter(id=>{const d=D[id];if(id.includes(':')|
 D.ss1=fill({t:'search',n:'Everything on the network',w:'wide',path:'not a file, a saved search',by:'A. Keller',ch:'Oct 30',vis:'Group ops, inherited',desc:'All documents tagged network, wherever they are.',q:'',ftags:['network'],type:'',strat:'Full text',src:['Workspace','Share','Ticket system'],
   get stat(){return savedHits(this).length+' hits';},
   /* What it searches for is C22's filter bar (a part per section, its values pressed), the hits C22's entries with
-     their place. */
-  view:true,get html(){const h=savedHits(this),part=(name,vals)=>`<section aria-label="${name}"><h3>${name}</h3><div>${vals.map(v=>`<button type="button" aria-pressed="true"><span>${v}</span></button>`).join('')}</div></section>`;
+     their place. The values cannot be changed before M-8, so they are disabled: c22.js would toggle a filter bar's
+     buttons by itself otherwise. */
+  view:true,get html(){const h=savedHits(this),part=(name,vals)=>`<section aria-label="${name}"><h3>${name}</h3><div>${vals.map(v=>`<button type="button" aria-pressed="true" disabled><span>${v}</span></button>`).join('')}</div></section>`;
     return `<div class="filter-bar" role="group" aria-label="What it searches for">${part('Query',[this.q?esc(this.q):'any text'])}${part('Strategy',[this.strat])}${part('Filter',[...this.ftags.map(t=>'#'+t),...(this.type?[TYPE[this.type][1]]:[])])}${part('Sources',this.src)}</div>
     <p class="text-muted-foreground mt-3 mb-1 text-xs">Runs again each time it opens. Changing the query comes with editing (M-8), and the strategies with M-12.</p>
     <div class="item-group" role="list">${h.map(x=>`<a href="#" class="item" data-size="sm" role="listitem" data-act="open" data-id="${x}"><figure>${icon(TYPE[D[x].t][0])}</figure><section><h4>${D[x].n}</h4><p>${placeOf(x)}</p></section></a>`).join('')}</div>`;}});
@@ -2277,9 +2279,9 @@ function filesNav3(){
   /* A small form of a panel: C22's small field and outline button side by side. */
   const pform=(attrs,keep,value,label)=>`<form class="flex gap-1.5" ${attrs}><input class="input" data-size="sm" name="title" value="${value}" data-keep="${keep}" aria-label="${label}" required maxlength="200"><button type="submit" class="btn" data-variant="outline" data-size="sm">Make</button></form>`;
   if(sec==='newfcoll')return `<div>${panel(`${ptitle('New collection')}${pform('data-fform="coll"','fcoll','Files','Name of the collection')}${hint('A collection of files of your own: the next step asks with whom to share it. Until then nobody else sees it.')}`)}</div>`;
-  const r=froot();if(!r)return '<p class="text-muted-foreground">Loading…</p>';
+  const r=froot();if(!r)return '<p class="text-muted-foreground text-xs">Loading…</p>';
   const cur=FS.cur[r.id]||r.id,d=FS.dirs[cur];
-  if(!d){loadDir(cur);return '<p class="text-muted-foreground">Loading…</p>';}
+  if(!d){loadDir(cur);return '<p class="text-muted-foreground text-xs">Loading…</p>';}
   const room=r.limit>0?`${fsize(r.used)} of ${fsize(r.limit)}`:`${fsize(r.used)} used`;
   const rows=d.entries.map(e=>{const t=at(S.focus),key=SID[e.id],sel=t&&key&&t.d===key;
     return e.t==='file'?`<li><div data-frow="${e.id}"><span data-toggle aria-hidden="true"></span><button type="button" data-act="fopen" data-id="${e.id}" title="${esc(e.n)}"${sel?' aria-current="page"':''}>${icon('page')}<span>${esc(e.n)}</span></button><small title="${e.versions} versions">${fsize(e.size)}</small></div></li>`
