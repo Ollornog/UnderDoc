@@ -884,14 +884,21 @@ const asking = StateField.define({
 });
 
 // plainAsks are the values that wait for an answer, [{from, to, value}], kept in place while the text around them
-// changes; one whose text changed goes, and the next save looks again.
+// changes; one whose text changed goes, and the next save looks again. So does one that is no longer the whole value of
+// its line: the editor asks once the start of a value is long enough, and letters typed after it make the value longer
+// (2026-11-22). Kept, the question would mark only the start, and Keep as password would leave the rest as text.
 const plainAsks = StateField.define({
   create: () => [],
   update(value, tr) {
     if (tr.docChanged) {
+      const doc = tr.state.doc;
+      const whole = (a) => {
+        const line = doc.lineAt(a.from);
+        return findPlain(line.text).some((f) => line.from + f.from === a.from && line.from + f.to === a.to);
+      };
       value = value
         .map((a) => ({ ...a, from: tr.changes.mapPos(a.from, 1), to: tr.changes.mapPos(a.to, -1) }))
-        .filter((a) => a.to > a.from && tr.state.doc.sliceString(a.from, a.to) === a.value);
+        .filter((a) => a.to > a.from && doc.sliceString(a.from, a.to) === a.value && whole(a));
     }
     for (const e of tr.effects) if (e.is(setPlain)) value = e.value;
     return value;
