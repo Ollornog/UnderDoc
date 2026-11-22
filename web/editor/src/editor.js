@@ -134,26 +134,14 @@ class MarkerWidget extends WidgetType {
   }
   toDOM() {
     // The marker is the block's wrapper in C22's sense (div[data-block] with its .editor-handle), only without the lines,
-    // which CodeMirror draws as siblings after it; data-active names the block with the cursor or the pointer.
+    // which CodeMirror draws as siblings after it; data-active names the block with the cursor or the pointer, whose
+    // handle C22 then shows.
     const box = document.createElement('div');
     box.className = 'cm-ud-marker';
     box.dataset.block = this.id;
     box.dataset.edb = this.id;
+    if (this.active) box.dataset.active = '';
     box.innerHTML = this.html;
-    // bridge until C22 lets a handle that drags take the finger (gap 8 of T-12 step 3), as demo.js does in reading.
-    for (const h of box.querySelectorAll('.editor-handle > [data-drag]')) {
-      h.style.setProperty('touch-action', 'none');
-      h.style.setProperty('cursor', 'grab');
-    }
-    // bridge until C22 shows handles faintly where nothing hovers (gap 10 of T-12 step 3), as demo.js does in reading.
-    if (window.UDTouchFaint) for (const h of box.querySelectorAll('.editor-handle')) window.UDTouchFaint(h);
-    if (this.active) {
-      box.dataset.active = '';
-      // bridge until C22 shows the handle of [data-block][data-active] (gap 2 of T-12 step 3): the lines are not inside the
-      // wrapper, so neither :hover nor :focus-within reaches it.
-      const handle = box.querySelector('.editor-handle');
-      if (handle) handle.style.setProperty('opacity', '1');
-    }
     return box;
   }
   get estimatedHeight() {
@@ -298,14 +286,11 @@ class GapWidget extends WidgetType {
     const gap = document.createElement('div');
     gap.className = 'dropgap held cm-ud-gap';
     gap.dataset.gap = this.drag.id;
-    // bridge until C22 caps the gap of a held block in a document (gap 6 of T-12 step 3): its first lines only.
-    gap.style.setProperty('max-height', '6.5em');
-    gap.style.setProperty('overflow', 'hidden');
     for (const line of this.drag.look) gap.append(line.cloneNode(true));
     return gap;
   }
   get estimatedHeight() {
-    // The gap is capped at its first lines (6.5em).
+    // C22 caps the gap at its first lines (6.5em).
     return Math.min(this.drag.height, 104);
   }
   ignoreEvent() {
@@ -650,8 +635,8 @@ function decorate(state) {
     const first = doc.lineAt(marks[k].from).number + 1;
     let last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
     while (last >= first && !doc.line(last).text.trim()) last--;
-    // C22's .editor [data-used] on each of its lines; the value says where the line stands in the block (bridge until C22
-    // frames a run of sibling lines as one, gap 3 of T-12 step 3: today each line is framed on its own).
+    // C22's .editor [data-used] on each of its lines; the value says where the line stands in the block, so C22 draws one
+    // frame round the run of lines without changing their height.
     for (let n = first; n <= last; n++) {
       const l = doc.line(n);
       const where = first === last ? 'only' : n === first ? 'first' : n === last ? 'last' : 'middle';

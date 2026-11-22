@@ -714,7 +714,7 @@ func TestAUsedBlockShowsItsBoundary(t *testing.T) {
 		t.Fatalf("the lines of the used block are outlined: %q", b.eval(`[...document.querySelectorAll('.cm-editor [data-used]')].map(l => l.textContent).join(' / ')`))
 	}
 	if got := b.eval(`(() => { const f = document.querySelector('.cm-line[data-used="first"]'), l = document.querySelector('.cm-line[data-used="last"]'), x = f.querySelector(':scope > small');
-		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, parseFloat(getComputedStyle(f).borderTopWidth) >= 1 && parseFloat(getComputedStyle(l).borderBottomWidth) >= 1, x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
+		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, parseFloat(getComputedStyle(f, '::before').borderTopWidth) >= 1 && parseFloat(getComputedStyle(l, '::before').borderBottomWidth) >= 1 && getComputedStyle(f, '::before').borderBottomWidth === '0px', x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
 		t.Errorf("the boundary and its label: %q", got)
 	}
 	b.shot("editor-used-block")

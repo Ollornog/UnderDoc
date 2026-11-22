@@ -38,7 +38,7 @@
 
     function down(e) {
       if (e.button !== 0 || !e.isPrimary || !e.target.closest) return;
-      var handle = e.target.closest('.editor-handle > [data-drag]');
+      var handle = e.target.closest('.editor-handle [data-drag]');
       var c = handle && app.pick(handle);
       press = c ? { c: c, pointer: e.pointerId, x0: e.clientX, y0: e.clientY } : null;
       // Neither a selection of text nor the browser's own drag of a selection that covers the handle starts, which

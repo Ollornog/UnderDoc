@@ -173,11 +173,10 @@ editor's own stylesheet (`web/editor/src/editor.css`) holds only the inside of C
 | What happens where something in use goes | a `.card` over the workspace with one section per thing |
 | The source view | `pre.code-block[data-line-numbers]` |
 
-Where C22 lacks something the editor needs, the script bridges it until C22 has it, each place marked
-`bridge until C22` in the code: the space between the elements of a block with several, of an embedding with several,
-and a to-do of a list; the handle of the block with the cursor; one frame round the lines of a block used elsewhere; the
-gap of a dragged block; the name of a part on each of its boxes; a handle that takes a finger; the comment bubble within
-the padding of the window; handles and bubbles faintly visible on touch screens.
+What the editor first lacked in C22 (the space between the elements of a block with several and of an embedding, a
+to-do of a list, the handle of the block with the cursor, one frame round the lines of a block used elsewhere, the gap of
+a dragged block, the frames of a part over several lines, a handle that takes a finger, handles and bubbles on touch
+screens) C22 has had since `ec39f36`; UnderDoc keeps no look of its own for them.
 
 ## Build
 

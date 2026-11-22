@@ -64,7 +64,7 @@
       box.className = 'fixed pointer-events-none z-20';
       box.dataset.part = said.text;
       box.dataset.partId = part.id;
-      // bridge until C22 draws a frame without its name (gap 7 of T-12 step 3): today every box says the name.
+      // The name stands on the first box only; the boxes of further lines are continued frames.
       box.dataset.framed = k ? 'continued' : '';
       if (said.title) box.title = said.title;
       box.style.setProperty('left', `${r.left}px`);

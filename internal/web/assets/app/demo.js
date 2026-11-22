@@ -864,9 +864,6 @@ function render(){
   if(bm&&bh){const r=bm.getBoundingClientRect();if(r.bottom>innerHeight-4&&bh.getBoundingClientRect().top-r.height-6>=0)bm.dataset.side='top';}
   /* The menu New opens below its button, or above it where there is no room, and the field takes the typing at once. */
   const ap=document.querySelector('.cmdpop');if(ap){stay(ap,S.addAt.up);filterNew(S.addQ);const f=ap.querySelector('[data-nfilter]');f.focus();f.setSelectionRange(f.value.length,f.value.length);}
-  document.querySelectorAll('article.typeset[data-art]').forEach(bridgeFlow);
-  document.querySelectorAll('.editor-handle > [data-drag]').forEach(dragHandle);
-  document.querySelectorAll('.editor-handle').forEach(touchFaint);
   /* Every element of a page has its ID, and a speech bubble beside it holds its comments. */
   document.querySelectorAll('[data-art]').forEach(art=>{const i=+art.dataset.art,t=at(i);if(!t||!t.d||t.src||D[t.d].tool)return;if(D[t.d].blocks){dbBubbles(art,i,t);return;}if(accOf(t.d)==='read'||fromSource(t.d))return;const doc=art.matches('article.typeset')?art:null;if(!doc)return;
     const cs=D[t.d].comments||[],n={p:0,h:0,t:0,l:0,c:0};
@@ -1767,8 +1764,8 @@ const BDRAG={
   show(c,k){
     if(c.ed){c.ed.dragShow(c.id,k);return;}
     if(!c.el.isConnected)return;
-    /* bridge until C22 caps the gap of a held block in a document (gap 6 of T-12 step 3): its first lines only. */
-    if(!c.gap){c.gap=document.createElement('div');c.gap.className='dropgap held';c.gap.style.maxHeight='6.5em';c.gap.style.overflow='hidden';const copy=c.el.cloneNode(true);
+    /* C22 shows only the first lines of the held block in the gap (.dropgap.held in .typeset). */
+    if(!c.gap){c.gap=document.createElement('div');c.gap.className='dropgap held';const copy=c.el.cloneNode(true);
       ['id','data-block'].forEach(a=>copy.removeAttribute(a));copy.querySelectorAll('.editor-handle,[data-comment]').forEach(x=>x.remove());copy.querySelectorAll('[data-act]').forEach(x=>x.removeAttribute('data-act'));
       c.gap.append(copy);c.el.style.display='none';}
     const others=[...c.el.parentElement.querySelectorAll(':scope>[data-block]')].filter(n=>n!==c.el);
@@ -1950,33 +1947,12 @@ function dbBubbles(art,i,t){
     el.classList.add('comment-anchor');
     el.append(bubble(i,b.id,blockLabel(b),cnt,cnt?cnt+(cnt===1?' open comment':' open comments')+' on this block':'Comment on this block'));});
 }
-/* bridge until C22 carries the typeset flow inside a block wrapper with several elements, into an embedding with several,
-   and draws a to-do of a list without its bullet (gaps 1, 4 and 5 of T-12 step 3): the same spaces C22 puts between
-   blocks, written by the script (CSSOM, no style attribute) until then. */
-function bridgeFlow(art){
-  const own=el=>!el.matches('.editor-handle, [data-comment], figcaption, [data-popover]');
-  const flow=(box,skipFirst)=>{let prev=null;[...box.children].filter(own).forEach(el=>{
-    if(prev){const h=el.matches('h1,h2,h3,h4'),after=prev.matches('h2,h3,h4')?'0.5':prev.matches('h1')?'1':'';
-      el.style.marginTop=h?'calc(var(--flow) * 1.8)':after?`calc(var(--flow) * ${after})`:'var(--flow)';}
-    prev=el;});};
-  art.querySelectorAll(':scope > [data-block], figure.editor-embed').forEach(b=>flow(b));
-  art.querySelectorAll('li:has(> input[type="checkbox"])').forEach(li=>{li.style.listStyle='none';li.style.marginInlineStart='-1.1em';});
-}
-/* bridge until C22 lets a handle that drags take the finger and show the grab (gap 8 of T-12 step 3): without
-   touch-action none the browser scrolls the page under a finger on the handle instead of lifting the block. */
-function dragHandle(h){h.style.touchAction='none';h.style.cursor='grab';}
-/* bridge until C22 shows handles and comment bubbles faintly where nothing hovers (gap 10 of T-12 step 3): on a touch
-   screen they would stay invisible, out of reach of a finger. */
-function touchFaint(x){if(matchMedia('(hover: none)').matches&&!x.matches('[data-count], :has([aria-expanded="true"])'))x.style.opacity='0.45';}
-window.UDTouchFaint=touchFaint;
-/* C22's comment bubble: a ghost icon button inside its .comment-anchor, the count as data-count; faint until hovered,
-   clear when there are comments. */
+/* C22's comment bubble: a ghost icon button, the last child of its .comment-anchor, the count as data-count; faint until
+   hovered (and on a touch screen), clear when there are comments. */
 function bubble(i,id,label,cnt,title){
   const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.variant='ghost';b.dataset.size='icon-xs';b.dataset.comment='';
   b.dataset.act='cblk';b.dataset.w=i;b.dataset.id=id;b.dataset.l=label;if(cnt)b.dataset.count=cnt;b.title=title;b.setAttribute('aria-label',title);b.innerHTML=icon('chat');
-  /* bridge until C22 keeps the bubble inside the end padding of the pack underdoc (gap 9 of T-12 step 3): at -32px it
-     stands 2px past the window's 30px and the document scrolls sideways. */
-  b.style.marginInlineEnd='2px';touchFaint(b);return b;
+  return b;
 }
 /* Opens the comments of the focused window on one block of a page; a menu of the block in reading mode calls it. */
 function commentOn(docKey,blockId){
