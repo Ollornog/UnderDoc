@@ -73,6 +73,10 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   hit in a sheet is `aria-current`. Two bridges are left for C22 (reported): the list of a combobox cannot leave a section
   that scrolls, so the steps of a new collection do not scroll within the dialog; a heading in `.editor` has no room
   around it as in `.typeset`, so `editor.css` gives it that room.
+- After done (2026-11-22): C22 vendored at `6d8a2ae` (C22 #155): the two bridges are gone. The list of the share
+  combobox is `data-popover-fixed` and leaves the section, so the steps of a new collection scroll within the dialog
+  again; a heading in `.editor` has its room from C22. Taken over as well: the drawn table in its reading box with its
+  frame, and no lines of empty groups while one types in the combobox.
 
 ## Done when
 

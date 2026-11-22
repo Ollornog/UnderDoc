@@ -157,9 +157,9 @@ UnderDoc itself show as their alt text, never as a request elsewhere.
 The editor and its parts are C22's building blocks, their look the layout pack `underdoc` (T-12 step 3, 2026-11-22); the
 editor's own stylesheet (`web/editor/src/editor.css`) holds no look: only what CodeMirror's own parts need to sit in
 `.editor` (the page's font and leading, the room below the last line, cursor and selection in C22's tokens, the frame of
-its tooltip taken away), each rule with its reason. Until C22 gives a heading in `.editor` the room it has in `.typeset`,
-a bridge there keeps it (1.8 `--flow` above a heading instead of the blank line, half a blank line below), so the page does
-not jump between reading and writing.
+its tooltip taken away), each rule with its reason. A heading in `.editor` has the room it has in `.typeset` from C22
+(1.8 `--flow` above it instead of the blank line, half a blank line below), so the page does not jump between reading and
+writing; a drawn table stands in the box and frame it has when read (`.table-container[data-md=table]`).
 
 | Part | C22 |
 |---|---|
@@ -237,8 +237,8 @@ a combobox outside a section that scrolls.
 ## Build
 
 The editor is built from `web/editor` with esbuild into `internal/web/assets/app/editor/`: `editor.js`, `editor.css` and
-`LICENSES.txt`, the licence texts of every bundled package (all MIT). The built files are in the repository, so building
-UnderDoc needs only Go.
+`LICENSES.txt`, the licence texts of every bundled package (all MIT). The built files are not in the repository: build
+them with `scripts/build-js.sh` (Node and npm needed) before `go build`, which embeds them.
 
 ```bash
 cd web/editor

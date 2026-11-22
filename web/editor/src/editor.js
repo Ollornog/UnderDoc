@@ -516,10 +516,14 @@ class TableWidget extends WidgetType {
     const lines = this.source.split('\n');
     // A column aligned in Markdown is C22's th/td[align]; one without a colon keeps the table's own alignment.
     const align = cellsOf(lines[1] || '').map((d) => (/^:-+:$/.test(d) ? 'center' : /-:$/.test(d) ? 'right' : /^:-+$/.test(d) ? 'left' : ''));
+    // C22's table in the box the page shows it in when read (markdown: classTableBox, table text-sm), frame and all, drawn in
+    // place of its source; data-md says what it is.
+    const box = document.createElement('div');
+    box.className = 'table-container w-full rounded-md border';
+    box.dataset.md = 'table';
     const table = document.createElement('table');
-    // C22's table, as the page shows it when read (markdown: table text-sm), drawn in place of its source (data-md).
     table.className = 'table text-sm';
-    table.dataset.md = 'table';
+    box.append(table);
     lines.forEach((line, index) => {
       if (index === 1) return;
       const row = document.createElement('tr');
@@ -542,10 +546,10 @@ class TableWidget extends WidgetType {
       const cell = e.target.closest && e.target.closest('td, th');
       const row = cell ? cell.parentElement.rowIndex : 0;
       const col = cell ? cell.cellIndex : 0;
-      view.dispatch({ selection: { anchor: view.posAtDOM(table) + tables.cellStart(this.source, row, col) } });
+      view.dispatch({ selection: { anchor: view.posAtDOM(box) + tables.cellStart(this.source, row, col) } });
       view.focus();
     });
-    return table;
+    return box;
   }
   ignoreEvent() {
     return false;

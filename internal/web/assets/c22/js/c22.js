@@ -3009,36 +3009,75 @@ document.addEventListener('basecoat:initialized', function (e) {
    VOR basecoats Öffnen gesetzt (capture-Click) sowie einmal beim Verdrahten — die
    Koordinaten sind bewusst NICHT Teil der Öffnungs-Transition, sonst fliegt das
    Panel beim ERSTEN Öffnen von seiner Standardposition quer über den Schirm.
-   Praxis-Fund 2026-07-20/21 (Optionen-Menü in einer scrollenden Sidebar). */
+   Praxis-Fund 2026-07-20/21 (Optionen-Menü in einer scrollenden Sidebar).
+   The same for a .combobox (2026-11-22, from UnderDoc's rights dialog): its list leaves a section that scrolls. A fixed
+   panel is placed in the viewport, unless an ancestor is its containing block (transform, translate, scale, filter,
+   contain: the box of a dialog.dialog, which Basecoat centres with translate and scale); a probe beside the panel,
+   stretched over that block, says where it is, so the numbers hold in both. A panel that would run off the bottom of the
+   screen opens upwards when there is more room above (anchored by its bottom, so a list that shrinks while one types stays
+   at the field); while the page or a section scrolls, an open panel follows its trigger. A combobox's list is at least as
+   wide as the field (--popover-anchor-width) and is placed when Basecoat opens it (basecoat:popover), also by typing or
+   the keyboard. */
 (function () {
+  var SEL = '.dropdown-menu[data-popover-fixed], .combobox[data-popover-fixed]';
+  function block(panel) {
+    var probe = document.createElement('i');
+    probe.style.position = 'fixed';
+    probe.style.inset = '0';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    panel.parentNode.insertBefore(probe, panel);
+    var o = probe.getBoundingClientRect();
+    probe.remove();
+    return o;
+  }
   function position(wrapper) {
-    var trigger = wrapper.querySelector(':scope > button, :scope > [aria-haspopup]');
+    var combobox = wrapper.classList.contains('combobox');
+    var trigger = combobox ? wrapper : wrapper.querySelector(':scope > button, :scope > [aria-haspopup]');
     var panel = wrapper.querySelector(':scope > [data-popover]');
     if (!trigger || !panel) return;
     var r = trigger.getBoundingClientRect();
+    var o = block(panel);
     var luft = 4;
     var side = panel.getAttribute('data-side') || 'bottom';
+    if (combobox) panel.style.setProperty('--popover-anchor-width', r.width + 'px');
+    // Every side is set: Basecoat's own (top: 100%, inset-inline-start: 0 …) would otherwise win over the one left out.
+    panel.style.top = panel.style.bottom = panel.style.left = panel.style.right = 'auto';
     if (side === 'right') {
-      panel.style.left = (r.right + luft) + 'px';
-      panel.style.top = Math.max(8, Math.min(r.top, window.innerHeight - 280)) + 'px';
+      panel.style.left = (r.right + luft - o.left) + 'px';
+      panel.style.top = (Math.max(8, Math.min(r.top, window.innerHeight - 280)) - o.top) + 'px';
     } else if (side === 'left') {
-      panel.style.right = (window.innerWidth - r.left + luft) + 'px';
-      panel.style.top = Math.max(8, Math.min(r.top, window.innerHeight - 280)) + 'px';
+      panel.style.right = (o.right - r.left + luft) + 'px';
+      panel.style.top = (Math.max(8, Math.min(r.top, window.innerHeight - 280)) - o.top) + 'px';
     } else {
       var align = panel.getAttribute('data-align') || 'start';
-      if (align === 'end') panel.style.right = (window.innerWidth - r.right) + 'px';
-      else panel.style.left = r.left + 'px';
-      panel.style.top = (r.bottom + luft) + 'px';
+      if (align === 'end') panel.style.right = (o.right - r.right) + 'px';
+      else panel.style.left = (r.left - o.left) + 'px';
+      var hoehe = panel.offsetHeight;
+      var unten = window.innerHeight - r.bottom - luft, oben = r.top - luft;
+      if (hoehe > unten && oben > unten) panel.style.bottom = (o.bottom - r.top + luft) + 'px';
+      else panel.style.top = (r.bottom + luft - o.top) + 'px';
     }
   }
   function wire(root) {
     var basis = root && root.querySelectorAll ? root : document;
-    basis.querySelectorAll('.dropdown-menu[data-popover-fixed]').forEach(position);
+    basis.querySelectorAll(SEL).forEach(position);
+  }
+  function offene() {
+    document.querySelectorAll(SEL).forEach(function (w) {
+      var panel = w.querySelector(':scope > [data-popover]');
+      if (panel && panel.getAttribute('aria-hidden') === 'false') position(w);
+    });
   }
   document.addEventListener('click', function (e) {
-    var wrapper = e.target.closest && e.target.closest('.dropdown-menu[data-popover-fixed]');
+    var wrapper = e.target.closest && e.target.closest(SEL);
     if (wrapper) position(wrapper);
   }, true);
+  document.addEventListener('basecoat:popover', function (e) {
+    var root = e.detail && e.detail.source;
+    if (root && root.matches && root.matches(SEL)) position(root);
+  });
+  document.addEventListener('scroll', offene, true);
   window.addEventListener('resize', function () { wire(document); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { wire(document); });
   else wire(document);

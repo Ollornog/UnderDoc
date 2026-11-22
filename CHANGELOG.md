@@ -173,6 +173,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- C22 vendored at `6d8a2ae` (C22 #155), the last two bridges gone
+  ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), [docs/editor.md](docs/editor.md#built-from-c22)): a
+  heading in the editor has the room it has when read from C22, `editor.css` keeps no bridge; the list of the share
+  combobox (rights dialog, new collection) leaves a section that scrolls (`data-popover-fixed`, upwards when there is no
+  room below), so the steps of a new collection scroll within the dialog again; the drawn table in the editor stands in
+  the box and frame it has when read; typing into the combobox no longer leaves the lines of empty groups.
 - C22 vendored at `a023d57`, its old app workspace removed there (C22 T-20), and the last bridges of the switch gone
   ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), done, [docs/editor.md](docs/editor.md#built-from-c22)):
   the live preview of the editor says what a line, a mark or a widget is by C22's `data-md` and takes its look from C22,
