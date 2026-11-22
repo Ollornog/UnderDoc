@@ -477,9 +477,8 @@ function factsHtml(d){
     <h3>Versions</h3>${d.blocks?versionsHtml(d):factList([['now',d.ch],['earlier','12 versions, with restore']])}`:''}
     <h3>Later</h3>${hint('Export, save as (M-17) and share (M-5).')}</div>`;
 }
-/* The drawer of a window (C22's aside[data-drawer]): its head with the name and a close button, then its parts. An icon
-   in the head takes C22's size utility (bridge until C22 sizes the icon in the head of a drawer). */
-const drawer=(label,head,inner,act,i)=>`<aside data-drawer aria-label="${label}"><header>${head.replace('<svg ','<svg class="size-4" ')}<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-act="${act}" data-w="${i}" aria-label="Close ${label.toLowerCase()}">${icon('x')}</button></header>${inner}</aside>`;
+/* The drawer of a window (C22's aside[data-drawer]): its head with an icon, the name and a close button, then its parts. */
+const drawer=(label,head,inner,act,i)=>`<aside data-drawer aria-label="${label}"><header>${head}<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-act="${act}" data-w="${i}" aria-label="Close ${label.toLowerCase()}">${icon('x')}</button></header>${inner}</aside>`;
 /* The comments of a made-up document: what they belong to as the drawer's heading, the comments as C22's timeline, other
    commented elements as entries. */
 function cmtHtml(t,i){
@@ -736,7 +735,7 @@ const seg3=(act,opts,cur)=>segs(act,opts,cur);
 const plink=(href,label)=>`<a class="btn" data-variant="outline" data-size="xs" href="${href}">${label}</a>`;
 /* An entry of a panel list (C22's framed small .item): a name, a quiet line below it, a mark at its end. */
 const pitem=(tag,attrs,name,sub,side)=>`<${tag} class="item" data-variant="outline" data-size="sm" role="listitem" ${attrs}><section><h4>${name}</h4>${sub?`<p class="text-muted-foreground text-xs">${sub}</p>`:''}</section>${side?`<aside>${side}</aside>`:''}</${tag}>`;
-const onOff=on=>`<span class="badge" data-variant="${on?'secondary':'outline'}">${on?'✓ On':'Off'}</span>`;
+const onOff=on=>`<span class="badge" data-variant="${on?'secondary':'outline'}">${on?'✓ On':'✗ Off'}</span>`;
 const plabel=t=>`<h4 class="text-sm font-medium">${t}</h4>`;
 function settingsHtml(sec){
   let b='';
@@ -930,11 +929,13 @@ function render(){
     doc.querySelectorAll('p,h2,h3,ul,ol,pre,.table-container').forEach(el=>{if(el.parentElement.closest('.editor-embed,[role=list],.table-container,ul,ol,[data-notes],.board,[data-facts],.alert,.empty,figure,dl')||el.matches('.text-muted-foreground')||el.closest('.editor-embed'))return;
       const k=el.matches('.table-container')?'t':el.matches('h2,h3')?'h':el.matches('ul,ol')?'l':el.matches('pre')?'c':'p',id=k+(++n[k]),cnt=cs.filter(c=>c.b===id).length;
       const lab=k==='t'?'Table: '+[...el.querySelectorAll('th')].map(x=>x.textContent).join(', '):el.textContent.trim().slice(0,60);
-      if(t.cmt&&t.cb===id)commentFocus(el);
       const b=bubble(i,id,lab,cnt,cnt?cnt+' comments on this':'Comment on this');
-      /* A table scrolls sideways in its container, which would cut the bubble off: its anchor is a wrapper. */
-      if(el.matches('.table-container')){const a=document.createElement('div');a.className='comment-anchor';el.before(a);a.append(el,b);}
-      else{el.classList.add('comment-anchor');el.append(b);}});});
+      /* A table scrolls sideways in its container, which would cut the bubble off: its anchor is a wrapper. The anchor
+         carries the focus of the open comments. */
+      let anchor=el;
+      if(el.matches('.table-container')){anchor=document.createElement('div');anchor.className='comment-anchor';el.before(anchor);anchor.append(el,b);}
+      else{el.classList.add('comment-anchor');el.append(b);}
+      if(t.cmt&&t.cb===id)commentFocus(anchor);});});
   /* A table made in a page gets its ID right away. Its address can be pasted into another page, where it shows live. */
   document.querySelectorAll('[data-art]').forEach(art=>{const t=at(+art.dataset.art);if(!t||!t.d||t.src||D[t.d].tool)return;
     if(D[t.d].blocks)return;
@@ -965,8 +966,8 @@ function applyFind(i,scroll){
   const ms=[...root.querySelectorAll('mark')];
   if(!ms.length){out.textContent='no hit';return;}
   t.cur=((t.cur%ms.length)+ms.length)%ms.length;
-  /* The current hit: aria-current, and C22's ring (bridge until C22 gives mark[aria-current] a look of its own). */
-  ms[t.cur].setAttribute('aria-current','true');ms[t.cur].classList.add('ring-2','font-semibold');out.textContent=`${t.cur+1} of ${ms.length}`;
+  /* The current hit is C22's mark[aria-current] (framed and bold). */
+  ms[t.cur].setAttribute('aria-current','true');out.textContent=`${t.cur+1} of ${ms.length}`;
   if(scroll)ms[t.cur].scrollIntoView({block:'center'});
 }
 /* Every window has its own general tab, and a list opens into the active window. */
@@ -2026,9 +2027,8 @@ function dbBubbles(art,i,t){
     el.classList.add('comment-anchor');
     el.append(bubble(i,b.id,blockLabel(b),cnt,cnt?cnt+(cnt===1?' open comment':' open comments')+' on this block':'Comment on this block'));});
 }
-/* The element whose comments the drawer shows: data-comment-focus, and C22's accent ground (bridge until C22 gives the
-   element of an open comment thread a look of its own). */
-function commentFocus(el){el.dataset.commentFocus='';el.classList.add('bg-accent','rounded-sm');}
+/* The element whose comments the drawer shows is C22's .comment-anchor[data-comment-focus]. */
+function commentFocus(el){el.dataset.commentFocus='';}
 /* C22's comment bubble: a ghost icon button, the last child of its .comment-anchor, the count as data-count; faint until
    hovered (and on a touch screen), clear when there are comments. */
 function bubble(i,id,label,cnt,title){
