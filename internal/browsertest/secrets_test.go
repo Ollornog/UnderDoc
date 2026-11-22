@@ -200,7 +200,10 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	page := makePage(b, "Router", "Notes")
 	b.openEditing(base, page, "Router")
 	// The value ends in a mark of emphasis, which belongs to it: one random value in 64 did, and lost it (2026-11-21).
-	first := randomPassword(t) + "_"
+	// It also starts with one after the dash, so to Markdown `_…_` is emphasis: one random value in 64 did, and the
+	// question showed it without both marks while Keep as password sealed them (CI on 98f2f9a, 1a8610b, f8efb8e;
+	// 2026-11-22). Every run now has that shape.
+	first := "pw-_" + randomPassword(t)[3:] + "_"
 	b.lineWith("Notes")
 	// The first letters of the value, typed, then a pause longer than the editor waits before it saves: too short to ask
 	// about, but the start of a value, so nothing is saved while the cursor is on that line.
@@ -238,7 +241,8 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	}
 	b.shot("plain-password-ask")
 	b.clickOn(`.cm-content [data-plain-ask] [data-plain="secret"]`, 1)
-	if !b.waitFor(`/Router password: ::secret\{id="[0-9a-hjkmnp-tv-z]{10}"\}/.test(EDS[at(0).d]?.ed.text() || '') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+	// The reference takes the place of the whole value: nothing of it stays behind on the line.
+	if !b.waitFor(`/Router password: ::secret\{id="[0-9a-hjkmnp-tv-z]{10}"\}\n/.test(EDS[at(0).d]?.ed.text() || '') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
 		t.Fatalf("the value did not become a password: %q | %q", b.eval(edText), b.eval(`document.querySelector('[data-edstatus]')?.textContent`))
 	}
 	if got := b.stored(page); strings.Contains(got, first) || !strings.Contains(got, "More notes") {

@@ -716,6 +716,11 @@ function decorate(state) {
     }
   }
   const inWiki = (pos) => wiki.some(([from, to]) => pos >= from && pos < to);
+  // A value the editor asks about shows as typed: Markdown that reaches into it is neither hidden nor drawn. `pw-_x_` is emphasis
+  // to Markdown, but its marks belong to the value (plain.js); hidden, the question showed `pw-x` while Keep as password
+  // seals `pw-_x_` (2026-11-22).
+  const asked = state.field(plainAsks);
+  const inAsk = (from, to) => asked.some((a) => from < a.to && to > a.from);
 
   syntaxTree(state).iterate({
     enter(node) {
@@ -741,6 +746,7 @@ function decorate(state) {
         case 'StrongEmphasis':
         case 'Strikethrough':
         case 'InlineCode': {
+          if (inAsk(from, to)) return name !== 'InlineCode';
           const cls = { Emphasis: 'cm-lp-em', StrongEmphasis: 'cm-lp-strong', Strikethrough: 'cm-lp-strike', InlineCode: 'cm-lp-icode' }[name];
           add(from, to, mark(cls));
           if (!isActive(from, to)) {

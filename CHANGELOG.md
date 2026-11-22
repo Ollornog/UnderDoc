@@ -238,6 +238,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- A password typed as text whose value is emphasis to Markdown (`pw-_x_`): the editor hid the marks inside the value
+  while it asked about it, so the question showed `pw-x` in italics while Keep it as a password seals `pw-_x_`. A value
+  the editor asks about now shows as typed; Markdown that reaches into it is neither hidden nor drawn. This, not a lost
+  key or a redrawn workspace, was the flaky `TestAPasswordTypedAsText` in CI ("the value is not marked", 18 of 20
+  characters): one random value in 64 started with `_`. The test now types that shape every time and checks that
+  nothing of the value stays behind its reference.
 - A password typed as text: once the start of a value was long enough, the editor asked about it, and letters typed
   after it did not end the question until the next save. Meanwhile only the start was underlined, and Keep it as a
   password would have made a secret of the start and left the rest as text in the page. A question now goes as soon as
