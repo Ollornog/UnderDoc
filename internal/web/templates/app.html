@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/assets/c22/css/c22-underdoc.css?v={{.Version}}">
   <link rel="stylesheet" href="/assets/app/editor/editor.css?v={{.Version}}">
   <script src="/assets/app/theme.js?v={{.Version}}"></script>
+  <script defer src="/assets/c22/js/c22.js?v={{.Version}}"></script>
   <script defer src="/assets/c22/js/app-workspace-drag.js?v={{.Version}}"></script>
   <script defer src="/assets/app/blockdrag.js?v={{.Version}}"></script>
   <script defer src="/assets/app/parts.js?v={{.Version}}"></script>
@@ -20,7 +21,7 @@
   <script defer src="/assets/app/demo.js?v={{.Version}}"></script>
 </head>
 <body>
-  <div id="root" class="c22-app-workspace"{{if .Demo}} data-demo{{end}}></div>
+  <div id="root"{{if .Demo}} data-demo{{end}}></div>
   <noscript><p>The workspace of UnderDoc needs JavaScript.</p></noscript>
 </body>
 </html>

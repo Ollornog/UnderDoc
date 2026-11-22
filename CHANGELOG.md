@@ -173,6 +173,24 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Dialogs, the pages outside the workspace and the table view of a spreadsheet from C22's building blocks, and the root
+  class of C22's old app workspace is gone ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), steps 5 and 6,
+  [docs/editor.md](docs/editor.md#dialogs-and-pages-outside-the-workspace)): UnderDoc emits no class of the old block any
+  more, and the class check finds every class the server writes as well (an embedding, a mask, a table) and fails on a
+  class of the old block. The rights dialog shows owner and inheritance as entries with their action, each grant with the
+  icon of its kind and a cross to take it back, and a role from above as a split badge (origin, role); a new collection is
+  made in two steps, its name and then Share with (Enter in the name still makes it at once, shared with nobody); the
+  passwords of a page are entries; the log in the tab Rights is a timeline; a dialog scrolls within the height of the
+  screen instead of 420px. The table view shows the sheets as tabs and the sheet as C22's grid: a marked range shows on
+  the letters and numbers of its columns and rows too, the cell it began at is framed, and numbers stand at the end of
+  their cells (they never did: the script read the kind of a cell as a letter, while it comes as a number). Tables in
+  pages mark numbers the same way, and the page behind a share link is C22's public page (its frozen page typeset, its
+  files in a table that wraps). The workspace loads `c22.js` for the steps of the dialog; `data-behaviour="app"` keeps it
+  out of the workspace, which a new test proves with a spy on every change c22.js makes. The values of a saved search are
+  disabled until they can be changed (M-8), so c22.js does not toggle them. Without the root class, what the old block
+  set for everything below it is gone: a link in a page is underlined and a table head plain as C22 typesets them, and
+  the quiet lines of nav3 take the size of its hints. Choosing whom to share with stays a `select`
+  with groups: C22's grouped combobox needs Basecoat's script, which the workspace does not load.
 - C22 vendored at `bad252a` ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), after step 4): the looks the
   menus and views lacked come from C22 now, so their bridges are gone. The current hit of Find on the page is C22's
   `mark[aria-current]` (framed and bold), the element whose comments are open `.comment-anchor[data-comment-focus]` (for

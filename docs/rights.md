@@ -32,8 +32,8 @@ object's own grants.
 
 - **A new collection at the top belongs to its owner alone** until they share it (2026-11-19; before, it granted edit to
   the whole tenant): no role for anyone else, not even the tenant. It is not private, so it is shared like any other. The
-  dialog that makes it has the step **Share with**: everyone in the workspace, groups and persons, each with a role, by
-  default nobody; it grants through `PUT /api/objects/<id>/grants`, as the rights dialog does. The same holds for a new
+  dialog that makes it has two steps, the name and then **Share with** (Enter in the name makes it at once, shared with
+  nobody): everyone in the workspace, groups and persons, each with a role, by default nobody; it grants through `PUT /api/objects/<id>/grants`, as the rights dialog does. The same holds for a new
   collection of Files and for a copy made at the top; a collection inside another inherits. Collections made before keep
   what they granted.
 - A move keeps the object's own grants and its owner; what it inherits changes with its new place. **Moving to another

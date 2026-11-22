@@ -46,10 +46,12 @@ of T-1).
 A spreadsheet opens in its window as tables (`assets/app/sheets.js`); with the Office module its PDF preview stays one
 click away below.
 
-- The visible sheets are a row of buttons above the table; a head of column letters and a column of row numbers stay
-  while the table scrolls; rows come in pages of 500 (**Previous rows**, **Next rows**).
+- The visible sheets are tabs above the table (C22's `.tabs`); the sheet is C22's grid, whose head of column letters and
+  column of row numbers stay while it scrolls; numbers stand at the end of their cells; rows come in pages of 500
+  (**Previous rows**, **Next rows**).
 - A range is marked by dragging over the cells, by a click and a Shift+click, or with the arrows and Shift and the
-  arrows once the table has the focus. **Embed** gives the marked range, or the sheet when nothing is marked, its ID and
+  arrows once the table has the focus; the letters and numbers of the marked columns and rows show it as well, and the cell
+  it began at is framed. **Embed** gives the marked range, or the sheet when nothing is marked, its ID and
   puts its line `::embed{ref=…}` on the clipboard (the line shows below the table as well); **First row is the head**
   goes with it. **Download CSV** downloads the marked range, or the sheet.
 - **Names and tables** lists the defined names and Excel tables of the visible sheets, each with **Embed**; a name of

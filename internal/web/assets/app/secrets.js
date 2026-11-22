@@ -122,7 +122,7 @@
   /** ask asks for a value without showing it, and resolves to it, or to null when cancelled. */
   function ask(title) {
     const d = askEl();
-    d.innerHTML = `<form data-secret-ask><header><h2 id="udsecret-ask-title">${esc(title)}</h2><p>Kept sealed on the server. The page holds only a reference; the value comes on a click, and every time is logged.</p></header><section><label class="label" for="udsecret-value">Password</label><input class="input" id="udsecret-value" type="password" autocomplete="off" maxlength="16384" required data-secret-input></section><footer><button class="btn" data-variant="outline" type="button" data-secret-cancel>Cancel</button><button class="btn" type="submit">Keep</button></footer></form>`;
+    d.innerHTML = `<form data-secret-ask><header><h2 id="udsecret-ask-title">${esc(title)}</h2><p>Kept sealed on the server. The page holds only a reference; the value comes on a click, and every time is logged.</p></header><section><div class="field"><label class="label" for="udsecret-value">Password</label><input class="input" id="udsecret-value" type="password" autocomplete="off" maxlength="16384" required data-secret-input></div></section><footer><button class="btn" data-variant="outline" type="button" data-secret-cancel>Cancel</button><button class="btn" type="submit">Keep</button></footer></form>`;
     return new Promise((resolve) => {
       const form = d.querySelector('form');
       const done = (value) => {
@@ -258,8 +258,8 @@
   function readersForm(s) {
     const people = dlg.people || { people: [], groups: [] };
     const named = new Set((s.readers || []).map((r) => `${r.kind}:${r.who}`));
-    const box = (kind, x) => `<label class="flex items-center gap-2 text-sm"><input type="checkbox" data-secret-who value="${esc(kind)}:${esc(x.id)}"${named.has(`${kind}:${x.id}`) ? ' checked' : ''}> ${esc(kind === 'group' ? `Group ${x.name}` : x.name || x.login)}</label>`;
-    return `<form class="grid gap-2 mt-2" data-secret-readers="${esc(s.id)}"><label class="flex items-center gap-2"><input type="checkbox" data-secret-restricted${s.restricted ? ' checked' : ''}> Only these people and groups, as far as they read the page</label><div class="grid gap-1" role="group" aria-label="Who may reveal it">${people.people.map((p) => box('person', p)).join('')}${people.groups.map((g) => box('group', g)).join('')}</div><div>${btn('data-pwact="readers" data-secret="' + esc(s.id) + '"', 'Keep who may see it')}</div></form>`;
+    const box = (kind, x) => `<label class="label"><input class="input" type="checkbox" data-secret-who value="${esc(kind)}:${esc(x.id)}"${named.has(`${kind}:${x.id}`) ? ' checked' : ''}> ${esc(kind === 'group' ? `Group ${x.name}` : x.name || x.login)}</label>`;
+    return `<form class="grid gap-2" data-secret-readers="${esc(s.id)}"><label class="label"><input class="input" type="checkbox" data-secret-restricted${s.restricted ? ' checked' : ''}> Only these people and groups, as far as they read the page</label><div class="grid gap-1" role="group" aria-label="Who may reveal it">${people.people.map((p) => box('person', p)).join('')}${people.groups.map((g) => box('group', g)).join('')}</div><div>${btn('data-pwact="readers" data-secret="' + esc(s.id) + '"', 'Keep who may see it')}</div></form>`;
   }
 
   function detail(s) {
@@ -272,7 +272,7 @@
       )
       .join('');
     const readers = info.restricted ? `<p class="text-sm">Only: ${(info.readers || []).map((r) => esc(r.name || r.who)).join(', ') || 'nobody'}</p>` : '<p class="text-sm text-muted-foreground">Whoever reads the page may reveal it.</p>';
-    return `<div class="mt-2" data-secret-detail="${esc(s.id)}">${readers}${info.mayRestrict ? readersForm(info) : ''}${versions ? `<h3 class="font-medium mt-3">Versions</h3><table class="table"><tbody>${versions}</tbody></table>` : ''}</div>`;
+    return `<div class="grid gap-2 ps-4" data-secret-detail="${esc(s.id)}">${readers}${info.mayRestrict ? readersForm(info) : ''}${versions ? `<h3 class="text-sm font-medium">Versions</h3><div class="table-container"><table class="table"><tbody>${versions}</tbody></table></div>` : ''}</div>`;
   }
 
   function draw() {
@@ -283,20 +283,23 @@
         ? dlg.list
             .map((s) => {
               const state = s.may ? (s.restricted ? 'restricted' : '') : 'hidden';
-              const head = `<span><b>Password</b> <code>${esc(s.id)}</code>${s.referenced ? '' : ' <span class="badge" data-variant="muted">not in the text</span>'}${state ? ` <span class="badge" data-variant="outline">${state}</span>` : ''}${s.changed ? `<br><small class="text-muted-foreground">Changed ${esc(when(s.changed))}</small>` : ''}</span>`;
+              const head = `<section><h4 class="font-medium">Password <code>${esc(s.id)}</code>${s.referenced ? '' : ' <span class="badge" data-variant="muted">not in the text</span>'}${state ? ` <span class="badge" data-variant="outline">${state}</span>` : ''}</h4>${s.changed ? `<p class="text-muted-foreground text-sm">Changed ${esc(when(s.changed))}</p>` : ''}</section>`;
               const acts = s.may
                 ? `${btn(`data-pwact="dcopy" data-secret="${esc(s.id)}"`, 'Copy')}${s.mayChange ? btn(`data-pwact="change" data-secret="${esc(s.id)}"`, 'Change') : ''}${s.mayChange || s.mayRestrict ? btn(`data-pwact="more" data-secret="${esc(s.id)}"`, dlg.open[s.id] ? 'Less' : 'Versions and readers') : ''}${s.mayChange ? btn(`data-pwact="delete" data-secret="${esc(s.id)}"`, 'Delete') : ''}`
                 : s.mayRestrict
                   ? btn(`data-pwact="more" data-secret="${esc(s.id)}"`, dlg.open[s.id] ? 'Less' : 'Readers')
                   : '';
-              return `<div class="mt-3" data-secret-row="${esc(s.id)}"><div class="flex flex-wrap items-center justify-between gap-2">${head}<span class="flex flex-wrap gap-2">${acts}</span></div>${detail(s)}</div>`;
+              return `<div class="grid gap-2" role="listitem" data-secret-row="${esc(s.id)}"><article class="item" data-variant="outline" data-size="sm">${head}${acts ? `<aside class="flex flex-wrap items-center gap-2">${acts}</aside>` : ''}</article>${detail(s)}</div>`;
             })
             .join('')
         : '<p class="text-sm text-muted-foreground">No passwords on this page. Add one with Password in the bar or the slash menu of the editor.</p>';
     }
     const vault = dlg.vault ? '' : '<p class="text-sm" data-secret-novault>Passwords need a key on the server; none is set, so none can be made or revealed.</p>';
     const problem = dlg.error ? `<p class="text-sm" role="alert">${esc(dlg.error)}</p>` : '';
-    d.innerHTML = `<div><header><h2 id="udsecrets-title">Passwords: ${esc(dlg.title)}</h2><p>Kept sealed on the server, revealed on a click and logged. Operations documentation, not a vault.</p></header><section class="max-h-[420px] overflow-y-auto">${problem}${vault}${body}</section><footer><button class="btn" data-variant="outline" type="button" data-pwact="close">Close</button></footer></div>`;
+    // From C22's parts, as the rights dialog: each password an .item with its actions, what opens below it indented; the
+    // section scrolls within the height C22 gives a dialog.
+    if (dlg.list && dlg.list.length) body = `<div class="item-group" role="list">${body}</div>`;
+    d.innerHTML = `<div><header><h2 id="udsecrets-title">Passwords: ${esc(dlg.title)}</h2><p>Kept sealed on the server, revealed on a click and logged. Operations documentation, not a vault.</p></header><section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4">${problem}${vault}${body}</section><footer><button class="btn" data-variant="outline" type="button" data-pwact="close">Close</button></footer></div>`;
   }
 
   async function dialogAct(b) {

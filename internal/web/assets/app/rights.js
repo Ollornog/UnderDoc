@@ -55,8 +55,22 @@ window.UDRights = (() => {
     redraw();
   };
 
+  // The icons of the three kinds a role goes to (lucide, as in C22's rights block): the icon and the words tell the kind,
+  // never a colour alone.
+  const svg = (name, paths) =>
+    `<svg data-icon-lu="${name}" class="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  const KIND_ICON = {
+    tenant: svg("globe", '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>'),
+    group: svg("users", '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+    person: svg("user", '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  };
+  const X_ICON = '<svg data-icon-lu="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
   const roleSelect = (name, current, disabled) =>
     `<select class="select" name="${name}" data-rsel="${name}"${disabled ? " disabled" : ""} aria-label="Role">${ROLES.map((r) => `<option value="${r[0]}"${r[0] === current ? " selected" : ""}>${r[1]}</option>`).join("")}</select>`;
+  // whoSelect picks everyone, a group or a person, grouped. C22's rights block draws this as a grouped .combobox with an
+  // icon per kind; its behaviour is Basecoat's, which the workspace does not load (Basecoat would take over the menus the
+  // workspace draws itself), so this stays C22's select with groups until C22 offers the combobox without it.
   const whoSelect = (name, withTenant) => {
     const p = st.people || { people: [], groups: [] };
     return `<select class="select" name="${name}" aria-label="Who">${withTenant ? '<option value="tenant:">Everyone in this workspace</option>' : ""}${p.groups.length ? `<optgroup label="Groups">${p.groups.map((g) => `<option value="group:${esc(g.id)}">${esc(g.name)}${g.source === "synced" ? " (sign-in)" : ""}</option>`).join("")}</optgroup>` : ""}<optgroup label="People">${p.people.map((x) => `<option value="person:${esc(x.id)}">${esc(x.name)} (${esc(x.login)})</option>`).join("")}</optgroup></select>`;
@@ -70,6 +84,11 @@ window.UDRights = (() => {
   };
   // small is a small outline button of C22: xs in the panel of the workspace, sm in the dialog.
   const small = (attrs, label, inDialog) => `<button class="btn" data-variant="outline" data-size="${inDialog ? "sm" : "xs"}" type="button" ${attrs}>${label}</button>`;
+  // In the dialog, from C22's rights block: a fact with its action at the end is an .item, taking a role back the small
+  // ghost button with the cross, named for whom.
+  const fact = (attrs, name, sub, side) =>
+    `<article class="item" data-variant="outline" data-size="sm" role="listitem" ${attrs}><section><h4 class="font-medium">${name}</h4>${sub ? `<p class="text-muted-foreground text-sm">${sub}</p>` : ""}</section>${side ? `<aside class="flex flex-wrap items-center gap-2">${side}</aside>` : ""}</article>`;
+  const takeBack = (attrs, whom) => `<button class="btn" data-variant="ghost" data-size="icon-sm" type="button" ${attrs} aria-label="Take back: ${whom}" title="Take back">${X_ICON}</button>`;
   const submit = (label) => `<button class="btn" data-variant="outline" data-size="xs" type="submit">${label}</button>`;
   const problem = () => (st.error ? `<p class="text-sm" role="alert" data-rights-error>✗ ${esc(st.error)}</p>` : "");
   // The parts of the panel in nav3, from C22: a heading, a quiet hint, entries of a list (an .item with a quiet line and
@@ -140,12 +159,12 @@ window.UDRights = (() => {
   const MODEWORD = { read: "read", comment: "comment", edit: "edit", upload: "upload only" };
   function linkRows(links, withTitle, inDialog) {
     if (!links.length) return inDialog ? '<p class="text-sm text-muted-foreground">No link.</p>' : hint("No link.");
-    return `<table class="table" data-links><thead><tr>${withTitle ? "<th>Of</th>" : ""}<th>Mode</th><th>Made by</th><th>Ends</th><th></th></tr></thead><tbody>${links
+    return `<div class="table-container"><table class="table" data-links><thead><tr>${withTitle ? "<th>Of</th>" : ""}<th>Mode</th><th>Made by</th><th>Ends</th><th></th></tr></thead><tbody>${links
       .map(
         (l) =>
           `<tr data-link="${esc(l.id)}">${withTitle ? `<td>${esc(l.title)}</td>` : ""}<td>${MODEWORD[l.mode] || esc(l.mode)}${l.password ? " · 🔒 password" : ""}${l.users ? ` · ${l.users} opened` : ""}</td><td>${esc(l.creator)}<br><small>${when(l.created)}</small></td><td>${day(l.expires)}</td><td>${small(`data-ract="revoke" data-id="${esc(l.id)}"`, "Revoke", inDialog)}</td></tr>`,
       )
-      .join("")}</tbody></table>`;
+      .join("")}</tbody></table></div>`;
   }
 
   const ACTION = { open: "opened", change: "changed", grant: "role", inherit: "inheritance", owner: "owner", group: "group", member: "member", admin: "administrator",
@@ -173,9 +192,18 @@ window.UDRights = (() => {
     if (st.log === null) return hint("Loading…");
     return `${head("Log")}${hint(`${me.admin ? "Everything of this workspace." : "What you did, and what happened to what you manage."} Opening and changing count once an hour.`)}${keepHtml()}${
       st.log.length
-        ? `${entries("data-log", st.log.map((e) => entry(`data-entry="${esc(e.action)}"`, `${ACTION[e.action] || esc(e.action)}${e.objectTitle ? ": " + esc(e.objectTitle) : ""}`, `${when(e.at)} · ${e.actor ? esc(e.actorName) : "someone with a link"}${e.detail ? " · " + named(e.detail) : ""}`, "")).join(""))}<div>${small('data-ract="reloadlog"', "Newer entries")}</div>`
+        ? `<ol class="timeline" data-size="sm" data-log>${st.log.map(logEntry).join("")}</ol><div>${small('data-ract="reloadlog"', "Newer entries")}</div>`
         : hint("Nothing logged yet.")
     }`;
+  }
+
+  // logEntry is one entry of the log as C22's timeline draws it (admin-panel block): what, as a badge in words (a refused
+  // password says so with ✗), who and when in the head; the object and the detail below.
+  function logEntry(e) {
+    const what = ACTION[e.action] || esc(e.action);
+    const badge = `<span class="badge" data-variant="${e.action === "link wrong password" ? "destructive" : "outline"}">${what}</span>`;
+    const detail = `${e.objectTitle ? esc(e.objectTitle) : ""}${e.objectTitle && e.detail ? " · " : ""}${e.detail ? named(e.detail) : ""}`;
+    return `<li data-entry="${esc(e.action)}"><header>${badge}<span>${e.actor ? esc(e.actorName) : "someone with a link"}</span><time datetime="${esc(e.at)}">${when(e.at)}</time></header>${detail ? `<p>${detail}</p>` : ""}</li>`;
   }
 
   // heldHtml lists where the account asked for holds a role of its own; administrators transfer in place what it owns,
@@ -200,8 +228,13 @@ window.UDRights = (() => {
   }
 
   const grantName = (g) => (g.kind === "tenant" ? "Everyone" : g.kind === "group" ? `Group ${esc(g.name)}` : esc(g.name));
+  // grantList lists roles as entries; a role from above names where it comes from and the role as one split badge.
   const grantList = (list, from) =>
-    list.length ? entries("", list.map((g) => entry("", grantName(g), ROLEWORD[g.role] || esc(g.role), "")).join("")) : hint("Nothing granted here.");
+    list.length
+      ? entries("", list.map((g) => (from ? entry("", kindName(g), "", fromAbove(g)) : entry("", kindName(g), ROLEWORD[g.role] || esc(g.role), ""))).join(""))
+      : hint("Nothing granted here.");
+  const kindName = (g) => `<span class="inline-flex items-center gap-2">${KIND_ICON[g.kind] || ""}${g.name === undefined ? shareName(g) : grantName(g)}</span>`;
+  const fromAbove = (g) => `<span class="badge-split"><span>from above</span><span>${ROLEWORD[g.role] || esc(g.role)}</span></span>`;
 
   // --- The rights dialog
 
@@ -267,32 +300,35 @@ window.UDRights = (() => {
     if (r && r.private) body = `<p class="text-sm text-muted-foreground">Private: only ${esc(r.ownerName)} sees it. Nothing private is shared, also not with administrators.</p>`;
     else if (r) {
       const may = r.manage;
-      const row = "flex flex-wrap items-center justify-between gap-2 mt-2";
-      const owner = `<div class="${row}"><span>Owner: <b data-owner>${esc(r.ownerName)}</b></span>${r.role === "owner" || me.admin ? `<form class="flex items-center gap-2" data-rform="owner">${personSelect("to", r.owner)}<button class="btn" data-variant="outline" data-size="sm" type="submit">Transfer</button></form>` : ""}</div>`;
+      const owner = fact("", "Owner", `<span data-owner>${esc(r.ownerName)}</span>`, r.role === "owner" || me.admin ? `<form class="flex items-center gap-2" data-rform="owner">${personSelect("to", r.owner)}<button class="btn" data-variant="outline" data-size="sm" type="submit">Transfer</button></form>` : "");
       // A file in a library shared over Samba keeps the rights of its folder on the share (ADR-29, ADR-30): it cannot
       // break the inheritance, and what is granted on it holds in the web only.
       const sm = r.samba || null;
       const perFolder = sm && sm.shared && sm.file;
       const mayBreak = may && !(perFolder && r.inherit);
-      const inherit = `<div class="${row}"><span>${r.inherit ? "Takes the roles from above" : "Takes no roles from above"}</span>${mayBreak ? small(`data-ract="inherit" data-on="${r.inherit ? "0" : "1"}"`, r.inherit ? "Break the inheritance" : "Take from above again", true) : ""}</div>${r.inherit ? "" : '<p class="text-sm text-muted-foreground">Breaking copied what held from above; take back here what shall not hold.</p>'}`;
+      const inherit = fact("", r.inherit ? "Takes the roles from above" : "Takes no roles from above", "", mayBreak ? small(`data-ract="inherit" data-on="${r.inherit ? "0" : "1"}"`, r.inherit ? "Break the inheritance" : "Take from above again", true) : "");
       const samba = sm
-        ? `${perFolder ? '<p class="text-sm text-muted-foreground" data-samba-per-folder>Samba knows rights per folder only: roles granted on this file hold in the web only, and the share shows it as its folder does.</p>' : ""}${sm.path ? `<p class="text-sm" data-samba-path>On the share: <code>${esc(sm.path)}</code></p>` : ""}${sm.root !== undefined && sm.root !== null ? `<div class="${row}" data-samba-root><span>${sm.root ? "Shared over Samba" : "Not shared over Samba"}</span>${may ? small(`data-ract="samba" data-on="${sm.root ? "0" : "1"}"`, sm.root ? "Stop sharing over Samba" : "Share over Samba", true) : ""}</div>` : ""}`
+        ? `${perFolder ? '<p class="text-sm text-muted-foreground" data-samba-per-folder>Samba knows rights per folder only: roles granted on this file hold in the web only, and the share shows it as its folder does.</p>' : ""}${sm.path ? `<p class="text-sm" data-samba-path>On the share: <code>${esc(sm.path)}</code></p>` : ""}`
         : "";
+      const sambaRoot = sm && sm.root !== undefined && sm.root !== null ? fact("data-samba-root", sm.root ? "Shared over Samba" : "Not shared over Samba", "", may ? small(`data-ract="samba" data-on="${sm.root ? "0" : "1"}"`, sm.root ? "Stop sharing over Samba" : "Share over Samba", true) : "") : "";
       const own = r.own.length
-        ? `<table class="table" data-grants><tbody>${r.own
+        ? `<div class="table-container"><table class="table" data-grants><tbody>${r.own
             .map(
               (g) =>
-                `<tr data-grant="${esc(g.kind)}:${esc(g.who)}"><td>${grantName(g)}</td><td>${may ? `<form data-rform="role" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}">${roleSelect("role", g.role)}</form>` : ROLEWORD[g.role]}</td><td>${may ? small(`data-ract="ungrant" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}"`, "Take back", true) : ""}</td></tr>`,
+                `<tr data-grant="${esc(g.kind)}:${esc(g.who)}"><td>${kindName(g)}</td><td class="w-40">${may ? `<form data-rform="role" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}">${roleSelect("role", g.role)}</form>` : ROLEWORD[g.role]}</td><td class="w-10 text-end">${may ? takeBack(`data-ract="ungrant" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}"`, grantName(g)) : ""}</td></tr>`,
             )
-            .join("")}</tbody></table>`
+            .join("")}</tbody></table></div>`
         : '<p class="text-sm text-muted-foreground">Nothing granted here.</p>';
-      const add = may ? `<form class="flex items-center gap-2 mt-2" data-rform="grant">${whoSelect("who", true)}${roleSelect("role", "read")}<button class="btn" data-size="sm" type="submit">Grant</button></form>` : "";
+      const add = may ? `<form class="flex flex-wrap items-center gap-2" data-rform="grant">${whoSelect("who", true)}${roleSelect("role", "read")}<button class="btn" data-size="sm" type="submit">Grant</button></form>` : "";
       const inherited = r.inherited.length
-        ? `<h3 class="font-medium mt-3">From above</h3><table class="table" data-inherited><tbody>${r.inherited.map((g) => `<tr><td>${grantName(g)}</td><td>${ROLEWORD[g.role] || esc(g.role)}</td></tr>`).join("")}</tbody></table>`
+        ? `<div class="grid gap-2"><h3 class="text-sm font-medium">From above</h3><ul class="grid gap-2 text-sm" data-inherited>${r.inherited.map((g) => `<li class="flex flex-wrap items-center justify-between gap-2">${kindName(g)}${fromAbove(g)}</li>`).join("")}</ul></div>`
         : "";
-      body = `${owner}${inherit}${samba}<h3 class="font-medium mt-3">Roles here</h3>${own}${add}${inherited}${may ? linksPart() : ""}`;
+      // The note after breaking stays out of the entry: an entry cuts its line short.
+      const broken = r.inherit ? "" : '<p class="text-muted-foreground text-sm">Breaking copied what held from above; take back here what shall not hold.</p>';
+      body = `<div class="item-group" role="list">${owner}${inherit}${sambaRoot}</div>${broken}${samba}<div class="grid gap-2"><h3 class="text-sm font-medium">Roles here</h3>${own}${add}</div>${inherited}${may ? linksPart() : ""}`;
     }
-    d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Roles for people, groups and everyone, inherited by what lies below. Only allowing: narrower means breaking the inheritance.</p></header><section class="max-h-[420px] overflow-y-auto">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
+    // The section scrolls within the height C22 gives a dialog (the viewport less a margin), not one of its own.
+    d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Roles for people, groups and everyone, inherited by what lies below. Only allowing: narrower means breaking the inheritance.</p></header><section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
   }
 
   // --- A new collection, and with whom it is shared from the start
@@ -310,6 +346,8 @@ window.UDRights = (() => {
     nw.done = null;
     st.error = "";
     const d = dialogEl();
+    // A new dialog starts drawn from scratch, at the first step, not from the form of the last one.
+    d.replaceChildren();
     drawNew();
     if (!d.open) d.showModal();
     const field = d.querySelector("[data-new-title]");
@@ -341,6 +379,7 @@ window.UDRights = (() => {
     }
   }
 
+  // shareName is the name of whom a share goes to; grantName and kindName take it as the name of a grant.
   const shareName = (x) => {
     const p = st.people || { people: [], groups: [] };
     if (x.kind === "tenant") return "Everyone";
@@ -352,25 +391,46 @@ window.UDRights = (() => {
     keepFocus(paintNew);
   }
 
+  // The dialog is C22's form in steps (form[data-steps], steps-dialog block): first the name, then with whom it is shared.
+  // c22.js shows one step at a time; once the form is there, only what changes is drawn again (the list, the choice of
+  // whom, whether it is busy, a problem), since drawing the form anew would put the steps back to the first. Enter in the
+  // name still makes the collection at once, its maker's alone (keydown below): the quick way of ADR-29.
   function paintNew() {
     const d = dialogEl();
-    const list = nw.shares.length
-      ? `<table class="table" data-new-shares><tbody>${nw.shares
+    const form = d.querySelector("form#udnew");
+    if (form && !nw.done) {
+      form.querySelector("[data-new-list]").innerHTML = shareList();
+      form.querySelector("[data-new-who]").innerHTML = shareChoice();
+      form.querySelectorAll("[data-step] :is(input, select, button), [data-step-done]").forEach((el) => {
+        el.disabled = nw.busy;
+      });
+      const said = form.querySelector("[data-new-problem]");
+      said.innerHTML = problem();
+      said.hidden = !st.error;
+      return;
+    }
+    const body = nw.done
+      ? `<header><h2 id="udrights-title">New collection</h2></header><section><p class="text-sm" data-new-done>${esc(nw.done)}</p></section><footer><button class="btn" data-variant="outline" data-ract="close" type="button">Close</button></footer>`
+      : `<form id="udnew" data-rform="new" data-steps><header><h2 id="udrights-title">New collection</h2><p>It is yours alone, not private: share it with everyone, groups or people now or later. Each holds the role given and passes it to what lies inside.</p><ol class="steps" aria-label="Steps"><li aria-current="step">Name</li><li>Share with</li></ol></header>
+        <section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4"><div data-new-problem${st.error ? "" : " hidden"}>${problem()}</div>
+        <fieldset class="grid gap-2" data-step><legend class="sr-only">Name</legend><div class="field"><label class="label" for="udnew-title">Name</label><input class="input" id="udnew-title" name="title" data-new-title required maxlength="200" autocomplete="off" value="${esc(nw.title)}"${nw.busy ? " disabled" : ""}></div></fieldset>
+        <fieldset class="grid gap-3" data-step data-share-step><legend class="text-sm font-medium">Share with</legend><div data-new-list>${shareList()}</div><div class="flex flex-wrap items-center gap-2" data-new-who>${shareChoice()}</div></fieldset></section>
+        <footer><button class="btn" data-variant="outline" data-ract="close" type="button">Cancel</button><button class="btn" data-variant="outline" type="button" data-step-back hidden>Back</button><button class="btn" type="button" data-step-next hidden>Next</button><button class="btn" type="submit" data-step-done${nw.busy ? " disabled" : ""}>Make</button></footer></form>`;
+    d.innerHTML = nw.done ? `<div>${body}</div>` : body;
+    if (window.C22 && window.C22.init) window.C22.init(d);
+  }
+
+  const shareChoice = () => `${whoSelect("who", true)}${roleSelect("role", "read", nw.busy)}${small('data-ract="newshare"' + (nw.busy ? " disabled" : ""), "Add", true)}`;
+
+  function shareList() {
+    return nw.shares.length
+      ? `<div class="table-container"><table class="table" data-new-shares><tbody>${nw.shares
           .map(
             (x, i) =>
-              `<tr data-new-share="${esc(x.kind)}:${esc(x.who)}"><td>${shareName(x)}</td><td>${roleSelect("nrole" + i, x.role, nw.busy).replace("data-rsel=", `data-nshare="${i}" data-rsel=`)}</td><td>${small(`data-ract="newunshare" data-i="${i}"${nw.busy ? " disabled" : ""}`, "Take out", true)}</td></tr>`,
+              `<tr data-new-share="${esc(x.kind)}:${esc(x.who)}"><td>${kindName(x)}</td><td class="w-40">${roleSelect("nrole" + i, x.role, nw.busy).replace("data-rsel=", `data-nshare="${i}" data-rsel=`)}</td><td class="w-10 text-end">${takeBack(`data-ract="newunshare" data-i="${i}"${nw.busy ? " disabled" : ""}`, shareName(x))}</td></tr>`,
           )
-          .join("")}</tbody></table>`
+          .join("")}</tbody></table></div>`
       : '<p class="text-sm text-muted-foreground" data-only-me>Only you. Nobody else sees it until you share it, here or later in its rights.</p>';
-    const body = nw.done
-      ? `<p class="text-sm" data-new-done>${esc(nw.done)}</p>`
-      : `<form class="grid gap-2" id="udnew" data-rform="new"><label class="label" for="udnew-title">Name</label><input class="input" id="udnew-title" name="title" data-new-title required maxlength="200" value="${esc(nw.title)}"${nw.busy ? " disabled" : ""}>
-        <fieldset class="grid gap-2 mt-2" data-share-step><legend class="font-medium">Share with</legend>${list}
-        <div class="flex flex-wrap items-center gap-2">${whoSelect("who", true)}${roleSelect("role", "read")}${small('data-ract="newshare"' + (nw.busy ? " disabled" : ""), "Add", true)}</div></fieldset></form>`;
-    const foot = nw.done
-      ? '<button class="btn" data-variant="outline" data-ract="close" type="button">Close</button>'
-      : `<button class="btn" data-variant="outline" data-ract="close" type="button">Cancel</button><button class="btn" type="submit" form="udnew"${nw.busy ? " disabled" : ""}>Make</button>`;
-    d.innerHTML = `<div><header><h2 id="udrights-title">New collection</h2><p>It is yours alone, not private: share it with everyone, groups or people now or later. Each holds the role given and passes it to what lies inside.</p></header><section class="max-h-[420px] overflow-y-auto">${problem()}${body}</section><footer>${foot}</footer></div>`;
   }
 
   // make sends the new collection, then grants each share; a share that fails leaves the collection less shared, never
@@ -411,14 +471,14 @@ window.UDRights = (() => {
   function linksPart() {
     if (dlg.links === null) return "";
     const made = dlg.made
-      ? `<div class="input-group mt-2" data-made-link><input class="input" readonly value="${esc(dlg.made)}" aria-label="The address of the new link"><button class="btn" data-variant="outline" data-ract="copy" type="button">Copy</button></div><p class="text-sm text-muted-foreground">Shown this once: only its hash is kept.</p>`
+      ? `<div class="input-group" data-made-link><input class="input" readonly value="${esc(dlg.made)}" aria-label="The address of the new link"><button class="btn" data-variant="outline" data-ract="copy" type="button">Copy</button></div><p class="text-sm text-muted-foreground">Shown this once: only its hash is kept.</p>`
       : "";
     const release = dlg.shareables && dlg.shareables.length
-      ? `<fieldset class="grid gap-2"><legend class="text-sm">Embedded here, shared only if released</legend>${dlg.shareables.map((s) => `<label class="label"><input type="checkbox" name="release" value="${esc(s.id)}"> ${esc(s.title)}</label>`).join("")}</fieldset>`
+      ? `<fieldset class="grid gap-2"><legend class="text-sm">Embedded here, shared only if released</legend>${dlg.shareables.map((s) => `<label class="label"><input class="input" type="checkbox" name="release" value="${esc(s.id)}"> ${esc(s.title)}</label>`).join("")}</fieldset>`
       : "";
-    return `<h3 class="font-medium mt-3">Share links</h3>${linkRows(dlg.links, false, true)}${made}
-      <form class="grid gap-2 mt-2" data-rform="link"><div class="grid grid-cols-2 gap-2"><select class="select" name="mode" aria-label="Mode">${MODES.map((m) => `<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
-      <input class="input" type="date" name="expires" aria-label="Ends on"></div><input class="input" type="password" name="password" autocomplete="new-password" placeholder="Password (optional)" aria-label="Password of the link">${release}<button class="btn" type="submit">Make a link</button></form>`;
+    return `<div class="grid gap-2"><h3 class="text-sm font-medium">Share links</h3>${linkRows(dlg.links, false, true)}${made}
+      <form class="grid gap-2" data-rform="link"><div class="grid grid-cols-2 gap-2"><select class="select" name="mode" aria-label="Mode">${MODES.map((m) => `<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
+      <input class="input" type="date" name="expires" aria-label="Ends on"></div><input class="input" type="password" name="password" autocomplete="new-password" placeholder="Password (optional)" aria-label="Password of the link">${release}<div><button class="btn" data-size="sm" type="submit">Make a link</button></div></form></div>`;
   }
 
   // --- What a person does
@@ -537,9 +597,11 @@ window.UDRights = (() => {
     const d = document.getElementById("udrights");
     if (!d || !d.open || dlg.mode !== "new" || nw.done) return;
     if (e.key === "Enter" && e.target.matches && e.target.matches("[data-new-title]")) {
+      // Made at once, past the step Share with (c22.js would go on to it): the quick way, its maker's alone.
       e.preventDefault();
-      const f = document.getElementById("udnew");
-      if (f) f.requestSubmit();
+      nw.title = e.target.value;
+      if (!nw.title.trim()) e.target.reportValidity();
+      else if (!nw.busy) make();
     } else if (e.key === "Escape") {
       e.preventDefault();
       d.close();
@@ -566,6 +628,8 @@ window.UDRights = (() => {
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-rform]");
     if (!f) return;
+    // c22.js's steps took this submit to go on to the next step (form[data-steps]): nothing is sent yet.
+    const stepped = e.defaultPrevented;
     e.preventDefault();
     const v = (n) => (f.elements[n] ? f.elements[n].value : "");
     switch (f.dataset.rform) {
@@ -573,6 +637,7 @@ window.UDRights = (() => {
         act(() => api("PUT", "/api/log/keep", { days: Number(v("days")) }), "keep");
         return;
       case "new":
+        if (stepped) return;
         nw.title = v("title");
         if (!nw.busy && nw.title.trim()) make();
         return;

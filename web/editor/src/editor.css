@@ -186,21 +186,9 @@
   color: var(--muted-foreground);
 }
 
+/* A table drawn in place of its source is C22's .table (editor.js); only its distance to the lines around it is set here. */
 .cm-editor.editor .cm-lp-table-widget {
-  border-collapse: collapse;
-  width: 100%;
   margin: 4px 0;
-}
-
-.cm-editor.editor .cm-lp-table-widget th,
-.cm-editor.editor .cm-lp-table-widget td {
-  border: 1px solid var(--border);
-  padding: 4px 8px;
-}
-
-.cm-editor.editor .cm-lp-table-widget th {
-  font-weight: 600;
-  background: var(--muted);
 }
 
 .cm-editor.editor .cm-lp-align-right {

@@ -10,11 +10,12 @@ import (
 	"strings"
 )
 
-// HTML writes a grid as a table of the workspace: every text escaped, numbers aligned to the right, with the first row
-// as the head when head is set. caption, if any, is escaped too.
+// HTML writes a grid as a table of C22: every text escaped, numbers marked data-type="number" (C22 aligns them to the
+// end), with the first row as the head when head is set. caption, if any, is escaped too. C22's container scrolls a wide
+// table sideways.
 func HTML(g Grid, head bool, caption string) string {
 	var b strings.Builder
-	b.WriteString(`<div class="table-container overflow-x-auto"><table class="table">`)
+	b.WriteString(`<div class="table-container"><table class="table">`)
 	if caption != "" {
 		b.WriteString(`<caption>` + html.EscapeString(caption) + `</caption>`)
 	}
@@ -45,7 +46,7 @@ func writeRow(b *strings.Builder, r GridRow, tag string) {
 		}
 		switch c.Kind {
 		case Number, ShownNumber:
-			b.WriteString(` class="text-right tabular-nums"`)
+			b.WriteString(` data-type="number"`)
 		case Uncomputed:
 			b.WriteString(` title="This formula was never calculated: open and save the file in Excel or LibreOffice"`)
 		}

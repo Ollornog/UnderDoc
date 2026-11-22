@@ -148,6 +148,8 @@ func TestTheRightsDialog(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
+	// Everyone reads the whole collection: on the page that is a role from above.
+	b.eval(`(() => { const x = new XMLHttpRequest(); x.open('PUT', '/api/objects/` + team + `/grants', false); x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify({kind: 'tenant', who: '', role: 'read'})); return x.status; })()`)
 	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
 	b.ready("A")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
@@ -155,9 +157,18 @@ func TestTheRightsDialog(t *testing.T) {
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-rform="grant"]')`) {
 		t.Fatalf("the dialog opens with the means to grant: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
+	// From C22's rights block: owner and inheritance are entries with their action, a role from above names its origin and
+	// the role as one split badge, each grant has the icon of its kind (T-12).
+	if got := b.eval(`[...document.querySelectorAll('#udrights .item-group > .item h4')].map(n => n.textContent).join(' | ') + ' / ' +
+		[...document.querySelectorAll('#udrights [data-inherited] li')].map(n => n.querySelector('svg')?.dataset.iconLu + ' ' + n.innerText.replace(/\s+/g, ' ').trim() + ' ' + [...n.querySelectorAll('.badge-split > span')].map(x => x.textContent).join('|')).join(', ')`); got != "Owner | Takes the roles from above / user Anna Berg from above manage from above|manage, globe Everyone from above read from above|read" {
+		t.Errorf("the parts of the rights dialog: %q", got)
+	}
 	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:bob", "role": "comment"})
 	if !b.waitFor(`!!document.querySelector('#udrights [data-grant="person:bob"]')`) {
 		t.Fatalf("bob is granted: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	if got := b.eval(`(() => { const r = document.querySelector('#udrights [data-grant="person:bob"]'); return r.querySelector('td svg')?.dataset.iconLu + ' ' + r.querySelector('[data-ract="ungrant"]')?.getAttribute('aria-label'); })()`); got != "user Take back: Bob Kern" {
+		t.Errorf("a grant has the icon of its kind and a named take-back: %q", got)
 	}
 	b.clickOn(`#udrights [data-ract="inherit"]`, 1)
 	if !b.waitFor(`document.getElementById('udrights').innerText.includes('Takes no roles from above')`) {
@@ -259,7 +270,7 @@ func TestTheTabRights(t *testing.T) {
 	}
 	// The log names what was done, the group made among it.
 	b.clickOn(`[data-act="sec"][data-id="log"]`, 1)
-	if !b.waitFor(`!!document.querySelector('[data-rights="log"] [data-log] [data-entry="group"]') && (document.querySelector('[data-rights="log"]')?.innerText || '').includes('Board')`) {
+	if !b.waitFor(`!!document.querySelector('[data-rights="log"] ol.timeline[data-size="sm"][data-log] > li[data-entry="group"] > header > time') && (document.querySelector('[data-rights="log"]')?.innerText || '').includes('Board')`) {
 		t.Errorf("the log: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.shot("rights-log")
@@ -283,11 +294,24 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] option[value="person:bob"]')`) {
 		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
+	// C22's form in steps: the name first, Next leads to Share with; adding someone draws the list again and keeps the step.
+	step := `[...document.querySelectorAll('#udrights [data-step]')].map(n => n.hidden ? '-' : '+').join('') + ' ' + document.querySelector('#udrights ol.steps > li[aria-current="step"]')?.textContent + ' ' +
+		['back', 'next', 'done'].map(k => document.querySelector('#udrights [data-step-' + k + ']').hidden ? '-' : '+').join('')`
+	if got := b.eval(step); got != "+- Name -+-" {
+		t.Errorf("the dialog starts at the name: %q", got)
+	}
+	b.clickOn(`#udrights [data-step-next]`, 1)
+	if got := b.eval(step); got != "-+ Share with +-+" {
+		t.Errorf("Next leads to Share with: %q", got)
+	}
 	b.eval(`(() => { const f = document.querySelector('#udrights [data-share-step]'); f.querySelector('select[name="who"]').value = 'person:bob';
 		f.querySelector('select[name="role"]').value = 'comment'; })()`)
 	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
 	if !b.waitFor(`!!document.querySelector('#udrights [data-new-share="person:bob"]') && !document.querySelector('#udrights [data-only-me]')`) {
 		t.Fatalf("bob is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
+	}
+	if got := b.eval(step); got != "-+ Share with +-+" {
+		t.Errorf("adding someone keeps the step: %q", got)
 	}
 	// Added twice, the same one is listed once, with the role chosen last.
 	b.eval(`document.querySelector('#udrights [data-share-step] select[name="who"]').value = 'tenant:'`)

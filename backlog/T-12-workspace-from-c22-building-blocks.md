@@ -2,7 +2,7 @@
 id: T-12
 type: Task
 title: The workspace from C22's building blocks, the look as the pack underdoc
-status: in-arbeit
+status: erledigt
 milestone: M-14
 tags: [workspace, c22, design]
 created: 2026-11-22
@@ -58,6 +58,15 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
 - After step 4 (2026-11-22): C22 vendored at `bad252a` (C22 #149 closes the gaps of step 4); the bridges are gone:
   `mark[aria-current]`, `.comment-anchor[data-comment-focus]`, the icon in the head of a drawer, context menus at the pack's
   size, the drawer below the head, modules as switches.
+- Steps 5 and 6 (2026-11-22): the rights dialog (entries, icons per kind, `.badge-split` from above, a ghost cross to take
+  back), a new collection as `form[data-steps]` with `ol.steps`, the passwords dialog as entries, the log as
+  `ol.timeline[data-size=sm]`, the table view as `.tabs` and `table.table[data-variant=grid][data-sticky=sheet][role=grid]`,
+  tables in pages with `data-type="number"`, the share page after C22's `public-page.html`. `c22.js` is loaded (steps);
+  `data-behaviour="app"` keeps it out of the workspace (a test spies on it). The root class `.c22-app-workspace` is gone;
+  the class check reads the server's classes too and passed against a C22 stylesheet without the old block (T-20,
+  `f078f71`), as did the browser tests. Left in C22 (reported): the grouped `.combobox` without Basecoat, a current row of
+  a grid, the nav3 rule for a `header` that also catches the head of a timeline entry in a card, the live preview of the
+  editor (`editor.css` keeps its look until `.editor` has one).
 
 ## Done when
 

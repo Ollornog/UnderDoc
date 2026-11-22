@@ -374,7 +374,7 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 	if got := newSite(t, Options{}, sample).get("/dev/ui").Code; got != http.StatusNotFound {
 		t.Errorf("/dev/ui without the switch = %d", got)
 	}
-	if got := newSite(t, Options{DevUI: true}, sample).body("/dev/ui"); !strings.Contains(got, `class="c22-app-workspace" data-demo>`) {
+	if got := newSite(t, Options{DevUI: true}, sample).body("/dev/ui"); !strings.Contains(got, `<div id="root" data-demo>`) {
 		t.Error("the gallery is the workspace with the content of the mockup")
 	}
 	if got := newSite(t, Options{DevUI: true}, sample).body("/"); strings.Contains(got, "data-demo") {
@@ -420,35 +420,12 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range markdown.Classes() {
 		used[class] = "package markdown"
 	}
-	// The embedding of blocks and what stands where an embedded thing was removed (api_pages.go, api_life.go).
-	for _, class := range []string{"editor-embed", "badge", "btn", "flex", "flex-wrap", "items-center", "gap-2"} {
-		used[class] = "the embedding of blocks (api_pages.go, api_life.go)"
-	}
-	// The script draws these, and their look comes only from C22: an upload, the toast, the menus of the workspace.
-	for _, class := range []string{"progress", "toaster", "toast", "toast-content", "context-menu", "command", "dropdown-menu", "popover"} {
-		used[class] = "the workspace script (demo.js, search.js)"
-	}
-	// The tab Rights and the rights dialog (rights.js, ADR-29); both take C22's own (the tab as a card in nav3).
-	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "card", "flex", "font-medium", "font-semibold", "gap-2", "grid", "grid-cols-2", "input", "input-group", "item", "item-group", "items-center", "label", "max-h-[420px]", "mt-2", "mt-3", "overflow-y-auto", "select", "table", "text-muted-foreground", "text-sm", "text-xs"} {
-		used[class] = "the tab Rights and the rights dialog (rights.js)"
-	}
-	// Passwords in the text (ADR-7): the masks the server draws (api_secrets.go), the editor draws (web/editor) and the
-	// dialogs of secrets.js, which lie outside the workspace like the rights dialog.
-	for _, class := range []string{"badge", "inline-flex", "items-center", "gap-1", "gap-2", "secret-key", "dialog", "btn", "input",
-		"label", "text-sm", "text-muted-foreground", "flex", "flex-wrap", "justify-between", "grid", "mt-2", "mt-3", "font-medium", "table",
-		"max-h-[420px]", "overflow-y-auto"} {
-		used[class] = "passwords in the text (api_secrets.go, secrets.js, web/editor)"
-	}
-	// Tables of spreadsheets (ADR-31): what the server draws into a page (internal/sheet, tables.go) and the table view
-	// (sheets.js).
-	for _, class := range []string{"table-container", "overflow-x-auto", "overflow-auto", "max-h-96", "table", "text-right", "tabular-nums",
-		"text-sm", "text-warning", "text-muted-foreground", "badge", "lab", "note", "hint", "flex", "flex-wrap",
-		"items-center", "gap-1", "gap-2", "mt-2", "chip", "seg", "sticky", "top-0", "left-0", "z-10", "bg-background", "bg-accent", "font-mono"} {
-		used[class] = "tables of spreadsheets (internal/sheet, tables.go, sheets.js)"
-	}
-	// The scripts of the workspace and the editor write their markup themselves: every class they write in a literal
-	// (class="…", className = "…", classList.add("…")) has to exist as well. A token that is built (${…}) is left out;
-	// the editor's own stylesheet counts, as do the few classes that are only handles of a script and have no look.
+	// The scripts of the workspace and the editor write their markup themselves, and so does the server where it draws
+	// into a page (an embedding, a mask of a password, a table of a spreadsheet): every class they write in a literal
+	// (class="…", className = "…", classList.add("…"), the helper el(tag, "…") of sheets.js) has to exist as well. A
+	// token that is built (${…}) is left out; the editor's own stylesheet counts, as do the few classes that are only
+	// handles of a script and have no look. No list by hand: what the old block of C22 had and the stylesheet no longer
+	// has fails here (T-12).
 	editorCSS, err := os.ReadFile(filepath.Join("..", "..", "web", "editor", "src", "editor.css"))
 	if err != nil {
 		t.Fatal(err)
@@ -465,7 +442,7 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for class := range handles {
 		known[class] = true
 	}
-	literal := regexp.MustCompile(`class(?:Name)?\s*[=:]\s*(?:"([^"]*)"|'([^']*)')`)
+	literal := regexp.MustCompile(`(?:class(?:Name)?\s*[=:]\s*|\bel\(\s*['"][\w-]+['"]\s*,\s*)(?:"([^"]*)"|'([^']*)')`)
 	listed := regexp.MustCompile(`classList\.(?:add|toggle|remove|contains)\(([^)]*)\)`)
 	plainClass := regexp.MustCompile(`^(?:[\w-]+:)?[\w-]+(?:\[[^\]]*\])?$`)
 	scripts, err := fs.Glob(assetFiles, "assets/app/*.js")
@@ -476,8 +453,25 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	if err != nil || len(editorScripts) < 3 {
 		t.Fatal(editorScripts, err)
 	}
+	goSources, err := filepath.Glob(filepath.Join("*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheetSources, err := filepath.Glob(filepath.Join("..", "sheet", "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var serverSources []string
+	for _, file := range append(goSources, sheetSources...) {
+		if !strings.HasSuffix(file, "_test.go") {
+			serverSources = append(serverSources, file)
+		}
+	}
+	if len(serverSources) < 20 {
+		t.Fatal(serverSources)
+	}
 	inScripts := 0
-	for _, file := range append(scripts, editorScripts...) {
+	for _, file := range append(append(scripts, editorScripts...), serverSources...) {
 		content, err := assetFiles.ReadFile(file)
 		if err != nil {
 			content, err = os.ReadFile(file)

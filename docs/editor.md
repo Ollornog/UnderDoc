@@ -182,7 +182,9 @@ screens) C22 has had since `ec39f36`; UnderDoc keeps no look of its own for them
 
 The menus, drawers, panels and other views of the workspace are C22's building blocks too (T-12 step 4, 2026-11-22),
 after the recipes of C22's `workspace-views.html` and `workspace-more.html`. Every menu and popup hangs inside the
-`.workspace`, so the pack gives it the mockup's size; `c22.js` is not loaded, the script draws open what is open.
+`.workspace`, so the pack gives it the mockup's size; the script draws open what is open. `c22.js` is loaded for the
+building blocks outside the workspace that need it (the steps of a dialog); `data-behaviour="app"` on the `.workspace`
+keeps it out of the workspace, which UnderDoc drives itself (grips, lists, clicks, menus).
 
 | Part | C22 |
 |---|---|
@@ -203,6 +205,25 @@ What the step first lacked in C22 (the size of menu entries in a context menu, t
 current hit of Find as `mark[aria-current]`, the element of open comments as `.comment-anchor[data-comment-focus]`,
 the drawer below the head of the window, modules as switches) C22 has had since `bad252a`; UnderDoc keeps no bridge for
 them.
+
+### Dialogs and pages outside the workspace
+
+The dialogs and the pages without the workspace are C22's building blocks as well (T-12 step 5, 2026-11-22), after C22's
+`rights.html`, `steps-dialog.html`, `admin-panel.html` and `public-page.html`. The root class of C22's old app workspace
+is gone (step 6): UnderDoc emits none of its classes.
+
+| Part | C22 |
+|---|---|
+| The rights dialog | `dialog.dialog`: owner and inheritance as `.item`s with their action, the roles here as a `.table` with a role `select` and a ghost button with a cross to take one back, each name with the icon of its kind (globe, users, user), a role from above as `.badge-split` (origin, role), share links as a `.table` |
+| A new collection | `form[data-steps]` with `ol.steps`: the name, then Share with; Enter in the name makes it at once, its maker's alone |
+| The passwords of a page | `dialog.dialog` with an `.item` per password, versions and readers below it |
+| The log in the tab Rights | `ol.timeline[data-size=sm]`: what as a badge (a wrong password destructive), who and when |
+| Keeping the log | `.input-group` with the unit after the field |
+| The table view of a spreadsheet | `.tabs` for the sheets, the sheet `table.table[data-variant=grid][data-sticky=sheet][role=grid]` in a `.table-container`, numbers `data-type="number"`, a range `aria-selected` on its cells and on the letters and numbers of its columns and rows, the cell it began at `data-active`; names and tables as `.item`s |
+| The page behind a share link | one column `main.grid`, the head, `.alert`s, the frozen page in `.typeset`, files in a `.table-container > table.table[data-wrap]` |
+
+Choosing whom to share with stays a `select` with groups: C22's grouped `.combobox` needs Basecoat's script, which the
+workspace does not load (Basecoat would take over the menus the workspace draws itself).
 
 ## Build
 

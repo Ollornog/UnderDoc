@@ -445,6 +445,7 @@ func TestANewCollectionOfFilesAsksWithWhomToShare(t *testing.T) {
 	if !b.waitFor(`document.getElementById('udrights')?.open && document.querySelector('#udrights [data-new-title]')?.value === 'Scans' && !!document.querySelector('#udrights [data-only-me]')`) {
 		t.Fatalf("the dialog asks with whom to share: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
+	b.clickOn(`#udrights [data-step-next]`, 1)
 	b.clickOn(`#udrights footer button[type="submit"]`, 1)
 	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].some(n => n.textContent === 'Scans')`) {
 		t.Fatalf("Scans is a root now: %s", b.eval(`document.querySelector('[aria-label=Nav2]')?.innerText`))

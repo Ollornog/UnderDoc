@@ -50,7 +50,7 @@
       var c = press.c, rows = app.rows(c), k = rows.findIndex(function (r) { return r.id === c.id; });
       if (k < 0 || rows.length < 2) { press = null; return; }
       drag = { c: c, h: rows[k].bot - rows[k].top, k: k, home: k, scroller: app.scroller(c), y: press.y0, raf: 0, last: 0 };
-      document.body.classList.add('ud-bdrag');
+      // No class on the body: C22 makes the page unselectable with a grabbing pointer while it holds a .dropgap.held.
       // The held block hides its handle, so the click that ends the drag lands elsewhere and opens no menu.
       app.show(c, k);
       // The gap is mostly lower than the block: its height is how far the next block now stands below where the held
@@ -131,7 +131,6 @@
       drag = null;
       press = null;
       if (d.raf) cancelAnimationFrame(d.raf);
-      document.body.classList.remove('ud-bdrag');
       app.end(d.c, dropped && d.k !== d.home ? (d.k > 0 ? rows[d.k - 1].id : '') : null);
     }
 

@@ -517,7 +517,8 @@ class TableWidget extends WidgetType {
     const lines = this.source.split('\n');
     const align = cellsOf(lines[1] || '').map((d) => (/^:-+:$/.test(d) ? 'center' : /-:$/.test(d) ? 'right' : 'left'));
     const table = document.createElement('table');
-    table.className = 'cm-lp-table-widget';
+    // C22's table, as the page shows it when read (markdown: table text-sm); cm-lp-table-widget is the handle.
+    table.className = 'table text-sm cm-lp-table-widget';
     lines.forEach((line, index) => {
       if (index === 1) return;
       const row = document.createElement('tr');
