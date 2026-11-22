@@ -126,7 +126,7 @@ const udSearch=(()=>{
   }
   function target(root,hl){
     if(!hl.anchor&&!hl.heading)return null;
-    const byBlock=hl.anchor&&[...root.querySelectorAll('[data-b]')].find(n=>n.dataset.b===hl.anchor);if(byBlock)return byBlock;
+    const byBlock=hl.anchor&&[...root.querySelectorAll('[data-block]:not(.cm-ud-marker)')].find(n=>n.dataset.block===hl.anchor);if(byBlock)return byBlock;
     const byID=hl.anchor&&[...root.querySelectorAll('[id]')].find(n=>n.id===hl.anchor);if(byID)return byID;
     return hl.heading?[...root.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(n=>n.textContent.trim()===hl.heading)||null:null;
   }

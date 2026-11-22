@@ -79,18 +79,23 @@ func TestNav2ShowsWhatIsKeptOpen(t *testing.T) {
 		return b.eval(`getComputedStyle(document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="` + id + `"]')).boxShadow`)
 	}
 	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="ops"]`, 1)
-	if got := bar("ops"); !strings.Contains(got, "inset") {
-		t.Errorf("open for now: a line on the left, got %q", got)
+	// The line at the start: 1px while open for now, 3px when kept open (the pack's --workspace-open-bar and
+	// --workspace-pinned-bar), a difference in shape, not in colour.
+	if got := bar("ops"); !strings.Contains(got, " 1px 0px 0px 0px inset") {
+		t.Errorf("open for now: a thin line on the left, got %q", got)
 	}
-	if got := b.eval(`(() => { const n = document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]'); return n.getAttribute('aria-current') + ' ' + !!n.querySelector('[data-pin]'); })()`); got != "page false" {
-		t.Errorf("open for now: shown as open, without the pin: %q", got)
+	if got := b.eval(`document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]').getAttribute('aria-current')`); got != "page" {
+		t.Errorf("open for now: shown as open: %q", got)
 	}
 	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="ops"]`, 2)
 	if !b.waitFor(`!!document.querySelector('[aria-label=Nav2] [data-id="ops"][data-pinned]')`) {
 		t.Fatal("a double click keeps it open")
 	}
-	if got := b.eval(`(() => { const n = document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]'), p = n.querySelector('[data-pin]'); return n.getAttribute('aria-current') + ' ' + !!(p && p.getBoundingClientRect().width > 0); })()`); got != "page true" {
-		t.Errorf("kept open: still open, and the pin shows: %q", got)
+	if got := b.eval(`document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]').getAttribute('aria-current')`); got != "page" {
+		t.Errorf("kept open: still open: %q", got)
+	}
+	if got := bar("ops"); !strings.Contains(got, " 3px 0px 0px 0px inset") {
+		t.Errorf("kept open: a thick line on the left, got %q", got)
 	}
 	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="pro"]`, 1)
 	b.shot("nav2-thin-and-thick")
@@ -1106,14 +1111,14 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 		t.Fatalf("pasting the address alone makes it an embedding: %q", got)
 	}
 	b.clickOn(`[data-act="edit"]`, 1) // leaving the editor saves it
-	if !b.waitFor(`!!document.querySelector('article.typeset figure.embed td')`) {
+	if !b.waitFor(`!!document.querySelector('article.typeset figure.editor-embed td')`) {
 		t.Fatalf("the table of Plan shows in Rack: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 	b.shot("embedded")
-	if got := b.eval(`document.querySelector('article.typeset figure.embed td:last-child').textContent + ' | ' + document.querySelector('article.typeset figure.embed figcaption').textContent.trim()`); got != "10 | Plan · #b2" {
+	if got := b.eval(`document.querySelector('article.typeset figure.editor-embed td:last-child').textContent + ' | ' + document.querySelector('article.typeset figure.editor-embed figcaption').textContent.trim()`); got != "10 | Plan · #b2" {
 		t.Errorf("what shows and where it comes from: %q", got)
 	}
-	b.clickOn(`article.typeset figure.embed figcaption a`, 1)
+	b.clickOn(`article.typeset figure.editor-embed figcaption a`, 1)
 	b.ready("Plan")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
 	if got := b.eval(`document.querySelector('.fdrawer')?.innerText.includes('Rack (block #b2)')`); got != "true" {
@@ -1121,17 +1126,17 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	}
 	// In editing, the handle says where a block is used, and an empty one in use asks before it goes.
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .bhandle')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .editor-handle > button')`) {
 		t.Fatal("Plan is not in editing")
 	}
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
-	if got := b.eval(`document.querySelector('.bmenu .bused')?.textContent`); got != "Used in Rack" {
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, 1)
+	if got := b.eval(`document.querySelector('.editor-handle [role=menu] > [role=heading]')?.textContent`); got != "Used in Rack" {
 		t.Errorf("the handle of b2: %q", got)
 	}
 	b.clickOn(`.workspace-main > header > h1`, 1) // closes the menu, which covers the handle below
-	b.clickOn(`.cm-ud-marker[data-edb="b3"] .bhandle`, 1)
-	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-ask[data-ask="b3"]')`) {
+	b.clickOn(`.cm-ud-marker[data-edb="b3"] .editor-handle > button`, 1)
+	b.clickOn(`.editor-handle [role=menu] [data-act="eddel"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-ask="b3"]')`) {
 		t.Errorf("an empty block in use asks first: %q", b.eval(`EDS[at(0).d].ed.text()`))
 	}
 }
@@ -1147,7 +1152,7 @@ func TestEditingIsFound(t *testing.T) {
 	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | Read only. From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
-	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] [role=toolbar] [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.typeset .cblk').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
+	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] [role=toolbar] [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.typeset [data-comment]').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
 		t.Errorf("a page of the folder source takes no comments it would not keep: %q", got)
 	}
 	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
@@ -1236,33 +1241,33 @@ func TestTheHandleOfABlock(t *testing.T) {
 	page := b.eval(`window.made`)
 	b.open(base + "/o/" + page)
 	b.ready("Plan")
-	if got := b.eval(`document.querySelectorAll('article.typeset [data-b] > .bhandle').length`); got != "2" {
+	if got := b.eval(`document.querySelectorAll('article.typeset [data-block] > .editor-handle > button').length`); got != "2" {
 		t.Fatalf("each block has a handle: %s", got)
 	}
-	b.clickOn(`article.typeset [data-b="b2"] > .bhandle`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Move to page, Comment | Used in Rack" {
+	b.clickOn(`article.typeset [data-block="b2"] > .editor-handle > button`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.editor-handle [role=menu] [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.editor-handle [role=menu] > [role=heading]')?.textContent`); got != "Copy address#b2, Edit this block, Move to page, Comment | Used in Rack" {
 		t.Errorf("the menu of b2: %q", got)
 	}
-	b.clickOn(`.bmenu [data-act="blkedit"]`, 1)
+	b.clickOn(`.editor-handle [role=menu] [data-act="blkedit"]`, 1)
 	if !b.waitFor(editorAt("b2")) {
 		t.Errorf("Edit this block opens the editor at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
 	}
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
+	b.clickOn(`article.typeset [data-block="b1"] > .editor-handle > button`, 1)
 	b.shot("block-handle")
 	b.clickOn(`.workspace-main > header > h1`, 1)
-	if got := b.eval(`!!document.querySelector('.bmenu')`); got != "false" {
+	if got := b.eval(`!!document.querySelector('.editor-handle [role=menu]')`); got != "false" {
 		t.Errorf("a click elsewhere closes the menu")
 	}
 	// Someone who may only comment: no editing, but comments.
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + page)
 	b.ready("Plan")
-	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
+	b.clickOn(`article.typeset [data-block="b1"] > .editor-handle > button`, 1)
+	if got := b.eval(`[...document.querySelectorAll('.editor-handle [role=menu] [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
 		t.Errorf("the menu for someone who may comment: %q", got)
 	}
-	b.clickOn(`.bmenu [data-act="bcmt"]`, 1)
+	b.clickOn(`.editor-handle [role=menu] [data-act="bcmt"]`, 1)
 	if !b.waitFor(`document.activeElement?.dataset?.addcmt === '0' && document.querySelector('.cfor em')?.textContent === '#b1'`) {
 		t.Errorf("Comment opens the comments of b1, ready to write: %s", b.eval(`document.querySelector('.cfor')?.textContent`))
 	}
@@ -1401,14 +1406,14 @@ func TestDeletingSomethingInUse(t *testing.T) {
 	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
 	b.waitFor(`!!document.querySelector('.ctxpop [data-uses]')`)
 	b.clickOn(`.ctxpop [data-act="delobj"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.wayspop [data-wayitem]')`) {
+	if !b.waitFor(`!!document.querySelector('[data-ways] [data-wayitem]')`) {
 		t.Fatalf("deleting a page in use asks for the ways")
 	}
-	if got := b.eval(`document.querySelector('.wayspop [data-wayitem]').innerText.replace(/\s+/g, ' ')`); !strings.Contains(got, "Block #b1 in Plan") || !strings.Contains(got, "Used in Rack") {
+	if got := b.eval(`document.querySelector('[data-ways] [data-wayitem]').innerText.replace(/\s+/g, ' ')`); !strings.Contains(got, "Block #b1 in Plan") || !strings.Contains(got, "Used in Rack") {
 		t.Errorf("the dialog: %q", got)
 	}
-	b.clickOn(`.wayspop [data-act="way"][data-way="copies"]`, 1)
-	b.clickOn(`.wayspop [data-act="waysgo"]`, 1)
+	b.clickOn(`[data-ways] [data-act="way"][data-way="copies"]`, 1)
+	b.clickOn(`[data-ways] [data-act="waysgo"]`, 1)
 	if !b.waitFor(`/Plan is in the trash/.test(document.body.innerText)`) {
 		t.Errorf("Plan went into the trash: %s", b.eval(`document.querySelector('.toast')?.textContent`))
 	}

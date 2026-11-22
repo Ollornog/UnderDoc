@@ -60,7 +60,7 @@ const unreachable = `(() => {
 	const name = e => (e.dataset.act ? e.dataset.act + (e.dataset.id ? ':' + e.dataset.id : '') + ' ' : '') + JSON.stringify((e.getAttribute('aria-label') || e.title || e.textContent || e.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 30)) + ' ' + e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
 	const scrolls = s => /(auto|scroll)/.test(s);
 	// Columns, windows, drawers and menus do not scroll sideways: what is wider than they are is cut off for a hand.
-	for (const p of document.querySelectorAll('#root :is([aria-label=Nav1], [aria-label=Nav2], [aria-label=Nav3], #tree, [data-sc], .page, .fdrawer, .spanel, .pop, .ctxpop, .bmenu, .bslash, .workspace-windows, .workspace-window)')) {
+	for (const p of document.querySelectorAll('#root :is([aria-label=Nav1], [aria-label=Nav2], [aria-label=Nav3], #tree, [data-sc], .page, .fdrawer, .spanel, .pop, .ctxpop, .editor-handle [role=menu], .cm-editor .command, .workspace-windows, .workspace-window)')) {
 		if (p.getClientRects().length && getComputedStyle(p).overflowX !== 'visible' && p.scrollWidth > p.clientWidth + 1) bad.push('scrolls sideways (' + p.scrollWidth + ' > ' + p.clientWidth + '): ' + name(p));
 	}
 	// Text cut by an edge that does not scroll, without the dots that say there is more.
@@ -79,7 +79,7 @@ const unreachable = `(() => {
 			if (t.left < q.left - 2 || t.right > q.right + 2) bad.push('text cut off by ' + name(p) + ' (' + Math.round(t.left) + '-' + Math.round(t.right) + ' in ' + Math.round(q.left) + '-' + Math.round(q.right) + '): ' + JSON.stringify(n.textContent.trim().slice(0, 30)));
 			break; }
 	}
-	const layer = '[data-popover], .pop, .tabmenu, .ctxpop, .cmdpop, .fdrawer, .bmenu, .bslash, .btool, .aidrawer, .toast, [aria-label=Nav2], [aria-label=Nav3]';
+	const layer = '[data-popover], .pop, .tabmenu, .ctxpop, .cmdpop, .fdrawer, .editor-handle [role=menu], .cm-editor .command, .btool, .aidrawer, .toast, [aria-label=Nav2], [aria-label=Nav3]';
 	for (const e of document.querySelectorAll('#root :is(button, input, textarea, select, a[href], [role=menuitem]):not([data-grip])')) {
 		if (!e.getClientRects().length || getComputedStyle(e).visibility === 'hidden') continue;
 		let r = e.getBoundingClientRect();
@@ -220,7 +220,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
 			b.reach("gear")
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-			b.tap(`article.typeset [data-b="b2"] > .bhandle`)
+			b.tap(`article.typeset [data-block="b2"] > .editor-handle > button`)
 			b.reach("block-menu")
 			b.clickOn(`.workspace-main > header > h1`, 1)
 			// The drawer lies over the whole window, its head too (as C22's drawer does): it closes first.
@@ -233,7 +233,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.reach("block-bar")
 			b.press("End", "End", 35, 2)
 			b.typeKeys("\n\n/")
-			b.waitFor(`!!document.querySelector('.bslash')`)
+			b.waitFor(`!!document.querySelector('.cm-editor .command')`)
 			b.reach("kinds")
 		})
 	}
@@ -279,26 +279,26 @@ func TestTouchReachesTheHandleAndTheKinds(t *testing.T) {
 	page := rackPage(b)
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
-	if got := b.eval(inSight + `('article.typeset [data-b="b2"] > .bhandle') + ' ' + ` + inSight + `('article.typeset .cblk[data-id="b2"]')`); got != "true true" {
+	if got := b.eval(inSight + `('article.typeset [data-block="b2"] > .editor-handle > button') + ' ' + ` + inSight + `('article.typeset [data-comment][data-id="b2"]')`); got != "true true" {
 		t.Errorf("the handle and the speech bubble are in sight and inside the window without hovering: %q", got)
 	}
-	b.tap(`article.typeset [data-b="b2"] > .bhandle`)
-	if !b.waitFor(`!!document.querySelector('.bmenu [data-act="blkedit"]')`) {
+	b.tap(`article.typeset [data-block="b2"] > .editor-handle > button`)
+	if !b.waitFor(`!!document.querySelector('.editor-handle [role=menu] [data-act="blkedit"]')`) {
 		t.Fatal("a tap on the handle opens the menu of the block")
 	}
-	b.tap(`.bmenu [data-act="blkedit"]`)
+	b.tap(`.editor-handle [role=menu] [data-act="blkedit"]`)
 	if !b.waitFor(editorAt("b2")) {
 		t.Fatalf("Edit this block opens the editor at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
 	}
-	if got := b.eval(inSight + `('.cm-ud-marker[data-edb="b2"] .bhandle') + ' ' + ` + inSight + `('.cm-ud-marker[data-edb="b1"] .bhandle')`); got != "true true" {
+	if got := b.eval(inSight + `('.cm-ud-marker[data-edb="b2"] .editor-handle > button') + ' ' + ` + inSight + `('.cm-ud-marker[data-edb="b1"] .editor-handle > button')`); got != "true true" {
 		t.Errorf("the handle of each block is in sight and inside the window: %q", got)
 	}
 	b.press("End", "End", 35, 2) // Ctrl+End: the end of the page
 	b.typeKeys("\n\n/")
-	if !b.waitFor(`!!document.querySelector('.bslash')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-editor .command')`) {
 		t.Fatal("/ on an empty line opens the list of kinds")
 	}
-	if got := b.eval(inSight + `('.bslash')`); got != "true" {
+	if got := b.eval(inSight + `('.cm-editor .command')`); got != "true" {
 		t.Errorf("the list of kinds is inside the window")
 	}
 	b.shot("phone-touch-kinds")

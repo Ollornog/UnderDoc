@@ -39,6 +39,13 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   `ps-9`, `--workspace-step-1` on a phone, `size-3`): a blank space between entries of a list, open and kept open
   apart (thin and thick line), the typeset flow inside block wrappers, the room for handles on a phone, the width of
   nav1 on a phone, the icon in the head of a section, the size of the avatar.
+- Step 3 (2026-11-22): the editor and its parts (C22 at `ec39f36`): `.editor`, `div[data-block]` with
+  `.editor-handle`, `.command`, `.item` questions, `[data-used]`, `[data-part]`, `figure.editor-embed`, the card of the
+  ways, quick notes as cards, `.comment-anchor`, `pre.code-block`; the bridges of step 2 are gone (`doc` on block pages,
+  `ps-9`, `--workspace-step-1`, `size-3`, the pin, `hr.w-full` and `span[data-fill]` as lines and spaces). The gaps the
+  editor found in C22 (flow inside a wrapper and an embedding, to-dos in typeset, the active handle in a line editor, the
+  frame of a used block over sibling lines, the gap of a held block, continued frames of a part, touch on handles and
+  bubbles, the bubble within the pack's padding) C22 closed in #145; the bridges UnderDoc had for them meanwhile are gone.
 
 ## Done when
 

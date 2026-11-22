@@ -420,14 +420,13 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	for _, class := range markdown.Classes() {
 		used[class] = "package markdown"
 	}
-	for _, class := range []string{"embed", "embedbody", "broken"} {
-		used[class] = "the embedding of blocks (api_pages.go)"
+	// The embedding of blocks and what stands where an embedded thing was removed (api_pages.go, api_life.go).
+	for _, class := range []string{"editor-embed", "badge", "btn", "flex", "flex-wrap", "items-center", "gap-2"} {
+		used[class] = "the embedding of blocks (api_pages.go, api_life.go)"
 	}
-	// The script and the editor draw these, and their look now comes only from C22 (the rules UnderDoc kept for itself
-	// until 2026-11-19 are gone): the question before something in use goes, parts, the preview of a file, an upload.
-	for _, class := range []string{"wayspop", "wayitem", "wayrow", "waysame", "partedge", "partlabel", "cm-ud-part",
-		"cm-ud-partlabel", "preview", "progress", "cur"} {
-		used[class] = "the workspace script and the editor (demo.js, parts.js, search.js, web/editor)"
+	// The script draws these, and their look comes only from C22: the preview of a file, an upload.
+	for _, class := range []string{"preview", "progress", "cur"} {
+		used[class] = "the workspace script (demo.js, search.js)"
 	}
 	// The tab Rights and the rights dialog (rights.js, ADR-29); the dialog lies outside the workspace, so it takes C22's own.
 	for _, class := range []string{"dialog", "flex-wrap", "justify-between", "btn", "chip", "flex", "font-medium", "gap-2", "grid", "grid-cols-2", "hint", "input", "input-group", "items-center", "lab", "label", "max-h-[420px]", "modrow", "mt-2", "mt-3", "overflow-y-auto", "pad", "select", "shead", "spanel", "table", "text-muted-foreground", "text-sm"} {
@@ -435,7 +434,7 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 	}
 	// Passwords in the text (ADR-7): the masks the server draws (api_secrets.go), the editor draws (web/editor) and the
 	// dialogs of secrets.js, which lie outside the workspace like the rights dialog.
-	for _, class := range []string{"badge", "inline-flex", "items-center", "gap-1", "gap-2", "secret-key", "chip", "dialog", "btn", "input",
+	for _, class := range []string{"badge", "inline-flex", "items-center", "gap-1", "gap-2", "secret-key", "dialog", "btn", "input",
 		"label", "text-sm", "text-muted-foreground", "flex", "flex-wrap", "justify-between", "grid", "mt-2", "mt-3", "font-medium", "table",
 		"max-h-[420px]", "overflow-y-auto"} {
 		used[class] = "passwords in the text (api_secrets.go, secrets.js, web/editor)"
@@ -458,11 +457,10 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		known[match[1]] = true
 	}
 	handles := map[string]string{
-		"cm-ud-host": "the place the editor mounts in (demo.js)",
-		"cm-ud-page": "the page being edited (demo.js)",
-		"hitmark":    "a hit of the search on the page, found again by the script (search.js)",
-		"udpal":      "the search palette, found again by the script (search.js)",
-		"winbtn":     "the button Window and tabs, found again by the script (demo.js)",
+		"cm-ud-marker": "the marker line of a block in the editor, its wrapper with the handle (web/editor)",
+		"hitmark":      "a hit of the search on the page, found again by the script (search.js)",
+		"udpal":        "the search palette, found again by the script (search.js)",
+		"winbtn":       "the button Window and tabs, found again by the script (demo.js)",
 	}
 	for class := range handles {
 		known[class] = true

@@ -170,7 +170,7 @@ func TestTablesOfAWorkbookInAPage(t *testing.T) {
 	appendBlocks(t, s, report, nil, "::embed{ref=\""+file+"#x1\"}", "VAT is :embed{ref=\""+file+"#x2\"} now.", "::embed{ref=\""+file+"#x3\"}",
 		"::embed{ref=\""+file+"#x4\"}", "::embed{ref=\""+file+"#x9\"}", "Inline :embed{ref=\""+file+"#x1\"} fails.")
 	got := pageHTML(t, s, report, nil)
-	for _, want := range []string{`<figure class="embed" data-ref="` + file + `#x1">`, `<th>Item</th>`, `1,234.50 €`, `href="/o/` + file + `#x1"`,
+	for _, want := range []string{`<figure class="editor-embed" data-ref="` + file + `#x1">`, `<th>Item</th>`, `1,234.50 €`, `href="/o/` + file + `#x1"`,
 		`VAT is <span data-embed-part="` + file + `#x2"`, `>19%</span> now.`, `Odd &lt;&amp;&gt; it&#39;s`, `Längerer Text`, `Not to be found: ` + file + `#x9`, `Expenses in budget.xlsx is not a single value`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the page lacks %s:\n%s", want, got)
@@ -356,5 +356,18 @@ func TestAnAnchorKeptLongIsComparedShort(t *testing.T) {
 	next := locate(rec, wb, "new")
 	if next.Changed || next.Lost != "" || next.Range != "A2:B3" || next.MovedFrom != "" {
 		t.Errorf("a long anchor: %+v", next)
+	}
+}
+
+// A page frozen for a link before T-12 step 3 holds the old markup of an embedded table: it is taken out as surely as
+// one frozen since, when its maker no longer reads the file.
+func TestFrozenTablesKnowTheMarkupOfBefore(t *testing.T) {
+	for _, figure := range []string{
+		`<figure class="embed" data-ref="mqk47jxx57#x1"><div class="embedbody"><table><tr><td>4711</td></tr></table></div><figcaption>pay.xlsx</figcaption></figure>`,
+		`<figure class="editor-embed" data-ref="mqk47jxx57#x1"><div class="table-container"><table><tr><td>4711</td></tr></table></div><figcaption>pay.xlsx</figcaption></figure>`,
+	} {
+		if got := frozenTable.FindString("<p>Pay:</p>" + figure + "<p>End.</p>"); got != figure {
+			t.Errorf("the frozen table is not found whole in %s: %q", figure, got)
+		}
 	}
 }

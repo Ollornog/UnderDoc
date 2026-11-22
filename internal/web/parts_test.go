@@ -86,7 +86,7 @@ func TestPartsThroughTheAPI(t *testing.T) {
 	if !strings.Contains(got, `When it says <span data-embed-part="`+disk.Ref+`" title="Errors · #b1.t1">the disk is full</span>, free space.`) {
 		t.Errorf("a part inside a paragraph: %s", got)
 	}
-	if !strings.Contains(got, `<figure class="embed" data-ref="`+bold.Ref+`"><div class="embedbody"><p class="leading-relaxed"><strong>important to all</strong> customers</p>`) {
+	if !strings.Contains(got, `<figure class="editor-embed" data-ref="`+bold.Ref+`"><p class="leading-relaxed"><strong>important to all</strong> customers</p>`) {
 		t.Errorf("a part as a block, cut through its formatting: %s", got)
 	}
 	section := got[strings.Index(got, `data-ref="`+catalogue+`#b3.section"`):]

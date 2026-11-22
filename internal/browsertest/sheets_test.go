@@ -100,7 +100,7 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 		send('POST', '/api/pages/' + p.id + '/blocks', {md: ` + strconv.Quote(line) + `}); return p.id; })()`)
 	b.open(base + "/o/" + page)
 	b.ready("Budget report")
-	if !b.waitFor(`[...document.querySelectorAll('article.typeset figure.embed td')].some(td => td.textContent === '` + money + `')`) {
+	if !b.waitFor(`[...document.querySelectorAll('article.typeset figure.editor-embed td')].some(td => td.textContent === '` + money + `')`) {
 		t.Fatalf("the page does not show the table: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 800)`))
 	}
 	b.shot("sheet-in-page")

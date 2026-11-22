@@ -104,8 +104,8 @@ func TestPasswordsInTheEditorAndWhileReading(t *testing.T) {
 	// The slash menu, on a new empty line: the cursor leaves the first reference, which becomes a mask.
 	b.eval(`(() => { const e = EDS[at(0).d].ed, v = e.view; e.focus(); v.dispatch({selection: {anchor: v.state.doc.length}}); })()`)
 	b.typeKeys("\n\n/Passw")
-	if !b.waitFor(`[...document.querySelectorAll('.bslash [role=option]')].some(o => o.textContent.includes('Password'))`) {
-		t.Fatalf("the slash menu offers no password: %s", b.eval(`document.querySelector('.bslash')?.textContent || 'none'`))
+	if !b.waitFor(`[...document.querySelectorAll('.command [role=menuitem]')].some(o => o.textContent.includes('Password'))`) {
+		t.Fatalf("the slash menu offers no password: %s", b.eval(`document.querySelector('.cm-editor .command')?.textContent || 'none'`))
 	}
 	b.press("Enter", "Enter", 13, 0)
 	second := randomPassword(t)
@@ -216,13 +216,13 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	// stops or a busy machine delivers the keys late: by now the start is long enough, and the editor asks about it.
 	start := first[:len(first)-2]
 	b.typeKeys(first[2:len(start)])
-	if !b.waitFor(`document.querySelector('.cm-content .cm-ud-plain')?.textContent === ` + strconv.Quote(start)) {
-		t.Fatalf("the editor does not ask about the start of the value: %q", b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent`))
+	if !b.waitFor(`document.querySelector('.cm-content .decoration-wavy')?.textContent === ` + strconv.Quote(start)) {
+		t.Fatalf("the editor does not ask about the start of the value: %q", b.eval(`document.querySelector('.cm-content .decoration-wavy')?.textContent`))
 	}
 	// The last letters make the value longer: the question about its start goes at once, not only at the next save, so
 	// neither the mark nor Keep as password covers just a part of it (CI on 98f2f9a marked all but the last two, 2026-11-21).
 	b.typeKeys(first[len(start):])
-	if got := b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent || ''`); got != "" && got != first {
+	if got := b.eval(`document.querySelector('.cm-content .decoration-wavy')?.textContent || ''`); got != "" && got != first {
 		t.Errorf("the question about the start of the value stayed: %q", got)
 	}
 	b.typeKeys("\n\nMore notes")
@@ -236,7 +236,7 @@ func TestAPasswordTypedAsText(t *testing.T) {
 	if got := b.stored(page); strings.Contains(got, first) || strings.Contains(got, "More notes") {
 		t.Errorf("the server has the page before the answer: %q", got)
 	}
-	if got := b.eval(`document.querySelector('.cm-content .cm-ud-plain')?.textContent`); got != first {
+	if got := b.eval(`document.querySelector('.cm-content .decoration-wavy')?.textContent`); got != first {
 		t.Errorf("the value is not marked: %q", got)
 	}
 	b.shot("plain-password-ask")

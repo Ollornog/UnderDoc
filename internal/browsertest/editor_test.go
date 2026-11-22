@@ -6,6 +6,7 @@ package browsertest
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -145,7 +146,7 @@ func TestTheEditorRoundTripChangesNothing(t *testing.T) {
 	page := makePage(b, "Round trip", tricky...)
 	before, versions := b.stored(page), b.versions(page)
 	b.openEditing(base, page, "Round trip")
-	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-marker').length + ' ' + document.querySelectorAll('.cm-editor .cm-ud-marker .bhandle').length + ' ' + !document.querySelector('textarea')`); got != "8 8 true" {
+	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-marker').length + ' ' + document.querySelectorAll('.cm-editor .cm-ud-marker .editor-handle > button').length + ' ' + !document.querySelector('textarea')`); got != "8 8 true" {
 		t.Errorf("one hidden marker with a handle per block, no field: %q", got)
 	}
 	if got := b.eval(`[...document.querySelectorAll('.cm-editor .cm-line')].some(l => /<!-- block b\d -->/.test(l.textContent) && !l.closest('.cm-lp-code'))`); got != "false" {
@@ -156,7 +157,7 @@ func TestTheEditorRoundTripChangesNothing(t *testing.T) {
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	time.Sleep(1500 * time.Millisecond)
 	b.clickOn(`[data-win="0"] [data-mode]`, 1) // back to reading
-	if !b.waitFor(`!document.querySelector('.cm-editor') && !!document.querySelector('article.typeset [data-b="b8"]')`) {
+	if !b.waitFor(`!document.querySelector('.cm-editor') && !!document.querySelector('article.typeset [data-block="b8"]')`) {
 		t.Fatalf("reading again: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 200)`))
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -218,7 +219,7 @@ func TestTheEditorSavesAsYouType(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	b.open(base + "/o/" + page)
 	b.ready("Typing")
-	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.typeset [data-b="b3"] h2')?.textContent + ' | ' + !!document.querySelector('article.typeset [data-b="b10"] hr')`); got != "b1 b3 b2 b4 b5 b6 b7 b8 b9 b10 | Heading | true" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-block]')].map(x => x.dataset.block).join(' ') + ' | ' + document.querySelector('article.typeset [data-block="b3"] h2')?.textContent + ' | ' + !!document.querySelector('article.typeset [data-block="b10"] hr')`); got != "b1 b3 b2 b4 b5 b6 b7 b8 b9 b10 | Heading | true" {
 		t.Errorf("after a reload the blocks are kept: %q", got)
 	}
 	// Each paragraph written after a block became a block of its own, in the order of the text.
@@ -272,19 +273,19 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	// "/" at the start of an empty line opens the kinds; typing filters, Enter takes one.
 	b.press("End", "End", 35, 0)
 	b.typeKeys("\n\n/")
-	if !b.waitFor(`!!document.querySelector('.cm-editor .bslash [role=option]')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-editor .command [role=menuitem]')`) {
 		t.Fatalf("the slash menu did not open")
 	}
 	b.shot("editor-slash")
-	if got := b.eval(`[...document.querySelectorAll('.bslash [role=option]')].map(o => o.textContent).join(',')`); !strings.HasPrefix(got, "Text,Heading 1,") || !strings.Contains(got, "Embed a block or page") {
+	if got := b.eval(`[...document.querySelectorAll('.command [role=menuitem]')].map(o => o.textContent).join(',')`); !strings.HasPrefix(got, "Text,Heading 1,") || !strings.Contains(got, "Embed a block or page") {
 		t.Errorf("the kinds: %q", got)
 	}
 	b.typeKeys("tab")
-	if got := b.eval(`[...document.querySelectorAll('.bslash [role=option]')].map(o => o.textContent).join(',')`); got != "Table" {
+	if got := b.eval(`[...document.querySelectorAll('.command [role=menuitem]')].map(o => o.textContent).join(',')`); got != "Table" {
 		t.Errorf("typing filters the kinds: %q", got)
 	}
 	b.press("Enter", "Enter", 13, 0)
-	if !b.edWait(`t.includes('\n| Column | Column |\n|---|---|\n|  |  |') && !document.querySelector('.bslash')`) {
+	if !b.edWait(`t.includes('\n| Column | Column |\n|---|---|\n|  |  |') && !document.querySelector('.cm-editor .command')`) {
 		t.Errorf("Enter makes a table: %q", b.eval(edText))
 	}
 	b.typeKeys("Port")
@@ -292,11 +293,11 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	b.typeKeys("\n")
 	b.press("End", "End", 35, 2)
 	b.typeKeys("\n\n/zzz")
-	if got := b.eval(`document.querySelector('.bslash')?.textContent`); got != "Nothing fits." {
+	if got := b.eval(`(() => { const m = document.querySelector('.cm-editor .command [role=menu]'); return m && !m.querySelector('[role=menuitem]') ? getComputedStyle(m, '::before').content : 'none'; })()`); got != `"Nothing fits."` {
 		t.Errorf("nothing fits: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
-	if !b.waitFor(`!document.querySelector('.bslash')`) {
+	if !b.waitFor(`!document.querySelector('.cm-editor .command')`) {
 		t.Errorf("Escape closes the slash menu")
 	}
 	b.typeKeys(" not a menu")
@@ -319,18 +320,18 @@ func TestTheHandleInTheEditor(t *testing.T) {
 	_ = other
 	b.openEditing(base, page, "Handles")
 	b.lineWith("Three")
-	if got := b.eval(`(() => { const h = document.querySelector('.cm-ud-marker[data-edb="b3"] .bhandle'); return getComputedStyle(h).opacity + ' ' + h.title; })()`); got != "1 Block #b3: address, moving, comments" {
+	if got := b.eval(`(() => { const h = document.querySelector('.cm-ud-marker[data-edb="b3"] .editor-handle'); return getComputedStyle(h).opacity + ' ' + h.querySelector(':scope > button').title; })()`); got != "1 Block #b3: address, moving, comments" {
 		t.Errorf("the handle of the block with the cursor shows: %q", got)
 	}
-	b.clickOn(`.cm-ud-marker[data-edb="b3"] .bhandle`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .bmenu')`) {
+	b.clickOn(`.cm-ud-marker[data-edb="b3"] .editor-handle > button`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b3"] .editor-handle [role=menu]')`) {
 		t.Fatal("the menu of the handle did not open")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? '(off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused').textContent`); got != "Copy address#b3, Move up, Move down(off), Delete, Move to page, Comment | Not used elsewhere" {
+	if got := b.eval(`[...document.querySelectorAll('.editor-handle [role=menu] [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? '(off)' : '')).join(', ') + ' | ' + document.querySelector('.editor-handle [role=menu] > [role=heading]').textContent`); got != "Copy address#b3, Move up, Move down(off), Delete, Move to page, Comment | Not used elsewhere" {
 		t.Errorf("the menu in the editor: %q", got)
 	}
 	b.shot("editor-handle")
-	b.clickOn(`.bmenu [data-act="edmove"][data-k="up"]`, 1)
+	b.clickOn(`.editor-handle [role=menu] [data-act="edmove"][data-k="up"]`, 1)
 	if !b.edWait(`t.indexOf('<!-- block b3 -->') < t.indexOf('<!-- block b2 -->')`) {
 		t.Errorf("moved up in the text: %q", b.eval(edText))
 	}
@@ -341,24 +342,24 @@ func TestTheHandleInTheEditor(t *testing.T) {
 		t.Errorf("the server moved it: %q", got)
 	}
 	// Two is used on the other page: deleting it asks first, in place.
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
-	b.waitFor(`!!document.querySelector('.bmenu')`)
-	if got := b.eval(`document.querySelector('.bmenu .bused').textContent`); got != "Used in Uses it" {
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, 1)
+	b.waitFor(`!!document.querySelector('.editor-handle [role=menu]')`)
+	if got := b.eval(`document.querySelector('.editor-handle [role=menu] > [role=heading]').textContent`); got != "Used in Uses it" {
 		t.Errorf("the menu says where it is used: %q", got)
 	}
-	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-ud-ask[data-ask="b2"]')`) {
+	b.clickOn(`.editor-handle [role=menu] [data-act="eddel"]`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-editor [data-ask="b2"]')`) {
 		t.Fatalf("a block used elsewhere asks: %q", b.eval(edText))
 	}
 	b.shot("editor-ask")
-	if got := b.eval(`document.querySelector('.cm-ud-ask').textContent`); !strings.Contains(got, "Block #b2 is used in Uses it.") {
+	if got := b.eval(`document.querySelector('[data-ask]').textContent`); !strings.Contains(got, "Block #b2 is used in Uses it.") {
 		t.Errorf("the question: %q", got)
 	}
 	if got := b.stored(page); got != "b1:One | b3:Three | b2:Two" {
 		t.Errorf("nothing is deleted while it asks: %q", got)
 	}
-	b.clickOn(`.cm-ud-ask [data-answer="keep"]`, 1)
-	if !b.edWait(`t.endsWith('<!-- block b2 -->\nTwo') && !document.querySelector('.cm-ud-ask')`) {
+	b.clickOn(`[data-ask] [data-answer="keep"]`, 1)
+	if !b.edWait(`t.endsWith('<!-- block b2 -->\nTwo') && !document.querySelector('[data-ask]')`) {
 		t.Errorf("kept, the block comes back: %q", b.eval(edText))
 	}
 	time.Sleep(1500 * time.Millisecond)
@@ -366,21 +367,21 @@ func TestTheHandleInTheEditor(t *testing.T) {
 		t.Errorf("kept on the server: %q", got)
 	}
 	// Now delete it for good, and One, which is used nowhere, without a question.
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
-	b.waitFor(`!!document.querySelector('.bmenu')`)
-	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
-	b.waitFor(`!!document.querySelector('.cm-ud-ask')`)
-	b.clickOn(`.cm-ud-ask [data-answer="delete"]`, 1)
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, 1)
+	b.waitFor(`!!document.querySelector('.editor-handle [role=menu]')`)
+	b.clickOn(`.editor-handle [role=menu] [data-act="eddel"]`, 1)
+	b.waitFor(`!!document.querySelector('[data-ask]')`)
+	b.clickOn(`[data-ask] [data-answer="delete"]`, 1)
 	// What happens in the page that uses it is chosen in a dialog, with nothing chosen in advance (ADR-22).
-	if !b.waitFor(`!!document.querySelector('.wayspop')`) {
+	if !b.waitFor(`!!document.querySelector('[data-ways]')`) {
 		t.Fatalf("the ways to choose from do not show")
 	}
-	if got := b.eval(`document.querySelector('.wayspop [data-act="waysgo"]').disabled + ' ' + document.querySelectorAll('.wayspop [aria-pressed="true"]').length`); got != "true 0" {
+	if got := b.eval(`document.querySelector('[data-ways] [data-act="waysgo"]').disabled + ' ' + document.querySelectorAll('[data-ways] [aria-pressed="true"]').length`); got != "true 0" {
 		t.Errorf("nothing is chosen in advance, and nothing goes before: %q", got)
 	}
-	b.clickOn(`.wayspop [data-act="way"][data-way="copies"]`, 1)
-	b.clickOn(`.wayspop [data-act="waysgo"]`, 1)
-	if !b.waitFor(`!document.querySelector('.cm-ud-ask') && !document.querySelector('.wayspop')`) {
+	b.clickOn(`[data-ways] [data-act="way"][data-way="copies"]`, 1)
+	b.clickOn(`[data-ways] [data-act="waysgo"]`, 1)
+	if !b.waitFor(`!document.querySelector('[data-ask]') && !document.querySelector('[data-ways]')`) {
 		t.Errorf("the question goes")
 	}
 	time.Sleep(1200 * time.Millisecond)
@@ -419,10 +420,10 @@ func TestPastingAnAddressEmbedsInTheEditor(t *testing.T) {
 		t.Errorf("the address became an embedding: %q", b.eval(edText))
 	}
 	b.lineWith("Intro")
-	if !b.waitFor(`document.querySelector('.cm-editor .cm-ud-embed a')?.textContent === 'Source · #b1'`) {
-		t.Errorf("the embedding shows as a box: %s", b.eval(`document.querySelector('.cm-editor .cm-ud-embed')?.outerHTML`))
+	if !b.waitFor(`document.querySelector('.cm-editor a.badge[data-ref] > span:last-child')?.textContent === 'Source · #b1'`) {
+		t.Errorf("the embedding shows as a box: %s", b.eval(`document.querySelector('.cm-editor a.badge[data-ref]')?.outerHTML`))
 	}
-	if got := b.eval(`document.querySelector('.cm-editor .cm-ud-embed a').getAttribute('href')`); got != "/o/"+source+"#b1" {
+	if got := b.eval(`document.querySelector('.cm-editor a.badge[data-ref]').getAttribute('href')`); got != "/o/"+source+"#b1" {
 		t.Errorf("with a link: %q", got)
 	}
 	b.shot("editor-embed")
@@ -539,7 +540,7 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 		t.Fatalf("reading: %v %v", read, err)
 	}
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker .bhandle')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker .editor-handle > button')`) {
 		t.Fatal("no editor")
 	}
 	// Away from the cursor: the editor loses the focus.
@@ -576,6 +577,32 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 		t.Errorf("with the cursor on the blank line it is a whole line: %.1f px, a line is %.1f px", edit[2], line)
 	}
 	b.shot("editor-rhythm")
+}
+
+// While reading, the flow of the page runs through the wrappers of the blocks (div[data-block]): two paragraphs of one
+// block stand as far apart as two blocks, also in the first block, and a heading stands as far from the text under it in
+// its own block as from the next block.
+func TestTheFlowRunsThroughABlock(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	page := makePage(b, "Flow", "Alpha one.\n\nAlpha two.", "Bravo three.", "## Charlie head\n\nCharlie text.", "## Delta head", "Delta text.")
+	b.open(base + "/o/" + page)
+	b.ready("Flow")
+	gaps := b.eval(`(() => { const top = w => { const walk = document.createTreeWalker(document.querySelector('article.typeset'), NodeFilter.SHOW_TEXT);
+		for (let n = walk.nextNode(); n; n = walk.nextNode()) { const k = n.data.indexOf(w); if (k >= 0) { const e = n.parentElement.closest('p, h2'); return [e.getBoundingClientRect().top, e.getBoundingClientRect().bottom]; } } return [NaN, NaN]; };
+		const gap = (a, z) => Math.round((top(z)[0] - top(a)[1]) * 10) / 10;
+		return [gap('Alpha one', 'Alpha two'), gap('Alpha two', 'Bravo three'), gap('Charlie head', 'Charlie text'), gap('Delta head', 'Delta text')].join(' '); })()`)
+	var inBlock, between, headIn, headNext float64
+	if _, err := fmt.Sscan(gaps, &inBlock, &between, &headIn, &headNext); err != nil {
+		t.Fatalf("%q: %v", gaps, err)
+	}
+	if inBlock < 5 || inBlock-between > 0.25 || between-inBlock > 0.25 {
+		t.Errorf("two paragraphs of the first block stand as far apart as two blocks: %.1f px within, %.1f px between", inBlock, between)
+	}
+	if headIn-headNext > 0.25 || headNext-headIn > 0.25 {
+		t.Errorf("a heading stands as far from the text in its block as from the next block: %.1f px within, %.1f px to the next", headIn, headNext)
+	}
 }
 
 // The table tools of the bar (M-8): shown while the cursor stands in a table, each writes the table again as plain
@@ -679,22 +706,22 @@ func TestAUsedBlockShowsItsBoundary(t *testing.T) {
 	makePage(b, "Uses it too", "::embed{ref=\""+page+"#b2\"}")
 	b.openEditing(base, page, "Used")
 	b.lineWith("One")
-	if got := b.eval(`document.querySelectorAll('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel').length`); got != "0" {
+	if got := b.eval(`document.querySelectorAll('.cm-editor [data-used], .cm-editor [data-used] > small').length`); got != "0" {
 		t.Errorf("a block used nowhere shows no boundary: %q", got)
 	}
 	b.lineWith("and more")
-	if !b.waitFor(`document.querySelectorAll('.cm-editor .cm-line.cm-ud-used').length === 2`) {
-		t.Fatalf("the lines of the used block are outlined: %q", b.eval(`[...document.querySelectorAll('.cm-editor .cm-ud-used')].map(l => l.textContent).join(' / ')`))
+	if !b.waitFor(`document.querySelectorAll('.cm-editor .cm-line[data-used]').length === 2`) {
+		t.Fatalf("the lines of the used block are outlined: %q", b.eval(`[...document.querySelectorAll('.cm-editor [data-used]')].map(l => l.textContent).join(' / ')`))
 	}
-	if got := b.eval(`(() => { const f = document.querySelector('.cm-ud-used-first'), l = document.querySelector('.cm-ud-used-last'), x = f.querySelector('.cm-ud-usedlabel');
-		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, getComputedStyle(f).boxShadow !== 'none', x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
+	if got := b.eval(`(() => { const f = document.querySelector('.cm-line[data-used="first"]'), l = document.querySelector('.cm-line[data-used="last"]'), x = f.querySelector(':scope > small');
+		return [f.textContent.replace(x.textContent, ''), l.textContent, x.textContent, parseFloat(getComputedStyle(f, '::before').borderTopWidth) >= 1 && parseFloat(getComputedStyle(l, '::before').borderBottomWidth) >= 1 && getComputedStyle(f, '::before').borderBottomWidth === '0px', x.getBoundingClientRect().right <= innerWidth].join(' | '); })()`); got != "Two | and more | Used in 2 places | true | true" {
 		t.Errorf("the boundary and its label: %q", got)
 	}
 	b.shot("editor-used-block")
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	b.press("ArrowDown", "ArrowDown", 40, 0)
-	if !b.waitFor(`!document.querySelector('.cm-editor .cm-ud-used, .cm-editor .cm-ud-usedlabel')`) {
+	if !b.waitFor(`!document.querySelector('.cm-editor [data-used], .cm-editor [data-used] > small')`) {
 		t.Errorf("leaving the block takes the boundary away: %s", b.eval(edText))
 	}
 	time.Sleep(1200 * time.Millisecond)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Dragging a block of a page by its handle (.bhandle[data-drag]), in reading and in the editor (docs/editor.md).
+// Dragging a block of a page by its handle (the trigger of C22's .editor-handle, [data-drag]), in reading and in the
+// editor (docs/editor.md).
 //
 // Pressing the handle and moving it lifts the block: it is hidden, and a gap with the block in it (C22's .dropgap) opens
 // where it would land, always between blocks, never inside one. Letting go moves it, Escape gives up, and a click without
@@ -37,7 +38,7 @@
 
     function down(e) {
       if (e.button !== 0 || !e.isPrimary || !e.target.closest) return;
-      var handle = e.target.closest('.bhandle[data-drag]');
+      var handle = e.target.closest('.editor-handle [data-drag]');
       var c = handle && app.pick(handle);
       press = c ? { c: c, pointer: e.pointerId, x0: e.clientX, y0: e.clientY } : null;
       // Neither a selection of text nor the browser's own drag of a selection that covers the handle starts, which

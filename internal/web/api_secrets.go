@@ -75,8 +75,8 @@ func (h *handler) passwords(r *http.Request, rendered, page string) string {
 		quoted := html.EscapeString(secretID)
 		return `<span class="inline-flex items-center gap-1" data-secret="` + quoted + `" data-secret-state="ok">` +
 			`<span class="secret-key" data-secret-value aria-label="Password, hidden">••••••••</span>` +
-			`<button type="button" class="chip" data-pwact="show" data-secret="` + quoted + `">Reveal</button>` +
-			`<button type="button" class="chip" data-pwact="copy" data-secret="` + quoted + `">Copy</button></span>`
+			`<button type="button" class="btn" data-variant="outline" data-size="xs" data-pwact="show" data-secret="` + quoted + `">Reveal</button>` +
+			`<button type="button" class="btn" data-variant="outline" data-size="xs" data-pwact="copy" data-secret="` + quoted + `">Copy</button></span>`
 	})
 }
 

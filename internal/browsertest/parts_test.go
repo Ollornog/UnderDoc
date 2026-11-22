@@ -39,28 +39,28 @@ func TestTheWaysOfAPartInUse(t *testing.T) {
 			b.openEditing(base, errors, "Errors")
 			// The text of the part goes; saving asks, since Runbook embeds it.
 			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('<!-- part t1 -->'), to = t.indexOf('<!-- /part t1 -->') + '<!-- /part t1 -->'.length; v.dispatch({changes: {from, to, insert: 'it'}, userEvent: 'input'}); })()`)
-			if !b.waitFor(`!!document.querySelector('.wayspop')`) {
+			if !b.waitFor(`!!document.querySelector('[data-ways]')`) {
 				t.Fatalf("no dialog: %s", b.eval(edText))
 			}
-			if got := b.eval(`document.querySelector('.wayspop').innerText.replace(/\s+/g, ' ')`); !strings.Contains(got, "Part #b1.t1 in Errors") || !strings.Contains(got, "Used in Runbook") {
+			if got := b.eval(`document.querySelector('[data-ways]').innerText.replace(/\s+/g, ' ')`); !strings.Contains(got, "Part #b1.t1 in Errors") || !strings.Contains(got, "Used in Runbook") {
 				t.Errorf("the dialog names the part and its uses: %q", got)
 			}
-			if got := b.eval(`document.querySelector('.wayspop [data-act="waysgo"]').disabled + ' ' + document.querySelectorAll('.wayspop [aria-pressed="true"]').length`); got != "true 0" {
+			if got := b.eval(`document.querySelector('[data-ways] [data-act="waysgo"]').disabled + ' ' + document.querySelectorAll('[data-ways] [aria-pressed="true"]').length`); got != "true 0" {
 				t.Errorf("nothing is chosen in advance: %q", got)
 			}
-			if got := b.eval(`(() => { const r = document.querySelector('.wayspop').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()`); got != "true" {
+			if got := b.eval(`(() => { const r = document.querySelector('[data-ways]').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()`); got != "true" {
 				t.Errorf("the dialog fits the screen")
 			}
 			b.shot("ways-" + name)
 			if got := b.stored(errors); !strings.Contains(got, "<!-- part t1 -->") {
 				t.Errorf("nothing changed while it asks: %q", got)
 			}
-			press(`.wayspop [data-act="way"][data-way="everywhere"]`)
-			if !b.waitFor(`document.querySelector('.wayspop [data-way="everywhere"]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.wayspop [data-act="waysgo"]').disabled`) {
+			press(`[data-ways] [data-act="way"][data-way="everywhere"]`)
+			if !b.waitFor(`document.querySelector('[data-ways] [data-way="everywhere"]').getAttribute('aria-pressed') === 'true' && !document.querySelector('[data-ways] [data-act="waysgo"]').disabled`) {
 				t.Fatalf("the choice does not take")
 			}
-			press(`.wayspop [data-act="waysgo"]`)
-			if !b.waitFor(`!document.querySelector('.wayspop') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
+			press(`[data-ways] [data-act="waysgo"]`)
+			if !b.waitFor(`!document.querySelector('[data-ways]') && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
 				t.Fatalf("the change is not saved: %s", b.eval(`document.querySelector('[data-edstatus]')?.textContent`))
 			}
 			if got := b.stored(errors); got != "b1:Error 42: it. Free space." {
@@ -134,8 +134,8 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 				b.mouse("mousePressed", x, y, 1, 0)
 				b.mouse("mouseReleased", x, y, 1, 0)
 			}
-			if !b.waitFor(`!!document.querySelector('.cm-editor .cm-ud-part') && document.querySelector('.cm-ud-partlabel')?.textContent === 'Not used elsewhere'`) {
-				t.Errorf("the cursor in the part shows its boundary: %s", b.eval(`JSON.stringify({label: document.querySelector('.cm-ud-partlabel')?.textContent, mark: !!document.querySelector('.cm-ud-part'), focus: EDS[at(0).d].ed.view.hasFocus, head: EDS[at(0).d].ed.view.state.selection.main.head, text: EDS[at(0).d].ed.text()})`))
+			if !b.waitFor(`!!document.querySelector('.cm-editor [data-part][data-framed]') && document.querySelector('.cm-editor [data-part][data-framed]')?.dataset.part === 'Not used elsewhere'`) {
+				t.Errorf("the cursor in the part shows its boundary: %s", b.eval(`JSON.stringify({label: document.querySelector('.cm-editor [data-part][data-framed]')?.dataset.part, mark: !!document.querySelector('.cm-editor [data-part]'), focus: EDS[at(0).d].ed.view.hasFocus, head: EDS[at(0).d].ed.view.state.selection.main.head, text: EDS[at(0).d].ed.text()})`))
 			}
 			// A marker does not go on its own: Backspace right after the part leaves it whole.
 			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), p = t.indexOf('<!-- /part t1 -->') + '<!-- /part t1 -->'.length; v.dispatch({selection: {anchor: p}}); v.focus(); })()`)
@@ -169,14 +169,18 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 			// Reading Errors, the pointer on the part shows its boundary and where it is used.
 			b.open(base + "/o/" + errors)
 			b.ready("Errors")
-			r := b.rect(`article.typeset [data-b="b1"] strong`)
+			r := b.rect(`article.typeset [data-block="b1"] strong`)
 			if phone {
 				b.pressAt(r.X-30, r.Y, 60*time.Millisecond)
 			} else {
 				b.mouse("mouseMoved", r.X-30, r.Y, 0, 0)
 			}
-			if !b.waitFor(`document.querySelectorAll('.partedge').length > 0 && document.querySelector('.partlabel')?.textContent === 'Used in 1 place'`) {
-				t.Errorf("the boundary while reading: %s", b.eval(`document.querySelector('.partlabel')?.textContent`))
+			if !b.waitFor(`document.querySelectorAll('#root > [data-part-id]').length > 0 && document.querySelector('#root > [data-part-id]')?.dataset.part === 'Used in 1 place'`) {
+				t.Errorf("the boundary while reading: %s", b.eval(`document.querySelector('#root > [data-part-id]')?.dataset.part`))
+			}
+			// The part runs into the bold text on one line: one frame round it, one name, not a frame for each piece.
+			if got := b.eval(`(() => { const x = [...document.querySelectorAll('#root > [data-part-id]')], s = document.querySelector('article.typeset [data-block="b1"] strong').getBoundingClientRect(); return x.length + ' ' + (x.length === 1 && x[0].getBoundingClientRect().right >= s.left + 1); })()`); got != "1 true" {
+				t.Errorf("one frame round the part on its line: %q", got)
 			}
 			b.shot("part-boundary-" + name)
 			b.clean("marking " + name)
@@ -245,10 +249,10 @@ func TestMovingABlockToAnotherPage(t *testing.T) {
 			target := makePage(b, "Target page", "First.")
 			source := makePage(b, "Source page", "Stays here.", "Goes away <!-- part t1 -->with its part<!-- /part t1 -->.")
 			user := makePage(b, "User page", "Uses :embed{ref=\""+source+"#b2.t1\"}.")
-			handle := `article.typeset [data-b="b2"] > .bhandle`
+			handle := `article.typeset [data-block="b2"] > .editor-handle > button`
 			if editing {
 				b.openEditing(base, source, "Source page")
-				handle = `.cm-ud-marker[data-edb="b2"] .bhandle`
+				handle = `.cm-ud-marker[data-edb="b2"] .editor-handle > button`
 			} else {
 				b.open(base + "/o/" + source)
 				b.ready("Source page")
@@ -257,14 +261,14 @@ func TestMovingABlockToAnotherPage(t *testing.T) {
 				t.Fatal("no handle on the block")
 			}
 			b.clickOn(handle, 1)
-			b.clickOn(`.bmenu [data-act="bmoveto"]`, 1)
+			b.clickOn(`.editor-handle [role=menu] [data-act="bmoveto"]`, 1)
 			if !b.waitFor(`[...document.querySelectorAll('#bmovesel option')].some(o => o.textContent === 'Target page')`) {
-				t.Fatalf("the menu offers no page: %s", b.eval(`document.querySelector('.bmenu')?.innerHTML.slice(0, 400)`))
+				t.Fatalf("the menu offers no page: %s", b.eval(`document.querySelector('.editor-handle [role=menu]')?.innerHTML.slice(0, 400)`))
 			}
 			// A redraw keeps the choice.
 			b.eval(`(() => { const s = document.getElementById('bmovesel'); s.value = [...s.options].find(o => o.textContent === 'Target page').value; s.focus(); })()`)
 			b.eval(`render()`)
-			b.clickOn(`.bmenu [data-act="bmovego"]`, 1)
+			b.clickOn(`.editor-handle [role=menu] [data-act="bmovego"]`, 1)
 			md := func(id string) string {
 				return b.eval(`(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/doc/` + id + `', false); x.send(); return JSON.parse(x.responseText).blocks.map(b => b.id + ':' + b.md).join(' | '); })()`)
 			}

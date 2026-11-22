@@ -152,6 +152,32 @@ it does in a shadow root, and the CSP allows that (`web/editor/src/style-mod-ado
 itself, so the styles of the workspace (C22) reach the bar, the handles and the slash menu. Pictures that are not of
 UnderDoc itself show as their alt text, never as a request elsewhere.
 
+## Built from C22
+
+The editor and its parts are C22's building blocks, their look the layout pack `underdoc` (T-12 step 3, 2026-11-22); the
+editor's own stylesheet (`web/editor/src/editor.css`) holds only the inside of CodeMirror and the live preview.
+
+| Part | C22 |
+|---|---|
+| The page in the editor | `.editor` on CodeMirror's root |
+| The bar | `.workspace-main > .editor-bar`: a `select`, groups `div[role=group]`, the status as `small` |
+| A block while reading | `article.typeset > div[data-block]`, its handle `.dropdown-menu.editor-handle` (menu drawn open by the script); in the editor the marker line `.cm-ud-marker[data-block]` holds the handle, `data-active` on the block with the cursor |
+| The slash menu | `.command` with `[role=menuitem]`, the chosen one `data-selected`, a later one `aria-disabled` |
+| A question in place | `article.item[data-variant=muted][data-size=sm]`, the answers as buttons in its `aside` |
+| A block used elsewhere | its lines `[data-used]`, "Used in N places" as `small` |
+| A part | `[data-part][data-framed]`, its name in `data-part` (while reading, boxes placed by `parts.js`) |
+| A value that looks like a password | `underline decoration-wavy decoration-destructive` |
+| An embedding | in the editor `a.badge[data-variant=secondary]`; while reading `figure.editor-embed`, `data-state="missing"` with the reason, or who removed it with Restore and Keep a copy here |
+| Comment bubbles | `.comment-anchor > [data-comment]`, the count `data-count` |
+| Quick notes | `.input` on top, a grid of `article.card[data-size=sm][data-block]`, the handle at the end |
+| What happens where something in use goes | a `.card` over the workspace with one section per thing |
+| The source view | `pre.code-block[data-line-numbers]` |
+
+What the editor first lacked in C22 (the space between the elements of a block with several and of an embedding, a
+to-do of a list, the handle of the block with the cursor, one frame round the lines of a block used elsewhere, the gap of
+a dragged block, the frames of a part over several lines, a handle that takes a finger, handles and bubbles on touch
+screens) C22 has had since `ec39f36`; UnderDoc keeps no look of its own for them.
+
 ## Build
 
 The editor is built from `web/editor` with esbuild into `internal/web/assets/app/editor/`: `editor.js`, `editor.css` and

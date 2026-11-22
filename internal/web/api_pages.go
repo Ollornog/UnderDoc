@@ -176,7 +176,8 @@ func (h *handler) inlineEmbeds(r *http.Request, rendered string, trail []string)
 	})
 }
 
-// embed renders one embedded page, block, section or part of the database, as a block with a link to where it comes from.
+// embed renders one embedded page, block, section or part of the database, as a block with a link to where it comes from:
+// C22's figure.editor-embed, with data-state="missing" and the reason when it cannot be shown.
 func (h *handler) embed(r *http.Request, a db.Address, trail []string) string {
 	ref := a.String()
 	inner, label, why := h.embedded(r, a, trail)
@@ -184,7 +185,7 @@ func (h *handler) embed(r *http.Request, a db.Address, trail []string) string {
 		return h.placeholder(r, a, g, trail[0], false)
 	}
 	if why != "" {
-		return `<div class="embed broken" data-ref="` + html.EscapeString(ref) + `">` + html.EscapeString(why) + `</div>`
+		return `<figure class="editor-embed" data-state="missing" data-ref="` + html.EscapeString(ref) + `"><p>` + html.EscapeString(why) + `</p></figure>`
 	}
 	if a.Sub != "" && a.Sub != db.Section {
 		inner = `<p class="leading-relaxed">` + inner + `</p>`
@@ -193,8 +194,8 @@ func (h *handler) embed(r *http.Request, a db.Address, trail []string) string {
 	if a.Block != "" {
 		link += "#" + a.Target()
 	}
-	return `<figure class="embed" data-ref="` + html.EscapeString(ref) + `"><div class="embedbody">` + inner +
-		`</div><figcaption><a href="` + html.EscapeString(link) + `">` + html.EscapeString(label) + `</a></figcaption></figure>`
+	return `<figure class="editor-embed" data-ref="` + html.EscapeString(ref) + `">` + inner +
+		`<figcaption><a href="` + html.EscapeString(link) + `">` + html.EscapeString(label) + `</a></figcaption></figure>`
 }
 
 // embedded renders what an address names for this viewer: its HTML and a label that says where it comes from, or why it
