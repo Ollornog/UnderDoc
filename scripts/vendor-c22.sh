@@ -19,7 +19,11 @@ rm -f "$target/css/"c22-*.css
 cp "$work/c22/c22/static/css/c22-underdoc.css" "$target/css/"
 cp "$work/c22/c22/static/fonts/inter.woff2" "$target/fonts/"
 cp "$work/c22/c22/static/js/c22.js" "$work/c22/c22/static/js/workspace-boot.js" "$work/c22/c22/static/js/app-workspace-drag.js" "$target/js/"
-cp "$work/c22/c22/vendor/basecoat/dist/js/all.min.js" "$target/js/basecoat.all.min.js"
+# Basecoat's core and its combobox alone, not all.min.js: the workspace draws its own menus, popovers and tabs, and the
+# core's observer takes over only what is registered (C22 rights block).
+rm -f "$target/js/"basecoat*.js
+cp "$work/c22/c22/vendor/basecoat/dist/js/basecoat.min.js" "$target/js/basecoat.min.js"
+cp "$work/c22/c22/vendor/basecoat/dist/js/combobox.min.js" "$target/js/basecoat-combobox.min.js"
 cp "$work/c22/LICENSE" "$target/licenses/C22-LICENSE"
 cp "$work/c22/c22/static/fonts/OFL.txt" "$target/licenses/Inter-OFL.txt"
 git -C "$work/c22" rev-parse HEAD >"$target/VERSION"

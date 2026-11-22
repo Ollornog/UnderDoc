@@ -118,3 +118,44 @@ func TestTheFilterBarOfASavedSearchIsNotToggled(t *testing.T) {
 		t.Errorf("a value of the saved search changed: %s", b.eval(`document.querySelector('.filter-bar').outerHTML.slice(0, 300)`))
 	}
 }
+
+// TestBasecoatTakesOnlyTheCombobox: the workspace loads Basecoat's core and its combobox alone (C22's recipe for an app
+// that draws its own menus), so its observer takes over the grouped combobox of the rights dialogs and nothing else: the
+// menus, popovers and context menus UnderDoc draws open and closed itself are never Basecoat's (T-12).
+func TestBasecoatTakesOnlyTheCombobox(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	taken := `[...document.querySelectorAll('[data-basecoat-component]')].map(n => n.dataset.basecoatComponent).sort().join(' ')`
+	// The menu More of the window, a .dropdown-menu, drawn open by the app; a context menu on a name.
+	b.clickOn(`[data-win="0"] [data-act="menu"]`, 1)
+	more := `document.querySelector('[data-win="0"] [data-act="menu"]')?.closest('.dropdown-menu')`
+	if !b.waitFor(more + `?.querySelector('[data-popover]')?.getAttribute('aria-hidden') === 'false'`) {
+		t.Fatalf("the menu More did not open: %s", b.eval(`String(`+more+`?.outerHTML).slice(0, 300)`))
+	}
+	if got := b.eval(`typeof window.basecoat?.register + ' ' + (document.querySelectorAll('.dropdown-menu').length > 0)`); got != "function true" {
+		t.Errorf("Basecoat is loaded and the page has menus of the app: %q", got)
+	}
+	if got := b.eval(taken); got != "" {
+		t.Errorf("Basecoat took over a part the app draws: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	b.rightClickOn(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "Network plan"))
+	if !b.waitFor(`!!document.querySelector('[data-cm-panel]')`) {
+		t.Fatal("no context menu")
+	}
+	if got := b.eval(taken); got != "" {
+		t.Errorf("Basecoat took over the context menu: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+	// The combobox of the dialog of a new collection is Basecoat's, and only it.
+	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
+	b.clickOn(probe(b, `[data-menu="new"] [role="menuitem"]`, "Collection"), 1)
+	if !b.waitFor(`document.getElementById('udrights')?.open && document.querySelector('#udrights .combobox')?.dataset.comboboxInitialized === 'true'`) {
+		t.Fatalf("the combobox of the dialog was not taken over: %s", b.eval(`String(document.querySelector('#udrights .combobox')?.outerHTML).slice(0, 300)`))
+	}
+	if got := b.eval(taken); got != "combobox" {
+		t.Errorf("Basecoat takes over the combobox alone: %q", got)
+	}
+	b.press("Escape", "Escape", 27, 0)
+}

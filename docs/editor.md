@@ -155,7 +155,11 @@ UnderDoc itself show as their alt text, never as a request elsewhere.
 ## Built from C22
 
 The editor and its parts are C22's building blocks, their look the layout pack `underdoc` (T-12 step 3, 2026-11-22); the
-editor's own stylesheet (`web/editor/src/editor.css`) holds only the inside of CodeMirror and the live preview.
+editor's own stylesheet (`web/editor/src/editor.css`) holds no look: only what CodeMirror's own parts need to sit in
+`.editor` (the page's font and leading, the room below the last line, cursor and selection in C22's tokens, the frame of
+its tooltip taken away), each rule with its reason. Until C22 gives a heading in `.editor` the room it has in `.typeset`,
+a bridge there keeps it (1.8 `--flow` above a heading instead of the blank line, half a blank line below), so the page does
+not jump between reading and writing.
 
 | Part | C22 |
 |---|---|
@@ -167,6 +171,7 @@ editor's own stylesheet (`web/editor/src/editor.css`) holds only the inside of C
 | A block used elsewhere | its lines `[data-used]`, "Used in N places" as `small` |
 | A part | `[data-part][data-framed]`, its name in `data-part` (while reading, boxes placed by `parts.js`) |
 | A value that looks like a password | `underline decoration-wavy decoration-destructive` |
+| The live preview | `data-md` on lines (`h1`…`h6`, `quote`, `codeblock` with `data-md-edge="first\|last"`, `table-source`, `blank`; a line that is two things carries both words, `"quote h2"`), on marks (`strong`, `em`, `del`, `code`, `link`, `wiki`, `url`, `done`, `info`, `directive`, `mark` for a Markdown sign left visible) and on widgets (`bullet`, `task`, `image`, `image-alt`, `rule`, `table`, a column aligned in Markdown `th`/`td[align]`); heading sizes are the pack's `--editor-h1`…`-h4`, the sizes of a page when read |
 | An embedding | in the editor `a.badge[data-variant=secondary]`; while reading `figure.editor-embed`, `data-state="missing"` with the reason, or who removed it with Restore and Keep a copy here |
 | Comment bubbles | `.comment-anchor > [data-comment]`, the count `data-count` |
 | Quick notes | `.input` on top, a grid of `article.card[data-size=sm][data-block]`, the handle at the end |
@@ -219,11 +224,15 @@ is gone (step 6): UnderDoc emits none of its classes.
 | The passwords of a page | `dialog.dialog` with an `.item` per password, versions and readers below it |
 | The log in the tab Rights | `ol.timeline[data-size=sm]`: what as a badge (a wrong password destructive), who and when |
 | Keeping the log | `.input-group` with the unit after the field |
-| The table view of a spreadsheet | `.tabs` for the sheets, the sheet `table.table[data-variant=grid][data-sticky=sheet][role=grid]` in a `.table-container`, numbers `data-type="number"`, a range `aria-selected` on its cells and on the letters and numbers of its columns and rows, the cell it began at `data-active`; names and tables as `.item`s |
+| The table view of a spreadsheet | `.tabs` for the sheets, the sheet `table.table[data-variant=grid][data-sticky=sheet][role=grid]` in a `.table-container`, numbers `data-type="number"`, a range `aria-selected` on its cells and on the letters and numbers of its columns and rows, the cell it began at `data-active`, the row a hit of the search named `aria-current` on its number; names and tables as `.item`s |
 | The page behind a share link | one column `main.grid`, the head, `.alert`s, the frozen page in `.typeset`, files in a `.table-container > table.table[data-wrap]` |
 
-Choosing whom to share with stays a `select` with groups: C22's grouped `.combobox` needs Basecoat's script, which the
-workspace does not load (Basecoat would take over the menus the workspace draws itself).
+Choosing whom to share with is C22's grouped `.combobox` (everyone, groups, people, each with the icon of its kind;
+typing filters across the groups). Its behaviour is Basecoat's: the workspace loads Basecoat's core and its combobox
+alone (`basecoat.min.js`, `basecoat-combobox.min.js`, before `c22.js`), so its observer takes over `.combobox` and leaves
+the menus, popovers and context menus the workspace draws itself to the app; a test proves both. The steps of a new
+collection do not scroll within the dialog, so the list can open over the dialog's edge: C22 cannot yet place the list of
+a combobox outside a section that scrolls.
 
 ## Build
 

@@ -11,8 +11,7 @@ import { EditorState, EditorSelection, StateEffect, StateField, Transaction, Ann
 import { Decoration, EditorView, WidgetType, keymap, drawSelection, showTooltip } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
-import { LanguageSupport, syntaxHighlighting, syntaxTree } from '@codemirror/language';
-import { classHighlighter } from '@lezer/highlight';
+import { LanguageSupport, syntaxTree } from '@codemirror/language';
 import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, inlineEmbedFor, EMBED, PART_MARKER, partsIn, stripParts, imageLine } from './blocks.js';
 import { run, Conflict } from './save.js';
 import { findPlain } from './plain.js';
@@ -304,7 +303,7 @@ class BulletWidget extends WidgetType {
   }
   toDOM() {
     const span = document.createElement('span');
-    span.className = 'cm-lp-bullet-dot';
+    span.dataset.md = 'bullet';
     span.textContent = '•';
     return span;
   }
@@ -321,7 +320,7 @@ class CheckboxWidget extends WidgetType {
   toDOM(view) {
     const box = document.createElement('input');
     box.type = 'checkbox';
-    box.className = 'cm-lp-checkbox';
+    box.dataset.md = 'task';
     box.checked = this.checked;
     box.setAttribute('aria-label', this.checked ? 'Done' : 'To do');
     box.addEventListener('mousedown', (event) => {
@@ -354,12 +353,12 @@ class ImageWidget extends WidgetType {
   toDOM() {
     if (!ownPicture(this.src)) {
       const span = document.createElement('span');
-      span.className = 'cm-lp-image-alt';
+      span.dataset.md = 'image-alt';
       span.textContent = this.alt || this.src;
       return span;
     }
     const img = document.createElement('img');
-    img.className = 'cm-lp-image';
+    img.dataset.md = 'image';
     img.src = this.src;
     img.alt = this.alt;
     return img;
@@ -372,7 +371,7 @@ class RuleWidget extends WidgetType {
   }
   toDOM() {
     const hr = document.createElement('span');
-    hr.className = 'cm-lp-hr-line';
+    hr.dataset.md = 'rule';
     return hr;
   }
 }
@@ -515,16 +514,18 @@ class TableWidget extends WidgetType {
   }
   toDOM(view) {
     const lines = this.source.split('\n');
-    const align = cellsOf(lines[1] || '').map((d) => (/^:-+:$/.test(d) ? 'center' : /-:$/.test(d) ? 'right' : 'left'));
+    // A column aligned in Markdown is C22's th/td[align]; one without a colon keeps the table's own alignment.
+    const align = cellsOf(lines[1] || '').map((d) => (/^:-+:$/.test(d) ? 'center' : /-:$/.test(d) ? 'right' : /^:-+$/.test(d) ? 'left' : ''));
     const table = document.createElement('table');
-    // C22's table, as the page shows it when read (markdown: table text-sm); cm-lp-table-widget is the handle.
-    table.className = 'table text-sm cm-lp-table-widget';
+    // C22's table, as the page shows it when read (markdown: table text-sm), drawn in place of its source (data-md).
+    table.className = 'table text-sm';
+    table.dataset.md = 'table';
     lines.forEach((line, index) => {
       if (index === 1) return;
       const row = document.createElement('tr');
       cellsOf(line).forEach((text, column) => {
         const cell = document.createElement(index === 0 ? 'th' : 'td');
-        cell.className = `cm-lp-align-${align[column] || 'left'}`;
+        if (align[column]) cell.setAttribute('align', align[column]);
         cell.textContent = plain(text);
         row.append(cell);
       });
@@ -553,9 +554,13 @@ class TableWidget extends WidgetType {
 
 // ---- The decorations
 
+// The live preview says what a line, a run of text or a widget is by C22's data-md (the editor block of C22), never by a
+// class of its own: C22 gives each its look, the pack its sizes. A line may be two things at once ("quote h2"); CodeMirror
+// does not join attributes of two decorations on one line, so the words of a line are gathered and set once.
 const hide = Decoration.replace({});
 const lineClass = (cls) => Decoration.line({ class: cls });
 const mark = (cls) => Decoration.mark({ class: cls });
+const md = (word) => Decoration.mark({ attributes: { 'data-md': word } });
 const lineAttrs = (attributes) => Decoration.line({ attributes });
 
 function decorate(state) {
@@ -587,13 +592,17 @@ function decorate(state) {
   const replace = (from, to, deco) => {
     if (!onMarker(from, to)) add(from, to, deco);
   };
-  const lineDeco = (from, to, cls) => {
+  const lineWords = new Map();
+  const lineEdges = new Map();
+  const gather = (into, from, to, word) => {
     for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
       if (markerLines.has(n)) continue;
-      const l = doc.line(n);
-      add(l.from, l.from, lineClass(cls));
+      if (!into.has(n)) into.set(n, new Set());
+      into.get(n).add(word);
     }
   };
+  const lineDeco = (from, to, word) => gather(lineWords, from, to, word);
+  const lineEdge = (at, word) => gather(lineEdges, at, at, word);
   const hideMark = (from, to, withSpace) => {
     if (withSpace && doc.sliceString(to, to + 1) === ' ') to++;
     if (to > from) replace(from, to, hide);
@@ -679,36 +688,34 @@ function decorate(state) {
     if (markerLines.has(n)) continue;
     const l = doc.line(n);
     if (l.length === 0) {
-      if (!isActive(l.from) && !inCode(l.from)) add(l.from, l.from, lineClass('cm-ud-sep'));
+      if (!isActive(l.from) && !inCode(l.from)) lineDeco(l.from, l.from, 'blank');
       continue;
     }
     const embed = EMBED.exec(l.text);
     if (embed) {
-      add(l.from, l.from, lineClass('cm-lp-directive'));
       if (!isActive(l.from)) {
         const ref = embed[1] + (embed[2] ? '#' + embed[2] : '');
         const said = (cfg.embed && cfg.embed(ref)) || {};
         add(l.from, l.to, Decoration.replace({ widget: new EmbedWidget(ref, said.label || ref, said.href || `/o/${embed[1]}${embed[2] ? '#' + embed[2] : ''}`) }));
         continue;
       }
-      add(l.from, l.to, mark('cm-lp-directive-chip'));
+      add(l.from, l.to, md('directive'));
     } else if (/^::[a-z]+\{.*\}\s*$/.test(l.text)) {
-      add(l.from, l.from, lineClass('cm-lp-directive'));
-      add(l.from, l.to, mark('cm-lp-directive-chip'));
+      add(l.from, l.to, md('directive'));
     }
     if (!inCode(l.from)) {
       for (const match of l.text.matchAll(SECRET)) {
         const from = l.from + match.index;
         const to = from + match[0].length;
         if (!isActive(from, to)) add(from, to, Decoration.replace({ widget: new SecretWidget(match[1], cfg.secret || null) }));
-        else add(from, to, mark('cm-lp-directive-chip'));
+        else add(from, to, md('directive'));
       }
     }
     for (const match of l.text.matchAll(/\[\[([^\]\n]+)\]\]/g)) {
       const from = l.from + match.index;
       const to = from + match[0].length;
       wiki.push([from, to]);
-      add(from + 2, to - 2, mark('cm-lp-wiki'));
+      add(from + 2, to - 2, md('wiki'));
       if (!isActive(from)) {
         add(from, from + 2, hide);
         add(to - 2, to, hide);
@@ -729,7 +736,7 @@ function decorate(state) {
       if (name === 'HTMLBlock' && onMarker(from, to)) return false;
       let match;
       if ((match = /^ATXHeading(\d)$/.exec(name))) {
-        lineDeco(from, from, `cm-lp-h${match[1]}`);
+        lineDeco(from, from, `h${match[1]}`);
         if (!isActive(from)) {
           for (let child = node.node.firstChild; child; child = child.nextSibling) {
             if (child.name === 'HeaderMark') hideMark(child.from, child.to, child.from === from);
@@ -738,17 +745,19 @@ function decorate(state) {
         return;
       }
       if ((match = /^SetextHeading(\d)$/.exec(name))) {
-        lineDeco(from, from, `cm-lp-h${match[1]}`);
+        lineDeco(from, from, `h${match[1]}`);
         return;
       }
+      // A Markdown sign left visible (on the cursor's line, or one that never hides, such as the number of an ordered list)
+      // is muted; where it is hidden, the replacement draws instead of it.
+      if (/Mark$/.test(name)) add(from, to, md('mark'));
       switch (name) {
         case 'Emphasis':
         case 'StrongEmphasis':
         case 'Strikethrough':
         case 'InlineCode': {
           if (inAsk(from, to)) return name !== 'InlineCode';
-          const cls = { Emphasis: 'cm-lp-em', StrongEmphasis: 'cm-lp-strong', Strikethrough: 'cm-lp-strike', InlineCode: 'cm-lp-icode' }[name];
-          add(from, to, mark(cls));
+          add(from, to, md({ Emphasis: 'em', StrongEmphasis: 'strong', Strikethrough: 'del', InlineCode: 'code' }[name]));
           if (!isActive(from, to)) {
             for (let child = node.node.firstChild; child; child = child.nextSibling) {
               if (/Mark$/.test(child.name)) hideMark(child.from, child.to, false);
@@ -765,7 +774,7 @@ function decorate(state) {
             if (child.name === 'URL') url = child;
           }
           if (marks2.length < 2) return;
-          add(marks2[0].to, marks2[1].from, mark('cm-lp-link'));
+          add(marks2[0].to, marks2[1].from, md('link'));
           if (url && !isActive(from, to)) {
             replace(from, marks2[0].to, hide);
             replace(marks2[1].from, to, hide);
@@ -779,14 +788,18 @@ function decorate(state) {
             replace(from, to, Decoration.replace({ widget: new ImageWidget(parts[2], parts[1]) }));
             return false;
           }
-          add(from, to, mark('cm-lp-image-source'));
+          // Its source on the cursor's line: the signs muted, the address as the address of a link.
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'LinkMark') add(child.from, child.to, md('mark'));
+            if (child.name === 'URL') add(child.from, child.to, md('url'));
+          }
           return false;
         }
         case 'URL':
-          add(from, to, mark('cm-lp-url'));
+          add(from, to, md('url'));
           return;
         case 'Blockquote':
-          lineDeco(from, to, 'cm-lp-quote');
+          lineDeco(from, to, 'quote');
           return;
         case 'QuoteMark':
           if (!isActive(from)) hideMark(from, to, true);
@@ -794,7 +807,6 @@ function decorate(state) {
         case 'ListItem': {
           const list = node.node.parent && node.node.parent.name;
           const task = node.node.getChild('Task');
-          lineDeco(from, from, task ? 'cm-lp-task' : list === 'OrderedList' ? 'cm-lp-ordered' : 'cm-lp-bullet');
           const listMark = node.node.getChild('ListMark');
           if (listMark && !isActive(from)) {
             if (task) hideMark(listMark.from, listMark.to, true);
@@ -805,33 +817,33 @@ function decorate(state) {
         case 'TaskMarker': {
           const checked = /x/i.test(doc.sliceString(from, to));
           if (!isActive(from)) replace(from, to, Decoration.replace({ widget: new CheckboxWidget(checked) }));
-          if (checked) add(to, doc.lineAt(to).to, mark('cm-lp-done'));
+          if (checked) add(to, doc.lineAt(to).to, md('done'));
           return;
         }
         case 'FencedCode': {
-          lineDeco(from, to, 'cm-lp-code');
-          lineDeco(from, from, 'cm-lp-code-first');
-          lineDeco(to, to, 'cm-lp-code-last');
-          if (!isActive(from, to)) {
-            for (let child = node.node.firstChild; child; child = child.nextSibling) {
-              if (child.name === 'CodeMark') hideMark(child.from, child.to, false);
-              if (child.name === 'CodeInfo') add(child.from, child.to, mark('cm-lp-code-info'));
+          lineDeco(from, to, 'codeblock');
+          lineEdge(from, 'first');
+          lineEdge(to, 'last');
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'CodeMark') {
+              if (isActive(from, to)) add(child.from, child.to, md('mark'));
+              else hideMark(child.from, child.to, false);
             }
+            if (child.name === 'CodeInfo') add(child.from, child.to, md('info'));
           }
           return false;
         }
         case 'CodeBlock':
-          lineDeco(from, to, 'cm-lp-code');
+          lineDeco(from, to, 'codeblock');
           return false;
         case 'HorizontalRule':
-          lineDeco(from, from, 'cm-lp-hr');
           if (!isActive(from)) replace(from, to, Decoration.replace({ widget: new RuleWidget() }));
           return;
         case 'Table':
           if (!isActive(from, to) && !onMarker(from, to)) {
             add(from, to, Decoration.replace({ widget: new TableWidget(doc.sliceString(from, to)), block: true }));
           } else {
-            lineDeco(from, to, 'cm-lp-table-source');
+            lineDeco(from, to, 'table-source');
           }
           return false;
         default:
@@ -839,6 +851,11 @@ function decorate(state) {
       }
     },
   });
+  for (const [n, words] of lineWords) {
+    const attributes = { 'data-md': [...words].join(' ') };
+    if (lineEdges.has(n)) attributes['data-md-edge'] = [...lineEdges.get(n)].join(' ');
+    add(doc.line(n).from, doc.line(n).from, lineAttrs(attributes));
+  }
   return Decoration.set(held(state, out), true);
 }
 
@@ -1437,7 +1454,6 @@ class PageEditor {
           EditorView.editorAttributes.of({ class: 'editor' }),
           EditorView.contentAttributes.of({ 'aria-label': options.label || 'Page, Markdown' }),
           new LanguageSupport(markdownLanguage),
-          syntaxHighlighting(classHighlighter),
           slash,
           slashKeys,
           openSlash,

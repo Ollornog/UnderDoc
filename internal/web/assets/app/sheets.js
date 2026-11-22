@@ -222,8 +222,8 @@
       const th = el('th', '', String(row.n));
       th.scope = 'row';
       th.dataset.row = row.n;
-      /* bridge until C22 has a current row in a grid: the number of the row a hit named is drawn as a selected one. */
-      if (v.mark === row.n) { th.setAttribute('aria-current', 'true'); th.setAttribute('aria-selected', 'true'); }
+      /* The row a hit named is the current row of C22's sheet: its number filled and bold, the row between two lines. */
+      if (v.mark === row.n) th.setAttribute('aria-current', 'true');
       tr.append(th);
       row.cells.forEach(c => {
         const td = el('td', '', c.t || '');

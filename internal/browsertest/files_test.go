@@ -360,7 +360,7 @@ func TestImagesInTheEditor(t *testing.T) {
 	if !b.waitFor(`/!\[rack photo\]\(\/api\/pages\/[0-9a-z]{10}\/attachments\/a1\)/.test(EDS[at(0).d]?.ed.text()) && document.querySelector('[data-edstatus]')?.textContent === 'Saved'`) {
 		t.Fatalf("the image is not in the page: %q", b.eval(`EDS[at(0).d]?.ed.text()`))
 	}
-	if !b.waitFor(`[...document.querySelectorAll('.cm-content img.cm-lp-image')].some(i => i.complete && i.naturalWidth === 1)`) {
+	if !b.waitFor(`[...document.querySelectorAll('.cm-content img[data-md~=image]')].some(i => i.complete && i.naturalWidth === 1)`) {
 		t.Fatalf("the editor does not show the image: %s", b.eval(`document.querySelector('.cm-content')?.innerHTML.slice(0, 400)`))
 	}
 	b.shot("image-in-editor")

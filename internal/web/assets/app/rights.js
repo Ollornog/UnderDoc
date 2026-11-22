@@ -68,12 +68,22 @@ window.UDRights = (() => {
 
   const roleSelect = (name, current, disabled) =>
     `<select class="select" name="${name}" data-rsel="${name}"${disabled ? " disabled" : ""} aria-label="Role">${ROLES.map((r) => `<option value="${r[0]}"${r[0] === current ? " selected" : ""}>${r[1]}</option>`).join("")}</select>`;
-  // whoSelect picks everyone, a group or a person, grouped. C22's rights block draws this as a grouped .combobox with an
-  // icon per kind; its behaviour is Basecoat's, which the workspace does not load (Basecoat would take over the menus the
-  // workspace draws itself), so this stays C22's select with groups until C22 offers the combobox without it.
+  // whoSelect picks everyone, a group or a person in one combobox, grouped, an icon per kind (C22's rights block). Its
+  // behaviour is Basecoat's core and combobox alone, which take over nothing but .combobox, so the menus the workspace
+  // draws stay the app's. The choice is the hidden input named name; everyone is chosen until someone else is, as the
+  // first entry of a select would be.
+  const WHO_CHEVRON = '<svg data-icon-lu="chevron-down" class="combobox-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const whoOption = (value, label, filter, icon, sub) =>
+    `<div role="option" data-value="${esc(value)}" data-label="${esc(label)}" data-filter="${esc(filter)}"${value === "tenant:" ? ' aria-selected="true"' : ""}>${icon}${sub ? `<span class="flex flex-col"><span>${esc(label)}</span><span class="text-muted-foreground text-xs">${esc(sub)}</span></span>` : `<span>${esc(label)}</span>`}</div>`;
   const whoSelect = (name, withTenant) => {
     const p = st.people || { people: [], groups: [] };
-    return `<select class="select" name="${name}" aria-label="Who">${withTenant ? '<option value="tenant:">Everyone in this workspace</option>' : ""}${p.groups.length ? `<optgroup label="Groups">${p.groups.map((g) => `<option value="group:${esc(g.id)}">${esc(g.name)}${g.source === "synced" ? " (sign-in)" : ""}</option>`).join("")}</optgroup>` : ""}<optgroup label="People">${p.people.map((x) => `<option value="person:${esc(x.id)}">${esc(x.name)} (${esc(x.login)})</option>`).join("")}</optgroup></select>`;
+    const id = `udwho-${name}`;
+    const groups = p.groups.length
+      ? `<hr role="separator"><div role="group" aria-labelledby="${id}-groups"><div role="heading" id="${id}-groups">Groups</div>${p.groups.map((g) => whoOption(`group:${g.id}`, `Group ${g.name}`, `${g.name} group`, KIND_ICON.group, g.source === "synced" ? "from the sign-in" : "local")).join("")}</div>`
+      : "";
+    const people = `<hr role="separator"><div role="group" aria-labelledby="${id}-people"><div role="heading" id="${id}-people">People</div>${p.people.map((x) => whoOption(`person:${x.id}`, x.name, `${x.name} ${x.login}`, KIND_ICON.person, x.login)).join("")}</div>`;
+    const tenant = withTenant ? whoOption("tenant:", "Everyone in this workspace", "everyone workspace", KIND_ICON.tenant, "") : "";
+    return `<div class="combobox w-full max-w-xs" id="${id}" data-who-pick><input type="text" class="input" id="${id}-input" role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-listbox" placeholder="Search a person or group …" aria-label="Who">${WHO_CHEVRON}<div id="${id}-popover" data-popover aria-hidden="true"><div role="listbox" id="${id}-listbox" aria-orientation="vertical" aria-labelledby="${id}-input" data-empty="Nobody found.">${(tenant + groups + people).replace(/^<hr role="separator">/, "")}</div></div><input type="hidden" name="${name}" value="${withTenant ? "tenant:" : ""}"></div>`;
   };
   // personSelect chooses an account. With choose, nobody is chosen until someone is, and without is left out: a form that
   // gives something away must not have a default that sends it somewhere by itself.
@@ -391,6 +401,9 @@ window.UDRights = (() => {
     keepFocus(paintNew);
   }
 
+  // bridge until C22 lets the list of a .combobox leave a section that scrolls: Basecoat's list is placed absolutely, so in
+  // a section with overflow it was cut off under the footer. The steps are short (a name; a few shares), so their section
+  // does not scroll and the list opens over the dialog's edge; the rights dialog, long, keeps its scrolling section.
   // The dialog is C22's form in steps (form[data-steps], steps-dialog block): first the name, then with whom it is shared.
   // c22.js shows one step at a time; once the form is there, only what changes is drawn again (the list, the choice of
   // whom, whether it is busy, a problem), since drawing the form anew would put the steps back to the first. Enter in the
@@ -412,7 +425,7 @@ window.UDRights = (() => {
     const body = nw.done
       ? `<header><h2 id="udrights-title">New collection</h2></header><section><p class="text-sm" data-new-done>${esc(nw.done)}</p></section><footer><button class="btn" data-variant="outline" data-ract="close" type="button">Close</button></footer>`
       : `<form id="udnew" data-rform="new" data-steps><header><h2 id="udrights-title">New collection</h2><p>It is yours alone, not private: share it with everyone, groups or people now or later. Each holds the role given and passes it to what lies inside.</p><ol class="steps" aria-label="Steps"><li aria-current="step">Name</li><li>Share with</li></ol></header>
-        <section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4"><div data-new-problem${st.error ? "" : " hidden"}>${problem()}</div>
+        <section class="grid gap-4"><div data-new-problem${st.error ? "" : " hidden"}>${problem()}</div>
         <fieldset class="grid gap-2" data-step><legend class="sr-only">Name</legend><div class="field"><label class="label" for="udnew-title">Name</label><input class="input" id="udnew-title" name="title" data-new-title required maxlength="200" autocomplete="off" value="${esc(nw.title)}"${nw.busy ? " disabled" : ""}></div></fieldset>
         <fieldset class="grid gap-3" data-step data-share-step><legend class="text-sm font-medium">Share with</legend><div data-new-list>${shareList()}</div><div class="flex flex-wrap items-center gap-2" data-new-who>${shareChoice()}</div></fieldset></section>
         <footer><button class="btn" data-variant="outline" data-ract="close" type="button">Cancel</button><button class="btn" data-variant="outline" type="button" data-step-back hidden>Back</button><button class="btn" type="button" data-step-next hidden>Next</button><button class="btn" type="submit" data-step-done${nw.busy ? " disabled" : ""}>Make</button></footer></form>`;
@@ -554,7 +567,9 @@ window.UDRights = (() => {
         return;
       case "newshare": {
         const f = b.closest("[data-share-step]");
-        const [kind, who] = f.querySelector("select[name=who]").value.split(/:(.*)/s);
+        const picked = f.querySelector("input[name=who]").value;
+        if (!picked) return;
+        const [kind, who] = picked.split(/:(.*)/s);
         const role = f.querySelector("select[name=role]").value;
         const at = nw.shares.findIndex((x) => x.kind === kind && x.who === who);
         if (at >= 0) nw.shares[at].role = role;
@@ -674,6 +689,7 @@ window.UDRights = (() => {
         act(() => api("PUT", objectPath("/owner"), { to: v("to") }));
         return;
       case "grant": {
+        if (!v("who")) return;
         const [kind, who] = v("who").split(/:(.*)/s);
         act(() => api("PUT", objectPath("/grants"), { kind, who, role: v("role") }));
         return;

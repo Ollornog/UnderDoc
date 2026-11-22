@@ -67,6 +67,12 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   `f078f71`), as did the browser tests. Left in C22 (reported): the grouped `.combobox` without Basecoat, a current row of
   a grid, the nav3 rule for a `header` that also catches the head of a timeline entry in a card, the live preview of the
   editor (`editor.css` keeps its look until `.editor` has one).
+- Done (2026-11-22): C22 vendored at `a023d57` (C22 #153 closes the gaps of steps 5 and 6, #154 removes the old app
+  workspace, T-20). The live preview is C22's `data-md`, `editor.css` keeps no look; the share choice is the grouped
+  `.combobox` with Basecoat's core and combobox alone (a test proves the workspace's menus stay the app's); the row of a
+  hit in a sheet is `aria-current`. Two bridges are left for C22 (reported): the list of a combobox cannot leave a section
+  that scrolls, so the steps of a new collection do not scroll within the dialog; a heading in `.editor` has no room
+  around it as in `.typeset`, so `editor.css` gives it that room.
 
 ## Done when
 

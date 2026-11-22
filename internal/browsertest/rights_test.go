@@ -125,6 +125,37 @@ func setupAsAdmin(t *testing.T) (*browser, string) {
 }
 
 // submit fills a form of the rights by script, as a person would by hand, and sends it.
+// pick chooses in a C22 combobox as a person does: a click into its field, a few letters typed, which leave only
+// matching options visible (one of another group hides), then a click on the option. The hidden field takes its value.
+func (b *browser) pick(combobox, typed, value string) {
+	b.t.Helper()
+	if !b.waitFor(`document.querySelector(` + strconv.Quote(combobox) + `)?.dataset.comboboxInitialized === 'true'`) {
+		b.t.Fatalf("%s is not a combobox Basecoat took over: %s", combobox, b.eval(`String(document.querySelector(`+strconv.Quote(combobox)+`)?.outerHTML).slice(0, 300)`))
+	}
+	b.clickOn(combobox+` > input[role=combobox]`, 1)
+	b.eval(`(() => { const i = document.querySelector(` + strconv.Quote(combobox+` > input[role=combobox]`) + `); i.select(); })()`)
+	b.typeText(typed)
+	option := combobox + ` [role=option][data-value=` + strconv.Quote(value) + `]`
+	if !b.waitFor(`document.querySelector(` + strconv.Quote(combobox+` [data-popover]`) + `).getAttribute('aria-hidden') === 'false' && document.querySelector(` + strconv.Quote(option) + `)?.getAttribute('aria-hidden') === 'false' &&
+		[...document.querySelectorAll(` + strconv.Quote(combobox+` [role=option]`) + `)].some(o => o.getAttribute('aria-hidden') === 'true')`) {
+		b.t.Fatalf("typing %q into %s does not filter to %s: %s", typed, combobox, value, b.eval(`[...document.querySelectorAll(`+strconv.Quote(combobox+` [role=option]`)+`)].map(o => o.dataset.value + ':' + o.getAttribute('aria-hidden')).join(' ')`))
+	}
+	// The list fades in; the click waits until it stands still and the option is what lies under the pointer.
+	if !b.waitFor(`(() => { const o = document.querySelector(` + strconv.Quote(option) + `); if (!o || document.getAnimations().some(a => a.playState === 'running')) return false;
+		const r = o.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && o.contains(e); })()`) {
+		b.t.Fatalf("%s lies under something else: %s", option, b.eval(`(() => { const o = document.querySelector(`+strconv.Quote(option)+`), r = o.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return e ? e.outerHTML.slice(0, 160) : 'nothing'; })()`))
+	}
+	b.shot("combobox-open")
+	b.clickOn(option, 1)
+	if !b.waitFor(`document.querySelector(` + strconv.Quote(combobox+` > input[type=hidden]`) + `).value === ` + strconv.Quote(value)) {
+		b.t.Fatalf("%s did not take %s: %q", combobox, value, b.eval(`document.querySelector(`+strconv.Quote(combobox+` > input[type=hidden]`)+`).value`))
+	}
+	// The list closes with a fade over what lies below it (the role, Add): the next click waits until it is gone.
+	if !b.waitFor(`document.querySelector(` + strconv.Quote(combobox+` [data-popover]`) + `).getAttribute('aria-hidden') === 'true' && !document.getAnimations().some(a => a.playState === 'running')`) {
+		b.t.Fatalf("the list of %s does not close", combobox)
+	}
+}
+
 func (b *browser) submit(form string, values map[string]string) {
 	b.t.Helper()
 	b.exists(form)
@@ -291,7 +322,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.ready("Network plan")
 	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 	b.clickOn(probe(b, `[data-menu="new"] [role="menuitem"]`, "Collection"), 1)
-	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] option[value="person:bob"]')`) {
+	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] [role=option][data-value="person:bob"]')`) {
 		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
 	// C22's form in steps: the name first, Next leads to Share with; adding someone draws the list again and keeps the step.
@@ -304,8 +335,9 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	if got := b.eval(step); got != "-+ Share with +-+" {
 		t.Errorf("Next leads to Share with: %q", got)
 	}
-	b.eval(`(() => { const f = document.querySelector('#udrights [data-share-step]'); f.querySelector('select[name="who"]').value = 'person:bob';
-		f.querySelector('select[name="role"]').value = 'comment'; })()`)
+	// Whom is C22's grouped combobox (Basecoat's core and combobox alone): typing filters across the groups, a click picks.
+	b.pick(`#udrights [data-share-step] .combobox`, "Kern", "person:bob")
+	b.eval(`document.querySelector('#udrights [data-share-step] select[name="role"]').value = 'comment'`)
 	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
 	if !b.waitFor(`!!document.querySelector('#udrights [data-new-share="person:bob"]') && !document.querySelector('#udrights [data-only-me]')`) {
 		t.Fatalf("bob is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
@@ -314,7 +346,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 		t.Errorf("adding someone keeps the step: %q", got)
 	}
 	// Added twice, the same one is listed once, with the role chosen last.
-	b.eval(`document.querySelector('#udrights [data-share-step] select[name="who"]').value = 'tenant:'`)
+	b.pick(`#udrights [data-share-step] .combobox`, "every", "tenant:")
 	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
 	if !b.waitFor(`document.querySelectorAll('#udrights [data-new-shares] tr').length === 2`) {
 		t.Fatalf("everyone is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
