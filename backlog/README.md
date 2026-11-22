@@ -20,7 +20,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ◐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
 * ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
-* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/2 erledigt
+* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/3 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — noch keine Aufgaben
@@ -50,6 +50,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-9](T-9-which-tree-decides-roles.md)** Decide which tree decides inherited roles · M-2
 * ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
 * ☑ **[T-11](T-11-time-tracking-with-eightperday.md)** Time and leave of the private area with EightPerDay · M-24
+* ◐ **[T-12](T-12-workspace-from-c22-building-blocks.md)** The workspace from C22's building blocks, the look as the pack underdoc · M-14
 
 ## Fehler
 

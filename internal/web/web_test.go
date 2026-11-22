@@ -400,7 +400,7 @@ func TestEditorTrialIsGone(t *testing.T) {
 // The design system only compiles classes it uses itself, and a missing class does nothing without any error. So every class
 // in the templates and in rendered pages has to exist in the vendored stylesheet.
 func TestEveryClassExistsInTheStylesheet(t *testing.T) {
-	css, err := assetFiles.ReadFile("assets/c22/css/c22-vega.css")
+	css, err := assetFiles.ReadFile("assets/c22/css/c22-underdoc.css")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,6 +446,66 @@ func TestEveryClassExistsInTheStylesheet(t *testing.T) {
 		"text-sm", "text-warning", "text-muted-foreground", "badge", "lab", "note", "hint", "flex", "flex-wrap",
 		"items-center", "gap-1", "gap-2", "mt-2", "chip", "seg", "sticky", "top-0", "left-0", "z-10", "bg-background", "bg-accent", "font-mono"} {
 		used[class] = "tables of spreadsheets (internal/sheet, tables.go, sheets.js)"
+	}
+	// The scripts of the workspace and the editor write their markup themselves: every class they write in a literal
+	// (class="…", className = "…", classList.add("…")) has to exist as well. A token that is built (${…}) is left out;
+	// the editor's own stylesheet counts, as do the few classes that are only handles of a script and have no look.
+	editorCSS, err := os.ReadFile(filepath.Join("..", "..", "web", "editor", "src", "editor.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, match := range regexp.MustCompile(`\.((?:\\.|[\w-])+)`).FindAllStringSubmatch(string(editorCSS), -1) {
+		known[match[1]] = true
+	}
+	handles := map[string]string{
+		"cm-ud-host": "the place the editor mounts in (demo.js)",
+		"cm-ud-page": "the page being edited (demo.js)",
+		"hitmark":    "a hit of the search on the page, found again by the script (search.js)",
+		"udpal":      "the search palette, found again by the script (search.js)",
+		"winbtn":     "the button Window and tabs, found again by the script (demo.js)",
+	}
+	for class := range handles {
+		known[class] = true
+	}
+	literal := regexp.MustCompile(`class(?:Name)?\s*[=:]\s*(?:"([^"]*)"|'([^']*)')`)
+	listed := regexp.MustCompile(`classList\.(?:add|toggle|remove|contains)\(([^)]*)\)`)
+	plainClass := regexp.MustCompile(`^(?:[\w-]+:)?[\w-]+(?:\[[^\]]*\])?$`)
+	scripts, err := fs.Glob(assetFiles, "assets/app/*.js")
+	if err != nil || len(scripts) < 5 {
+		t.Fatal(scripts, err)
+	}
+	editorScripts, err := filepath.Glob(filepath.Join("..", "..", "web", "editor", "src", "*.js"))
+	if err != nil || len(editorScripts) < 3 {
+		t.Fatal(editorScripts, err)
+	}
+	inScripts := 0
+	for _, file := range append(scripts, editorScripts...) {
+		content, err := assetFiles.ReadFile(file)
+		if err != nil {
+			content, err = os.ReadFile(file)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, match := range literal.FindAllStringSubmatch(string(content), -1) {
+			for _, class := range strings.Fields(match[1] + " " + match[2]) {
+				if plainClass.MatchString(class) {
+					used[class] = file
+					inScripts++
+				}
+			}
+		}
+		for _, match := range listed.FindAllStringSubmatch(string(content), -1) {
+			// Only the leading quoted names are classes: classList.toggle("dark", theme === "dark") names one.
+			leading := regexp.MustCompile(`^\s*(?:["'][\w-]+["']\s*(?:,\s*|$))+`).FindString(match[1])
+			for _, quoted := range regexp.MustCompile(`["']([\w-]+)["']`).FindAllStringSubmatch(leading, -1) {
+				used[quoted[1]] = file
+				inScripts++
+			}
+		}
+	}
+	if inScripts < 200 {
+		t.Fatalf("only %d classes found in the scripts, the check itself is broken", inScripts)
 	}
 	attribute := regexp.MustCompile(`class="([^"{]*)"`)
 	files, err := fs.Glob(templateFiles, "templates/*.html")
@@ -502,7 +562,7 @@ func TestNothingFromThirdParties(t *testing.T) {
 			t.Errorf("%s: %q", target, found)
 		}
 	}
-	css, err := assetFiles.ReadFile("assets/c22/css/c22-vega.css")
+	css, err := assetFiles.ReadFile("assets/c22/css/c22-underdoc.css")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +574,7 @@ func TestNothingFromThirdParties(t *testing.T) {
 func TestAssetsArrive(t *testing.T) {
 	s := newSite(t, Options{}, sample)
 	for target, contentType := range map[string]string{
-		"/assets/c22/css/c22-vega.css":            "text/css",
+		"/assets/c22/css/c22-underdoc.css":        "text/css",
 		"/assets/c22/fonts/inter.woff2":           "font/woff2",
 		"/assets/app/demo.js":                     "javascript",
 		"/assets/app/blockdrag.js":                "javascript",
@@ -622,7 +682,7 @@ func TestNothingAnswersWithoutTheGate(t *testing.T) {
 			t.Errorf("%s = %d", target, recorder.Code)
 		}
 	}
-	if got := s.getWith("/assets/c22/css/c22-vega.css", nil).Code; got != http.StatusOK {
+	if got := s.getWith("/assets/c22/css/c22-underdoc.css", nil).Code; got != http.StatusOK {
 		t.Errorf("the page that says so needs its styles: %d", got)
 	}
 	dev := newSite(t, Options{DevUser: &account.User{Login: "dev", Name: "Dev"}}, sample)

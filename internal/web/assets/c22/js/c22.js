@@ -2724,6 +2724,83 @@
     zone.addEventListener('drop', off);
   }
 
+  // ---- Sheet that scrolls (table.table[data-sticky]) ---------------------------
+  // A row that heads a group (tr[data-group-row]) sticks right below the head: its offset is --table-head-height, kept at
+  // the head's height while the head changes. Set through the CSSOM, which a strict CSP allows (components.css).
+  function wireStickyTable(table) {
+    if (table.dataset.c22StickyWired || !table.tHead) return;
+    table.dataset.c22StickyWired = '1';
+    var head = table.tHead;
+    var set = function () { table.style.setProperty('--table-head-height', head.getBoundingClientRect().height + 'px'); };
+    set();
+    if ('ResizeObserver' in window) new ResizeObserver(set).observe(head);
+  }
+
+  // ---- Popover without JavaScript (details.popover) -----------------------------
+  // It works without this; this only closes an open one by a click outside or by Escape (the focus goes back to its
+  // summary when it was inside). Once for the document, so popovers drawn later are covered too.
+  var detailsPopoversWired = false;
+  function wireDetailsPopovers() {
+    if (detailsPopoversWired) return;
+    detailsPopoversWired = true;
+    var open = function () { return [].slice.call(document.querySelectorAll('details.popover[open]')); };
+    document.addEventListener('click', function (e) {
+      open().forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      open().forEach(function (d) {
+        var inside = d.contains(document.activeElement);
+        d.open = false;
+        if (inside) d.querySelector(':scope > summary').focus();
+      });
+    });
+  }
+
+  // ---- Form in steps (form[data-steps]) ----------------------------------------
+  // One fieldset[data-step] shows at a time. "Next" ([data-step-next]) first checks the fields of the open step, "back"
+  // ([data-step-back]) and the submit button ([data-step-done]) show where they belong, and Enter in a field of an
+  // earlier step goes on instead of sending. ol.steps follows (aria-current="step", data-state="done"). Without this
+  // every step shows at once with only the submit button, so the form still works. Event c22:step with {index}.
+  function wireSteps(form) {
+    if (form.dataset.c22StepsWired) return;
+    var steps = [].slice.call(form.querySelectorAll('[data-step]'));
+    if (steps.length < 2) return;
+    form.dataset.c22StepsWired = '1';
+    var marks = [].slice.call(form.querySelectorAll('ol.steps > li'));
+    var back = form.querySelector('[data-step-back]'), next = form.querySelector('[data-step-next]');
+    var done = form.querySelector('[data-step-done]');
+    var last = steps.length - 1, at = 0;
+    var show = function (i, focus) {
+      at = i;
+      steps.forEach(function (st, k) { st.hidden = k !== i; });
+      marks.forEach(function (m, k) {
+        if (k === i) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
+        if (k < i) m.setAttribute('data-state', 'done'); else m.removeAttribute('data-state');
+      });
+      if (back) back.hidden = i === 0;
+      if (next) next.hidden = i === last;
+      if (done) done.hidden = i !== last;
+      if (focus) {
+        var first = steps[i].querySelector('input:not([type=hidden]), select, textarea');
+        if (first) first.focus();
+      }
+      form.dispatchEvent(new CustomEvent('c22:step', { bubbles: true, detail: { index: i } }));
+    };
+    var valid = function () {
+      return [].every.call(steps[at].querySelectorAll('input, select, textarea'), function (el) { return el.reportValidity(); });
+    };
+    var forward = function () { if (at < last && valid()) show(at + 1, true); };
+    if (next) next.addEventListener('click', forward);
+    if (back) back.addEventListener('click', function () { if (at > 0) show(at - 1, true); });
+    form.addEventListener('submit', function (e) {
+      if (at === last) return;
+      e.preventDefault();
+      forward();
+    });
+    show(0, false);
+  }
+
   // ---- Reaktions-Leiste (Chat-Reaktionen) -----------------------------------
   // REINE DEMO-/UI-LOGIK — KEINE Persistenz: welche Reaktionen es gibt und wer reagiert
   // hat, weiß nur die App; die bindet das an ihr Backend (Klick abfangen / State setzen).
@@ -2893,6 +2970,9 @@
     (root || document).querySelectorAll('[data-copy]').forEach(wireCopy);
     (root || document).querySelectorAll('[data-dropzone]').forEach(wireDropzone);
     (root || document).querySelectorAll('[data-reactions]').forEach(wireReactions);
+    (root || document).querySelectorAll('.table[data-sticky]').forEach(wireStickyTable);
+    (root || document).querySelectorAll('form[data-steps]').forEach(wireSteps);
+    wireDetailsPopovers();
     wireGlobals();
   }
 
@@ -3871,25 +3951,32 @@ document.addEventListener('basecoat:initialized', function (e) {
   };
 })();
 
-// The gallery example of dragging in the app workspace (app-workspace-drag.js): an app of its own in a few lines, which
-// moves the entries in the page. A real app decides by its data what may go where, and draws itself after a drop.
+// The gallery examples of dragging (app-workspace-drag.js): an app of its own in a few lines, which moves the entries in
+// the page. A real app decides by its data what may go where, and draws itself after a drop. Two lists use it: the old
+// app workspace (.row, ul.t) and the .workspace-tree building block (li > div, nested ul), named by one set of selectors each.
 (function () {
   'use strict';
-  function wire(box) {
+  var KINDS = [
+    { scan: '.c22-app-workspace [data-drag-demo]', row: '.row[data-demo-id]', head: '.cheadrow', both: '.cheadrow, .row',
+      top: 'ul.t.top', sub: 'ul.t', subClass: 't', empty: 'ul.t:not(.top)' },
+    { scan: '.workspace-nav[data-drag-demo]', row: 'li > div[data-demo-id]', head: 'section > header', both: 'section > header, li > div',
+      top: 'ul.workspace-tree', sub: 'ul', subClass: '', empty: 'ul:not(.workspace-tree)' }
+  ];
+  function wire(box, K) {
     if (!window.C22AppWorkspaceDrag || box.dataset.dragWired) return;
     box.dataset.dragWired = '1';
     var held = function (n) { return !!n.closest('.dropgap'); };
-    var rowOf = function (id) { return [].find.call(box.querySelectorAll('.row[data-demo-id]'), function (n) { return !held(n) && n.dataset.demoId === id; }); };
-    var depthOf = function (n) { var k = -1; for (var x = n.parentElement; x && x !== box; x = x.parentElement) if (x.matches('ul.t')) k++; return k; };
+    var rowOf = function (id) { return [].find.call(box.querySelectorAll(K.row), function (n) { return !held(n) && n.dataset.demoId === id; }); };
+    var depthOf = function (n) { var k = -1; for (var x = n.parentElement; x && x !== box; x = x.parentElement) if (x.matches(K.sub)) k++; return k; };
     var listOf = function (row) {
-      if (row.matches('.cheadrow')) return box.querySelector('ul.t.top');
-      var li = row.closest('li'), ul = li.querySelector(':scope > ul.t');
-      if (!ul) { ul = document.createElement('ul'); ul.className = 't'; li.appendChild(ul); }
+      if (row.matches(K.head)) return box.querySelector(K.top);
+      var li = row.closest('li'), ul = li.querySelector(':scope > ' + K.sub);
+      if (!ul) { ul = document.createElement('ul'); if (K.subClass) ul.className = K.subClass; li.appendChild(ul); }
       return ul;
     };
     window.C22AppWorkspaceDrag.attach({
       pick: function (e) {
-        var r = e.target.closest && e.target.closest('.row[data-demo-id]');
+        var r = e.target.closest && e.target.closest(K.row);
         if (!r || !box.contains(r) || held(r)) return null;
         return { kind: 'row', id: r.dataset.demoId, ids: [r.dataset.demoId], els: [r], el: r };
       },
@@ -3897,11 +3984,12 @@ document.addEventListener('basecoat:initialized', function (e) {
       hideOf: function (el) { return el.closest('li'); },
       strip: ['data-demo-id'],
       zones: function () {
-        var top = box.querySelector('ul.t.top'), probe = document.createElement('ul');
-        probe.className = 't'; top.appendChild(probe);
-        var indent = parseFloat(getComputedStyle(probe).paddingLeft); probe.remove();
-        var rows = [].filter.call(box.querySelectorAll('.cheadrow, .row'), function (n) { return !held(n); }).map(function (n) {
-          return n.matches('.cheadrow') ? { el: n, id: '', head: true, depth: -1, hold: true } : { el: n, id: n.dataset.demoId, depth: depthOf(n), hold: true };
+        var top = box.querySelector(K.top), probe = document.createElement('ul');
+        if (K.subClass) probe.className = K.subClass;
+        (K.subClass ? top : top.querySelector('li') || top).appendChild(probe);
+        var indent = parseFloat(getComputedStyle(probe).paddingInlineStart || getComputedStyle(probe).paddingLeft); probe.remove();
+        var rows = [].filter.call(box.querySelectorAll(K.both), function (n) { return !held(n); }).map(function (n) {
+          return n.matches(K.head) ? { el: n, id: '', head: true, depth: -1, hold: true } : { el: n, id: n.dataset.demoId, depth: depthOf(n), hold: true };
         });
         return [{ key: 'tree', box: box, scroll: null, flat: false, base: top.getBoundingClientRect().left, indent: indent, rows: rows }];
       },
@@ -3920,10 +4008,10 @@ document.addEventListener('basecoat:initialized', function (e) {
       end: function () {
         box.querySelectorAll('.dropgap').forEach(function (n) { n.remove(); });
         box.querySelectorAll('li').forEach(function (n) { n.style.display = ''; });
-        box.querySelectorAll('ul.t:not(.top)').forEach(function (n) { if (!n.children.length) n.remove(); });
+        box.querySelectorAll(K.empty).forEach(function (n) { if (!n.children.length) n.remove(); });
       }
     });
   }
-  function scan() { document.querySelectorAll('.c22-app-workspace [data-drag-demo]').forEach(wire); }
+  function scan() { KINDS.forEach(function (K) { document.querySelectorAll(K.scan).forEach(function (b) { wire(b, K); }); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
 })();
