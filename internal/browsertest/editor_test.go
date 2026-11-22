@@ -638,17 +638,26 @@ func TestTheFlowRunsThroughABlock(t *testing.T) {
 }
 
 // The table tools of the bar (M-8): shown while the cursor stands in a table, each writes the table again as plain
-// Markdown, and the cursor goes to the cell the tool names.
+// Markdown, and the cursor goes to the cell the tool names. The drawn table stands in the box it has when read, frame and
+// all, with no line under its last row (C22's live preview, 2026-11-22).
 func TestTheTableTools(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
+	b.open(base + "/o/" + page)
+	b.ready("Tables")
+	frame := `(e => { if (!e) return 'none'; const c = getComputedStyle(e), rows = e.querySelectorAll('tr');
+		return [c.borderTopWidth, c.borderTopStyle, c.borderTopColor, c.borderBottomWidth, c.borderTopLeftRadius, getComputedStyle(rows[rows.length - 1]).borderBottomWidth, rows[0].querySelector('th') ? getComputedStyle(rows[0]).borderBottomWidth : '-'].join(' '); })`
+	read := b.eval(frame + `(document.querySelector('article.typeset .table-container'))`)
 	b.openEditing(base, page, "Tables")
+	if edit := b.eval(frame + `(document.querySelector('.cm-editor [data-md~=table]'))`); edit != read || !strings.HasPrefix(read, "1px solid") {
+		t.Errorf("the drawn table looks as when read (frame, corners, lines): editor %q, reading %q", edit, read)
+	}
 	if got := b.eval(`document.querySelector('[data-edtable]').hidden`); got != "true" {
 		t.Errorf("the table tools hide while the cursor is in no table: %q", got)
 	}
-	b.clickOn(`.cm-editor table[data-md~=table] td`, 1)
+	b.clickOn(`.cm-editor [data-md~=table] td`, 1)
 	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
 		t.Fatalf("the table tools did not show in the table: %s", b.eval(edText))
 	}
@@ -706,7 +715,7 @@ func TestTheTableToolsOnAPhone(t *testing.T) {
 	b.ready("Network plan")
 	page := makePage(b, "Tables", "Before", "| Port | VLAN |\n|---|---:|\n| 1 | 10 |")
 	b.openEditing(base, page, "Tables")
-	b.tap(`.cm-editor table[data-md~=table] tr:nth-child(2) td:nth-child(2)`)
+	b.tap(`.cm-editor [data-md~=table] tr:nth-child(2) td:nth-child(2)`)
 	if !b.waitFor(`!document.querySelector('[data-edtable]').hidden`) {
 		// A finger on the drawn table may land beside its text; the line of the table takes the cursor as well.
 		t.Fatalf("a finger on the table puts the cursor into it, and the table tools show: %s", b.eval(edText))

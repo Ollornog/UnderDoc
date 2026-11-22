@@ -8,7 +8,8 @@ import "testing"
 
 // c22Spy records every change c22.js makes to an element (an attribute, hidden, a custom property), told apart by the
 // script in the stack: where the element is (inside the workspace, elsewhere on the page, already detached by a redraw of
-// the app) and what changed.
+// the app) and what changed. A custom property is told by the element whose style it is (C22 sets the width of a
+// combobox's list on its panel in the dialog); one whose element is not found counts as "style".
 const c22Spy = `(() => {
 	if (window.c22Touch) { window.c22Touch.length = 0; return 'reset'; }
 	window.c22Touch = [];
@@ -19,7 +20,7 @@ const c22Spy = `(() => {
 		Element.prototype[name] = function (...a) { if (fromC22()) window.c22Touch.push(where(this) + ' ' + name + ' ' + a[0]); return was.apply(this, a); };
 	}
 	const prop = CSSStyleDeclaration.prototype.setProperty;
-	CSSStyleDeclaration.prototype.setProperty = function (...a) { if (fromC22()) window.c22Touch.push('style setProperty ' + a[0]); return prop.apply(this, a); };
+	CSSStyleDeclaration.prototype.setProperty = function (...a) { const r = prop.apply(this, a); if (fromC22()) window.c22Touch.push(where([...document.querySelectorAll('[style]')].find(e => e.style === this)) + ' setProperty ' + a[0]); return r; };
 	const hidden = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'hidden');
 	Object.defineProperty(HTMLElement.prototype, 'hidden', { configurable: true, get: hidden.get,
 		set(v) { if (fromC22()) window.c22Touch.push(where(this) + ' hidden'); hidden.set.call(this, v); } });

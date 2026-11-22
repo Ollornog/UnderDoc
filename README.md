@@ -109,7 +109,7 @@ documentation, not a vault: [docs/secrets.md](docs/secrets.md).
 
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
-`web/editor`, and the built bundle is in the repository, so building UnderDoc needs only Go. How it works and how to
+`web/editor` by `scripts/build-js.sh` before `go build` (the built bundle is not in the repository). How it works and how to
 build it: [docs/editor.md](docs/editor.md).
 
 **Writing pages:**

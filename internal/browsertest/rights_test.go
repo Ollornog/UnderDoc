@@ -7,6 +7,7 @@ package browsertest
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
@@ -139,6 +140,11 @@ func (b *browser) pick(combobox, typed, value string) {
 	if !b.waitFor(`document.querySelector(` + strconv.Quote(combobox+` [data-popover]`) + `).getAttribute('aria-hidden') === 'false' && document.querySelector(` + strconv.Quote(option) + `)?.getAttribute('aria-hidden') === 'false' &&
 		[...document.querySelectorAll(` + strconv.Quote(combobox+` [role=option]`) + `)].some(o => o.getAttribute('aria-hidden') === 'true')`) {
 		b.t.Fatalf("typing %q into %s does not filter to %s: %s", typed, combobox, value, b.eval(`[...document.querySelectorAll(`+strconv.Quote(combobox+` [role=option]`)+`)].map(o => o.dataset.value + ':' + o.getAttribute('aria-hidden')).join(' ')`))
+	}
+	// Between two groups that show one line, none at the top or the bottom: C22 hides the lines of groups without a hit.
+	lines := `[...document.querySelector(` + strconv.Quote(combobox+` [role=listbox]`) + `).children].filter(e => getComputedStyle(e).display !== 'none').map(e => e.getAttribute('role') === 'separator' ? '-' : 'x').join('')`
+	if got := b.eval(lines); got == "" || got[0] == '-' || got[len(got)-1] == '-' || strings.Contains(got, "--") {
+		b.t.Errorf("typing %q into %s leaves lines without a group between them (x a group or an option, - a line): %q", typed, combobox, got)
 	}
 	// The list fades in; the click waits until it stands still and the option is what lies under the pointer.
 	if !b.waitFor(`(() => { const o = document.querySelector(` + strconv.Quote(option) + `); if (!o || document.getAnimations().some(a => a.playState === 'running')) return false;
