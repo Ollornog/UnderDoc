@@ -19,7 +19,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-10](M-10-realtime.md)** Working together — noch keine Aufgaben
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ◐ **[M-12](M-12-search.md)** Proper search — noch keine Aufgaben
-* ☐ **[M-13](M-13-ai.md)** AI integration — noch keine Aufgaben
+* ☐ **[M-13](M-13-ai.md)** AI integration — 0/1 erledigt
 * ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/3 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
@@ -59,6 +59,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-18](T-18-maintainer-acceptance-of-spreadsheets-as-tables.md)** Maintainer acceptance of spreadsheets as tables · M-2
 * ☐ **[T-19](T-19-maintainer-acceptance-of-the-markdown-wiki.md)** Maintainer acceptance of the Markdown wiki · M-1
 * ☐ **[T-20](T-20-page-kinds-with-writing-rules-so-pages-written-by.md)** Page kinds with writing rules, so pages written by AI read well for people · M-1
+* ☐ **[T-21](T-21-mcp-access-agents-read-and-write-pages-and-files-u.md)** MCP access: agents read and write pages and files under the user''s permissions · M-13
 
 ## Fehler
 
