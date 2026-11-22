@@ -21,4 +21,5 @@ Embeddings in such a wiki follow UnderDoc's notation without blocks (agreed 2026
 - Part markers as in docs/parts.md (`<!-- part t2 -->…<!-- /part t2 -->`, also `name="…"`), part IDs unique per page.
 - `::embed{ref="<page id>"}` for a whole page, `::embed{ref="<page id>#t2"}` or `:embed{ref="<page id>#t2"}` for a part; no sections, no block markers.
 - `id:` in the front matter is the object ID, readable, lowercase, with hyphens.
-- The importer gives every page its blocks and rewrites `#t2` to `#bN.t2` for the block the part lives in; a whole page stays as it is.
+- The importer gives every page an object ID and its blocks, and rewrites `<page id>#t2` to `<object id>#bN.t2` for the block the part lives in, and `<page id>` alone to `<object id>`. Embeddings in UnderDoc always point at the generated object ID (internal/db/refs.go); the wiki's own ID is only the key of the mapping.
+- The wiki's own ID stays as the readable ID of the page (front matter `id:`). Such IDs may hold lowercase letters with umlauts and ß (UTF-8 everywhere). Today UnderDoc allows only ASCII there (`stableID` in internal/document/document.go): widen it to lowercase Unicode letters, digits and hyphens, and keep `/`, `#` and spaces out.
