@@ -15,3 +15,10 @@ Teams that started with a wiki of Markdown files in Git move into UnderDoc witho
 - The Git history becomes the version history of the pages (ADR-11), with author and time.
 - Generated sections (backlinks, lists computed when a page is shown) are not imported as text; UnderDoc rebuilds them.
 - A dry run reports what would change and which links break.
+
+Embeddings in such a wiki follow UnderDoc's notation without blocks (agreed 2026-11-22 with the first wiki to move):
+
+- Part markers as in docs/parts.md (`<!-- part t2 -->…<!-- /part t2 -->`, also `name="…"`), part IDs unique per page.
+- `::embed{ref="<page id>"}` for a whole page, `::embed{ref="<page id>#t2"}` or `:embed{ref="<page id>#t2"}` for a part; no sections, no block markers.
+- `id:` in the front matter is the object ID, readable, lowercase, with hyphens.
+- The importer gives every page its blocks and rewrites `#t2` to `#bN.t2` for the block the part lives in; a whole page stays as it is.
