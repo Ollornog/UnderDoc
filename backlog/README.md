@@ -7,7 +7,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 ## Meilensteine
 
-* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 2/3 erledigt
+* ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 2/4 erledigt
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 1/7 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
@@ -58,6 +58,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-17](T-17-maintainer-walkthrough-of-the-first-build-and-the.md)** Maintainer walkthrough of the first build and the editor · M-2
 * ☐ **[T-18](T-18-maintainer-acceptance-of-spreadsheets-as-tables.md)** Maintainer acceptance of spreadsheets as tables · M-2
 * ☐ **[T-19](T-19-maintainer-acceptance-of-the-markdown-wiki.md)** Maintainer acceptance of the Markdown wiki · M-1
+* ☐ **[T-20](T-20-page-kinds-with-writing-rules-so-pages-written-by.md)** Page kinds with writing rules, so pages written by AI read well for people · M-1
 
 ## Fehler
 
