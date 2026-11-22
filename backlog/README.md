@@ -23,7 +23,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 0/3 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
-* ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/1 erledigt
+* ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/2 erledigt
 * ☐ **[M-18](M-18-calendar.md)** Calendar — noch keine Aufgaben
 * ☐ **[M-19](M-19-forms.md)** Forms and simple surveys — noch keine Aufgaben
 * ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 1/1 erledigt
@@ -60,6 +60,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-19](T-19-maintainer-acceptance-of-the-markdown-wiki.md)** Maintainer acceptance of the Markdown wiki · M-1
 * ☐ **[T-20](T-20-page-kinds-with-writing-rules-so-pages-written-by.md)** Page kinds with writing rules, so pages written by AI read well for people · M-1
 * ☐ **[T-21](T-21-mcp-access-agents-read-and-write-pages-and-files-u.md)** MCP access: agents read and write pages and files under the user''s permissions · M-13
+* ☐ **[T-22](T-22-import-a-git-backed-markdown-wiki-with-its-history.md)** Import a Git-backed Markdown wiki with its history · M-17
 
 ## Fehler
 
