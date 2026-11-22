@@ -47,6 +47,7 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 		check()
 	}
 	b.mouse("mouseReleased", x, y, 1, 0)
+	b.settled() // the drop is sent, and the entries stand where the server put them, also on a loaded host
 }
 
 // gapAt tells where the gap of a drag is: right below which entry, as the text or the mark of that entry.
@@ -474,9 +475,8 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	selected := func() string {
 		return b.eval(`[...document.querySelectorAll('[aria-selected="true"]')].map(n => (n.querySelector(':scope > button:not([data-toggle])') || n).textContent.trim() || n.dataset.deco).join(' ')`)
 	}
-	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
-	}
+	topsJS := `[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`
+	tops := func() string { return b.eval(topsJS) }
 	title := b.eval(`document.querySelector('.workspace-main > header > h1').textContent`)
 	ctrl(rowNamed(b, "A"), 2)
 	ctrl(rowNamed(b, "C"), 2)
@@ -492,14 +492,16 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	}
 	b.dragTo(rowNamed(b, "A"), rowNamed(b, "B"), 0.8, func() {
 		b.shot("select-drag")
-		if got := b.eval(`[...document.querySelectorAll('.dropgap > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "A C" {
-			t.Errorf("both are held together: %q", got)
+		held := `[...document.querySelectorAll('.dropgap > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`
+		if !b.waitFor(held + ` === "A C"`) {
+			t.Errorf("both are held together: %q", b.eval(held))
 		}
 	})
-	if got := tops(); got != "B A C" {
-		t.Fatalf("both move below B: %q", got)
+	// The entries move when the server has answered, which takes longer on a loaded host: wait for the order.
+	if !b.waitFor(topsJS + ` === "B A C"`) {
+		t.Fatalf("both move below B: %q", tops())
 	}
-	time.Sleep(500 * time.Millisecond)
+	// dragTo has waited for the answer of the server, so reloading shows what it kept.
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if got := tops(); got != "B A C" {
@@ -986,7 +988,7 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`article.typeset [data-act="cacc"][data-id="read"]`, 1)
-	time.Sleep(400 * time.Millisecond)
+	b.settled()
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if got := b.eval(`[document.querySelector('article.typeset [data-act="cacc"][aria-pressed="true"]')?.dataset.id, !!document.querySelector('section > header[data-cdrop="` + team + `"] [data-lock]')].join(' ')`); got != "read true" {
@@ -1004,7 +1006,7 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	b.clickOn(`article.typeset [data-act="cacc"][data-id="edit"]`, 1)
-	time.Sleep(400 * time.Millisecond)
+	b.settled()
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")

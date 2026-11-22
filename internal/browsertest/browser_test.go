@@ -431,6 +431,18 @@ func setupWith(t *testing.T, options web.Options, extra map[string]string) (*bro
 	}
 	// Without the cache every page loads its own assets, otherwise only the first would show an error.
 	b.call("Network.setCacheDisabled", map[string]any{"cacheDisabled": true}, nil)
+	// Every fetch of the page is counted while it runs, so a test can wait for the server to have answered (settled).
+	b.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": `(() => { const f = window.fetch; window.inflight = 0;
+		window.fetch = function () { window.inflight++; const done = () => { window.inflight--; }; const p = f.apply(this, arguments); p.then(done, done); return p; }; })()`}, nil)
+	// UNDERDOC_BROWSERTEST_LATENCY_MS adds a delay to every request, as a loaded host does: a test that waits a fixed time
+	// for the server instead of for the state it needs fails with it (try 1500), a test that waits for the state does not.
+	if ms, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_LATENCY_MS")); err == nil && ms > 0 {
+		b.call("Network.emulateNetworkConditions", map[string]any{"offline": false, "latency": ms, "downloadThroughput": -1, "uploadThroughput": -1}, nil)
+	}
+	// UNDERDOC_BROWSERTEST_CPU_SLOWDOWN makes the page that many times slower than the machine, as a starved one is.
+	if n, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_CPU_SLOWDOWN")); err == nil && n > 1 {
+		b.call("Emulation.setCPUThrottlingRate", map[string]any{"rate": n}, nil)
+	}
 	b.signIn(true)
 	return b, server.URL
 }
@@ -487,6 +499,15 @@ func (b *browser) waitFor(expression string) bool {
 		}
 	}
 	return false
+}
+
+// settled waits until no request of the page is on its way: what a drop, a click or a menu entry sends is answered, so
+// that reloading the page next shows what the server kept. A fixed pause instead fails on a loaded host.
+func (b *browser) settled() {
+	b.t.Helper()
+	if !b.waitFor(`window.inflight === 0`) {
+		b.t.Fatalf("requests are still on their way: %s", b.eval(`window.inflight`))
+	}
 }
 
 // settingsSent waits until the workspace has sent its settings to the account, which it does a moment after a change. A test
@@ -586,7 +607,8 @@ func TestEveryPageIsClean(t *testing.T) {
 		if got := b.eval(`getComputedStyle(document.body).fontFamily`); !strings.Contains(got, "Inter") {
 			t.Errorf("%s: the stylesheet did not apply, font is %q", name, got)
 		}
-		if got := b.eval(`document.fonts.check('15px Inter')`); got != "true" {
+		// A font loads when the first text needs it, which can be after the page is drawn: wait for it, then name it if it is missing.
+		if !b.waitFor(`document.fonts.check('15px Inter')`) {
 			t.Errorf("%s: the font did not load", name)
 		}
 		// The look of the mockup comes from C22 under its root class: the sizes of the approved mockup.
@@ -832,7 +854,7 @@ func TestNewCollectionByHand(t *testing.T) {
 		t.Fatal("Escape closes the dialog")
 	}
 	b.shot("new-collection")
-	time.Sleep(500 * time.Millisecond)
+	b.settled()
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].map(n => n.textContent).filter(n => n === 'Operations' || n === 'Not made' || n.startsWith('New collection')).sort().join(', ')`); got != "Operations" {
