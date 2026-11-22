@@ -69,10 +69,10 @@ func TestBlocksAreAligned(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Aligned")
 	b.watch()
-	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
-	b.clickOn(`.bmenu [data-act="balign"][data-k="center"]`, 1)
-	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-b="b1"] p')).textAlign === 'center'`) {
-		t.Errorf("reading shows the block centered: %s", b.eval(`document.querySelector('article.typeset [data-b="b1"]')?.outerHTML`))
+	b.clickOn(`article.typeset [data-block="b1"] > .editor-handle > button`, 1)
+	b.clickOn(`.editor-handle [role=menu] [data-act="balign"][data-k="center"]`, 1)
+	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-block="b1"] p')).textAlign === 'center'`) {
+		t.Errorf("reading shows the block centered: %s", b.eval(`document.querySelector('article.typeset [data-block="b1"]')?.outerHTML`))
 	}
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-content')`) {
@@ -85,8 +85,8 @@ func TestBlocksAreAligned(t *testing.T) {
 		t.Errorf("the editor shows the alignment: %q", got)
 	}
 	b.lineWith("Text")
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bmenu [data-act="balign"][data-k="right"]`, 1)
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, 1)
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle [role=menu] [data-act="balign"][data-k="right"]`, 1)
 	if !b.waitFor(line("Text") + ` === 'right'`) {
 		t.Errorf("aligned right in the editor: %q", b.eval(line("Text")))
 	}
@@ -94,8 +94,8 @@ func TestBlocksAreAligned(t *testing.T) {
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	b.open(base + "/o/" + page)
 	b.ready("Aligned")
-	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-b="b2"] p')).textAlign === 'right' && getComputedStyle(document.querySelector('article.typeset [data-b="b1"] p')).textAlign === 'center'`) {
-		t.Errorf("after a reload: %s", b.eval(`[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.className).join(',')`))
+	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-block="b2"] p')).textAlign === 'right' && getComputedStyle(document.querySelector('article.typeset [data-block="b1"] p')).textAlign === 'center'`) {
+		t.Errorf("after a reload: %s", b.eval(`[...document.querySelectorAll('article.typeset [data-block]')].map(x => x.className).join(',')`))
 	}
 	if got := b.stored(page); got != "b1:Title | b2:Text" {
 		t.Errorf("the Markdown stays as written: %q", got)

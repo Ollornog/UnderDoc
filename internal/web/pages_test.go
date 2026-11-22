@@ -132,7 +132,7 @@ func TestEmbeddingThroughTheAPI(t *testing.T) {
 	plan := newPage("Plan", "## Switches", "| Port | VLAN |\n|---|---|\n| 1 | 10 |")
 	rack := newPage("Rack", "The ports:\n\n::embed{ref=\""+plan+"#b2\"}\n\nThat is all.")
 	got := html(rack)
-	if !strings.Contains(got, `<figure class="embed" data-ref="`+plan+`#b2">`) || !strings.Contains(got, "<td>10</td>") ||
+	if !strings.Contains(got, `<figure class="editor-embed" data-ref="`+plan+`#b2">`) || !strings.Contains(got, "<td>10</td>") ||
 		!strings.Contains(got, `href="/o/`+plan+`#b2"`) || !strings.Contains(got, "The ports") || !strings.Contains(got, "That is all") {
 		t.Fatalf("the table of Plan shows in Rack, with a link back: %s", got)
 	}

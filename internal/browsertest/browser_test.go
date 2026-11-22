@@ -941,15 +941,15 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	}
 	b.shot("edit-new-page")
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('article.typeset h2') && !!document.querySelector('article.typeset [data-b="b2"] p') && !document.querySelector('.cm-editor')`) {
+	if !b.waitFor(`!!document.querySelector('article.typeset h2') && !!document.querySelector('article.typeset [data-block="b2"] p') && !document.querySelector('.cm-editor')`) {
 		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
-	if got := b.eval(`document.querySelector('article.typeset [data-b="b2"] > .bhandle')?.title + ' ' + !document.querySelector('article.typeset .blk')`); got != "Block #b2: address, editing, comments true" {
+	if got := b.eval(`document.querySelector('article.typeset [data-block="b2"] > .editor-handle > button')?.title + ' ' + !document.querySelector('article.typeset .blk')`); got != "Block #b2: address, editing, comments true" {
 		t.Errorf("a block has its handle, to embed it by, and no chip of its own: %q", got)
 	}
 	b.open(base + "/o/" + page)
 	b.ready("New page")
-	if got := b.eval(`document.querySelector('article.typeset h2')?.textContent + ' | ' + document.querySelector('article.typeset [data-b="b2"]')?.textContent.trim()`); got != "Switches | Two in the rack." {
+	if got := b.eval(`document.querySelector('article.typeset h2')?.textContent + ' | ' + document.querySelector('article.typeset [data-block="b2"]')?.textContent.trim()`); got != "Switches | Two in the rack." {
 		t.Errorf("both blocks are kept: %q", got)
 	}
 	b.clickOn(`[data-act="gear"]`, 1)

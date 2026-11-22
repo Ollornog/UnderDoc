@@ -173,6 +173,22 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The editor and its parts from C22's building blocks ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), step
+  3, C22 at `e295ff9`, [docs/editor.md](docs/editor.md#built-from-c22)): the page in the editor is C22's `.editor`, each
+  block while reading a `div[data-block]` in the typeset flow with its handle `.editor-handle` (the class `doc` of the
+  old block stays only on content without blocks), the slash menu `.command`, questions in place `.item`, a block used
+  elsewhere `[data-used]`, a part `[data-part]` with its frame and name, an embedding `figure.editor-embed` (in the
+  editor a badge), what happens where something in use goes a card over the workspace, quick notes a grid of cards,
+  comment bubbles `.comment-anchor`, the source view `pre.code-block` with line numbers. What shows differently: the
+  menu of a handle is the pack's menu (a little wider rows, 16px icons), the name of a part stands above it, a block
+  used elsewhere frames each of its lines for now, a value that looks like a password is underlined in waves by C22's
+  utilities, a line or a space between entries is C22's `hr`, a collection kept open shows the pack's thick line instead
+  of a pin, and a card of the quick notes has no speech bubble beside it (its handle has Comment with the count). Where
+  C22 lacks a part yet, the script bridges it (`bridge until C22` in the code: the space inside a block or an embedding
+  with several elements and a to-do of a list, the handle of the block with the cursor, the gap of a dragged block, a
+  handle that takes a finger, handles and bubbles faint on touch screens, a bubble inside the window's padding, the name
+  of a part once). A page frozen for a link before keeps its old markup, and its tables are still taken out when its
+  maker no longer reads the file.
 - The frame of the workspace from C22's building blocks ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md),
   step 2): the top row, nav1 to nav3 with their lists, the windows with their tabs, the head of a window (path, tags,
   what others may do, tools, title, the button for reading or editing), the document column and the status line are

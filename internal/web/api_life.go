@@ -118,16 +118,17 @@ func (h *handler) placeholder(r *http.Request, a db.Address, g *gone, page strin
 		text = "Removed by " + g.removed.ByName + " on " + day + " from " + g.removed.PageName
 		id := strconv.FormatInt(g.removed.ID, 10)
 		if o, err := h.options.DB.Object(r.Context(), a.Object, user.ID); err == nil && h.options.DB.MayEdit(r.Context(), o, user.ID) {
-			actions += `<button class="chip" data-act="restoreremoved" data-id="` + id + `">Restore</button>`
+			actions += `<button type="button" class="btn" data-variant="outline" data-size="xs" data-act="restoreremoved" data-id="` + id + `">Restore</button>`
 		}
 		if o, err := h.options.DB.Object(r.Context(), page, user.ID); err == nil && page != a.Object && h.options.DB.MayEdit(r.Context(), o, user.ID) {
-			actions += `<button class="chip" data-act="keepcopy" data-id="` + id + `" data-page="` + html.EscapeString(page) + `">Keep a copy here</button>`
+			actions += `<button type="button" class="btn" data-variant="outline" data-size="xs" data-act="keepcopy" data-id="` + id + `" data-page="` + html.EscapeString(page) + `">Keep a copy here</button>`
 		}
 	}
 	if inline {
 		return `<span class="badge" data-variant="destructive" data-ref="` + html.EscapeString(a.String()) + `" data-removed>` + html.EscapeString(text) + `</span>` + actions
 	}
-	return `<div class="embed broken" data-ref="` + html.EscapeString(a.String()) + `" data-removed>` + html.EscapeString(text) + actions + `</div>`
+	return `<figure class="editor-embed" data-state="missing" data-ref="` + html.EscapeString(a.String()) + `" data-removed><div class="flex flex-wrap items-center gap-2"><p>` +
+		html.EscapeString(text) + `</p>` + actions + `</div></figure>`
 }
 
 // apiRestoreRemoved puts what was deleted everywhere back into its page.

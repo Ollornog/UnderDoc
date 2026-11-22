@@ -128,7 +128,7 @@ func TestQuickSearchJumpsToTheSection(t *testing.T) {
 	if !b.waitFor(`location.pathname === '/o/` + page + `' && !!document.querySelector('article.typeset mark.hitmark')`) {
 		t.Fatalf("Enter opens the page with the code marked: %s %s %s", b.eval(`location.pathname`), b.eval(`JSON.stringify(S.wins.map(w => w.tabs.map(t => [t.d, t.hl])))`), b.eval(`document.querySelector('[data-art]')?.innerText.slice(-300)`))
 	}
-	if got := b.eval(`document.querySelector('mark.hitmark').closest('[data-b]')?.textContent.startsWith('Bei E-1042') + ' ' + document.querySelector('mark.hitmark').textContent`); got != "true E-1042" {
+	if got := b.eval(`document.querySelector('mark.hitmark').closest('[data-block]')?.textContent.startsWith('Bei E-1042') + ' ' + document.querySelector('mark.hitmark').textContent`); got != "true E-1042" {
 		t.Errorf("the mark sits in the section of the hit: %q", got)
 	}
 	inView := `(() => { const r = document.querySelector('mark.hitmark').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`

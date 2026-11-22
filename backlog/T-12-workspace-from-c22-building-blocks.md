@@ -39,6 +39,14 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   `ps-9`, `--workspace-step-1` on a phone, `size-3`): a blank space between entries of a list, open and kept open
   apart (thin and thick line), the typeset flow inside block wrappers, the room for handles on a phone, the width of
   nav1 on a phone, the icon in the head of a section, the size of the avatar.
+- Step 3 (2026-11-22): the editor and its parts (C22 at `e295ff9`): `.editor`, `div[data-block]` with
+  `.editor-handle`, `.command`, `.item` questions, `[data-used]`, `[data-part]`, `figure.editor-embed`, the dialog of the
+  ways, quick notes as cards, `.comment-anchor`, `pre.code-block`; the bridges of step 2 are gone (`doc` on block pages,
+  `ps-9`, `--workspace-step-1`, `size-3`, the pin, `hr.w-full` and `span[data-fill]` as lines and spaces). Open in C22,
+  bridged in the script until it has them (`bridge until C22`, gaps 1 to 10): the flow inside a wrapper with several
+  elements and inside an embedding, a to-do of a list in typeset, the handle of the active block in a line editor, one
+  frame round the sibling lines of a used block, the gap of a held block in a document, a part's frame without its name,
+  touch on a handle that drags, the comment bubble within the pack's end padding, handles and bubbles on touch screens.
 
 ## Done when
 

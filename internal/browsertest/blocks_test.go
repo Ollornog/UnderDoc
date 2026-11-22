@@ -51,7 +51,7 @@ func (b *browser) release(handle string, y float64) {
 	b.mouse("mouseReleased", b.rect(handle).X, y, 1, 0)
 }
 
-const readOrder = `[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.dataset.b).join(' ')`
+const readOrder = `[...document.querySelectorAll('article.typeset [data-block]')].map(x => x.dataset.block).join(' ')`
 
 // In a block of the database a single newline is a line break: two quote lines, or two lines of a paragraph, read as
 // two lines, and the editor shows them so too. The Markdown stays as written.
@@ -67,9 +67,9 @@ func TestTwoLinesOfABlockReadAsTwoLines(t *testing.T) {
 		for (let n = walk.nextNode(); n; n = walk.nextNode()) { const at = n.data.indexOf(w); if (at < 0) continue; const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + w.length); return Math.round(r.getBoundingClientRect().top); }
 		return 'none'; })`
 	for _, c := range []struct{ sel, a, b string }{
-		{`article.typeset [data-b="b1"] blockquote`, "a", "b"},
-		{`article.typeset [data-b="b2"] p`, "one", "two"},
-		{`article.typeset [data-b="b3"] li`, "item", "more"},
+		{`article.typeset [data-block="b1"] blockquote`, "a", "b"},
+		{`article.typeset [data-block="b2"] p`, "one", "two"},
+		{`article.typeset [data-block="b3"] li`, "item", "more"},
 	} {
 		got := b.eval(`(() => { const [x, y] = (` + lines + `)(` + strconv.Quote(c.sel) + `, [` + strconv.Quote(c.a) + `, ` + strconv.Quote(c.b) + `]); return x !== 'none' && y !== 'none' && y > x; })()`)
 		if got != "true" {
@@ -105,36 +105,36 @@ func TestDraggingABlockInReading(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Drag")
 	b.watch()
-	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-b] > .bhandle')].map(h => h.hasAttribute('data-drag') + ' ' + getComputedStyle(h).touchAction).join(', ')`); got != "true none, true none, true none" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-block] > .editor-handle > button')].map(h => h.hasAttribute('data-drag') + ' ' + getComputedStyle(h).touchAction).join(', ')`); got != "true none, true none, true none" {
 		t.Errorf("the handles drag, also with a finger: %q", got)
 	}
 	// Escape gives up: One held below Three goes back, nothing is written.
-	b.hold(`article.typeset [data-b="b1"] > .bhandle`, b.rect(`article.typeset [data-b="b3"]`).Bottom-2)
-	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && g.previousElementSibling?.dataset.b + ' ' + g.textContent.trim() + ' ' + getComputedStyle(document.querySelector('article.typeset [data-b="b1"]')).display; })()`); got != "b3 One none" {
+	b.hold(`article.typeset [data-block="b1"] > .editor-handle > button`, b.rect(`article.typeset [data-block="b3"]`).Bottom-2)
+	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && g.previousElementSibling?.dataset.block + ' ' + g.textContent.trim() + ' ' + getComputedStyle(document.querySelector('article.typeset [data-block="b1"]')).display; })()`); got != "b3 One none" {
 		t.Errorf("held below Three, the gap holds One and One is lifted: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
 	if got := b.eval(`!document.querySelector('.dropgap') + ' ' + ` + readOrder); got != "true b1 b2 b3" {
 		t.Errorf("Escape puts it back: %q", got)
 	}
-	b.release(`article.typeset [data-b="b1"] > .bhandle`, b.rect(`article.typeset [data-b="b3"]`).Bottom-2)
+	b.release(`article.typeset [data-block="b1"] > .editor-handle > button`, b.rect(`article.typeset [data-block="b3"]`).Bottom-2)
 	time.Sleep(200 * time.Millisecond)
-	if got := b.eval(`window.writes.join(', ') + ' | ' + !!document.querySelector('.bmenu')`); got != " | false" {
+	if got := b.eval(`window.writes.join(', ') + ' | ' + !!document.querySelector('.editor-handle [role=menu]')`); got != " | false" {
 		t.Errorf("after Escape nothing is written and no menu opens: %q", got)
 	}
 	// Three above One.
-	top := b.rect(`article.typeset [data-b="b1"]`).Top + 3
-	b.hold(`article.typeset [data-b="b3"] > .bhandle`, top)
-	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && (g.nextElementSibling?.dataset.b || 'end') + ' ' + g.textContent.trim(); })()`); got != "b1 Three" {
+	top := b.rect(`article.typeset [data-block="b1"]`).Top + 3
+	b.hold(`article.typeset [data-block="b3"] > .editor-handle > button`, top)
+	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && (g.nextElementSibling?.dataset.block || 'end') + ' ' + g.textContent.trim(); })()`); got != "b1 Three" {
 		t.Errorf("the gap opens before One, between blocks: %q", got)
 	}
 	b.shot("block-drag-reading")
-	b.release(`article.typeset [data-b="b3"] > .bhandle`, top)
+	b.release(`article.typeset [data-block="b3"] > .editor-handle > button`, top)
 	if !b.waitFor(readOrder + ` === 'b3 b1 b2' && !document.querySelector('.dropgap')`) {
 		t.Errorf("the view shows the new order: %q", b.eval(readOrder))
 	}
 	time.Sleep(300 * time.Millisecond)
-	if got := b.eval(`window.writes.join(', ') + ' | ' + !!document.querySelector('.bmenu')`); got != "POST /api/pages/"+page+"/blocks/b3/move | false" {
+	if got := b.eval(`window.writes.join(', ') + ' | ' + !!document.querySelector('.editor-handle [role=menu]')`); got != "POST /api/pages/"+page+"/blocks/b3/move | false" {
 		t.Errorf("one move, and the drop opens no menu: %q", got)
 	}
 	if got := b.stored(page); got != "b3:Three | b1:One | b2:Two" {
@@ -149,8 +149,8 @@ func TestDraggingABlockInReading(t *testing.T) {
 		t.Errorf("after a reload: %q", got)
 	}
 	// A click without moving opens the menu.
-	b.clickOn(`article.typeset [data-b="b2"] > .bhandle`, 1)
-	if !b.waitFor(`!!document.querySelector('article.typeset [data-b="b2"] .bmenu')`) {
+	b.clickOn(`article.typeset [data-block="b2"] > .editor-handle > button`, 1)
+	if !b.waitFor(`!!document.querySelector('article.typeset [data-block="b2"] .editor-handle [role=menu]')`) {
 		t.Errorf("a click opens the menu of the handle")
 	}
 	b.clean("drag in reading")
@@ -160,15 +160,15 @@ func TestDraggingABlockInReading(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Drag")
 	b.watch()
-	if got := b.eval(`document.querySelectorAll('article.typeset .bhandle[data-drag]').length + ' ' + document.querySelectorAll('article.typeset .bhandle').length`); got != "0 3" {
+	if got := b.eval(`document.querySelectorAll('article.typeset .editor-handle > [data-drag]').length + ' ' + document.querySelectorAll('article.typeset .editor-handle > button').length`); got != "0 3" {
 		t.Errorf("a reader's handles do not drag: %q", got)
 	}
-	top = b.rect(`article.typeset [data-b="b3"]`).Top + 3
-	b.hold(`article.typeset [data-b="b2"] > .bhandle`, top)
+	top = b.rect(`article.typeset [data-block="b3"]`).Top + 3
+	b.hold(`article.typeset [data-block="b2"] > .editor-handle > button`, top)
 	if got := b.eval(`!!document.querySelector('.dropgap')`); got != "false" {
 		t.Errorf("no gap for a reader")
 	}
-	b.release(`article.typeset [data-b="b2"] > .bhandle`, top)
+	b.release(`article.typeset [data-block="b2"] > .editor-handle > button`, top)
 	time.Sleep(200 * time.Millisecond)
 	if got := b.eval(readOrder + ` + ' | ' + window.writes.join(', ')`); got != "b3 b1 b2 | " {
 		t.Errorf("nothing moves for a reader: %q", got)
@@ -202,8 +202,8 @@ func TestDraggingABlockWithAFinger(t *testing.T) {
 		check()
 		touch("touchEnd", y)
 	}
-	fingerDrag(`article.typeset [data-b="b3"] > .bhandle`, b.rect(`article.typeset [data-b="b1"]`).Top+3, func() {
-		if got := b.eval(`document.querySelector('article.typeset .dropgap.held')?.nextElementSibling?.dataset.b`); got != "b1" {
+	fingerDrag(`article.typeset [data-block="b3"] > .editor-handle > button`, b.rect(`article.typeset [data-block="b1"]`).Top+3, func() {
+		if got := b.eval(`document.querySelector('article.typeset .dropgap.held')?.nextElementSibling?.dataset.block`); got != "b1" {
 			t.Errorf("the finger opens the gap before One: %q", got)
 		}
 	})
@@ -216,10 +216,10 @@ func TestDraggingABlockWithAFinger(t *testing.T) {
 	}
 	// In the editor the held block's handle is gone from the page while the finger still moves.
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b2"] .bhandle')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b2"] .editor-handle > button')`) {
 		t.Fatal("no editor")
 	}
-	fingerDrag(`.cm-ud-marker[data-edb="b2"] .bhandle`, b.rect(`.cm-ud-marker[data-edb="b3"]`).Top+3, func() {
+	fingerDrag(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, b.rect(`.cm-ud-marker[data-edb="b3"]`).Top+3, func() {
 		if got := b.eval(`document.querySelector('.cm-editor .cm-ud-gap')?.nextElementSibling?.dataset.edb`); got != "b3" {
 			t.Errorf("in the editor the finger opens the gap before Three: %q", got)
 		}
@@ -250,7 +250,7 @@ func TestDraggingABlockInTheEditor(t *testing.T) {
 	b.eval(`window.writes = []`)
 	// Escape gives up.
 	bottom := b.rect(`.cm-ud-marker[data-edb="b3"]`).Top + 30
-	b.hold(`.cm-ud-marker[data-edb="b1"] .bhandle`, bottom)
+	b.hold(`.cm-ud-marker[data-edb="b1"] .editor-handle > button`, bottom)
 	if got := b.eval(`(() => { const g = document.querySelector('.cm-editor .cm-ud-gap.dropgap.held'); return !!g && (g.nextElementSibling?.dataset.edb || 'end') + ' ' + g.textContent.trim() + ' ' + !document.querySelector('.cm-ud-marker[data-edb="b1"]') + ' ' + [...document.querySelectorAll('.cm-content > .cm-line')].filter(l => /One|block b1/.test(l.textContent)).length; })()`); got != "end One true 0" {
 		t.Errorf("held at the end, the gap holds One and One is lifted: %q", got)
 	}
@@ -258,22 +258,22 @@ func TestDraggingABlockInTheEditor(t *testing.T) {
 	if !b.waitFor(`!document.querySelector('.cm-ud-gap') && !!document.querySelector('.cm-ud-marker[data-edb="b1"]')`) {
 		t.Errorf("Escape puts it back")
 	}
-	b.release(`.cm-ud-marker[data-edb="b1"] .bhandle`, bottom)
+	b.release(`.cm-ud-marker[data-edb="b1"] .editor-handle > button`, bottom)
 	if !b.edWait(`t === '<!-- block b1 -->\nOne\n\n<!-- block b2 -->\nTwo\n\n<!-- block b3 -->\nThree'`) {
 		t.Errorf("after Escape the text is as it was: %q", b.eval(edText))
 	}
 	// Three above One.
 	top := b.rect(`.cm-ud-marker[data-edb="b1"]`).Top + 3
-	b.hold(`.cm-ud-marker[data-edb="b3"] .bhandle`, top)
+	b.hold(`.cm-ud-marker[data-edb="b3"] .editor-handle > button`, top)
 	if got := b.eval(`(() => { const g = document.querySelector('.cm-editor .cm-ud-gap'); return !!g && (g.nextElementSibling?.dataset.edb || 'end') + ' ' + g.textContent.trim(); })()`); got != "b1 Three" {
 		t.Errorf("the gap opens before One: %q", got)
 	}
 	b.shot("block-drag-editor")
-	b.release(`.cm-ud-marker[data-edb="b1"] .bhandle`, top)
+	b.release(`.cm-ud-marker[data-edb="b1"] .editor-handle > button`, top)
 	if !b.edWait(`t === '<!-- block b3 -->\nThree\n\n<!-- block b1 -->\nOne\n\n<!-- block b2 -->\nTwo'`) {
 		t.Errorf("the text moved with its marker: %q", b.eval(edText))
 	}
-	if got := b.eval(`(() => { const v = EDS[at(0).d].ed.view; return v.state.doc.sliceString(0, v.state.selection.main.head).endsWith('<!-- block b2 -->\nTwo') + ' ' + !document.querySelector('.bmenu'); })()`); got != "true true" {
+	if got := b.eval(`(() => { const v = EDS[at(0).d].ed.view; return v.state.doc.sliceString(0, v.state.selection.main.head).endsWith('<!-- block b2 -->\nTwo') + ' ' + !document.querySelector('.editor-handle [role=menu]'); })()`); got != "true true" {
 		t.Errorf("the cursor stays after Two, and no menu opens: %q", got)
 	}
 	if got := b.eval(scroll); got != scrolled {
@@ -291,8 +291,8 @@ func TestDraggingABlockInTheEditor(t *testing.T) {
 	if got := b.versions(page); got != versions {
 		t.Errorf("no new version of the texts: %d, before %d", got, versions)
 	}
-	b.clickOn(`.cm-ud-marker[data-edb="b2"] .bhandle`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b2"] .bmenu')`) {
+	b.clickOn(`.cm-ud-marker[data-edb="b2"] .editor-handle > button`, 1)
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b2"] .editor-handle [role=menu]')`) {
 		t.Errorf("a click opens the menu")
 	}
 	b.open(base + "/o/" + page)
@@ -370,7 +370,7 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	sc := `document.querySelector('[data-win="0"] [data-sc]')`
 	b.eval(sc + `.scrollTop = 120`)
 	time.Sleep(100 * time.Millisecond)
-	if got := b.eval(`Math.round(document.querySelector('article.typeset [data-b="b3"]').getBoundingClientRect().height) > 300`); got != "true" {
+	if got := b.eval(`Math.round(document.querySelector('article.typeset [data-block="b3"]').getBoundingClientRect().height) > 300`); got != "true" {
 		t.Fatalf("the sections are long blocks")
 	}
 	// Text selected over the handles, as after marking a passage.
@@ -379,11 +379,11 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	index := `(sel, gap) => [...document.querySelectorAll(sel)].filter(n => n.matches(gap) || !n.matches('[style*="none"]')).findIndex(n => n.matches(gap))`
 	// A short way down: once lifted, the next block, a short paragraph, stands right below the short gap, and the pointer
 	// on its lower half puts the long block after it.
-	b.grab(`article.typeset [data-b="b3"] > .bhandle`, b.rect(`article.typeset [data-b="b3"] > .bhandle`).Y+12, 50*time.Millisecond)
-	next := b.rect(`article.typeset [data-b="b4"]`)
+	b.grab(`article.typeset [data-block="b3"] > .editor-handle > button`, b.rect(`article.typeset [data-block="b3"] > .editor-handle > button`).Y+12, 50*time.Millisecond)
+	next := b.rect(`article.typeset [data-block="b4"]`)
 	b.heldAt("mouseMoved", next.X, next.Bottom-3)
 	time.Sleep(50 * time.Millisecond)
-	if got := b.eval(`[...document.querySelectorAll('article.typeset > [data-b], article.typeset > .dropgap')].filter(n => !n.matches('[style*="none"]')).slice(0, 4).map(n => n.dataset.b || 'gap').join(' ')`); got != "b1 b2 b4 gap" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset > [data-block], article.typeset > .dropgap')].filter(n => !n.matches('[style*="none"]')).slice(0, 4).map(n => n.dataset.block || 'gap').join(' ')`); got != "b1 b2 b4 gap" {
 		t.Errorf("a short way down over the next block puts it after that block: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
@@ -392,9 +392,9 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	// A busy browser draws fewer frames, as the CI does under load: the page scrolls by the time held, not by the frames
 	// drawn, so it gets as far (2026-11-19).
 	b.eval(`window.busy = true; (function frame() { if (!window.busy) return; const t = performance.now(); while (performance.now() - t < 60); requestAnimationFrame(frame); })()`)
-	b.grab(`article.typeset [data-b="b3"] > .bhandle`, bottom, 1500*time.Millisecond)
+	b.grab(`article.typeset [data-block="b3"] > .editor-handle > button`, bottom, 1500*time.Millisecond)
 	b.eval(`window.busy = false`)
-	got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.typeset > [data-b], article.typeset > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
+	got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.typeset > [data-block], article.typeset > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
 	if got != "true true true" {
 		t.Errorf("held at the bottom edge: a short gap, the page scrolled, and the gap went down past the blocks out of view: %q", got)
 	}
@@ -415,7 +415,7 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	order := `[...` + edText + `.matchAll(/block (b\d+)/g)].map(m => m[1])`
 	// A short way down, over the short paragraph after it.
-	b.grab(`.cm-ud-marker[data-edb="b5"] .bhandle`, b.rect(`.cm-ud-marker[data-edb="b5"] .bhandle`).Y+12, 50*time.Millisecond)
+	b.grab(`.cm-ud-marker[data-edb="b5"] .editor-handle > button`, b.rect(`.cm-ud-marker[data-edb="b5"] .editor-handle > button`).Y+12, 50*time.Millisecond)
 	edGaps := `[...document.querySelectorAll('.cm-content > .cm-ud-marker, .cm-content > .cm-ud-gap')].map(n => n.dataset.edb || 'gap').join(' ')`
 	// Up over the block before it, a short paragraph: on its lower half the gap stays, on its upper half it goes before it.
 	above, gapTop := b.rect(`.cm-ud-marker[data-edb="b4"]`), b.rect(`.cm-ud-gap`).Top
@@ -445,7 +445,7 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	b.press("Escape", "Escape", 27, 0)
 	b.mouse("mouseReleased", next.X, next.Top-3, 1, 0)
 	time.Sleep(100 * time.Millisecond)
-	b.grab(`.cm-ud-marker[data-edb="b5"] .bhandle`, bottom, 1500*time.Millisecond)
+	b.grab(`.cm-ud-marker[data-edb="b5"] .editor-handle > button`, bottom, 1500*time.Millisecond)
 	got = b.eval(`(() => { const g = document.querySelector('.cm-editor .cm-ud-gap'); if (!g) return 'no gap'; const before = g.nextElementSibling?.dataset.edb; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', !!before && ` + order + `.indexOf(before) >= 6 || !before, ` + sc + `.scrollTop > 400].join(' '); })()`)
 	if got != "true true true" {
 		t.Errorf("in the editor, held at the bottom edge: a short gap, scrolled, gone down: %q", got)
@@ -464,9 +464,10 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	b.clean("long blocks in the editor")
 }
 
-// The menu of a handle is as compact as the right-click menus, in reading and in the editor (where CodeMirror's text
-// keeps white space): their width, item height and font, smaller icons; near the bottom of the window it opens above the
-// handle, inside the window.
+// The menu of a handle is as compact as the other menus of the workspace, in reading and in the editor (where
+// CodeMirror's text keeps white space): C22's .dropdown-menu in the pack underdoc, the same frame, item height, font and
+// corners as the menu of the sections in the head of the window, small icons; near the bottom of the window it opens
+// above the handle, inside the window.
 func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
@@ -474,52 +475,57 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 	page := realPage(b, "Menu")
 	b.open(base + "/o/" + page)
 	b.ready("Menu")
-	// The right-click menu of the workspace, for comparison.
-	b.rightClickOn(`[aria-label=Nav3] [data-row]`)
-	if !b.waitFor(`!!document.querySelector('.ctxpop > button')`) {
-		t.Fatal("no right-click menu")
+	// The comment bubbles beside a document as wide as the window stay inside it: nothing scrolls sideways.
+	if got := b.eval(`(() => { const s = document.querySelector('[data-win="0"] [data-sc]'); return document.querySelectorAll('article.typeset [data-comment]').length > 0 && s.scrollWidth <= s.clientWidth; })()`); got != "true" {
+		t.Errorf("the window scrolls sideways beside the comment bubbles: %s", b.eval(`(() => { const s = document.querySelector('[data-win="0"] [data-sc]'); return s.scrollWidth + ' > ' + s.clientWidth; })()`))
 	}
-	ctx := b.eval(`(() => { const x = document.querySelector('.ctxpop > button'), cs = getComputedStyle(x); return Math.round(x.getBoundingClientRect().height) + ' ' + cs.fontSize + ' ' + cs.borderTopLeftRadius; })()`)
+	// The menu of the sections in the head of the window, for comparison (until 2026-11-22 the right-click menu of the
+	// old block, which keeps its form until T-12 step 4).
+	b.clickOn(`[data-win="0"] [data-act="fly"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-win="0"] [data-act="fly"] + [data-popover] [role=menuitem]')`) {
+		t.Fatal("no menu of the sections")
+	}
+	ctx := b.eval(`(() => { const x = document.querySelector('[data-win="0"] [data-act="fly"] + [data-popover] [role=menuitem]'), cs = getComputedStyle(x); return Math.round(x.getBoundingClientRect().height) + ' ' + cs.fontSize + ' ' + cs.borderTopLeftRadius; })()`)
 	// frame is how a menu is framed: padding, border, corners, background, shadow.
 	frame := `(m => { const cs = getComputedStyle(m); return [cs.padding, cs.borderTopWidth, cs.borderTopColor, cs.borderTopLeftRadius, cs.backgroundColor, cs.boxShadow].join(' / '); })`
-	ctxFrame := b.eval(frame + `(document.querySelector('.ctxpop'))`)
-	b.press("Escape", "Escape", 27, 0)
-	b.waitFor(`!document.querySelector('.ctxpop')`)
-	look := `(() => { const m = document.querySelector('.bmenu'); if (!m) return 'no menu'; const r = m.getBoundingClientRect(), items = [...m.querySelectorAll('[role=menuitem]')], cs = getComputedStyle(items[0]);
-		return [r.width >= 180 && r.width <= 200 && ` + frame + `(m) === ` + strconv.Quote(ctxFrame) + `, items.every(x => Math.round(x.getBoundingClientRect().height) + ' ' + getComputedStyle(x).fontSize + ' ' + getComputedStyle(x).borderTopLeftRadius === ` + strconv.Quote(ctx) + `),
-			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 14), r.height <= items.length * 30 + 50 + (m.querySelector('.seg')?.getBoundingClientRect().height || 0), r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
+	ctxFrame := b.eval(frame + `(document.querySelector('[data-win="0"] [data-act="fly"] + [data-popover]'))`)
+	b.clickOn(`[data-win="0"] [data-act="fly"]`, 1)
+	b.waitFor(`!document.querySelector('[data-win="0"] [data-act="fly"][aria-expanded="true"]')`)
+	look := `(() => { const p = document.querySelector('.editor-handle > [data-popover]'), m = p && p.querySelector('[role=menu]'); if (!m) return 'no menu'; const r = p.getBoundingClientRect(), items = [...m.querySelectorAll('[role=menuitem]')];
+		return [r.width >= 150 && r.width <= 200 && ` + frame + `(p) === ` + strconv.Quote(ctxFrame) + `, items.every(x => Math.round(x.getBoundingClientRect().height) + ' ' + getComputedStyle(x).fontSize + ' ' + getComputedStyle(x).borderTopLeftRadius === ` + strconv.Quote(ctx) + `),
+			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 16), r.height <= items.length * 32 + 50 + (m.querySelector('.button-group')?.getBoundingClientRect().height || 0), r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
 	// open opens the menu of block id, its handle at the top of the window or near the bottom.
 	open := func(handle string, bottom bool) {
 		b.eval(`(() => { const s = document.querySelector('[data-win="0"] [data-sc]'), h = document.querySelector(` + strconv.Quote(handle) + `), r = s.getBoundingClientRect();
 			s.scrollTop += h.getBoundingClientRect().top - (` + strconv.FormatBool(bottom) + ` ? r.bottom - 50 : r.top + 40); })()`)
 		time.Sleep(100 * time.Millisecond)
 		b.clickOn(handle, 1)
-		if !b.waitFor(`!!document.querySelector('.bmenu')`) {
+		if !b.waitFor(`!!document.querySelector('.editor-handle [role=menu]')`) {
 			t.Fatalf("%s: no menu", handle)
 		}
 	}
-	open(`article.typeset [data-b="b4"] > .bhandle`, false)
+	open(`article.typeset [data-block="b4"] > .editor-handle > button`, false)
 	if got := b.eval(look); got != "true true true true true" {
-		t.Errorf("reading: as compact as the right-click menu (%s): %q", ctx, got)
+		t.Errorf("reading: as compact as the menu of the sections (%s): %q", ctx, got)
 	}
 	b.clickOn(`.workspace-main > header > h1`, 1)
-	open(`article.typeset [data-b="b6"] > .bhandle`, true)
+	open(`article.typeset [data-block="b6"] > .editor-handle > button`, true)
 	if got := b.eval(look); got != "true true true true true" {
 		t.Errorf("reading, near the bottom: inside the window: %q", got)
 	}
 	b.shot("block-menu-reading")
 	b.clickOn(`.workspace-main > header > h1`, 1)
 	b.clickOn(`[data-win="0"] [data-mode]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b4"] .bhandle')`) {
+	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b4"] .editor-handle > button')`) {
 		t.Fatal("no editor")
 	}
-	open(`.cm-ud-marker[data-edb="b4"] .bhandle`, false)
+	open(`.cm-ud-marker[data-edb="b4"] .editor-handle > button`, false)
 	if got := b.eval(look); got != "true true true true true" {
-		t.Errorf("editor: as compact as the right-click menu (%s): %q", ctx, got)
+		t.Errorf("editor: as compact as the menu of the sections (%s): %q", ctx, got)
 	}
 	b.shot("block-menu-editor")
 	b.clickOn(`.workspace-main > header > h1`, 1)
-	open(`.cm-ud-marker[data-edb="b6"] .bhandle`, true)
+	open(`.cm-ud-marker[data-edb="b6"] .editor-handle > button`, true)
 	if got := b.eval(look); got != "true true true true true" {
 		t.Errorf("editor, near the bottom: inside the window: %q", got)
 	}

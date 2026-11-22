@@ -133,11 +133,27 @@ class MarkerWidget extends WidgetType {
     return other.id === this.id && other.html === this.html && other.active === this.active;
   }
   toDOM() {
+    // The marker is the block's wrapper in C22's sense (div[data-block] with its .editor-handle), only without the lines,
+    // which CodeMirror draws as siblings after it; data-active names the block with the cursor or the pointer.
     const box = document.createElement('div');
     box.className = 'cm-ud-marker';
+    box.dataset.block = this.id;
     box.dataset.edb = this.id;
-    if (this.active) box.dataset.active = '';
     box.innerHTML = this.html;
+    // bridge until C22 lets a handle that drags take the finger (gap 8 of T-12 step 3), as demo.js does in reading.
+    for (const h of box.querySelectorAll('.editor-handle > [data-drag]')) {
+      h.style.setProperty('touch-action', 'none');
+      h.style.setProperty('cursor', 'grab');
+    }
+    // bridge until C22 shows handles faintly where nothing hovers (gap 10 of T-12 step 3), as demo.js does in reading.
+    if (window.UDTouchFaint) for (const h of box.querySelectorAll('.editor-handle')) window.UDTouchFaint(h);
+    if (this.active) {
+      box.dataset.active = '';
+      // bridge until C22 shows the handle of [data-block][data-active] (gap 2 of T-12 step 3): the lines are not inside the
+      // wrapper, so neither :hover nor :focus-within reaches it.
+      const handle = box.querySelector('.editor-handle');
+      if (handle) handle.style.setProperty('opacity', '1');
+    }
     return box;
   }
   get estimatedHeight() {
@@ -148,7 +164,8 @@ class MarkerWidget extends WidgetType {
   }
 }
 
-// The label of a block used elsewhere, at the end of its first line while the cursor is in it (ADR-22).
+// The label of a block used elsewhere, at the end of its first line while the cursor is in it (ADR-22): the small of C22's
+// .editor [data-used].
 class UsedWidget extends WidgetType {
   constructor(count, where) {
     super();
@@ -159,32 +176,9 @@ class UsedWidget extends WidgetType {
     return other.count === this.count && other.where === this.where;
   }
   toDOM() {
-    const label = document.createElement('span');
-    label.className = 'cm-ud-usedlabel lab';
+    const label = document.createElement('small');
     label.textContent = `Used in ${this.count} ${this.count === 1 ? 'place' : 'places'}`;
     label.title = `Changes here show there too: ${this.where}`;
-    return label;
-  }
-  ignoreEvent() {
-    return true;
-  }
-}
-
-// The label of a part while the cursor is in it (ADR-22): where it is used, and its name if it is a value.
-class PartWidget extends WidgetType {
-  constructor(label, title) {
-    super();
-    this.label = label;
-    this.title = title;
-  }
-  eq(other) {
-    return other.label === this.label && other.title === this.title;
-  }
-  toDOM() {
-    const label = document.createElement('span');
-    label.className = 'cm-ud-partlabel lab';
-    label.textContent = this.label;
-    if (this.title) label.title = this.title;
     return label;
   }
   ignoreEvent() {
@@ -227,26 +221,44 @@ class AskWidget extends WidgetType {
     return other.id === this.id && other.used === this.used;
   }
   toDOM() {
-    const box = document.createElement('div');
-    box.className = 'cm-ud-ask note';
-    box.setAttribute('role', 'alert');
+    const box = question(`Block #${this.id} is used in ${this.used}. Delete it?`, [
+      ['answer', 'delete', 'Choose what happens there', 'destructive'],
+      ['answer', 'keep', 'Keep the block', 'outline'],
+    ]);
     box.dataset.ask = this.id;
-    const text = document.createElement('span');
-    text.textContent = `Block #${this.id} is used in ${this.used}. Delete it? `;
-    const yes = document.createElement('button');
-    yes.className = 'chip';
-    yes.dataset.answer = 'delete';
-    yes.textContent = 'Choose what happens there';
-    const no = document.createElement('button');
-    no.className = 'chip';
-    no.dataset.answer = 'keep';
-    no.textContent = 'Keep the block';
-    box.append(text, yes, ' ', no);
     return box;
   }
   ignoreEvent() {
     return true;
   }
+}
+
+// question is a question in place, below a line: C22's .item (muted, small) with the words in its section and the answers as
+// buttons in its aside. Each answer is [data key, value, words, variant].
+function question(words, answers) {
+  const box = document.createElement('article');
+  box.className = 'item';
+  box.dataset.variant = 'muted';
+  box.dataset.size = 'sm';
+  box.setAttribute('role', 'alert');
+  const section = document.createElement('section');
+  const text = document.createElement('p');
+  text.className = 'text-sm';
+  text.textContent = words;
+  section.append(text);
+  const aside = document.createElement('aside');
+  for (const [key, value, label, variant] of answers) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn';
+    b.dataset.variant = variant;
+    b.dataset.size = 'xs';
+    b.dataset[key] = value;
+    b.textContent = label;
+    aside.append(b);
+  }
+  box.append(section, aside);
+  return box;
 }
 
 // A value that looks like a password typed as text (ADR-7, 2026-11-20): asked about below its line before the page is
@@ -260,21 +272,11 @@ class PlainWidget extends WidgetType {
     return other.k === this.k;
   }
   toDOM() {
-    const box = document.createElement('div');
-    box.className = 'cm-ud-ask note';
-    box.setAttribute('role', 'alert');
+    const box = question('This looks like a password, typed as text. Nothing of the page is saved until you choose.', [
+      ['plain', 'secret', 'Keep it as a password', 'outline'],
+      ['plain', 'text', 'It is not a password', 'outline'],
+    ]);
     box.dataset.plainAsk = String(this.k);
-    const text = document.createElement('span');
-    text.textContent = 'This looks like a password, typed as text. Nothing of the page is saved until you choose. ';
-    const yes = document.createElement('button');
-    yes.className = 'chip';
-    yes.dataset.plain = 'secret';
-    yes.textContent = 'Keep it as a password';
-    const no = document.createElement('button');
-    no.className = 'chip';
-    no.dataset.plain = 'text';
-    no.textContent = 'It is not a password';
-    box.append(text, yes, ' ', no);
     return box;
   }
   ignoreEvent() {
@@ -296,11 +298,14 @@ class GapWidget extends WidgetType {
     const gap = document.createElement('div');
     gap.className = 'dropgap held cm-ud-gap';
     gap.dataset.gap = this.drag.id;
+    // bridge until C22 caps the gap of a held block in a document (gap 6 of T-12 step 3): its first lines only.
+    gap.style.setProperty('max-height', '6.5em');
+    gap.style.setProperty('overflow', 'hidden');
     for (const line of this.drag.look) gap.append(line.cloneNode(true));
     return gap;
   }
   get estimatedHeight() {
-    // The CSS caps the gap at its first lines (6.5em).
+    // The gap is capped at its first lines (6.5em).
     return Math.min(this.drag.height, 104);
   }
   ignoreEvent() {
@@ -398,16 +403,19 @@ class EmbedWidget extends WidgetType {
     return other.ref === this.ref && other.label === this.label && other.href === this.href;
   }
   toDOM() {
-    const box = document.createElement('span');
-    box.className = 'cm-ud-embed';
+    // C22's badge (secondary) as a link: what it is, muted, then where it comes from.
+    const box = document.createElement('a');
+    box.className = 'badge';
+    box.dataset.variant = 'secondary';
     box.dataset.ref = this.ref;
+    box.href = this.href;
     const what = document.createElement('span');
-    what.className = 'cm-ud-embed-what';
+    what.className = 'text-muted-foreground';
     what.textContent = 'Embeds';
-    const link = document.createElement('a');
-    link.href = this.href;
-    link.textContent = this.label;
-    box.append(what, ' ', link);
+    const name = document.createElement('span');
+    name.className = 'underline';
+    name.textContent = this.label;
+    box.append(what, name);
     return box;
   }
   ignoreEvent(event) {
@@ -444,7 +452,9 @@ class SecretWidget extends WidgetType {
     const button = (label, act) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip';
+      b.className = 'btn';
+      b.dataset.variant = 'outline';
+      b.dataset.size = 'xs';
       b.textContent = label;
       b.dataset.edSact = act;
       box.append(b);
@@ -560,6 +570,7 @@ class TableWidget extends WidgetType {
 const hide = Decoration.replace({});
 const lineClass = (cls) => Decoration.line({ class: cls });
 const mark = (cls) => Decoration.mark({ class: cls });
+const lineAttrs = (attributes) => Decoration.line({ attributes });
 
 function decorate(state) {
   const showAll = !state.field(focused);
@@ -611,14 +622,16 @@ function decorate(state) {
   }
   // The markers of parts are hidden everywhere (ADR-22); the cursor jumps over them (atomicMarkers).
   for (const [from, to] of partMarkers(doc)) replace(from, to, hide);
-  // The part the cursor stands in shows its boundary and where it is used.
+  // The part the cursor stands in shows its boundary and where it is used: C22's [data-part] with data-framed, which
+  // draws the frame and its name.
   if (current) {
     const p = partAt(state, state.selection.main.head, current);
-    if (p) {
-      if (p.to > p.from) add(p.from, p.to, mark('cm-ud-part'));
+    if (p && p.to > p.from) {
       const use = (cfg.partUse && cfg.partUse(current, p.id)) || { count: 0, where: '' };
       const label = (p.name ? `Value ${p.name} · ` : '') + (use.count ? `Used in ${use.count} ${use.count === 1 ? 'place' : 'places'}` : 'Not used elsewhere');
-      add(p.to, p.to, Decoration.widget({ widget: new PartWidget(label, use.where ? `Changes here show there too: ${use.where}` : ''), side: -1 }));
+      const attributes = { 'data-part': label, 'data-framed': '' };
+      if (use.where) attributes.title = `Changes here show there too: ${use.where}`;
+      add(p.from, p.to, Decoration.mark({ attributes }));
     }
   }
   // A block aligned center or right shows so on its lines (ADR-16), with C22's text-center and text-right.
@@ -637,11 +650,12 @@ function decorate(state) {
     const first = doc.lineAt(marks[k].from).number + 1;
     let last = k + 1 < marks.length ? doc.lineAt(marks[k + 1].from).number - 1 : doc.lines;
     while (last >= first && !doc.line(last).text.trim()) last--;
+    // C22's .editor [data-used] on each of its lines; the value says where the line stands in the block (bridge until C22
+    // frames a run of sibling lines as one, gap 3 of T-12 step 3: today each line is framed on its own).
     for (let n = first; n <= last; n++) {
       const l = doc.line(n);
-      add(l.from, l.from, lineClass('cm-ud-used'));
-      if (n === first) add(l.from, l.from, lineClass('cm-ud-used-first'));
-      if (n === last) add(l.from, l.from, lineClass('cm-ud-used-last'));
+      const where = first === last ? 'only' : n === first ? 'first' : n === last ? 'last' : 'middle';
+      add(l.from, l.from, lineAttrs({ 'data-used': where }));
     }
     if (last >= first) {
       const l = doc.line(first);
@@ -661,7 +675,7 @@ function decorate(state) {
   }
   // A value that looks like a password typed as text is marked, and asked about below its line.
   state.field(plainAsks).forEach((a, k) => {
-    add(a.from, a.to, mark('cm-ud-plain'));
+    add(a.from, a.to, mark('underline decoration-wavy decoration-destructive'));
     const line = doc.lineAt(a.to);
     add(line.to, line.to, Decoration.widget({ widget: new PlainWidget(k), block: true, side: 1 }));
   });
@@ -1083,37 +1097,35 @@ function slashItems(state) {
 }
 
 function slashTooltip(view) {
+  // C22's .command: a menu of the kinds, the one the arrows chose data-selected, a later one aria-disabled with its word.
   const dom = document.createElement('div');
-  dom.className = 'cm-ud-slashbox';
+  dom.className = 'command w-64 border shadow-md';
+  dom.setAttribute('aria-label', 'Add a block');
   const draw = () => {
     const value = view.state.field(slash);
     if (!value) return;
     const items = slashItems(view.state);
     const all = view.state.field(host).slash || [];
-    const box = document.createElement('div');
-    box.className = 'bslash';
-    box.setAttribute('role', 'listbox');
-    box.setAttribute('aria-label', 'Add a block');
-    if (!items.length) {
-      const none = document.createElement('div');
-      none.className = 'lab';
-      none.textContent = 'Nothing fits.';
-      box.append(none);
-    }
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-orientation', 'vertical');
+    menu.dataset.empty = 'Nothing fits.';
     items.forEach((x, n) => {
       const b = document.createElement('button');
-      b.setAttribute('role', 'option');
+      b.type = 'button';
+      b.setAttribute('role', 'menuitem');
       b.dataset.k = String(all.indexOf(x));
-      b.setAttribute('aria-selected', String(n === value.cur));
+      if (n === value.cur) b.dataset.selected = 'true';
       if (x.later) {
         b.disabled = true;
+        b.setAttribute('aria-disabled', 'true');
         b.title = x.later;
       } else if (x.hint) b.title = x.hint;
-      b.innerHTML = `${x.icon || ''}<span></span>${x.later ? '<small>later</small>' : ''}`;
+      b.innerHTML = `${x.icon || ''}<span></span>${x.later ? '<span class="ms-auto text-xs">later</span>' : ''}`;
       b.querySelector('span').textContent = x.n;
-      box.append(b);
+      menu.append(b);
     });
-    dom.replaceChildren(box);
+    dom.replaceChildren(menu);
   };
   dom.addEventListener('mousedown', (e) => e.preventDefault());
   dom.addEventListener('click', (e) => {
@@ -1436,7 +1448,7 @@ class PageEditor {
           history(),
           drawSelection(),
           EditorView.lineWrapping,
-          EditorView.editorAttributes.of({ class: 'cm-ud' }),
+          EditorView.editorAttributes.of({ class: 'editor' }),
           EditorView.contentAttributes.of({ 'aria-label': options.label || 'Page, Markdown' }),
           new LanguageSupport(markdownLanguage),
           syntaxHighlighting(classHighlighter),
@@ -1466,12 +1478,12 @@ class PageEditor {
     });
     callbacks.set(this.view, options.on || {});
     this.view.dom.addEventListener('mousedown', (e) => {
-      if (e.target.closest && e.target.closest('.cm-ud-ask button, .cm-ud-marker button')) e.preventDefault();
+      if (e.target.closest && e.target.closest(':is([data-ask], [data-plain-ask], .cm-ud-marker) button')) e.preventDefault();
     });
     this.view.dom.addEventListener('click', (e) => {
-      const b = e.target.closest && e.target.closest('.cm-ud-ask button[data-answer]');
+      const b = e.target.closest && e.target.closest('[data-ask] button[data-answer]');
       if (b) this.answer(b.closest('[data-ask]').dataset.ask, b.dataset.answer === 'delete');
-      const p = e.target.closest && e.target.closest('.cm-ud-ask button[data-plain]');
+      const p = e.target.closest && e.target.closest('[data-plain-ask] button[data-plain]');
       if (p) this.answerPlain(p, p.dataset.plain === 'secret');
     });
     // Values the writer said are not passwords, for the life of this editor only: saved as typed, they are stored

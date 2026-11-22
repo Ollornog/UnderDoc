@@ -462,8 +462,10 @@ func (h *handler) tableProblem(r *http.Request, a db.Address) string {
 	return ""
 }
 
+// A frozen page keeps the HTML of the day it was frozen: an embedded table is C22's figure.editor-embed since T-12 step 3
+// (2026-11-22), the figure.embed of the old block before, and both are taken out alike.
 var (
-	frozenTable      = regexp.MustCompile(`(?s)<figure class="embed" data-ref="([0-9a-hjkmnp-tv-z]{10})#x[1-9][0-9]{0,8}">.*?</figure>`)
+	frozenTable      = regexp.MustCompile(`(?s)<figure class="(?:editor-)?embed" data-ref="([0-9a-hjkmnp-tv-z]{10})#x[1-9][0-9]{0,8}">.*?</figure>`)
 	frozenTableValue = regexp.MustCompile(`<span data-embed-part="([0-9a-hjkmnp-tv-z]{10})#x[1-9][0-9]{0,8}" title="[^"]*">[^<]*</span>`)
 )
 
@@ -488,7 +490,7 @@ func (h *handler) frozenTables(r *http.Request, frozen, maker string) string {
 		if may(frozenTable.FindStringSubmatch(figure)[1]) {
 			return figure
 		}
-		return `<div class="embed broken">Not shared</div>`
+		return `<figure class="editor-embed" data-state="missing"><p>Not shared</p></figure>`
 	})
 	return frozenTableValue.ReplaceAllStringFunc(frozen, func(span string) string {
 		if may(frozenTableValue.FindStringSubmatch(span)[1]) {

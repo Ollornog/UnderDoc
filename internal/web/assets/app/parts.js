@@ -3,7 +3,8 @@
 // The boundaries of parts while reading (ADR-22): the pointer over the text of a part, or a finger on it, shows a light
 // outline round it and a label that says where it is used, or its name if it is a value. Parts may cut through
 // formatting and overlap, so a part is a range of the page between its two markers (empty spans the server writes,
-// data-part-open and data-part-close), and the outline is drawn over the boxes of that range, outside the page's text.
+// data-part-open and data-part-close), and the outline is drawn over the boxes of that range, outside the page's text:
+// each box is C22's [data-part] with data-framed, placed where the script measured it; the first says the name.
 (() => {
   'use strict';
   let shown = null;
@@ -49,32 +50,36 @@
     if (shown && shown.block === block && shown.id === part.id) return;
     clear();
     const nodes = [];
-    for (const r of part.rects) {
-      const box = document.createElement('div');
-      box.className = 'partedge';
-      box.style.setProperty('left', `${r.left - 2}px`);
-      box.style.setProperty('top', `${r.top - 1}px`);
-      box.style.setProperty('width', `${r.width + 4}px`);
-      box.style.setProperty('height', `${r.height + 2}px`);
-      nodes.push(box);
-    }
-    const last = part.rects[part.rects.length - 1];
     const said = label(block, part.id);
-    const tag = document.createElement('div');
-    tag.className = 'partlabel lab';
-    tag.dataset.part = part.id;
-    tag.textContent = said.text;
-    if (said.title) tag.title = said.title;
-    tag.style.setProperty('left', `${Math.min(last.right + 6, innerWidth - 180)}px`);
-    tag.style.setProperty('top', `${last.bottom + 2}px`);
-    nodes.push(tag);
+    // One box per line: the pieces of a line that formatting cuts apart make one frame, as in the editor.
+    const lines = [];
+    for (const r of part.rects) {
+      const line = lines.find((l) => r.top < l.bottom && r.bottom > l.top);
+      if (line) Object.assign(line, { left: Math.min(line.left, r.left), right: Math.max(line.right, r.right), top: Math.min(line.top, r.top), bottom: Math.max(line.bottom, r.bottom) });
+      else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+    }
+    lines.forEach((l, k) => {
+      const r = { left: l.left, top: l.top, width: l.right - l.left, height: l.bottom - l.top };
+      const box = document.createElement('div');
+      box.className = 'fixed pointer-events-none z-20';
+      box.dataset.part = said.text;
+      box.dataset.partId = part.id;
+      // bridge until C22 draws a frame without its name (gap 7 of T-12 step 3): today every box says the name.
+      box.dataset.framed = k ? 'continued' : '';
+      if (said.title) box.title = said.title;
+      box.style.setProperty('left', `${r.left}px`);
+      box.style.setProperty('top', `${r.top}px`);
+      box.style.setProperty('width', `${r.width}px`);
+      box.style.setProperty('height', `${r.height}px`);
+      nodes.push(box);
+    });
     const host = document.getElementById('root') || document.body;
     for (const n of nodes) host.append(n);
     shown = { block, id: part.id, nodes };
   }
 
   function at(x, y, target) {
-    const block = target && target.closest && target.closest('article.typeset [data-b][data-parts]');
+    const block = target && target.closest && target.closest('article.typeset [data-block][data-parts]');
     if (!block) return clear();
     const found = partsAt(block, x, y);
     if (found.length) show(block, found[0]);
