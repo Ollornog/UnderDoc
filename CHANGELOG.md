@@ -173,6 +173,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Meilisearch 1.57.0 in the tests, the CI and `deploy/compose.yml`. The Compose file sets `MEILI_UPGRADE_DB`, so a new
+  image takes over the database of the old one instead of refusing to start; the upgrade is not atomic, so
+  [docs/services.md](docs/services.md#updating-meilisearch) says how to take a snapshot first. The search engines of
+  `deploy/compose.yml` now follow the pins of `scripts/search` like the services of the CI (`tests/test_repo.py`), and
+  Dependabot moves them only there, so one update changes every place. `scripts/check-services.sh`, a new step of the
+  CI, starts the services from the Compose file: Meilisearch has to take over a filled database of the version before,
+  and Gotenberg has to convert a real spreadsheet through the client of the preview (tag `office`). A test proves that
+  an index the search service lost is filled again although the database records it as built.
 - C22 vendored at `6d8a2ae` (C22 #155), the last two bridges gone
   ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), [docs/editor.md](docs/editor.md#built-from-c22)): a
   heading in the editor has the room it has when read from C22, `editor.css` keeps no bridge; the list of the share

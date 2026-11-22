@@ -71,9 +71,11 @@ check("Dependabot auto-merge follows the template", automerge.pruefe(str(ROOT)))
 
 
 def search_engine_pins():
-    """The services of ci.yml run the search engines the tests know: the same tag and digest as scripts/search/Dockerfile.*.
-    Dependabot moves the Dockerfiles; the services of a workflow it does not, so a moved pin turns this red until ci.yml
-    follows."""
+    """The services of ci.yml and the search engines of deploy/compose.yml are the ones the tests know: the same tag and
+    digest as scripts/search/Dockerfile.*. Dependabot moves the Dockerfiles; the services of a workflow it cannot move,
+    and deploy/compose.yml it leaves to them (.github/dependabot.yml), so a moved pin turns this red until both follow in
+    the same pull request. A workflow cannot read its services from a file (ci-local and GitHub need them written out),
+    which is why this is a check and not one source."""
     found = []
     pinned = {}
     for path in sorted((ROOT / "scripts/search").glob("Dockerfile.*")):
@@ -83,18 +85,24 @@ def search_engine_pins():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     services = re.search(r"^    services:\n((?:      .*\n|\s*\n)+)", workflow, re.M)
     images = re.findall(r"^        image: (\S+)", services.group(1), re.M) if services else []
+    compose = re.findall(r"^    image: (\S+)", (ROOT / "deploy/compose.yml").read_text(encoding="utf-8"), re.M)
     if not pinned:
         found.append("no pin in scripts/search/Dockerfile.*")
     for name, pin in pinned.items():
         if pin not in images:
-            found.append(f"ci.yml has no service {pin}")
+            found.append(f"ci.yml has no service {pin} (copy the FROM line of scripts/search/Dockerfile.*)")
+        if pin not in compose:
+            found.append(f"deploy/compose.yml does not run {pin} (copy the FROM line of scripts/search/Dockerfile.*)")
     for image in images:
         if image not in pinned.values():
             found.append(f"ci.yml runs {image}, pinned in no scripts/search/Dockerfile.*")
+    for image in compose:
+        if image.split(":")[0] in pinned and image not in pinned.values():
+            found.append(f"deploy/compose.yml runs {image}, pinned in no scripts/search/Dockerfile.*")
     return found
 
 
-check("the search services of ci.yml are the pins of scripts/search", search_engine_pins())
+check("the search engines of ci.yml and deploy/compose.yml are the pins of scripts/search", search_engine_pins())
 
 
 def opensearch_ignores_the_disk():

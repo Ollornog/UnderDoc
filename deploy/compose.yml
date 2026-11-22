@@ -14,11 +14,15 @@ services:
   # The search service by default (ADR-24). UNDERDOC_SEARCH_URL=http://127.0.0.1:7700, and the key in the file named by
   # UNDERDOC_SEARCH_KEY_FILE.
   meilisearch:
-    image: getmeili/meilisearch:v1.56.2@sha256:9600db22be3fcbf3d506176d3a73dd70a65c5719d9aa1d2837355b75afb8f4fb
+    image: getmeili/meilisearch:v1.57.0@sha256:91bf09897482c17205c8faeca8daa8d57999fb9de20d862763cdfa92ba4ec790
     restart: unless-stopped
     environment:
       MEILI_ENV: production
       MEILI_NO_ANALYTICS: "true"
+      # A database belongs to the version that wrote it; a newer image refuses to start on it unless it may upgrade it
+      # in place (since v1.51, "--upgrade-db"). On a database that is current, or a new one, it does nothing, so it
+      # stays on. The upgrade is not atomic: take a snapshot before pulling a new image (docs/services.md).
+      MEILI_UPGRADE_DB: "true"
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env (at least 16 bytes)}
     ports:
       - "127.0.0.1:7700:7700"

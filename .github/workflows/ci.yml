@@ -18,12 +18,12 @@ jobs:
   check:
     name: Tests and hygiene
     runs-on: ubuntu-latest   # public repository, so never self-hosted (fork pull requests)
-    timeout-minutes: 40   # two runs of check.sh take about 20 minutes, the image and Samba a few more
+    timeout-minutes: 40   # two runs of check.sh take about 20 minutes, the image, Samba and the services a few more
     # The search engines the tests run against (ADR-24), started next to the job, also by ci-local. The images are the
     # pins of scripts/search/Dockerfile.*, which tests/test_repo.py holds them to.
     services:
       meilisearch:
-        image: getmeili/meilisearch:v1.56.2@sha256:9600db22be3fcbf3d506176d3a73dd70a65c5719d9aa1d2837355b75afb8f4fb
+        image: getmeili/meilisearch:v1.57.0@sha256:91bf09897482c17205c8faeca8daa8d57999fb9de20d862763cdfa92ba4ec790
         env:
           MEILI_NO_ANALYTICS: "true"
           MEILI_ENV: development
@@ -84,3 +84,7 @@ jobs:
       # The working copy against real Samba (ADR-30): two companions, built from deploy/samba/Dockerfile.
       - name: Samba
         run: scripts/check-samba.sh
+      # The services of deploy/compose.yml from the file itself: Meilisearch upgrades a database of the version before,
+      # Gotenberg converts a spreadsheet. The acceptance test for updates of these images.
+      - name: Services
+        run: scripts/check-services.sh
