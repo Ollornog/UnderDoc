@@ -108,8 +108,11 @@ The search is tested against real engines in throwaway containers, started by `s
 ports of their own, so parallel runs never meet. `scripts/check.sh` starts them and fails without Docker: a skipped search
 test is not a green one. Engines that run already can be named with `UNDERDOC_TEST_MEILISEARCH_URL` and `UNDERDOC_TEST_OPENSEARCH_URL`. The images are
 pinned by tag and digest in `scripts/search/Dockerfile.*`, which only carry the pin, and Dependabot moves them. The CI
-runs the same images as `services:` of its job and names them this way; `tests/test_repo.py` holds the services to the
-pins, so a pin Dependabot moved turns the check red until `.github/workflows/ci.yml` follows.
+runs the same images as `services:` of its job and names them this way; `tests/test_repo.py` holds the services and
+`deploy/compose.yml` to the pins. Dependabot moves only the Dockerfiles (a workflow cannot read its services from a
+file, and the Compose file is left to the pins), so a pin it moved turns the check red until `.github/workflows/ci.yml`
+and `deploy/compose.yml` follow in the same pull request: copy the `FROM` line. `scripts/check-services.sh` then proves
+that the new Meilisearch takes over a database of the version before ([services.md](services.md#updating-meilisearch)).
 
 The OpenSearch of the tests runs with `cluster.routing.allocation.disk.threshold_enabled=false`: its disk watermarks
 look at the disk of the host, and above the high watermark (90 %) OpenSearch refuses to create an index, so a test would

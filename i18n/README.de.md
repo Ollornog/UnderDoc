@@ -63,7 +63,9 @@ sie geschrieben sind, und zuerst, danach Titel vor Überschriften vor Text, mit 
 Treffer öffnet an seinem Abschnitt. Strg+K sucht von überall. Ohne Suchdienst werden nur Titel durchsucht. Einstellungen,
 Rangfolge und die Messung an einem deutschen Testkorpus stehen (englisch) in [docs/search.md](../docs/search.md). Die
 Dienste neben UnderDoc (Meilisearch, OpenSearch, Mailpit, Gotenberg) startet [`deploy/compose.yml`](../deploy/compose.yml),
-siehe (englisch) [docs/services.md](../docs/services.md).
+siehe (englisch) [docs/services.md](../docs/services.md). Ein neues Meilisearch-Abbild übernimmt die Datenbank des
+alten selbst (`MEILI_UPGRADE_DB`); das ist nicht atomar, also vorher eine Sicherung des Volumes anlegen
+([Updating Meilisearch](../docs/services.md#updating-meilisearch)).
 
 **Export und Import** brauchen die Datenbank (`UNDERDOC_DATABASE_URL`). `underdoc export <ordner>` schreibt jede Sammlung als
 normale Dateien: Ordner, Markdown-Dateien mit Kopfbereich und vor jedem Block ein unsichtbarer Kommentar, der seine ID hält.

@@ -338,6 +338,27 @@ func TestANewSourceVersionBuildsAgain(t *testing.T) {
 	}
 }
 
+// A search service that lost its data (a new volume, a database that could not be upgraded) is filled again when the
+// index is prepared, although the database still records the version it was built with.
+func TestALostIndexIsFilledAgain(t *testing.T) {
+	ctx := context.Background()
+	engine, queue := &fake{}, &memoryQueue{}
+	source := mapSource{"a": "Erste Seite", "b": "Zweite Seite"}
+	ix := NewIndexer(engine, queue, "t", quiet(), source)
+	if err := ix.Prepare(ctx); err != nil || ix.Drain(ctx) != nil || len(engine.docs) != 2 {
+		t.Fatalf("the index is built: %v %v", engine.docs, err)
+	}
+	if err := engine.Drop(ctx, "t"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.Prepare(ctx); err != nil || len(queue.keys) != 2 {
+		t.Fatalf("an index that is gone queues every key again: %v %v", queue.keys, err)
+	}
+	if err := ix.Drain(ctx); err != nil || len(engine.docs) != 2 {
+		t.Errorf("the index is full again: %v %v", engine.docs, err)
+	}
+}
+
 func TestTextParts(t *testing.T) {
 	parts := TextParts("Erste  Zeile\nnoch erste\n \t\nZweite\n\n\n", "b7")
 	if len(parts) != 2 || parts[0].Piece.Text != "Erste Zeile noch erste" || parts[1].Piece.Text != "Zweite" || parts[1].Anchor != "b7" {

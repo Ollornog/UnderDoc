@@ -81,6 +81,8 @@ first, then titles before headings before text, German compounds and typing erro
 section. Ctrl+K searches from anywhere. Without a search service only titles are searched. Settings, ranking and the
 measurement on a German test corpus are in [docs/search.md](docs/search.md). The services next to UnderDoc (Meilisearch,
 OpenSearch, Mailpit, Gotenberg) start from [`deploy/compose.yml`](deploy/compose.yml), see [docs/services.md](docs/services.md).
+A new Meilisearch image takes over the database of the old one by itself (`MEILI_UPGRADE_DB`); that is not atomic, so
+take a snapshot of the volume first ([Updating Meilisearch](docs/services.md#updating-meilisearch)).
 
 **Export and import** need the database and work on one tenant, Main unless `--tenant <id>` names another.
 `underdoc export <dir>` writes every collection as normal files: directories,
