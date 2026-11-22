@@ -173,6 +173,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- C22 vendored at `bad252a` ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), after step 4): the looks the
+  menus and views lacked come from C22 now, so their bridges are gone. The current hit of Find on the page is C22's
+  `mark[aria-current]` (framed and bold), the element whose comments are open `.comment-anchor[data-comment-focus]` (for
+  a table its wrapper, which is the anchor of its bubble), the icon in the head of a drawer has its size from the drawer,
+  context menus have the pack's 13px rows, the drawer begins below the head of the window, and a module that is off says
+  `✗ Off` beside the one that is on.
 - Menus, drawers, panels and the other views of the workspace from C22's building blocks
   ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md), step 4, C22 at `ec39f36`,
   [docs/editor.md](docs/editor.md#the-workspace-around-it)): right-click menus and the menus of the tab row are C22's

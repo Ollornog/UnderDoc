@@ -72,3 +72,25 @@ func TestMenusAndViewsFromC22(t *testing.T) {
 	}
 	b.shot("todo-ticked")
 }
+
+// The looks C22 gives since bad252a, which UnderDoc bridged before: the current hit of Find on the page is framed and bold
+// (mark[aria-current]), and the element whose comments the drawer shows has the accent ground — for a table that is its
+// wrapper, the anchor of its bubble.
+func TestFindAndCommentFocusTakeC22sLook(t *testing.T) {
+	// The made-up network plan of the gallery has comments on its table.
+	b, base := setup(t)
+	b.open(base + "/dev/ui")
+	b.ready("Network plan")
+	b.clickOn(`[data-win="0"] [role=toolbar] [data-act="cmt"]`, 1)
+	b.clickOn(`aside[data-drawer] [data-act="cblk"][data-id="t1"]`, 1)
+	if got := b.eval(`(() => { const a = document.querySelector('.comment-anchor[data-comment-focus]'); return a ? [!!a.querySelector(':scope > .table-container'), getComputedStyle(a).backgroundColor !== 'rgba(0, 0, 0, 0)'].join(' ') : 'none'; })()`); got != "true true" {
+		t.Errorf("the anchor of the table carries the focus, with C22's ground: %q", got)
+	}
+	b.clickOn(`aside[data-drawer] [data-act="cmt"]`, 1)
+	b.clickOn(`[data-win="0"] [role=toolbar] [data-act="find"]`, 1)
+	b.typeText("core")
+	if got := b.eval(`(() => { const m = document.querySelector('[data-sc="0"] mark[aria-current="true"]'); if (!m) return 'none'; const s = getComputedStyle(m); return [s.outlineStyle !== 'none' || s.boxShadow !== 'none', +s.fontWeight >= 600, document.querySelectorAll('[data-sc="0"] mark[aria-current]').length].join(' '); })()`); got != "true true 1" {
+		t.Errorf("the current hit is framed and bold, and only one: %q", got)
+	}
+	b.shot("find-and-comment-focus")
+}

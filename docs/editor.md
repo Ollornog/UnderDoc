@@ -199,9 +199,10 @@ after the recipes of C22's `workspace-views.html` and `workspace-more.html`. Eve
 | The month, a board, a saved search | `table.month-sheet`, `.board` of `.card` columns, `.filter-bar` with hits as `.item`s, each straight in the window's `section` |
 | Content without blocks | `.alert` for a hint, `.table-container > table.table`, `code` for a value, `a.item` for what lies below, `.empty[data-dropzone]`, `figure.card` for a preview |
 
-Where C22 has no look yet, the script bridges with C22's utilities, marked `bridge until C22` in the code: the current
-hit of Find on the page (`mark[aria-current]`, a ring), the element whose comments are open (`data-comment-focus`,
-the accent ground) and the icon in the head of a drawer (`size-4`).
+What the step first lacked in C22 (the size of menu entries in a context menu, the icon in the head of a drawer, the
+current hit of Find as `mark[aria-current]`, the element of open comments as `.comment-anchor[data-comment-focus]`,
+the drawer below the head of the window, modules as switches) C22 has had since `bad252a`; UnderDoc keeps no bridge for
+them.
 
 ## Build
 

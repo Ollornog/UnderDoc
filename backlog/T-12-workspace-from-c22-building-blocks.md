@@ -55,6 +55,9 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
   has them: the current hit of Find (`mark[aria-current]`), the element whose comments are open
   (`data-comment-focus`), the size of an icon in the head of a drawer. Open in C22: menu entries of `.context-menu` at the
   pack's size, the drawer below the head of the window as in the mockup.
+- After step 4 (2026-11-22): C22 vendored at `bad252a` (C22 #149 closes the gaps of step 4); the bridges are gone:
+  `mark[aria-current]`, `.comment-anchor[data-comment-focus]`, the icon in the head of a drawer, context menus at the pack's
+  size, the drawer below the head, modules as switches.
 
 ## Done when
 
