@@ -125,7 +125,7 @@ func TestQuickSearchJumpsToTheSection(t *testing.T) {
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	b.press("ArrowUp", "ArrowUp", 38, 0)
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`location.pathname === '/o/` + page + `' && !!document.querySelector('article.doc mark.hitmark')`) {
+	if !b.waitFor(`location.pathname === '/o/` + page + `' && !!document.querySelector('article.typeset mark.hitmark')`) {
 		t.Fatalf("Enter opens the page with the code marked: %s %s %s", b.eval(`location.pathname`), b.eval(`JSON.stringify(S.wins.map(w => w.tabs.map(t => [t.d, t.hl])))`), b.eval(`document.querySelector('[data-art]')?.innerText.slice(-300)`))
 	}
 	if got := b.eval(`document.querySelector('mark.hitmark').closest('[data-b]')?.textContent.startsWith('Bei E-1042') + ' ' + document.querySelector('mark.hitmark').textContent`); got != "true E-1042" {
@@ -197,10 +197,10 @@ func TestQuickSearchFindsAFileByItsText(t *testing.T) {
 	b.open(base + "/")
 	b.ready("")
 	b.openMyFiles()
-	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "wartung.pdf", minimalPDF("Schranke meldet E-3301")))
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, writeTemp(t, "wartung.pdf", minimalPDF("Schranke meldet E-3301")))
 	b.filesSettled()
 	// The browser of the uploader read the text of the PDF for the search (ADR-24); the file, once opened, says its ID.
-	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "wartung.pdf"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="fopen"]`, "wartung.pdf"), 1)
 	b.ready("wartung.pdf")
 	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'wartung.pdf' && D[k].sid)].sid;
 		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
@@ -217,8 +217,8 @@ func TestQuickSearchFindsAFileByItsText(t *testing.T) {
 		t.Fatalf("the file is a hit, the code marked: %s", b.eval(`document.querySelector('.udpal')?.innerText`))
 	}
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!!document.querySelector('article.doc [data-pdf]')`) {
-		t.Fatalf("Enter opens the file: %s %s", b.eval(`location.pathname`), b.eval(`document.querySelector('article.doc')?.outerHTML.slice(0, 300)`))
+	if !b.waitFor(`!!document.querySelector('article.typeset [data-pdf]')`) {
+		t.Fatalf("Enter opens the file: %s %s", b.eval(`location.pathname`), b.eval(`document.querySelector('article.typeset')?.outerHTML.slice(0, 300)`))
 	}
 	b.shot("search-file")
 }

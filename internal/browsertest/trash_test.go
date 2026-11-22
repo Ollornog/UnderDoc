@@ -29,7 +29,7 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(', ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(', ')`)
 	}
 	b.clickOn(rowNamed(b, "B"), 1)
 	b.ready("B")
@@ -46,10 +46,10 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 		t.Errorf("asking deletes nothing: %q", got)
 	}
 	b.clickOn(probe(b, `.ctxpop button`, "Delete? Yes"), 1)
-	if !b.waitFor(`![...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'B')`) {
+	if !b.waitFor(`![...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B')`) {
 		t.Fatalf("B is still listed: %q", tops())
 	}
-	if got := b.eval(`document.querySelector('.dtitle h1')?.textContent || 'nothing'`); got == "B" {
+	if got := b.eval(`document.querySelector('.workspace-main > header > h1')?.textContent || 'nothing'`); got == "B" {
 		t.Error("the window still shows B")
 	}
 	// C goes into the trash too, to be deleted for good below.
@@ -63,18 +63,18 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 		t.Errorf("after a reload B and C stay deleted: %q", got)
 	}
 	// In nav2, the own collection may go, the private notes stay.
-	b.rightClickOn(probe(b, `#clist .collrow`, "Team"))
+	b.rightClickOn(probe(b, `#clist > [data-favid]`, "Team"))
 	if got := b.eval(`(() => { const l = document.querySelector('.ctxpop').lastElementChild; return l.textContent.trim() + '|' + l.disabled; })()`); got != "Delete|false" {
 		t.Errorf("Delete of a collection in nav2: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
-	b.rightClickOn(probe(b, `#clist .collrow`, "My notes"))
+	b.rightClickOn(probe(b, `#clist > [data-favid]`, "My notes"))
 	if got := b.eval(`(() => { const l = document.querySelector('.ctxpop').lastElementChild; return l.textContent.trim() + '|' + l.disabled + '|' + l.title; })()`); got != "Delete|true|Private notes stay" {
 		t.Errorf("Delete of the private notes: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
 	h, _ := strconv.ParseFloat(b.eval(`innerHeight`), 64)
-	n2 := b.rect(`.nav2`)
+	n2 := b.rect(`[aria-label=Nav2]`)
 	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": n2.X, "y": h - 6}, nil)
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": h - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
@@ -84,9 +84,9 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	}
 	b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 2`) {
-		t.Fatalf("the trash page: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+		t.Fatalf("the trash page: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
-	if got := b.eval(`document.querySelector('.dtitle h1').textContent + ' | ' + [...document.querySelectorAll('tr[data-trash]')].map(r => [...r.cells].slice(0, 4).map(c => c.textContent.trim()).join(' / ')).join(' | ')`); !regexp.MustCompile(`^Trash \| C / Team / \S+ \d\d \d\d:\d\d / Anna Berg \| B / Team / \S+ \d\d \d\d:\d\d / Anna Berg$`).MatchString(got) {
+	if got := b.eval(`document.querySelector('.workspace-main > header > h1').textContent + ' | ' + [...document.querySelectorAll('tr[data-trash]')].map(r => [...r.cells].slice(0, 4).map(c => c.textContent.trim()).join(' / ')).join(' | ')`); !regexp.MustCompile(`^Trash \| C / Team / \S+ \d\d \d\d:\d\d / Anna Berg \| B / Team / \S+ \d\d \d\d:\d\d / Anna Berg$`).MatchString(got) {
 		t.Errorf("the trash lists name, place, when and who, newest first: %q", got)
 	}
 	b.shot("trash")
@@ -102,10 +102,10 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 		t.Fatal("C is still in the trash")
 	}
 	b.clickOn(trashButton(b, "B", "trrestore"), 1)
-	if !b.waitFor(`document.querySelector('article.doc')?.textContent.includes('The trash is empty.')`) {
-		t.Errorf("the trash after restoring: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+	if !b.waitFor(`document.querySelector('article.typeset')?.textContent.includes('The trash is empty.')`) {
+		t.Errorf("the trash after restoring: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'B')`) {
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B')`) {
 		t.Fatalf("B is not back: %q", tops())
 	}
 	if got := tops(); got != "A, B" {
@@ -121,7 +121,7 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 // rowID returns the key of the workspace for the entry of nav3 with this name.
 func rowID(b *browser, name string) string {
 	b.t.Helper()
-	return b.eval(`[...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
+	return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].find(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
 }
 
 // The trash is emptied as a whole, asking first in place.
@@ -136,21 +136,21 @@ func TestEmptyTheTrash(t *testing.T) {
 		t.Fatal("nothing deleted")
 	}
 	h, _ := strconv.ParseFloat(b.eval(`innerHeight`), 64)
-	n2 := b.rect(`.nav2`)
+	n2 := b.rect(`[aria-label=Nav2]`)
 	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": n2.X, "y": h - 6}, nil)
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": h - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
 	}
 	b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 2`) {
-		t.Fatalf("two in the trash: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+		t.Fatalf("two in the trash: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
 	b.clickOn(`[data-act="trempty"]`, 1)
 	if got := b.eval(`[document.querySelector('[data-act="trempty"]').textContent.trim(), document.querySelectorAll('tr[data-trash]').length].join(' | ')`); got != "Empty the trash? Yes | 2" {
 		t.Errorf("it asks first: %q", got)
 	}
 	b.clickOn(`[data-act="trempty"]`, 1)
-	if !b.waitFor(`document.querySelector('article.doc')?.innerText.includes('The trash is empty.')`) {
-		t.Errorf("emptied: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+	if !b.waitFor(`document.querySelector('article.typeset')?.innerText.includes('The trash is empty.')`) {
+		t.Errorf("emptied: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
 }

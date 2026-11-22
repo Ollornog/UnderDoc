@@ -173,6 +173,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- The frame of the workspace from C22's building blocks ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md),
+  step 2): the top row, nav1 to nav3 with their lists, the windows with their tabs, the head of a window (path, tags,
+  what others may do, tools, title, the button for reading or editing), the document column and the status line are
+  C22's `.workspace` and its parts, the look the pack `underdoc` (C22 at `70d7da3`). What shows differently: the path
+  separates its parts with a chevron, the tags are square chips, the sections of a page open as a menu under a small
+  button, the find on a page is one field with its buttons, the entry open in the window says "open" in the list, a tab
+  being dragged leaves a framed place and the window shows where it lands ("New column", "Move here", "Open here"), a
+  collection kept open carries a pin, and a single window without tabs keeps the button "Window and tabs" in its empty
+  tab row. The phone form starts below 48rem (was 760px), where nav2 and nav3 open over the window; there the button
+  for reading or editing is the first of the small tools, and the status line shows the words and the format. Menus,
+  drawers, the editor and the other views keep their old form until the next steps; drawers now lie over the whole
+  window, its head too, as C22's do.
 - Every page takes C22's layout pack `underdoc` (`c22-underdoc.css`, C22 at `6cff0e0`) instead of `vega`: UnderDoc's own
   look on C22's building blocks, the first step of moving the workspace off C22's old app workspace
   ([T-12](backlog/T-12-workspace-from-c22-building-blocks.md)). Corners are a notch tighter and prose leads a little

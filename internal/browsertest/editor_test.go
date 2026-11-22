@@ -92,9 +92,9 @@ func (b *browser) openEditing(base, page, title string) {
 	b.open(base + "/o/" + page)
 	b.ready(title)
 	b.watch()
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if !b.waitFor(`!!document.querySelector('article.doc .cm-editor .cm-content') && document.activeElement?.classList.contains('cm-content')`) {
-		b.t.Fatalf("the page did not open in the editor: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	if !b.waitFor(`!!document.querySelector('article.typeset .cm-editor .cm-content') && document.activeElement?.classList.contains('cm-content')`) {
+		b.t.Fatalf("the page did not open in the editor: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 }
 
@@ -155,9 +155,9 @@ func TestTheEditorRoundTripChangesNothing(t *testing.T) {
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	b.press("ArrowDown", "ArrowDown", 40, 0)
 	time.Sleep(1500 * time.Millisecond)
-	b.clickOn(`[data-win="0"] .dstatus`, 1) // back to reading
-	if !b.waitFor(`!document.querySelector('.cm-editor') && !!document.querySelector('article.doc [data-b="b8"]')`) {
-		t.Fatalf("reading again: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 200)`))
+	b.clickOn(`[data-win="0"] [data-mode]`, 1) // back to reading
+	if !b.waitFor(`!document.querySelector('.cm-editor') && !!document.querySelector('article.typeset [data-b="b8"]')`) {
+		t.Fatalf("reading again: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 200)`))
 	}
 	time.Sleep(500 * time.Millisecond)
 	if got := b.eval(`window.writes.join(', ')`); got != "" {
@@ -218,7 +218,7 @@ func TestTheEditorSavesAsYouType(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	b.open(base + "/o/" + page)
 	b.ready("Typing")
-	if got := b.eval(`[...document.querySelectorAll('article.doc [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.doc [data-b="b3"] h2')?.textContent + ' | ' + !!document.querySelector('article.doc [data-b="b10"] hr')`); got != "b1 b3 b2 b4 b5 b6 b7 b8 b9 b10 | Heading | true" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.dataset.b).join(' ') + ' | ' + document.querySelector('article.typeset [data-b="b3"] h2')?.textContent + ' | ' + !!document.querySelector('article.typeset [data-b="b10"] hr')`); got != "b1 b3 b2 b4 b5 b6 b7 b8 b9 b10 | Heading | true" {
 		t.Errorf("after a reload the blocks are kept: %q", got)
 	}
 	// Each paragraph written after a block became a block of its own, in the order of the text.
@@ -235,7 +235,7 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	b.ready("Network plan")
 	page := makePage(b, "Bar", "First words", "Second")
 	b.openEditing(base, page, "Bar")
-	if got := b.eval(`(() => { const bar = document.querySelector('[data-win="0"] > .edbar'); const s = getComputedStyle(bar); return [s.visibility, [...bar.querySelectorAll('[data-act="edfmt"]')].map(x => x.dataset.k).join(',')].join(' '); })()`); got != "visible bold,italic,strike,code,link" {
+	if got := b.eval(`(() => { const bar = document.querySelector('[data-win="0"] .workspace-main > [data-edbar]'); const s = getComputedStyle(bar); return [s.visibility, [...bar.querySelectorAll('[data-act="edfmt"]')].map(x => x.dataset.k).join(',')].join(' '); })()`); got != "visible bold,italic,strike,code,link" {
 		t.Errorf("the bar is a row of the window: %q", got)
 	}
 	b.lineWith("First words")
@@ -251,7 +251,7 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	if !b.edWait(`t.includes('First **_words_**')`) {
 		t.Errorf("Ctrl+I: %q", b.eval(edText))
 	}
-	b.clickOn(`.edbar [data-act="edfmt"][data-k="italic"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edfmt"][data-k="italic"]`, 1)
 	if !b.edWait(`t.includes('First **words**')`) {
 		t.Errorf("the bar takes italic away again: %q", b.eval(edText))
 	}
@@ -301,9 +301,9 @@ func TestTheBarAndTheSlashMenu(t *testing.T) {
 	}
 	b.typeKeys(" not a menu")
 	time.Sleep(1500 * time.Millisecond)
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if !b.waitFor(`!!document.querySelector('article.doc table') && !!document.querySelector('article.doc h2 strong a')`) {
-		t.Errorf("reading shows what the bar wrote: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	if !b.waitFor(`!!document.querySelector('article.typeset table') && !!document.querySelector('article.typeset h2 strong a')`) {
+		t.Errorf("reading shows what the bar wrote: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 400)`))
 	}
 	b.clean("bar")
 }
@@ -483,7 +483,7 @@ func TestTheEditorLoadsWhenNeeded(t *testing.T) {
 	if !b.waitFor(`!!window.UnderDocEditor && document.querySelectorAll('script[data-editor]').length === 1`) {
 		t.Errorf("an editable page loads the editor in an idle moment: %q", b.eval(loaded))
 	}
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-editor') && document.querySelectorAll('script[data-editor]').length === 1`) {
 		t.Errorf("editing mounts it, loaded once: %q", b.eval(loaded))
 	}
@@ -510,7 +510,7 @@ func TestEditingLoadsTheEditorItself(t *testing.T) {
 	if got := b.eval(`String(!!window.UnderDocEditor)`); got != "false" {
 		t.Fatalf("no idle moment, nothing loaded yet: %s", got)
 	}
-	b.eval(`needEditor(); needEditor(); document.querySelector('[data-win="0"] .dstatus').click()`)
+	b.eval(`needEditor(); needEditor(); document.querySelector('[data-win="0"] [data-mode]').click()`)
 	if !b.waitFor(`!!document.querySelector('.cm-editor')`) {
 		t.Errorf("editing loads and mounts the editor: %s", b.eval(`document.querySelector('[data-cmhost]')?.textContent`))
 	}
@@ -535,15 +535,15 @@ func TestTheEditorKeepsTheRhythmOfThePage(t *testing.T) {
 		for (let n = walk.nextNode(); n; n = walk.nextNode()) { const k = n.data.indexOf(w); if (k < 0) continue; const r = document.createRange(); r.setStart(n, k); r.setEnd(n, k + w.length); return r.getBoundingClientRect().bottom; } return NaN; });
 		return JSON.stringify(at.slice(1).map((y, k) => Math.round((y - at[k]) * 10) / 10)); })`
 	var read, edit []float64
-	if err := json.Unmarshal([]byte(b.eval(steps+`('article.doc')`)), &read); err != nil || len(read) != 10 {
+	if err := json.Unmarshal([]byte(b.eval(steps+`('article.typeset')`)), &read); err != nil || len(read) != 10 {
 		t.Fatalf("reading: %v %v", read, err)
 	}
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-ud-marker .bhandle')`) {
 		t.Fatal("no editor")
 	}
 	// Away from the cursor: the editor loses the focus.
-	b.clickOn(`.dtitle h1`, 1)
+	b.clickOn(`.workspace-main > header > h1`, 1)
 	time.Sleep(150 * time.Millisecond)
 	if err := json.Unmarshal([]byte(b.eval(steps+`('.cm-content')`)), &edit); err != nil || len(edit) != 10 {
 		t.Fatalf("editor: %v %v", edit, err)
@@ -595,7 +595,7 @@ func TestTheTableTools(t *testing.T) {
 	}
 	b.shot("editor-table-tools")
 	b.lineWith("| 1 | 10 |")
-	b.clickOn(`.edbar [data-act="edtable"][data-k="rowBelow"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="rowBelow"]`, 1)
 	if !b.edWait(`t.includes('| 1 | 10 |\n|  |  |')`) {
 		t.Fatalf("Row below: %q", b.eval(edText))
 	}
@@ -603,24 +603,24 @@ func TestTheTableTools(t *testing.T) {
 	if !b.edWait(`t.includes('| 1 | 10 |\n|  | x |')`) {
 		t.Errorf("the cursor stands in the new row, in the column it was in: %q", b.eval(edText))
 	}
-	b.clickOn(`.edbar [data-act="edtable"][data-k="colLeft"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="colLeft"]`, 1)
 	b.typeKeys("y")
 	if !b.edWait(`t.includes('| Port |  | VLAN |\n|---|---|---:|\n| 1 |  | 10 |\n|  | y | x |')`) {
 		t.Errorf("Column left: %q", b.eval(edText))
 	}
-	b.clickOn(`.edbar [data-act="edtable"][data-k="alignCenter"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="alignCenter"]`, 1)
 	if !b.edWait(`t.includes('|---|:---:|---:|')`) {
 		t.Errorf("Center column: %q", b.eval(edText))
 	}
-	b.clickOn(`.edbar [data-act="edtable"][data-k="rowAbove"]`, 1)
-	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
-	b.clickOn(`.edbar [data-act="edtable"][data-k="colDelete"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="rowAbove"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="rowDelete"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="colDelete"]`, 1)
 	want := "| Port | VLAN |\n|---|---:|\n| 1 | 10 |\n|  | x |"
 	if !b.edWait(`t.includes(` + strconv.Quote(want) + `)`) {
 		t.Errorf("Row above, then Delete row and Delete column: %q", b.eval(edText))
 	}
 	b.lineWith("| Port | VLAN |")
-	b.clickOn(`.edbar [data-act="edtable"][data-k="rowDelete"]`, 1)
+	b.clickOn(`[data-edbar] [data-act="edtable"][data-k="rowDelete"]`, 1)
 	if !b.waitFor(`/header row stays/.test(document.body.textContent)`) {
 		t.Errorf("the header row does not go, and the workspace says why")
 	}
@@ -655,10 +655,10 @@ func TestTheTableToolsOnAPhone(t *testing.T) {
 	if got := b.eval(`(() => { const s = EDS[at(0).d].ed.view.state, h = s.selection.main.head; return s.doc.sliceString(h, h + 2); })()`); got != "10" {
 		t.Errorf("the cursor stands in the cell the finger touched: %q", got)
 	}
-	if got := b.eval(`document.querySelector('.edbar [data-edtable]').classList.contains('bgroup')`); got != "true" {
+	if got := b.eval(`document.querySelector('[data-edbar] > [data-edtable]')?.getAttribute('role') === 'group'`); got != "true" {
 		t.Errorf("the table tools are a group of the bar")
 	}
-	out := b.eval(`(() => { const bar = document.querySelector('.edbar'), w = innerWidth;
+	out := b.eval(`(() => { const bar = document.querySelector('[data-edbar]'), w = innerWidth;
 		const outside = [...bar.querySelectorAll('[data-act="edtable"]')].filter(x => { const r = x.getBoundingClientRect(); return r.width === 0 || r.left < 0 || r.right > w + 0.5; }).map(x => x.dataset.k);
 		return outside.join(',') + '|' + (bar.scrollWidth > bar.clientWidth + 1); })()`)
 	if out != "|false" {

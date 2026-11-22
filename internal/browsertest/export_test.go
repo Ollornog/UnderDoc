@@ -23,7 +23,7 @@ func TestExportACollectionAsFiles(t *testing.T) {
 	b.ready("Team")
 	downloads := t.TempDir()
 	b.call("Page.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloads}, nil)
-	b.rightClickOn(`.nav3 .cheadrow[data-cdrop="` + team + `"] .chead`)
+	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
 	item := probe(b, `.ctxpop button`, "Export as files")
 	if got := b.eval(`!!document.querySelector(` + "`" + item + "`" + `)?.querySelector('svg')`); got != "true" {
 		t.Error("Export as files has no icon")

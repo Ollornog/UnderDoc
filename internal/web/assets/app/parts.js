@@ -74,7 +74,7 @@
   }
 
   function at(x, y, target) {
-    const block = target && target.closest && target.closest('article.doc [data-b][data-parts]');
+    const block = target && target.closest && target.closest('article.typeset [data-b][data-parts]');
     if (!block) return clear();
     const found = partsAt(block, x, y);
     if (found.length) show(block, found[0]);

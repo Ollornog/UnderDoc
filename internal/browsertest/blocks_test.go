@@ -51,7 +51,7 @@ func (b *browser) release(handle string, y float64) {
 	b.mouse("mouseReleased", b.rect(handle).X, y, 1, 0)
 }
 
-const readOrder = `[...document.querySelectorAll('article.doc [data-b]')].map(x => x.dataset.b).join(' ')`
+const readOrder = `[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.dataset.b).join(' ')`
 
 // In a block of the database a single newline is a line break: two quote lines, or two lines of a paragraph, read as
 // two lines, and the editor shows them so too. The Markdown stays as written.
@@ -67,9 +67,9 @@ func TestTwoLinesOfABlockReadAsTwoLines(t *testing.T) {
 		for (let n = walk.nextNode(); n; n = walk.nextNode()) { const at = n.data.indexOf(w); if (at < 0) continue; const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + w.length); return Math.round(r.getBoundingClientRect().top); }
 		return 'none'; })`
 	for _, c := range []struct{ sel, a, b string }{
-		{`article.doc [data-b="b1"] blockquote`, "a", "b"},
-		{`article.doc [data-b="b2"] p`, "one", "two"},
-		{`article.doc [data-b="b3"] li`, "item", "more"},
+		{`article.typeset [data-b="b1"] blockquote`, "a", "b"},
+		{`article.typeset [data-b="b2"] p`, "one", "two"},
+		{`article.typeset [data-b="b3"] li`, "item", "more"},
 	} {
 		got := b.eval(`(() => { const [x, y] = (` + lines + `)(` + strconv.Quote(c.sel) + `, [` + strconv.Quote(c.a) + `, ` + strconv.Quote(c.b) + `]); return x !== 'none' && y !== 'none' && y > x; })()`)
 		if got != "true" {
@@ -77,8 +77,8 @@ func TestTwoLinesOfABlockReadAsTwoLines(t *testing.T) {
 		}
 	}
 	b.shot("block-lines")
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if !b.waitFor(`!!document.querySelector('article.doc .cm-editor .cm-content')`) {
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	if !b.waitFor(`!!document.querySelector('article.typeset .cm-editor .cm-content')`) {
 		t.Fatal("no editor")
 	}
 	// Away from the cursor, as every line looks once the editor has no focus: the focus comes when the editor has loaded,
@@ -105,31 +105,31 @@ func TestDraggingABlockInReading(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Drag")
 	b.watch()
-	if got := b.eval(`[...document.querySelectorAll('article.doc [data-b] > .bhandle')].map(h => h.hasAttribute('data-drag') + ' ' + getComputedStyle(h).touchAction).join(', ')`); got != "true none, true none, true none" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-b] > .bhandle')].map(h => h.hasAttribute('data-drag') + ' ' + getComputedStyle(h).touchAction).join(', ')`); got != "true none, true none, true none" {
 		t.Errorf("the handles drag, also with a finger: %q", got)
 	}
 	// Escape gives up: One held below Three goes back, nothing is written.
-	b.hold(`article.doc [data-b="b1"] > .bhandle`, b.rect(`article.doc [data-b="b3"]`).Bottom-2)
-	if got := b.eval(`(() => { const g = document.querySelector('article.doc .dropgap.held'); return !!g && g.previousElementSibling?.dataset.b + ' ' + g.textContent.trim() + ' ' + getComputedStyle(document.querySelector('article.doc [data-b="b1"]')).display; })()`); got != "b3 One none" {
+	b.hold(`article.typeset [data-b="b1"] > .bhandle`, b.rect(`article.typeset [data-b="b3"]`).Bottom-2)
+	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && g.previousElementSibling?.dataset.b + ' ' + g.textContent.trim() + ' ' + getComputedStyle(document.querySelector('article.typeset [data-b="b1"]')).display; })()`); got != "b3 One none" {
 		t.Errorf("held below Three, the gap holds One and One is lifted: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
 	if got := b.eval(`!document.querySelector('.dropgap') + ' ' + ` + readOrder); got != "true b1 b2 b3" {
 		t.Errorf("Escape puts it back: %q", got)
 	}
-	b.release(`article.doc [data-b="b1"] > .bhandle`, b.rect(`article.doc [data-b="b3"]`).Bottom-2)
+	b.release(`article.typeset [data-b="b1"] > .bhandle`, b.rect(`article.typeset [data-b="b3"]`).Bottom-2)
 	time.Sleep(200 * time.Millisecond)
 	if got := b.eval(`window.writes.join(', ') + ' | ' + !!document.querySelector('.bmenu')`); got != " | false" {
 		t.Errorf("after Escape nothing is written and no menu opens: %q", got)
 	}
 	// Three above One.
-	top := b.rect(`article.doc [data-b="b1"]`).Top + 3
-	b.hold(`article.doc [data-b="b3"] > .bhandle`, top)
-	if got := b.eval(`(() => { const g = document.querySelector('article.doc .dropgap.held'); return !!g && (g.nextElementSibling?.dataset.b || 'end') + ' ' + g.textContent.trim(); })()`); got != "b1 Three" {
+	top := b.rect(`article.typeset [data-b="b1"]`).Top + 3
+	b.hold(`article.typeset [data-b="b3"] > .bhandle`, top)
+	if got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); return !!g && (g.nextElementSibling?.dataset.b || 'end') + ' ' + g.textContent.trim(); })()`); got != "b1 Three" {
 		t.Errorf("the gap opens before One, between blocks: %q", got)
 	}
 	b.shot("block-drag-reading")
-	b.release(`article.doc [data-b="b3"] > .bhandle`, top)
+	b.release(`article.typeset [data-b="b3"] > .bhandle`, top)
 	if !b.waitFor(readOrder + ` === 'b3 b1 b2' && !document.querySelector('.dropgap')`) {
 		t.Errorf("the view shows the new order: %q", b.eval(readOrder))
 	}
@@ -149,8 +149,8 @@ func TestDraggingABlockInReading(t *testing.T) {
 		t.Errorf("after a reload: %q", got)
 	}
 	// A click without moving opens the menu.
-	b.clickOn(`article.doc [data-b="b2"] > .bhandle`, 1)
-	if !b.waitFor(`!!document.querySelector('article.doc [data-b="b2"] .bmenu')`) {
+	b.clickOn(`article.typeset [data-b="b2"] > .bhandle`, 1)
+	if !b.waitFor(`!!document.querySelector('article.typeset [data-b="b2"] .bmenu')`) {
 		t.Errorf("a click opens the menu of the handle")
 	}
 	b.clean("drag in reading")
@@ -160,15 +160,15 @@ func TestDraggingABlockInReading(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Drag")
 	b.watch()
-	if got := b.eval(`document.querySelectorAll('article.doc .bhandle[data-drag]').length + ' ' + document.querySelectorAll('article.doc .bhandle').length`); got != "0 3" {
+	if got := b.eval(`document.querySelectorAll('article.typeset .bhandle[data-drag]').length + ' ' + document.querySelectorAll('article.typeset .bhandle').length`); got != "0 3" {
 		t.Errorf("a reader's handles do not drag: %q", got)
 	}
-	top = b.rect(`article.doc [data-b="b3"]`).Top + 3
-	b.hold(`article.doc [data-b="b2"] > .bhandle`, top)
+	top = b.rect(`article.typeset [data-b="b3"]`).Top + 3
+	b.hold(`article.typeset [data-b="b2"] > .bhandle`, top)
 	if got := b.eval(`!!document.querySelector('.dropgap')`); got != "false" {
 		t.Errorf("no gap for a reader")
 	}
-	b.release(`article.doc [data-b="b2"] > .bhandle`, top)
+	b.release(`article.typeset [data-b="b2"] > .bhandle`, top)
 	time.Sleep(200 * time.Millisecond)
 	if got := b.eval(readOrder + ` + ' | ' + window.writes.join(', ')`); got != "b3 b1 b2 | " {
 		t.Errorf("nothing moves for a reader: %q", got)
@@ -202,8 +202,8 @@ func TestDraggingABlockWithAFinger(t *testing.T) {
 		check()
 		touch("touchEnd", y)
 	}
-	fingerDrag(`article.doc [data-b="b3"] > .bhandle`, b.rect(`article.doc [data-b="b1"]`).Top+3, func() {
-		if got := b.eval(`document.querySelector('article.doc .dropgap.held')?.nextElementSibling?.dataset.b`); got != "b1" {
+	fingerDrag(`article.typeset [data-b="b3"] > .bhandle`, b.rect(`article.typeset [data-b="b1"]`).Top+3, func() {
+		if got := b.eval(`document.querySelector('article.typeset .dropgap.held')?.nextElementSibling?.dataset.b`); got != "b1" {
 			t.Errorf("the finger opens the gap before One: %q", got)
 		}
 	})
@@ -215,7 +215,7 @@ func TestDraggingABlockWithAFinger(t *testing.T) {
 		t.Errorf("the server: %q", got)
 	}
 	// In the editor the held block's handle is gone from the page while the finger still moves.
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b2"] .bhandle')`) {
 		t.Fatal("no editor")
 	}
@@ -245,7 +245,7 @@ func TestDraggingABlockInTheEditor(t *testing.T) {
 	versions := b.versions(page)
 	b.openEditing(base, page, "Drag edit")
 	b.lineWith("Two")
-	scroll := `document.querySelector('[data-win="0"] .scroll').scrollTop`
+	scroll := `document.querySelector('[data-win="0"] [data-sc]').scrollTop`
 	scrolled := b.eval(scroll)
 	b.eval(`window.writes = []`)
 	// Escape gives up.
@@ -367,23 +367,23 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Long blocks")
 	b.watch()
-	sc := `document.querySelector('[data-win="0"] .scroll')`
+	sc := `document.querySelector('[data-win="0"] [data-sc]')`
 	b.eval(sc + `.scrollTop = 120`)
 	time.Sleep(100 * time.Millisecond)
-	if got := b.eval(`Math.round(document.querySelector('article.doc [data-b="b3"]').getBoundingClientRect().height) > 300`); got != "true" {
+	if got := b.eval(`Math.round(document.querySelector('article.typeset [data-b="b3"]').getBoundingClientRect().height) > 300`); got != "true" {
 		t.Fatalf("the sections are long blocks")
 	}
 	// Text selected over the handles, as after marking a passage.
-	b.eval(`(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('article.doc')); getSelection().removeAllRanges(); getSelection().addRange(r); })()`)
-	bottom := b.rect(`[data-win="0"] .scroll`).Bottom - 6
+	b.eval(`(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('article.typeset')); getSelection().removeAllRanges(); getSelection().addRange(r); })()`)
+	bottom := b.rect(`[data-win="0"] [data-sc]`).Bottom - 6
 	index := `(sel, gap) => [...document.querySelectorAll(sel)].filter(n => n.matches(gap) || !n.matches('[style*="none"]')).findIndex(n => n.matches(gap))`
 	// A short way down: once lifted, the next block, a short paragraph, stands right below the short gap, and the pointer
 	// on its lower half puts the long block after it.
-	b.grab(`article.doc [data-b="b3"] > .bhandle`, b.rect(`article.doc [data-b="b3"] > .bhandle`).Y+12, 50*time.Millisecond)
-	next := b.rect(`article.doc [data-b="b4"]`)
+	b.grab(`article.typeset [data-b="b3"] > .bhandle`, b.rect(`article.typeset [data-b="b3"] > .bhandle`).Y+12, 50*time.Millisecond)
+	next := b.rect(`article.typeset [data-b="b4"]`)
 	b.heldAt("mouseMoved", next.X, next.Bottom-3)
 	time.Sleep(50 * time.Millisecond)
-	if got := b.eval(`[...document.querySelectorAll('article.doc > [data-b], article.doc > .dropgap')].filter(n => !n.matches('[style*="none"]')).slice(0, 4).map(n => n.dataset.b || 'gap').join(' ')`); got != "b1 b2 b4 gap" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset > [data-b], article.typeset > .dropgap')].filter(n => !n.matches('[style*="none"]')).slice(0, 4).map(n => n.dataset.b || 'gap').join(' ')`); got != "b1 b2 b4 gap" {
 		t.Errorf("a short way down over the next block puts it after that block: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
@@ -392,14 +392,14 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 	// A busy browser draws fewer frames, as the CI does under load: the page scrolls by the time held, not by the frames
 	// drawn, so it gets as far (2026-11-19).
 	b.eval(`window.busy = true; (function frame() { if (!window.busy) return; const t = performance.now(); while (performance.now() - t < 60); requestAnimationFrame(frame); })()`)
-	b.grab(`article.doc [data-b="b3"] > .bhandle`, bottom, 1500*time.Millisecond)
+	b.grab(`article.typeset [data-b="b3"] > .bhandle`, bottom, 1500*time.Millisecond)
 	b.eval(`window.busy = false`)
-	got := b.eval(`(() => { const g = document.querySelector('article.doc .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.doc > [data-b], article.doc > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
+	got := b.eval(`(() => { const g = document.querySelector('article.typeset .dropgap.held'); if (!g) return 'no gap'; return [Math.round(g.getBoundingClientRect().height) <= 130 && getComputedStyle(g).overflowY === 'hidden', (` + index + `)('article.typeset > [data-b], article.typeset > .dropgap', '.dropgap') >= 6, ` + sc + `.scrollTop > 400].join(' '); })()`)
 	if got != "true true true" {
 		t.Errorf("held at the bottom edge: a short gap, the page scrolled, and the gap went down past the blocks out of view: %q", got)
 	}
 	b.shot("block-drag-long-reading")
-	b.mouse("mouseReleased", b.rect(`[data-win="0"] .scroll`).X, bottom, 1, 0)
+	b.mouse("mouseReleased", b.rect(`[data-win="0"] [data-sc]`).X, bottom, 1, 0)
 	if !b.waitFor(`!document.querySelector('.dropgap') && ` + readOrder + `.split(' ').indexOf('b3') >= 6`) {
 		t.Errorf("the block went down: %q", b.eval(readOrder))
 	}
@@ -451,7 +451,7 @@ func TestDraggingLongBlocksOfARealPage(t *testing.T) {
 		t.Errorf("in the editor, held at the bottom edge: a short gap, scrolled, gone down: %q", got)
 	}
 	b.shot("block-drag-long-editor")
-	b.mouse("mouseReleased", b.rect(`[data-win="0"] .scroll`).X, bottom, 1, 0)
+	b.mouse("mouseReleased", b.rect(`[data-win="0"] [data-sc]`).X, bottom, 1, 0)
 	if !b.waitFor(order + `.indexOf('b5') >= 8`) {
 		t.Errorf("in the editor the block went down: %q", b.eval(order+`.join(' ')`))
 	}
@@ -475,7 +475,7 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Menu")
 	// The right-click menu of the workspace, for comparison.
-	b.rightClickOn(`.nav3 [data-row]`)
+	b.rightClickOn(`[aria-label=Nav3] [data-row]`)
 	if !b.waitFor(`!!document.querySelector('.ctxpop > button')`) {
 		t.Fatal("no right-click menu")
 	}
@@ -490,7 +490,7 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 			items.every(x => x.querySelector('svg').getBoundingClientRect().width <= 14), r.height <= items.length * 30 + 50 + (m.querySelector('.seg')?.getBoundingClientRect().height || 0), r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth].join(' '); })()`
 	// open opens the menu of block id, its handle at the top of the window or near the bottom.
 	open := func(handle string, bottom bool) {
-		b.eval(`(() => { const s = document.querySelector('[data-win="0"] .scroll'), h = document.querySelector(` + strconv.Quote(handle) + `), r = s.getBoundingClientRect();
+		b.eval(`(() => { const s = document.querySelector('[data-win="0"] [data-sc]'), h = document.querySelector(` + strconv.Quote(handle) + `), r = s.getBoundingClientRect();
 			s.scrollTop += h.getBoundingClientRect().top - (` + strconv.FormatBool(bottom) + ` ? r.bottom - 50 : r.top + 40); })()`)
 		time.Sleep(100 * time.Millisecond)
 		b.clickOn(handle, 1)
@@ -498,18 +498,18 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 			t.Fatalf("%s: no menu", handle)
 		}
 	}
-	open(`article.doc [data-b="b4"] > .bhandle`, false)
+	open(`article.typeset [data-b="b4"] > .bhandle`, false)
 	if got := b.eval(look); got != "true true true true true" {
 		t.Errorf("reading: as compact as the right-click menu (%s): %q", ctx, got)
 	}
-	b.clickOn(`.dtitle h1`, 1)
-	open(`article.doc [data-b="b6"] > .bhandle`, true)
+	b.clickOn(`.workspace-main > header > h1`, 1)
+	open(`article.typeset [data-b="b6"] > .bhandle`, true)
 	if got := b.eval(look); got != "true true true true true" {
 		t.Errorf("reading, near the bottom: inside the window: %q", got)
 	}
 	b.shot("block-menu-reading")
-	b.clickOn(`.dtitle h1`, 1)
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`.workspace-main > header > h1`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-ud-marker[data-edb="b4"] .bhandle')`) {
 		t.Fatal("no editor")
 	}
@@ -518,7 +518,7 @@ func TestTheMenuOfAHandleIsCompact(t *testing.T) {
 		t.Errorf("editor: as compact as the right-click menu (%s): %q", ctx, got)
 	}
 	b.shot("block-menu-editor")
-	b.clickOn(`.dtitle h1`, 1)
+	b.clickOn(`.workspace-main > header > h1`, 1)
 	open(`.cm-ud-marker[data-edb="b6"] .bhandle`, true)
 	if got := b.eval(look); got != "true true true true true" {
 		t.Errorf("editor, near the bottom: inside the window: %q", got)
@@ -538,20 +538,20 @@ func TestTheBarIsARowOfTheWindow(t *testing.T) {
 	page := makePage(b, "Long", blocks...)
 	b.open(base + "/o/" + page)
 	b.ready("Long")
-	if got := b.eval(`document.querySelectorAll('.edbar').length`); got != "0" {
+	if got := b.eval(`document.querySelectorAll('[data-edbar]').length`); got != "0" {
 		t.Errorf("no bar while reading: %s", got)
 	}
 	b.openEditing(base, page, "Long")
-	place := `(() => { const w = document.querySelector('[data-win="0"]'), bar = w.querySelector(':scope > .edbar'), tools = w.querySelector(':scope > .tools'), sc = w.querySelector('.scroll');
+	place := `(() => { const w = document.querySelector('[data-win="0"]'), bar = w.querySelector('.workspace-main > [data-edbar]'), tools = w.querySelector('.workspace-main > header'), sc = w.querySelector('[data-sc]');
 		if (!bar) return 'no bar'; const r = bar.getBoundingClientRect(), t = tools.getBoundingClientRect(), s = sc.getBoundingClientRect(), wr = w.getBoundingClientRect(), cs = getComputedStyle(bar);
 		return [r.top >= t.bottom - 1, r.bottom <= s.top + 1, Math.abs(r.width - wr.width) < 2, !sc.contains(bar), cs.boxShadow, cs.borderTopLeftRadius, cs.borderBottomStyle, Math.round(r.top)].join(' '); })()`
 	before := b.eval(place)
 	if !strings.HasPrefix(before, "true true true true none 0px solid ") {
 		t.Errorf("between the head and the content, full width, flat, with a line below: %q", before)
 	}
-	b.eval(`document.querySelector('[data-win="0"] .scroll').scrollTop = 100000`)
+	b.eval(`document.querySelector('[data-win="0"] [data-sc]').scrollTop = 100000`)
 	time.Sleep(150 * time.Millisecond)
-	if got := b.eval(`document.querySelector('[data-win="0"] .scroll').scrollTop > 200`); got != "true" {
+	if got := b.eval(`document.querySelector('[data-win="0"] [data-sc]').scrollTop > 200`); got != "true" {
 		t.Fatalf("the page did not scroll")
 	}
 	if got := b.eval(place); got != before {
@@ -562,7 +562,7 @@ func TestTheBarIsARowOfTheWindow(t *testing.T) {
 	for range 5 {
 		b.press("ArrowLeft", "ArrowLeft", 37, 8)
 	}
-	b.clickOn(`[data-win="0"] > .edbar [data-act="edfmt"][data-k="bold"]`, 1)
+	b.clickOn(`[data-win="0"] .workspace-main > [data-edbar] [data-act="edfmt"][data-k="bold"]`, 1)
 	if !b.edWait(`t.endsWith('Paragraph 40 with some words **in it.**')`) {
 		t.Errorf("the bar works on the selection: %q", b.eval(edText)[len(b.eval(edText))-60:])
 	}
@@ -570,8 +570,8 @@ func TestTheBarIsARowOfTheWindow(t *testing.T) {
 		t.Errorf("the editor keeps the focus")
 	}
 	b.shot("editor-bar-row")
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if !b.waitFor(`!document.querySelector('.edbar') && !document.querySelector('.cm-editor')`) {
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	if !b.waitFor(`!document.querySelector('[data-edbar]') && !document.querySelector('.cm-editor')`) {
 		t.Errorf("back to reading, the bar goes")
 	}
 }

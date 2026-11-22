@@ -91,11 +91,11 @@ func writeTemp(t *testing.T, name string, content []byte) string {
 // shows nothing in their place.
 func (b *browser) openMyFiles() {
 	b.t.Helper()
-	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	b.clickOn(`[aria-label=Nav1] [data-act="view"][data-id="files"]`, 1)
 	if !b.waitFor(`FS.on && !FS.pending`) {
 		b.t.Fatal("the roots of the files did not come")
 	}
-	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "My files"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav2] [data-act="sec"]`, "My files"), 1)
 }
 
 // filesSettled waits until nothing is left that draws the workspace again on its own: the uploads are done and their list
@@ -111,7 +111,7 @@ func (b *browser) filesSettled() {
 	}
 }
 
-const fileRows = `[...document.querySelectorAll('.nav3 [data-act="fopen"], .nav3 [data-act="fdir"].name')].map(n => n.textContent.trim()).join(', ')`
+const fileRows = `[...document.querySelectorAll('[aria-label=Nav3] [data-act="fopen"], [aria-label=Nav3] [data-act="fdir"]:not([data-toggle])')].map(n => n.textContent.trim()).join(', ')`
 
 // The view Files with the real mouse: a root in nav2, an upload through the file chooser, the file in the window with its
 // preview, a new version, a restore, files dropped from the desktop, and a new folder.
@@ -120,40 +120,40 @@ func TestFilesByHand(t *testing.T) {
 	b.open(base + "/")
 	b.ready("")
 	b.openMyFiles()
-	if !b.waitFor(`!!document.querySelector('.nav3 [data-act="fup"]')`) {
-		t.Fatalf("no upload in my files: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	if !b.waitFor(`!!document.querySelector('[aria-label=Nav3] [data-act="fup"]')`) {
+		t.Fatalf("no upload in my files: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText`))
 	}
-	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ')`); got != "Company, My files, New collection, Add a source" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ')`); got != "Company, My files, New collection, Add a source" {
 		t.Errorf("the roots in nav2: %q", got)
 	}
 	picture, _ := base64.StdEncoding.DecodeString(pixel)
-	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "photo.png", picture))
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, writeTemp(t, "photo.png", picture))
 	if !b.waitFor(fileRows + ` === 'photo.png'`) {
 		t.Fatalf("the upload is not listed: %q", b.eval(fileRows))
 	}
 	b.filesSettled()
-	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "photo.png"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="fopen"]`, "photo.png"), 1)
 	b.ready("photo.png")
-	if !b.waitFor(`(() => { const i = document.querySelector('article.doc img'); return !!i && i.complete && i.naturalWidth === 1; })()`) {
-		t.Fatalf("no preview of the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	if !b.waitFor(`(() => { const i = document.querySelector('article.typeset img'); return !!i && i.complete && i.naturalWidth === 1; })()`) {
+		t.Fatalf("no preview of the image: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 400)`))
 	}
 	b.shot("file-in-window")
 	// A new version through its button, then the first one back.
 	b.filesSettled()
-	b.choose(probe(b, `article.doc button.chip`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
-	versions := `document.querySelectorAll('article.doc table tr').length - 1`
+	b.choose(probe(b, `article.typeset button.chip`, "Upload a new version"), writeTemp(t, "other.png", append(picture, 0)))
+	versions := `document.querySelectorAll('article.typeset table tr').length - 1`
 	if !b.waitFor(versions + ` === 2`) {
 		t.Fatalf("versions: %s", b.eval(versions))
 	}
 	b.filesSettled()
-	b.clickOn(probe(b, `article.doc [data-act="frestore"]`, "Restore"), 1)
+	b.clickOn(probe(b, `article.typeset [data-act="frestore"]`, "Restore"), 1)
 	if !b.waitFor(versions + ` === 3`) {
 		t.Fatalf("after the restore: %s", b.eval(versions))
 	}
 	// Files dropped from the desktop onto the list land in the folder shown.
 	b.filesSettled()
 	notes := writeTemp(t, "notes.txt", []byte("hello"))
-	list := b.rect(`.nav3 #tree`)
+	list := b.rect(`[aria-label=Nav3] #tree`)
 	for _, kind := range []string{"dragEnter", "dragOver", "drop"} {
 		b.call("Input.dispatchDragEvent", map[string]any{"type": kind, "x": list.X, "y": list.Y,
 			"data": map[string]any{"items": []any{}, "files": []string{notes}, "dragOperationsMask": 1}}, nil)
@@ -163,9 +163,9 @@ func TestFilesByHand(t *testing.T) {
 	}
 	// A new folder is named in place and opens with its path.
 	b.filesSettled()
-	b.clickOn(`.nav3 [data-act="fnewdir"]`, 1)
-	field := `document.querySelector('.nav3 form[data-fform="dir"] input')`
-	b.clickOn(`.nav3 form[data-fform="dir"] input`, 3)
+	b.clickOn(`[aria-label=Nav3] [data-act="fnewdir"]`, 1)
+	field := `document.querySelector('[aria-label=Nav3] form[data-fform="dir"] input')`
+	b.clickOn(`[aria-label=Nav3] form[data-fform="dir"] input`, 3)
 	if !b.waitFor(`document.activeElement === ` + field + ` && ` + field + `.selectionStart === 0 && ` + field + `.selectionEnd === ` + field + `.value.length`) {
 		t.Fatalf("the name of the folder does not wait for the typing: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
@@ -175,13 +175,13 @@ func TestFilesByHand(t *testing.T) {
 	if got := b.eval(field + `.value + ' ' + (document.activeElement === ` + field + `)`); got != "Scans true" {
 		t.Fatalf("the name typed after a redraw: %q", got)
 	}
-	b.clickOn(`.nav3 form[data-fform="dir"] button`, 1)
+	b.clickOn(`[aria-label=Nav3] form[data-fform="dir"] button`, 1)
 	if !b.waitFor(fileRows + ` === 'Scans, notes.txt, photo.png'`) {
 		t.Fatalf("the new folder: %q", b.eval(fileRows))
 	}
-	b.clickOn(probe(b, `.nav3 .name[data-act="fdir"]`, "Scans"), 1)
-	if !b.waitFor(`document.querySelector('.nav3 .hint')?.textContent.startsWith('My files › Scans')`) {
-		t.Fatalf("the path: %q", b.eval(`document.querySelector('.nav3 .hint')?.textContent`))
+	b.clickOn(probe(b, `[aria-label=Nav3] li > div > button[data-act="fdir"]:not([data-toggle])`, "Scans"), 1)
+	if !b.waitFor(`document.querySelector('[aria-label=Nav3] .hint')?.textContent.startsWith('My files › Scans')`) {
+		t.Fatalf("the path: %q", b.eval(`document.querySelector('[aria-label=Nav3] .hint')?.textContent`))
 	}
 	b.shot("files-folder")
 }
@@ -198,7 +198,7 @@ func TestUploadResumesAfterABreak(t *testing.T) {
 	sum := sha256.Sum256(big)
 	path := writeTemp(t, "big.bin", big)
 	b.call("Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*/api/uploads/*", "requestStage": "Request"}}}, nil)
-	b.choose(`.nav3 [data-act="fup"]`, path)
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, path)
 	patches, broken, finished := 0, false, false
 	for deadline := time.Now().Add(60 * time.Second); !finished; {
 		if time.Now().After(deadline) {
@@ -259,14 +259,14 @@ func TestFilesWaitForTheirRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
-	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ')`); got != "" {
+	b.clickOn(`[aria-label=Nav1] [data-act="view"][data-id="files"]`, 1)
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ')`); got != "" {
 		t.Errorf("before the roots came, nav2 shows %q", got)
 	}
 	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
 	b.call("Fetch.disable", map[string]any{}, nil)
-	if !b.waitFor(`[...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
-		t.Fatalf("the roots: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
+		t.Fatalf("the roots: %s", b.eval(`document.querySelector('[aria-label=Nav2]')?.innerText`))
 	}
 }
 
@@ -304,15 +304,15 @@ func TestPDFPreview(t *testing.T) {
 	b.open(base + "/")
 	b.ready("")
 	b.openMyFiles()
-	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "report.pdf", minimalPDF("Card payment")))
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, writeTemp(t, "report.pdf", minimalPDF("Card payment")))
 	b.filesSettled()
-	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "report.pdf"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="fopen"]`, "report.pdf"), 1)
 	b.ready("report.pdf")
-	drawn := `(() => { const c = document.querySelector('article.doc [data-pdf] canvas'); if (!c) return false;
+	drawn := `(() => { const c = document.querySelector('article.typeset [data-pdf] canvas'); if (!c) return false;
 		const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
 		for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0 && d[i] < 128) return true; return false; })()`
 	if !b.waitFor(drawn) {
-		t.Fatalf("the page is not drawn: %s; %s", b.eval(`document.querySelector('article.doc [data-pdf]')?.outerHTML.slice(0, 300)`), b.eval(`JSON.stringify(PDFS)`))
+		t.Fatalf("the page is not drawn: %s; %s", b.eval(`document.querySelector('article.typeset [data-pdf]')?.outerHTML.slice(0, 300)`), b.eval(`JSON.stringify(PDFS)`))
 	}
 	b.shot("pdf-preview")
 	// The browser of the uploader read the text of the PDF for the search (ADR-24).
@@ -344,7 +344,7 @@ func TestImagesInTheEditor(t *testing.T) {
 	team := b.eval(`window.made`)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
 	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
 	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
 		t.Fatal("the new page is not in the editor")
@@ -365,8 +365,8 @@ func TestImagesInTheEditor(t *testing.T) {
 	}
 	b.shot("image-in-editor")
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!document.querySelector('.cm-editor') && [...document.querySelectorAll('article.doc img')].some(i => i.complete && i.naturalWidth === 1)`) {
-		t.Fatalf("reading does not show the image: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	if !b.waitFor(`!document.querySelector('.cm-editor') && [...document.querySelectorAll('article.typeset img')].some(i => i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("reading does not show the image: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 400)`))
 	}
 	b.clickOn(`[data-act="gear"]`, 1)
 	// The facts of the page stand below the window's fold: scrolled into view as a hand would, once the attachments are
@@ -387,8 +387,8 @@ func TestImagesInTheEditor(t *testing.T) {
 	for _, kind := range []string{"keyDown", "keyUp"} {
 		b.call("Input.dispatchKeyEvent", map[string]any{"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13, "text": "\r"}, nil)
 	}
-	if !b.waitFor(`[...document.querySelectorAll('article.doc img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
-		t.Fatalf("the page does not show the file: %s; %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`), b.eval(`(() => { const sid = D[at(0).d].sid, x = new XMLHttpRequest(); x.open('GET', '/api/pages/' + sid + '/attachments', false); x.send(); const y = new XMLHttpRequest(); y.open('GET', '/api/doc/' + sid, false); y.send(); return x.responseText + ' || ' + y.responseText.slice(0, 300) + ' || ' + JSON.stringify(D[at(0).d].atts) })()`))
+	if !b.waitFor(`[...document.querySelectorAll('article.typeset img')].some(i => /^\/api\/files\/[0-9a-z]{10}\/content$/.test(i.getAttribute('src')) && i.complete && i.naturalWidth === 1)`) {
+		t.Fatalf("the page does not show the file: %s; %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 400)`), b.eval(`(() => { const sid = D[at(0).d].sid, x = new XMLHttpRequest(); x.open('GET', '/api/pages/' + sid + '/attachments', false); x.send(); const y = new XMLHttpRequest(); y.open('GET', '/api/doc/' + sid, false); y.send(); return x.responseText + ' || ' + y.responseText.slice(0, 300) + ' || ' + JSON.stringify(D[at(0).d].atts) })()`))
 	}
 	b.openMyFiles()
 	if !b.waitFor(fileRows + ` === 'rack photo.png'`) {
@@ -412,9 +412,9 @@ func TestTextOfAnImageInTheBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.openMyFiles()
-	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "lieferschein.png", png))
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, writeTemp(t, "lieferschein.png", png))
 	b.filesSettled()
-	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "lieferschein.png"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="fopen"]`, "lieferschein.png"), 1)
 	b.ready("lieferschein.png")
 	textOf := `(() => { const id = D[Object.keys(D).find(k => D[k]?.n === 'lieferschein.png' && D[k].sid)].sid;
 		const x = new XMLHttpRequest(); x.open('GET', '/api/files/' + id + '/text', false); x.send(); return x.responseText; })()`
@@ -436,18 +436,18 @@ func TestANewCollectionOfFilesAsksWithWhomToShare(t *testing.T) {
 	b, base, _, _ := setupWithFiles(t)
 	b.open(base + "/")
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="files"]`, 1)
+	b.clickOn(`[aria-label=Nav1] [data-act="view"][data-id="files"]`, 1)
 	if !b.waitFor(`FS.on && !FS.pending`) {
 		t.Fatal("the roots of the files did not come")
 	}
-	b.clickOn(probe(b, `.nav2 [data-act="sec"]`, "New collection"), 1)
-	b.submit(`.nav3 form[data-fform="coll"]`, map[string]string{"title": "Scans"})
+	b.clickOn(probe(b, `[aria-label=Nav2] [data-act="sec"]`, "New collection"), 1)
+	b.submit(`[aria-label=Nav3] form[data-fform="coll"]`, map[string]string{"title": "Scans"})
 	if !b.waitFor(`document.getElementById('udrights')?.open && document.querySelector('#udrights [data-new-title]')?.value === 'Scans' && !!document.querySelector('#udrights [data-only-me]')`) {
 		t.Fatalf("the dialog asks with whom to share: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
 	b.clickOn(`#udrights footer button[type="submit"]`, 1)
-	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 [data-act="sec"] .lbl')].some(n => n.textContent === 'Scans')`) {
-		t.Fatalf("Scans is a root now: %s", b.eval(`document.querySelector('.nav2')?.innerText`))
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].some(n => n.textContent === 'Scans')`) {
+		t.Fatalf("Scans is a root now: %s", b.eval(`document.querySelector('[aria-label=Nav2]')?.innerText`))
 	}
 	b.eval(`window.r = null; fetch('/api/objects/' + S.sec.files + '/rights').then(r => r.json()).then(j => { window.r = j.own.length + ' ' + j.ownerName; }); ''`)
 	if !b.waitFor(`window.r === '0 Anna Berg'`) {
