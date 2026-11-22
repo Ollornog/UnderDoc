@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // The search of the workspace (ADR-24, M-12): the palette on Ctrl+K with hits while typing, the results page with its
 // filters, and the jump to the section a hit names, with the matching words marked there. It reads /api/search and
-// uses the state and helpers of demo.js (S, D, SID, render, openDoc, esc, ic), which loads first.
+// uses the state and helpers of demo.js (S, D, SID, render, openDoc, esc, icon, hitItem …), which loads first. What it
+// draws is C22's: the palette a .command, hits .item entries, the filters small fields and buttons.
 
 const udSearch=(()=>{
   const real=()=>!document.getElementById('root').hasAttribute('data-demo');
@@ -36,16 +37,20 @@ const udSearch=(()=>{
   const meta=h=>[h.place,h.heading].filter(Boolean).map(esc).join(' › ')+(h.changed?` · ${esc(h.changed)}`:'')+(h.by?` · ${esc(h.by)}`:'');
   /* A hit opens its object at its section. The snippet comes from the server with every piece escaped and the matches in
      mark, so it goes in as it is. */
-  const hitHtml=(h,act)=>`<button class="hit" data-sact="${act}"${keyOfHit(h)?` data-id="${keyOfHit(h)}"`:''} data-sid="${esc(h.id)}" data-anchor="${esc(h.anchor||'')}" data-heading="${esc(h.heading||'')}" title="${esc(h.n)}">${ic(TYPE[h.t]?TYPE[h.t][0]:'page')}<span>${esc(h.n)}<small>${meta(h)}</small>${h.snippet?`<small class="snip">${h.snippet}</small>`:''}</span></button>`;
+  const hitAttrs=(h,act)=>`data-sact="${act}"${keyOfHit(h)?` data-id="${keyOfHit(h)}"`:''} data-sid="${esc(h.id)}" data-anchor="${esc(h.anchor||'')}" data-heading="${esc(h.heading||'')}" title="${esc(h.n)}"`;
+  const hitIcon=h=>TYPE[h.t]?TYPE[h.t][0]:'page';
+  const hitHtml=(h,act)=>hitItem(hitAttrs(h,act),hitIcon(h),esc(h.n),meta(h),h.snippet||'');
+  /* In the palette a hit is an entry of the command menu: the title, its place and the excerpt below it. */
+  const palHit=h=>`<button type="button" role="menuitem" ${hitAttrs(h,'go')}>${icon(hitIcon(h))}<div><span>${esc(h.n)}</span><small>${meta(h)}</small>${h.snippet?`<small data-snip>${h.snippet}</small>`:''}</div></button>`;
 
   function resultsHtml(){
     const q=S.sq.trim();
-    if(!q&&!filtered())return `<p class="hint">Type to search titles, headings and text. Error codes are found exactly as written. Ctrl+K opens the quick search anywhere.</p>`;
-    if(!result||asked!==key())return `<p class="hint">Searching…</p>`;
-    const note=result.notice?`<p class="note" role="status">${esc(result.notice)}</p>`:'';
-    const strat=S.strat==='meaning'?'<p class="hint">Similar meaning comes with AI (M-13). Until then this is the full text.</p>':'';
+    if(!q&&!filtered())return hint('Type to search titles, headings and text. Error codes are found exactly as written. Ctrl+K opens the quick search anywhere.');
+    if(!result||asked!==key())return hint('Searching…');
+    const said=result.notice?note(esc(result.notice),' role="status"'):'';
+    const strat=S.strat==='meaning'?hint('Similar meaning comes with AI (M-13). Until then this is the full text.'):'';
     const n=result.hits.length;
-    return `${note}${strat}<div class="chead first">${n} ${n===1?'hit':'hits'}${n===50?' (the first 50)':''}</div>${result.hits.map(h=>hitHtml(h,'go')).join('')||'<p class="hint">Nothing found. Fewer words, or another filter, may help.</p>'}`;
+    return `${said}${strat}${colLabel(`${n} ${n===1?'hit':'hits'}${n===50?' (the first 50)':''}`)}${n?hitList(result.hits.map(h=>hitHtml(h,'go')).join('')):hint('Nothing found. Fewer words, or another filter, may help.')}`;
   }
 
   /* The filters of the results page, as in Confluence: type, collection, author, the time of the last change, and tags
@@ -53,19 +58,19 @@ const udSearch=(()=>{
   function filtersHtml(){
     const fc=(result&&result.facets)||{};
     const opts=(name,list,all,label)=>{const have=list.some(x=>x.value===F[name]);
-      return `<select data-sf="${name}" aria-label="${label}"><option value="">${all}</option>${list.map(x=>`<option value="${esc(x.value)}"${F[name]===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}${F[name]&&!have?`<option value="${esc(F[name])}" selected>${esc(F[name])}</option>`:''}</select>`;};
+      return `<select class="select" data-size="sm" data-sf="${name}" aria-label="${label}"><option value="">${all}</option>${list.map(x=>`<option value="${esc(x.value)}"${F[name]===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}${F[name]&&!have?`<option value="${esc(F[name])}" selected>${esc(F[name])}</option>`:''}</select>`;};
     const types=(fc.type||[]).map(x=>({value:x.value,label:TYPES[x.value]||x.label}));
     const tags=[...new Set([...F.tags,...(fc.tags||[]).map(x=>x.value)])];
-    return `<div class="filters">${opts('type',types,'All types','Type')}${opts('collection',fc.collection||[],'All collections','Collection')}${opts('author',fc.author||[],'Everyone','Author')}
-      <div class="setrow"><span>Changed from</span><input type="date" data-sf="from" value="${esc(F.from)}" aria-label="Changed from"></div>
-      <div class="setrow"><span>until</span><input type="date" data-sf="to" value="${esc(F.to)}" aria-label="Changed until"></div>
-      ${tags.length?`<div class="tagrow">${tags.map(t=>`<button class="tagc" data-sact="tag" data-tag="${esc(t)}" aria-pressed="${F.tags.includes(t)}">#${esc(t)}</button>`).join('')}</div>`:''}</div>`;
+    const day=(k,name)=>prow(name,`<input class="input w-40" data-size="sm" type="date" data-sf="${k}" value="${esc(F[k])}" aria-label="${name}">`);
+    return `<div class="flex flex-col gap-2" data-filters>${opts('type',types,'All types','Type')}${opts('collection',fc.collection||[],'All collections','Collection')}${opts('author',fc.author||[],'Everyone','Author')}
+      ${day('from','Changed from')}${day('to','Changed until')}
+      ${tags.length?`<div class="flex flex-wrap gap-1">${tags.map(t=>tagToggle(`data-sact="tag" data-tag="${esc(t)}"`,esc(t),F.tags.includes(t))).join('')}</div>`:''}</div>`;
   }
   function pageHtml(){
     if(asked!==key())results();
     const n=['type','collection','author','from','to'].filter(k=>F[k]).length+F.tags.length;
-    return `<div class="spanel"><button class="chip filterbtn" data-act="filters" aria-expanded="${S.filters}">${ic('view')}Filter${n?' ('+n+')':''}</button>
-      ${S.filters?filtersHtml():''}<div id="sres">${resultsHtml()}</div></div>`;
+    return `<div class="flex flex-col gap-2"><div>${pbtn(`data-act="filters" aria-expanded="${S.filters}"`,'Filter'+(n?' ('+n+')':''),'view')}</div>
+      ${S.filters?filtersHtml():''}<div id="sres" class="flex flex-col gap-2">${resultsHtml()}</div></div>`;
   }
 
   /* --- The palette (Ctrl+K): pages and folders by their title at once, the full text as the server answers. */
@@ -78,18 +83,19 @@ const udSearch=(()=>{
   function palMenu(){
     if(!pal)return '';
     const q=pal.q.trim(),titles=titleMatches(q);
-    const go=titles.map(id=>`<button role="menuitem" data-sact="open" data-key="${id}" data-filter="${D[id].n}">${ic(D[id].t==='coll'?'grid':TYPE[D[id].t]?TYPE[D[id].t][0]:'page')}<span>${D[id].n}<small>${placeOf(id)}</small></span></button>`).join('');
+    const go=titles.map(id=>`<button type="button" role="menuitem" data-sact="open" data-key="${id}" data-filter="${D[id].n}">${icon(D[id].t==='coll'?'grid':TYPE[D[id].t]?TYPE[D[id].t][0]:'page')}<div><span>${D[id].n}</span><small>${placeOf(id)}</small></div></button>`).join('');
     const found=(pal.res&&pal.res.q===q?pal.res.hits:[]).filter(h=>!titles.includes(keyOfHit(h))||h.anchor).slice(0,8);
-    const text=found.map(h=>hitHtml(h,'go').replace('class="hit"','role="menuitem" class="hit"')).join('');
-    const note=pal.res&&pal.res.q===q&&pal.res.notice?`<p class="hint">${esc(pal.res.notice)}</p>`:'';
-    const all=q?`<button role="menuitem" data-sact="all">${ic('search')}<span>All results for “${esc(q)}”</span></button>`:'';
+    const text=found.map(palHit).join('');
+    const said=pal.res&&pal.res.q===q&&pal.res.notice?`<p class="text-muted-foreground px-2 py-1 text-xs">${esc(pal.res.notice)}</p>`:'';
+    const all=q?`<button type="button" role="menuitem" data-sact="all">${icon('search')}All results for “${esc(q)}”</button>`:'';
     const groups=[go?`<div role="group" aria-label="Pages and folders"><span role="heading">Go to</span>${go}</div>`:'',
-      text?`<div role="group" aria-label="Found in the text"><span role="heading">Found</span>${text}</div>`:'',note,all].filter(Boolean);
-    return groups.join('<hr role="separator">')||`<p class="hint">Type a title, words or an error code.</p>`;
+      text?`<div role="group" aria-label="Found in the text"><span role="heading">Found</span>${text}</div>`:'',said,all].filter(Boolean);
+    return groups.join('<hr role="separator">')||`<p class="text-muted-foreground px-2 py-1 text-xs">Type a title, words or an error code.</p>`;
   }
   function palHtml(){
     if(!pal)return '';
-    return `<div class="pop ctxpop cmdpop udpal" data-style="left:${pal.x}px;top:${pal.y}px"><div class="command" aria-label="Quick search"><header>${ic('search')}<input data-palq value="${esc(pal.q)}" placeholder="Search or jump to…" aria-label="Quick search" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="udpalmenu"></header><div role="menu" id="udpalmenu">${palMenu()}</div></div></div>`;
+    /* C22's command menu, fixed below the search field; udpal is the handle the script finds it by. */
+    return `<div class="command udpal fixed z-50 w-96 border shadow-md" data-style="left:${pal.x}px;top:${pal.y}px" aria-label="Quick search"><header>${icon('search')}<input data-palq value="${esc(pal.q)}" placeholder="Search or jump to…" aria-label="Quick search" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="udpalmenu"></header><div role="menu" class="scrollbar-sm" id="udpalmenu">${palMenu()}</div></div>`;
   }
   function openPalette(){
     const f=document.getElementById('search'),z=S.scale/100,r=f?f.getBoundingClientRect():null;
@@ -143,7 +149,7 @@ const udSearch=(()=>{
     const re=new RegExp([...words].sort((a,b)=>b.length-a.length).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'gi');
     nodes.forEach(root=>{const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),texts=[];while(tw.nextNode())if(!tw.currentNode.parentElement.closest('mark,button'))texts.push(tw.currentNode);
       texts.forEach(n=>{const s=n.nodeValue;re.lastIndex=0;if(!re.test(s))return;re.lastIndex=0;const f=document.createDocumentFragment();let last=0,m;
-        while((m=re.exec(s))){f.append(s.slice(last,m.index));const k=document.createElement('mark');k.className='hitmark cur';k.textContent=m[0];f.append(k);last=m.index+m[0].length;}
+        while((m=re.exec(s))){f.append(s.slice(last,m.index));const k=document.createElement('mark');k.className='hitmark';k.textContent=m[0];f.append(k);last=m.index+m[0].length;}
         f.append(s.slice(last));n.replaceWith(f);});});
   }
   function after(){
@@ -170,7 +176,7 @@ const udSearch=(()=>{
     if(pal&&!(e.target.closest&&e.target.closest('.udpal'))&&!a){pal=null;render();}
     if(!a)return;e.preventDefault();e.stopImmediatePropagation();
     switch(a.dataset.sact){
-      case 'go':openHit(a.dataset.sid,a.dataset.anchor,a.dataset.heading,(a.querySelector('.snip')||{}).innerHTML,pal?pal.q:S.sq);return;
+      case 'go':openHit(a.dataset.sid,a.dataset.anchor,a.dataset.heading,(a.querySelector('[data-snip]')||{}).innerHTML,pal?pal.q:S.sq);return;
       case 'open':pal=null;openDoc(a.dataset.key);render();return;
       case 'all':{const q=pal?pal.q.trim():'';pal=null;if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq=q;results();render();const f=document.getElementById('search');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}return;}
       case 'tag':{const t=a.dataset.tag;F.tags=F.tags.includes(t)?F.tags.filter(x=>x!==t):[...F.tags,t];results();render();return;}

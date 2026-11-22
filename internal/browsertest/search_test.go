@@ -114,10 +114,10 @@ func TestQuickSearchJumpsToTheSection(t *testing.T) {
 		t.Fatalf("Ctrl+K opens the quick search with the focus in its field: %s | %s", b.eval(`document.activeElement?.tagName`), b.eval(`String(!!document.querySelector('.udpal')) + ' ' + (document.querySelector('.udpal')?.outerHTML.slice(0, 300))`))
 	}
 	b.typeText("E-1042")
-	if !b.waitFor(`[...document.querySelectorAll('.udpal .hit mark')].some(m => m.textContent === 'E-1042')`) {
+	if !b.waitFor(`[...document.querySelectorAll('.udpal [data-sact="go"] mark')].some(m => m.textContent === 'E-1042')`) {
 		t.Fatalf("hits show while typing, the code marked: %s", b.eval(`document.querySelector('.udpal')?.innerText`))
 	}
-	if got := b.eval(`document.querySelector('.udpal .hit small')?.textContent`); !strings.Contains(got, "Störungen") {
+	if got := b.eval(`document.querySelector('.udpal [data-sact="go"] small')?.textContent`); !strings.Contains(got, "Störungen") {
 		t.Errorf("a hit names its place and section: %q", got)
 	}
 	b.shot("search-palette")
@@ -168,19 +168,19 @@ func TestResultsPageWithFilters(t *testing.T) {
 	b.ready("")
 	b.press("/", "Slash", 191, 0)
 	b.typeText("Kartenzahlung")
-	if !b.waitFor(`document.querySelectorAll('#sres .hit').length === 2`) {
+	if !b.waitFor(`document.querySelectorAll('#sres [data-sact="go"]').length === 2`) {
 		t.Fatalf("both pages are hits: %s", b.eval(`document.getElementById('sres')?.innerText`))
 	}
-	if got := b.eval(`document.querySelector('#sres .hit').textContent`); !strings.HasPrefix(got, "Kartenzahlung") {
+	if got := b.eval(`document.querySelector('#sres [data-sact="go"]').textContent`); !strings.HasPrefix(got, "Kartenzahlung") {
 		t.Errorf("the page with the word as its title comes first: %q", got)
 	}
-	b.clickOn(`.spanel .filterbtn`, 1)
-	b.clickOn(`.spanel .tagc[data-tag="kasse"]`, 1)
-	if !b.waitFor(`document.querySelectorAll('#sres .hit').length === 1 && document.querySelector('#sres .hit').textContent.startsWith('Kasse bedienen')`) {
+	b.clickOn(`[aria-label=Nav3] [data-act="filters"]`, 1)
+	b.clickOn(`[aria-label=Nav3] [data-sact="tag"][data-tag="kasse"]`, 1)
+	if !b.waitFor(`document.querySelectorAll('#sres [data-sact="go"]').length === 1 && document.querySelector('#sres [data-sact="go"]').textContent.startsWith('Kasse bedienen')`) {
 		t.Fatalf("a tag narrows the hits: %s", b.eval(`document.getElementById('sres')?.innerText`))
 	}
 	b.shot("search-results")
-	b.clickOn(`#sres .hit`, 1)
+	b.clickOn(`#sres [data-sact="go"]`, 1)
 	if !b.waitFor(`location.pathname === '/o/` + other + `' && document.querySelector('mark.hitmark')?.textContent === 'Kartenzahlung'`) {
 		t.Errorf("a click opens the hit with the heading marked: %s %s %s", b.eval(`location.pathname`), b.eval(`JSON.stringify(S.wins.map(w => w.tabs.map(t => [t.d, t.hl])))`), b.eval(`document.querySelector('[data-art]')?.innerHTML.slice(0, 600)`))
 	}
@@ -213,7 +213,7 @@ func TestQuickSearchFindsAFileByItsText(t *testing.T) {
 	b.press("k", "KeyK", 75, ctrl)
 	b.waitFor(`document.activeElement?.dataset.palq !== undefined`)
 	b.typeText("E-3301")
-	if !b.waitFor(`[...document.querySelectorAll('.udpal .hit')].some(h => h.textContent.includes('wartung.pdf') && h.querySelector('mark')?.textContent === 'E-3301')`) {
+	if !b.waitFor(`[...document.querySelectorAll('.udpal [data-sact="go"]')].some(h => h.textContent.includes('wartung.pdf') && h.querySelector('mark')?.textContent === 'E-3301')`) {
 		t.Fatalf("the file is a hit, the code marked: %s", b.eval(`document.querySelector('.udpal')?.innerText`))
 	}
 	b.press("Enter", "Enter", 13, 0)

@@ -40,8 +40,8 @@ func TestSwitchingModulesWithTheMouse(t *testing.T) {
 	team := makeTeam(b)
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
 	b.clickOn(`[data-act="sec"][data-id="mods"]`, 1)
-	if !b.waitFor(`(document.querySelector('.spanel')?.textContent || '').includes('✓ On')`) {
-		t.Fatalf("the profile lists the modules: %s", b.eval(`document.querySelector('.spanel')?.textContent`))
+	if !b.waitFor(`(document.querySelector('[aria-label=Nav3] aside.card')?.textContent || '').includes('✓ On')`) {
+		t.Fatalf("the profile lists the modules: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.textContent`))
 	}
 	b.clickOn(`a[href="/admin/modules"]`, 1)
 	if !b.waitFor(`location.pathname === '/admin/modules'`) {

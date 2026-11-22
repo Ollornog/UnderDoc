@@ -202,25 +202,25 @@ func TestTheTabRights(t *testing.T) {
 	team := makeTeam(b)
 	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-rights="groups"] [data-group="ops"]')`) {
-		t.Fatalf("the groups, with ops from the sign-in: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Fatalf("the groups, with ops from the sign-in: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.submit(`[data-rights="groups"] [data-rform="group"]`, map[string]string{"name": "Board", "description": "The board"})
 	if !b.waitFor(`!!document.querySelector('[data-rights="groups"] [data-group="Board"]')`) {
-		t.Fatalf("the group is made: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Fatalf("the group is made: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-group="Board"] [data-ract="members"]`, 1)
 	b.submit(`[data-rights="groups"] [data-rform="member"]`, map[string]string{"account": "bob"})
 	if !b.waitFor(`(document.querySelector('[data-rights="groups"]')?.innerText || '').includes('Bob Kern')`) {
-		t.Errorf("bob is a member: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Errorf("bob is a member: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-rights="users"] [data-user="bob"]')`) {
-		t.Errorf("the users: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Errorf("the users: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-act="sec"][data-id="check"]`, 1)
 	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + team, "account": "bob"})
 	if !b.waitFor(`(document.querySelector('[data-who]')?.innerText || '').includes('Everyone') && (document.querySelector('[data-check]')?.innerText || '').includes('Role: edit')`) {
-		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.shot("rights-tab")
 	// What bob left behind: a collection of his own, which the administrator transfers without seeing what is in it.
@@ -239,7 +239,7 @@ func TestTheTabRights(t *testing.T) {
 	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
 	b.clickOn(`[data-rights="users"] [data-user="bob"] [data-ract="heldby"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]')`) {
-		t.Fatalf("what bob owns, with Transfer: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Fatalf("what bob owns, with Transfer: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	// Nobody is chosen before the administrator chooses, and bob, whose things these are, is not offered: sent as it is,
 	// the form gives nothing away.
@@ -255,12 +255,12 @@ func TestTheTabRights(t *testing.T) {
 	b.submit(transfer, map[string]string{"to": "anna"})
 	// Bob keeps edit, as a former owner does.
 	if !b.waitFor(`!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]') && (document.querySelector('[data-held-row="` + left + `"]')?.innerText || '').includes('edit')`) {
-		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	// The log names what was done, the group made among it.
 	b.clickOn(`[data-act="sec"][data-id="log"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-rights="log"] [data-log] [data-entry="group"]') && (document.querySelector('[data-rights="log"]')?.innerText || '').includes('Board')`) {
-		t.Errorf("the log: %s", b.eval(`document.querySelector('.spanel')?.innerText`))
+		t.Errorf("the log: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.shot("rights-log")
 }
@@ -279,7 +279,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
-	b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
+	b.clickOn(probe(b, `[data-menu="new"] [role="menuitem"]`, "Collection"), 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] option[value="person:bob"]')`) {
 		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
