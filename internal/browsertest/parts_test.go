@@ -69,12 +69,12 @@ func TestTheWaysOfAPartInUse(t *testing.T) {
 			// Runbook shows who removed it, and Restore brings it back.
 			b.open(base + "/o/" + runbook)
 			b.ready("Runbook")
-			if !b.waitFor(`/Removed by .* from Errors/.test(document.querySelector('article.doc')?.innerText || '')`) {
-				t.Fatalf("no placeholder: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+			if !b.waitFor(`/Removed by .* from Errors/.test(document.querySelector('article.typeset')?.innerText || '')`) {
+				t.Fatalf("no placeholder: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 			}
-			press(`article.doc [data-act="restoreremoved"]`)
-			if !b.waitFor(`(document.querySelector('article.doc [data-embed-part]')?.textContent || '') === 'the disk is full'`) {
-				t.Errorf("restored, the part shows again: %s", b.eval(`document.querySelector('article.doc')?.innerText`))
+			press(`article.typeset [data-act="restoreremoved"]`)
+			if !b.waitFor(`(document.querySelector('article.typeset [data-embed-part]')?.textContent || '') === 'the disk is full'`) {
+				t.Errorf("restored, the part shows again: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 			}
 			b.clean("ways " + name)
 		})
@@ -104,12 +104,12 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 				t.Fatalf("the bar offers nothing for marked text")
 			}
 			if phone {
-				b.tap(`.edbar [data-act="edselembed"]`)
+				b.tap(`[data-edbar] [data-act="edselembed"]`)
 			} else {
-				b.clickOn(`.edbar [data-act="edselembed"]`, 1)
+				b.clickOn(`[data-edbar] [data-act="edselembed"]`, 1)
 			}
 			if !b.waitFor(`!!window.lastMarked && !!window.clip`) {
-				t.Fatalf("no part was made: %s", b.eval(`(() => { const x = document.querySelector('.edbar [data-act="edselembed"]'), r = x.getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return JSON.stringify({toast: document.querySelector('.toast')?.textContent, r, hit: hit && hit.outerHTML.slice(0, 80), sel: EDS[at(0).d].ed.view.state.selection.main, w: innerWidth}); })()`))
+				t.Fatalf("no part was made: %s", b.eval(`(() => { const x = document.querySelector('[data-edbar] [data-act="edselembed"]'), r = x.getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return JSON.stringify({toast: document.querySelector('.toast')?.textContent, r, hit: hit && hit.outerHTML.slice(0, 80), sel: EDS[at(0).d].ed.view.state.selection.main, w: innerWidth}); })()`))
 			}
 			ref := b.eval(`window.lastMarked.ref`)
 			if got := b.eval(`window.clip`); !strings.HasSuffix(got, "/o/"+errors+"#b1.t1") {
@@ -150,7 +150,7 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 			// Copy is plain text with the formatting closed.
 			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('ve'), to = t.indexOf('now'); v.dispatch({selection: {anchor: from, head: to}}); v.focus(); window.clip = null; })()`)
 			b.waitFor(`!document.querySelector('[data-edsel]').hidden`)
-			b.clickOn(`.edbar [data-act="edselcopy"]`, 1)
+			b.clickOn(`[data-edbar] [data-act="edselcopy"]`, 1)
 			if !b.waitFor(`window.clip === '**ve full**'`) {
 				t.Errorf("the copy: %q", b.eval(`window.clip`))
 			}
@@ -162,14 +162,14 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 			if !b.edWait(`t.includes('When it says so:embed{ref="` + ref + `"}, act.')`) {
 				t.Fatalf("pasted inside a paragraph: %q", b.eval(edText))
 			}
-			b.clickOn(`[data-win="0"] .dstatus`, 1) // back to reading
-			if !b.waitFor(`(document.querySelector('article.doc [data-embed-part]')?.innerHTML || '') === 'disk is <strong>ve</strong>'`) {
-				t.Errorf("Runbook reads the part through its formatting: %s", b.eval(`document.querySelector('article.doc')?.innerHTML`))
+			b.clickOn(`[data-win="0"] [data-mode]`, 1) // back to reading
+			if !b.waitFor(`(document.querySelector('article.typeset [data-embed-part]')?.innerHTML || '') === 'disk is <strong>ve</strong>'`) {
+				t.Errorf("Runbook reads the part through its formatting: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML`))
 			}
 			// Reading Errors, the pointer on the part shows its boundary and where it is used.
 			b.open(base + "/o/" + errors)
 			b.ready("Errors")
-			r := b.rect(`article.doc [data-b="b1"] strong`)
+			r := b.rect(`article.typeset [data-b="b1"] strong`)
 			if phone {
 				b.pressAt(r.X-30, r.Y, 60*time.Millisecond)
 			} else {
@@ -211,21 +211,21 @@ func TestTheResourcesTabIsReal(t *testing.T) {
 	makePage(b, "Invoice", "Net plus :embed{ref=\""+rates+"#b1.t1\"}.", "::embed{ref=\""+rates+"#b2\"}")
 	b.open(base + "/")
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="resources"]`, 1)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 [data-act="open"]')].some(x => x.textContent.trim() === 'vat')`) {
-		t.Fatalf("the value is not in the list: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	b.clickOn(`[aria-label=Nav1] [data-act="view"][data-id="resources"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] [data-act="open"]')].some(x => x.textContent.trim() === 'vat')`) {
+		t.Fatalf("the value is not in the list: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText`))
 	}
-	b.clickOn(probe(b, `.nav3 [data-act="open"]`, "vat"), 1)
-	row := `[...document.querySelectorAll('article.doc tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()).join(' | ')`
-	if !b.waitFor(row + `.includes('Value 19 %') && ` + row + `.includes('Used in 1 place') && document.querySelector('article.doc a[href^="/o/` + rates + `#b1.t1"]')?.textContent === 'Rates'`) {
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="open"]`, "vat"), 1)
+	row := `[...document.querySelectorAll('article.typeset tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()).join(' | ')`
+	if !b.waitFor(row + `.includes('Value 19 %') && ` + row + `.includes('Used in 1 place') && document.querySelector('article.typeset a[href^="/o/` + rates + `#b1.t1"]')?.textContent === 'Rates'`) {
 		t.Fatalf("the value does not show: %s", b.eval(row))
 	}
-	if got := b.eval(`[...document.querySelectorAll('.nav2 [data-act="sec"]')].map(x => x.textContent.trim()).join(', ')`); !strings.Contains(got, "Databases and views (demo)") || strings.Contains(got, "Values (demo)") {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"]')].map(x => x.textContent.trim()).join(', ')`); !strings.Contains(got, "Databases and views (demo)") || strings.Contains(got, "Values (demo)") {
 		t.Errorf("what is real and what is the mock-up: %s", got)
 	}
 	b.clickOn(`[data-act="sec"][data-id="snippets"]`, 1)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 [data-act="open"]')].some(x => x.textContent.trim() === 'Shipping is free.')`) {
-		t.Fatalf("the snippet is not in the list: %s", b.eval(`document.querySelector('.nav3')?.innerText`))
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] [data-act="open"]')].some(x => x.textContent.trim() === 'Shipping is free.')`) {
+		t.Fatalf("the snippet is not in the list: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText`))
 	}
 	b.shot("resources-real")
 }
@@ -245,7 +245,7 @@ func TestMovingABlockToAnotherPage(t *testing.T) {
 			target := makePage(b, "Target page", "First.")
 			source := makePage(b, "Source page", "Stays here.", "Goes away <!-- part t1 -->with its part<!-- /part t1 -->.")
 			user := makePage(b, "User page", "Uses :embed{ref=\""+source+"#b2.t1\"}.")
-			handle := `article.doc [data-b="b2"] > .bhandle`
+			handle := `article.typeset [data-b="b2"] > .bhandle`
 			if editing {
 				b.openEditing(base, source, "Source page")
 				handle = `.cm-ud-marker[data-edb="b2"] .bhandle`
@@ -280,8 +280,8 @@ func TestMovingABlockToAnotherPage(t *testing.T) {
 			if got := md(user); got != `b1:Uses :embed{ref="`+target+`#b2.t1"}.` {
 				t.Errorf("User page follows: %q", got)
 			}
-			if !b.waitFor(`![...document.querySelectorAll('article.doc')].some(a => a.textContent.includes('Goes away')) && !Object.values(EDS).some(e => e.ed.text().includes('Goes away'))`) {
-				t.Errorf("the page still shows the block: %s", b.eval(`document.querySelector('article.doc')?.textContent`))
+			if !b.waitFor(`![...document.querySelectorAll('article.typeset')].some(a => a.textContent.includes('Goes away')) && !Object.values(EDS).some(e => e.ed.text().includes('Goes away'))`) {
+				t.Errorf("the page still shows the block: %s", b.eval(`document.querySelector('article.typeset')?.textContent`))
 			}
 			// Nothing saves it back later: the editor made again saves nothing of the old page.
 			time.Sleep(2 * time.Second)

@@ -74,7 +74,7 @@ func TestSambaInTheWorkspace(t *testing.T) {
 	// The profile: make an app password.
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-samba] [data-act="sambanew"]')`) {
-		t.Fatalf("no SMB part in the profile: %s", b.eval(`document.querySelector('.nav3')?.innerText.slice(0, 400)`))
+		t.Fatalf("no SMB part in the profile: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText.slice(0, 400)`))
 	}
 	if got := b.eval(`document.querySelector('[data-samba-name]').value`); got != "anna" {
 		t.Errorf("the suggested name: %q", got)

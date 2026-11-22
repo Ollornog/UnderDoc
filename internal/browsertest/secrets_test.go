@@ -140,20 +140,20 @@ func TestPasswordsInTheEditorAndWhileReading(t *testing.T) {
 
 	// Reading: the masks the server drew.
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`document.querySelectorAll('article.doc [data-secret-state="ok"]').length === 2 && !document.querySelector('.cm-editor')`) {
-		t.Fatalf("reading shows no masks: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 400)`))
+	if !b.waitFor(`document.querySelectorAll('article.typeset [data-secret-state="ok"]').length === 2 && !document.querySelector('.cm-editor')`) {
+		t.Fatalf("reading shows no masks: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 400)`))
 	}
 	b.eval(`window.clip = null`)
-	b.clickOn(`article.doc [data-secret-state="ok"] [data-pwact="show"]`, 1)
-	if !b.waitFor(`document.querySelector('article.doc [data-secret-value]').textContent === ` + strconv.Quote(first)) {
-		t.Errorf("Reveal while reading: %q", b.eval(`document.querySelector('article.doc [data-secret-value]').textContent`))
+	b.clickOn(`article.typeset [data-secret-state="ok"] [data-pwact="show"]`, 1)
+	if !b.waitFor(`document.querySelector('article.typeset [data-secret-value]').textContent === ` + strconv.Quote(first)) {
+		t.Errorf("Reveal while reading: %q", b.eval(`document.querySelector('article.typeset [data-secret-value]').textContent`))
 	}
 	b.shot("secrets-revealed")
-	b.clickOn(`article.doc [data-secret-state="ok"] [data-pwact="show"]`, 1)
-	if !b.waitFor(`document.querySelector('article.doc [data-secret-value]').textContent === '••••••••'`) {
+	b.clickOn(`article.typeset [data-secret-state="ok"] [data-pwact="show"]`, 1)
+	if !b.waitFor(`document.querySelector('article.typeset [data-secret-value]').textContent === '••••••••'`) {
 		t.Error("Hide while reading did not mask it again")
 	}
-	b.clickOn(`article.doc [data-secret-state="ok"] [data-pwact="copy"]`, 1)
+	b.clickOn(`article.typeset [data-secret-state="ok"] [data-pwact="copy"]`, 1)
 	if !b.waitFor(`window.clip === ` + strconv.Quote(first)) {
 		t.Errorf("Copy while reading: %q", b.eval(`String(window.clip)`))
 	}
@@ -183,7 +183,7 @@ func TestPasswordsInTheEditorAndWhileReading(t *testing.T) {
 	b.signInWith("bob", "Bob", "")
 	b.open(base + "/o/" + page)
 	b.ready("Router")
-	if got := b.eval(`document.querySelectorAll('article.doc [data-secret-state="hidden"]').length + ' ' + document.querySelectorAll('article.doc [data-secret-state="ok"]').length`); got != "1 1" {
+	if got := b.eval(`document.querySelectorAll('article.typeset [data-secret-state="hidden"]').length + ' ' + document.querySelectorAll('article.typeset [data-secret-state="ok"]').length`); got != "1 1" {
 		t.Errorf("bob sees one hidden and one he may reveal: %q", got)
 	}
 	b.signIn(true)

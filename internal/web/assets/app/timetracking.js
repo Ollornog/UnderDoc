@@ -43,7 +43,7 @@ window.UnderDocTime = (() => {
     const shown = new Set();
     document.querySelectorAll("[data-timeframe]").forEach((slot) => {
       const win = slot.dataset.win;
-      const area = slot.closest(".scroll") || slot;
+      const area = slot.closest("[data-sc]") || slot;
       const r = area.getBoundingClientRect();
       const frame = frameFor(win, slot.dataset.timeframe);
       frame.style.left = r.left / zoom + "px";

@@ -40,7 +40,7 @@ func TestTheRoleDecidesWhatIsGreyed(t *testing.T) {
 	if !b.waitFor(`window.done === 204`) {
 		t.Fatalf("the group ops was not granted edit: %s", b.eval(`String(window.done)`))
 	}
-	newHere := `[document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus') !== null, !!document.querySelector('.cheadrow[data-cdrop="` + team + `"] .acc')].join(' ')`
+	newHere := `[document.querySelector('section > header[data-cdrop="` + team + `"] .btn') !== null, !!document.querySelector('section > header[data-cdrop="` + team + `"] [data-lock]')].join(' ')`
 	b.signInWith("carl", "Carl", "ops")
 	b.open(base + "/o/" + team)
 	b.ready("Team")
@@ -278,7 +278,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.signIn(true)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 	b.clickOn(probe(b, `.cmdpop [role="menuitem"]`, "Collection"), 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] option[value="person:bob"]')`) {
 		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
@@ -302,10 +302,10 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.eval(`(() => { const f = document.querySelector('#udrights [data-new-title]'); f.value = 'Board'; f.dispatchEvent(new Event('input', {bubbles: true})); })()`)
 	b.shot("new-collection-share")
 	b.clickOn(`#udrights footer button[type="submit"]`, 1)
-	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Board')`) {
-		t.Fatalf("Board is made: %s", b.eval(`document.getElementById('udrights')?.innerText + ' / ' + document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].some(n => n.textContent === 'Board')`) {
+		t.Fatalf("Board is made: %s", b.eval(`document.getElementById('udrights')?.innerText + ' / ' + document.querySelector('[aria-label=Nav2]').innerText.replace(/\s+/g, ' ')`))
 	}
-	board := b.eval(`(() => { const n = [...document.querySelectorAll('.nav2 [data-act="coll"]')].find(n => n.textContent.includes('Board')); return D[n.dataset.id].sid; })()`)
+	board := b.eval(`(() => { const n = [...document.querySelectorAll('[aria-label=Nav2] [data-act="coll"]')].find(n => n.textContent.includes('Board')); return D[n.dataset.id].sid; })()`)
 	b.eval(`window.r = null; fetch('/api/objects/` + board + `/rights').then(r => r.json()).then(j => { window.r = JSON.stringify(j.own.map(g => g.kind + ':' + g.who + ':' + g.role)); }); ''`)
 	if !b.waitFor(`window.r === '["person:bob:comment"]'`) {
 		t.Errorf("only bob is granted, to comment: %s", b.eval(`String(window.r)`))
@@ -322,7 +322,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.signInWith("carl", "Carl", "")
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Board')`); got != "false" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].some(n => n.textContent === 'Board')`); got != "false" {
 		t.Errorf("carl sees Board")
 	}
 	b.eval(`window.c = null; fetch('/api/objects/` + board + `/rights').then(r => { window.c = r.status; }); ''`)

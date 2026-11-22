@@ -55,7 +55,7 @@ func TestSwitchingModulesWithTheMouse(t *testing.T) {
 	}
 	b.shot("modules-admin")
 	b.open(base + "/")
-	if !b.waitFor(`!!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`!!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatal("the workspace without Documents")
 	}
 	if got := b.eval(`fetch('/api/state').then(r => r.json()).then(s => { window.cols = s.collections.length; }); 'asked'`); got != "asked" {

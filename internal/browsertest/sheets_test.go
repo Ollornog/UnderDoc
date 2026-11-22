@@ -26,15 +26,15 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.choose(`.nav3 [data-act="fup"]`, writeTemp(t, "budget.xlsx", fixture))
+	b.choose(`[aria-label=Nav3] [data-act="fup"]`, writeTemp(t, "budget.xlsx", fixture))
 	b.filesSettled()
-	b.clickOn(probe(b, `.nav3 [data-act="fopen"]`, "budget.xlsx"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] [data-act="fopen"]`, "budget.xlsx"), 1)
 	b.ready("budget.xlsx")
-	grid := `article.doc [data-sheet-grid]`
+	grid := `article.typeset [data-sheet-grid]`
 	if !b.waitFor(`!!document.querySelector('` + grid + ` td[data-r="2"][data-c="2"]')`) {
-		t.Fatalf("no table view: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(0, 600)`))
+		t.Fatalf("no table view: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 600)`))
 	}
-	if got := b.eval(`[...document.querySelectorAll('article.doc [data-sheet-tab]')].map(n => n.textContent + ':' + n.getAttribute('aria-pressed')).join(', ')`); got != "Budget:true, Odd <&> it's:false" {
+	if got := b.eval(`[...document.querySelectorAll('article.typeset [data-sheet-tab]')].map(n => n.textContent + ':' + n.getAttribute('aria-pressed')).join(', ')`); got != "Budget:true, Odd <&> it's:false" {
 		t.Errorf("the tabs: %q", got)
 	}
 	// Numbers read in the language of the browser (Accept-Language), German or English.
@@ -71,7 +71,7 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	b.mouse("mouseMoved", (from.X+to.X)/2, (from.Y+to.Y)/2, 0, 0)
 	b.mouse("mouseMoved", to.X, to.Y, 0, 0)
 	b.mouse("mouseReleased", to.X, to.Y, 1, 0)
-	embed := `document.querySelector('article.doc [data-sheet-act="embed"]').textContent`
+	embed := `document.querySelector('article.typeset [data-sheet-act="embed"]').textContent`
 	if !b.waitFor(embed + ` === 'Embed A1:C3'`) {
 		t.Fatalf("the dragged range: %s", b.eval(embed))
 	}
@@ -85,14 +85,14 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 	if !b.waitFor(embed + ` === 'Embed B2:C3'`) {
 		t.Fatalf("the range by the keyboard: %s", b.eval(embed))
 	}
-	b.clickOn(`article.doc [data-sheet-act="embed"]`, 1)
-	said := `document.querySelector('article.doc [data-sheet-say]')?.textContent ?? ''`
+	b.clickOn(`article.typeset [data-sheet-act="embed"]`, 1)
+	said := `document.querySelector('article.typeset [data-sheet-say]')?.textContent ?? ''`
 	if !b.waitFor(`(` + said + `).includes('::embed{ref=')`) {
 		t.Fatalf("the line to embed: %s", b.eval(said))
 	}
 	line := b.eval(`(` + said + `).match(/::embed\{ref="[^"]+"\}/)[0]`)
-	if !b.waitFor(`!!document.querySelector('article.doc [data-sheet-table="x1"]')`) {
-		t.Fatalf("the embedded table is not listed: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(-400)`))
+	if !b.waitFor(`!!document.querySelector('article.typeset [data-sheet-table="x1"]')`) {
+		t.Fatalf("the embedded table is not listed: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(-400)`))
 	}
 	// A page embeds it and shows it.
 	page := b.eval(`(() => { const send = (m, u, body) => { const x = new XMLHttpRequest(); x.open(m, u, false); x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); return JSON.parse(x.responseText); };
@@ -100,16 +100,16 @@ func TestSpreadsheetInTheWorkspace(t *testing.T) {
 		send('POST', '/api/pages/' + p.id + '/blocks', {md: ` + strconv.Quote(line) + `}); return p.id; })()`)
 	b.open(base + "/o/" + page)
 	b.ready("Budget report")
-	if !b.waitFor(`[...document.querySelectorAll('article.doc figure.embed td')].some(td => td.textContent === '` + money + `')`) {
-		t.Fatalf("the page does not show the table: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 800)`))
+	if !b.waitFor(`[...document.querySelectorAll('article.typeset figure.embed td')].some(td => td.textContent === '` + money + `')`) {
+		t.Fatalf("the page does not show the table: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 800)`))
 	}
 	b.shot("sheet-in-page")
 
 	// An address of a hit of the search opens the view at its sheet.
 	file := b.eval(`(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/doc/` + page + `', false); x.send(); return JSON.parse(x.responseText).embeds[0].ref.split('#')[0]; })()`)
 	b.open(base + "/o/" + file + "#" + url.PathEscape("Odd <&> it's!A1:B2"))
-	if !b.waitFor(`document.querySelector('article.doc [data-sheet-tab][aria-pressed="true"]')?.textContent === "Odd <&> it's"`) {
-		t.Fatalf("the hit does not open its sheet: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(0, 400)`))
+	if !b.waitFor(`document.querySelector('article.typeset [data-sheet-tab][aria-pressed="true"]')?.textContent === "Odd <&> it's"`) {
+		t.Fatalf("the hit does not open its sheet: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 400)`))
 	}
 	if !b.waitFor(`[...document.querySelectorAll('` + grid + ` td')].some(td => td.textContent.startsWith('Längerer Text'))`) {
 		t.Error("the sheet of the hit shows no cells")

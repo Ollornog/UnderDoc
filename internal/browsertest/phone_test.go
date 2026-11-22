@@ -45,7 +45,7 @@ func (b *browser) longPress(selector string) {
 // longPressFreeNav2 holds a finger on the free part of nav2, below its entries.
 func (b *browser) longPressFreeNav2() {
 	b.t.Helper()
-	r := b.rect(".nav2")
+	r := b.rect("[aria-label=Nav2]")
 	b.pressAt(r.X, r.Bottom-6, 800*time.Millisecond)
 }
 
@@ -60,7 +60,7 @@ const unreachable = `(() => {
 	const name = e => (e.dataset.act ? e.dataset.act + (e.dataset.id ? ':' + e.dataset.id : '') + ' ' : '') + JSON.stringify((e.getAttribute('aria-label') || e.title || e.textContent || e.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 30)) + ' ' + e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
 	const scrolls = s => /(auto|scroll)/.test(s);
 	// Columns, windows, drawers and menus do not scroll sideways: what is wider than they are is cut off for a hand.
-	for (const p of document.querySelectorAll('#root :is(.strip, .nav2, .nav3, .tree, .scroll, .page, .fdrawer, .spanel, .pop, .ctxpop, .bmenu, .bslash, .work, .side)')) {
+	for (const p of document.querySelectorAll('#root :is([aria-label=Nav1], [aria-label=Nav2], [aria-label=Nav3], #tree, [data-sc], .page, .fdrawer, .spanel, .pop, .ctxpop, .bmenu, .bslash, .workspace-windows, .workspace-window)')) {
 		if (p.getClientRects().length && getComputedStyle(p).overflowX !== 'visible' && p.scrollWidth > p.clientWidth + 1) bad.push('scrolls sideways (' + p.scrollWidth + ' > ' + p.clientWidth + '): ' + name(p));
 	}
 	// Text cut by an edge that does not scroll, without the dots that say there is more.
@@ -79,7 +79,7 @@ const unreachable = `(() => {
 			if (t.left < q.left - 2 || t.right > q.right + 2) bad.push('text cut off by ' + name(p) + ' (' + Math.round(t.left) + '-' + Math.round(t.right) + ' in ' + Math.round(q.left) + '-' + Math.round(q.right) + '): ' + JSON.stringify(n.textContent.trim().slice(0, 30)));
 			break; }
 	}
-	const layer = '.fly, .pop, .ctxpop, .cmdpop, .fdrawer, .bmenu, .bslash, .btool, .aidrawer, .toast, .rail';
+	const layer = '[data-popover], .pop, .tabmenu, .ctxpop, .cmdpop, .fdrawer, .bmenu, .bslash, .btool, .aidrawer, .toast, [aria-label=Nav2], [aria-label=Nav3]';
 	for (const e of document.querySelectorAll('#root :is(button, input, textarea, select, a[href], [role=menuitem]):not([data-grip])')) {
 		if (!e.getClientRects().length || getComputedStyle(e).visibility === 'hidden') continue;
 		let r = e.getBoundingClientRect();
@@ -155,7 +155,7 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.open(base + "/o/plan")
 			b.ready("Network plan")
 			b.reach("plan")
-			b.clickOn(`.brandrow .winbtn`, 1)
+			b.clickOn(`[data-act=winmenu]`, 1)
 			b.reach("window-menu")
 			b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
 			b.reach("tabs")
@@ -171,29 +171,29 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 				}
 				b.press("Escape", "Escape", 27, 0)
 			}
-			b.longPress(`.dtab`)
+			b.longPress(`.workspace-tab`)
 			b.reach("tab-menu")
 			b.press("Escape", "Escape", 27, 0)
 			b.clickOn(`[data-win="0"] [data-act="split"]`, 1)
 			b.reach("two-windows")
-			b.clickOn(`.win.focus [data-act="closewin"]`, 1)
-			if got := b.eval(`document.querySelectorAll('.win').length`); got != "1" {
+			b.clickOn(`.workspace-window[data-focus] [data-act="closewin"]`, 1)
+			if got := b.eval(`document.querySelectorAll('.workspace-window').length`); got != "1" {
 				t.Fatalf("the second window closes: %s windows", got)
 			}
 
-			b.clickOn(`.strip [data-id="workspace"]`, 1)
+			b.clickOn(`[aria-label=Nav1] [data-id="workspace"]`, 1)
 			b.reach("nav2-nav3")
-			b.clickOn(`.newbtn[data-act="newmenu"]`, 1)
+			b.clickOn(`.workspace-top [data-act="newmenu"]`, 1)
 			b.reach("new")
 			b.press("Escape", "Escape", 27, 0)
-			b.clickOn(`.nav2 .newplus`, 1)
+			b.clickOn(`[aria-label=Nav2] header .btn`, 1)
 			b.reach("new-in-nav2")
 			b.press("Escape", "Escape", 27, 0)
-			b.clickOn(probe(b, `.nav2 .navitem`, "Team"), 1)
-			b.clickOn(`.nav3 .cheadrow .newplus:not(:disabled)`, 1)
+			b.clickOn(probe(b, `[aria-label=Nav2] .workspace-item`, "Team"), 1)
+			b.clickOn(`[aria-label=Nav3] section > header .btn:not(:disabled)`, 1)
 			b.reach("new-in-a-collection")
 			b.press("Escape", "Escape", 27, 0)
-			b.longPress(`.nav3 .row [data-act="open"]`)
+			b.longPress(`[aria-label=Nav3] li > div [data-act="open"]`)
 			b.reach("entry-menu")
 			b.press("Escape", "Escape", 27, 0)
 			b.longPressFreeNav2()
@@ -201,28 +201,32 @@ func TestNothingIsCutOffOnAPhone(t *testing.T) {
 			b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
 			b.ready("Problems")
 			b.reach("problems")
-			b.clickOn(`.strip [data-id="workspace"]`, 1)
+			b.clickOn(`[aria-label=Nav1] [data-id="workspace"]`, 1)
 			b.longPressFreeNav2()
 			b.clickOn(probe(b, `.ctxpop button`, "Trash"), 1)
 			b.ready("Trash")
 			b.reach("trash")
-			b.clickOn(`.strip [data-id="search"]`, 1)
+			b.clickOn(`[aria-label=Nav1] [data-id="search"]`, 1)
 			b.reach("search")
-			b.clickOn(`.strip [data-id="profile"]`, 1)
+			b.clickOn(`[aria-label=Nav1] [data-id="profile"]`, 1)
 			b.reach("profile")
 
 			b.open(base + "/o/" + page)
 			b.ready("Rack")
 			b.reach("page")
-			b.clickOn(`[data-win="0"] .tools [data-act="cmt"]`, 1)
+			b.clickOn(`[data-win="0"] [role=toolbar] [data-act="cmt"]`, 1)
 			b.reach("comments")
 			b.clickOn(`[data-win="0"] .fdrawer [data-act="cmt"]`, 1)
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
 			b.reach("gear")
 			b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
-			b.tap(`article.doc [data-b="b2"] > .bhandle`)
+			b.tap(`article.typeset [data-b="b2"] > .bhandle`)
 			b.reach("block-menu")
-			b.clickOn(`.dtitle h1`, 1)
+			b.clickOn(`.workspace-main > header > h1`, 1)
+			// The drawer lies over the whole window, its head too (as C22's drawer does): it closes first.
+			if b.eval(`!!document.querySelector('.fdrawer [data-act="gear"]')`) == "true" {
+				b.clickOn(`.fdrawer [data-act="gear"]`, 1)
+			}
 			b.clickOn(`[data-act="edit"]`, 1)
 			b.waitFor(`!!document.querySelector('.cm-editor .cm-line')`)
 			b.tap(`.cm-editor .cm-line`)
@@ -246,7 +250,7 @@ func TestNoDocumentScrollsSidewaysOnAPhone(t *testing.T) {
 		b.eval(`window.over = []; window.swept = 0; (async () => {
 			for (const id of Object.keys(D).filter(k => !D[k].real && !k.startsWith('dir:'))) {
 				openDoc(id); render(); await new Promise(r => setTimeout(r, 20)); window.swept++;
-				for (const s of document.querySelectorAll('.win.focus :is(.scroll, .page)')) if (s.scrollWidth > s.clientWidth + 1) window.over.push(id + ' (' + s.scrollWidth + ' > ' + s.clientWidth + ')');
+				for (const s of document.querySelectorAll('.workspace-window[data-focus] :is([data-sc], .page)')) if (s.scrollWidth > s.clientWidth + 1) window.over.push(id + ' (' + s.scrollWidth + ' > ' + s.clientWidth + ')');
 			}
 			window.done = true; })()`)
 		if !b.waitFor(`window.done === true`) {
@@ -260,7 +264,7 @@ func TestNoDocumentScrollsSidewaysOnAPhone(t *testing.T) {
 
 // inSight tells whether an element can be seen without hovering, lies inside the window of the page and is the one a
 // finger on its middle would touch.
-const inSight = `(sel => { const e = document.querySelector(sel), r = e.getBoundingClientRect(), w = document.querySelector('[data-win="0"] .scroll').getBoundingClientRect();
+const inSight = `(sel => { const e = document.querySelector(sel), r = e.getBoundingClientRect(), w = document.querySelector('[data-win="0"] [data-sc]').getBoundingClientRect();
 	let o = 1; for (let p = e; p; p = p.parentElement) o *= +getComputedStyle(p).opacity;
 	return o >= 0.3 && r.left >= w.left && r.right <= w.right && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(sel) === e; })`
 
@@ -275,10 +279,10 @@ func TestTouchReachesTheHandleAndTheKinds(t *testing.T) {
 	page := rackPage(b)
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
-	if got := b.eval(inSight + `('article.doc [data-b="b2"] > .bhandle') + ' ' + ` + inSight + `('article.doc .cblk[data-id="b2"]')`); got != "true true" {
+	if got := b.eval(inSight + `('article.typeset [data-b="b2"] > .bhandle') + ' ' + ` + inSight + `('article.typeset .cblk[data-id="b2"]')`); got != "true true" {
 		t.Errorf("the handle and the speech bubble are in sight and inside the window without hovering: %q", got)
 	}
-	b.tap(`article.doc [data-b="b2"] > .bhandle`)
+	b.tap(`article.typeset [data-b="b2"] > .bhandle`)
 	if !b.waitFor(`!!document.querySelector('.bmenu [data-act="blkedit"]')`) {
 		t.Fatal("a tap on the handle opens the menu of the block")
 	}
@@ -307,13 +311,13 @@ func TestLongPressIsTheRightClick(t *testing.T) {
 	b.phone(390, 844)
 	b.open(base + "/o/~ops/plain.md")
 	b.ready("plain")
-	b.clickOn(`.strip [data-id="workspace"]`, 1)
-	b.longPress(probe(b, `.nav3 .name`, "Network plan"))
+	b.clickOn(`[aria-label=Nav1] [data-id="workspace"]`, 1)
+	b.longPress(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "Network plan"))
 	if !b.waitFor(`document.querySelector('.ctxpop > b')?.textContent === 'Network plan'`) {
 		t.Fatalf("a long press opens the menu of the entry: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
 	}
 	time.Sleep(200 * time.Millisecond)
-	if got := b.eval(`document.querySelector('.dtitle h1')?.textContent + ' ' + !!document.querySelector('.ctxpop')`); got != "plain true" {
+	if got := b.eval(`document.querySelector('.workspace-main > header > h1')?.textContent + ' ' + !!document.querySelector('.ctxpop')`); got != "plain true" {
 		t.Errorf("lifting the finger opens nothing and keeps the menu: %q", got)
 	}
 	b.shot("phone-long-press")
@@ -323,6 +327,6 @@ func TestLongPressIsTheRightClick(t *testing.T) {
 		t.Errorf("the free part of nav2 offers the problems and the trash: %q", got)
 	}
 	b.press("Escape", "Escape", 27, 0)
-	b.tap(probe(b, `.nav3 .name`, "Network plan"))
+	b.tap(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "Network plan"))
 	b.ready("Network plan")
 }

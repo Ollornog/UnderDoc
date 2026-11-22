@@ -51,8 +51,8 @@ func (b *browser) dragToX(from, to string, fraction, dx float64, check func()) {
 
 // gapAt tells where the gap of a drag is: right below which entry, as the text or the mark of that entry.
 const gapAt = `(() => { const g = document.querySelector('.dropgap'); if (!g) return 'none';
-	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('#clist > :not(.dropgap), .nav3 .row, .nav3 .cheadrow')].filter(n => !n.closest('.dropgap')).filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
-	return up ? (up.dataset.deco || up.dataset.favid || up.querySelector(':scope > .collrow')?.dataset.favid || up.textContent.trim()) + ' ' + Math.round(r.height) : 'nothing above ' + Math.round(r.top); })()`
+	const r = g.getBoundingClientRect(), up = [...document.querySelectorAll('#clist > :not(.dropgap), [aria-label=Nav3] li > div, [aria-label=Nav3] section > header')].filter(n => !n.closest('.dropgap')).filter(n => n.offsetParent && n.getBoundingClientRect().bottom <= r.top + 1 && r.top - n.getBoundingClientRect().bottom < 6).pop();
+	return up ? (up.dataset.deco || up.dataset.favid || up.textContent.trim()) + ' ' + Math.round(r.height) : 'nothing above ' + Math.round(r.top); })()`
 
 // makeTeam makes a collection with pages A, B and C through the API, as a setup, and returns its ID.
 func makeTeam(b *browser) string {
@@ -76,38 +76,41 @@ func TestNav2ShowsWhatIsKeptOpen(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	bar := func(id string) string {
-		return b.eval(`getComputedStyle(document.querySelector('.nav2 [data-act="coll"][data-id="` + id + `"]')).boxShadow`)
+		return b.eval(`getComputedStyle(document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="` + id + `"]')).boxShadow`)
 	}
-	b.clickOn(`.nav2 [data-act="coll"][data-id="ops"]`, 1)
-	if got := bar("ops"); !strings.HasSuffix(got, " 1px 0px 0px 0px inset") {
-		t.Errorf("open for now: a thin line on the left, got %q", got)
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="ops"]`, 1)
+	if got := bar("ops"); !strings.Contains(got, "inset") {
+		t.Errorf("open for now: a line on the left, got %q", got)
 	}
-	b.clickOn(`.nav2 [data-act="coll"][data-id="ops"]`, 2)
-	if !b.waitFor(`!!document.querySelector('.nav2 [data-id="ops"][data-pinned]')`) {
+	if got := b.eval(`(() => { const n = document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]'); return n.getAttribute('aria-current') + ' ' + !!n.querySelector('[data-pin]'); })()`); got != "page false" {
+		t.Errorf("open for now: shown as open, without the pin: %q", got)
+	}
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="ops"]`, 2)
+	if !b.waitFor(`!!document.querySelector('[aria-label=Nav2] [data-id="ops"][data-pinned]')`) {
 		t.Fatal("a double click keeps it open")
 	}
-	if got := bar("ops"); !strings.HasSuffix(got, " 3px 0px 0px 0px inset") {
-		t.Errorf("kept open: a thick line on the left, got %q", got)
+	if got := b.eval(`(() => { const n = document.querySelector('[aria-label=Nav2] [data-act="coll"][data-id="ops"]'), p = n.querySelector('[data-pin]'); return n.getAttribute('aria-current') + ' ' + !!(p && p.getBoundingClientRect().width > 0); })()`); got != "page true" {
+		t.Errorf("kept open: still open, and the pin shows: %q", got)
 	}
-	b.clickOn(`.nav2 [data-act="coll"][data-id="pro"]`, 1)
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="pro"]`, 1)
 	b.shot("nav2-thin-and-thick")
-	if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .cheadrow .chead')).fontSize`); got != "13.5px" {
+	if got := b.eval(`getComputedStyle(document.querySelector('[aria-label=Nav3] section > header > a')).fontSize`); got != "13.5px" {
 		t.Errorf("the name of a collection in nav3 reads as a heading: %q", got)
 	}
-	// Each open collection begins with a band of its own, with space above the second.
-	if got := b.eval(`(() => { const h = [...document.querySelectorAll('.nav3 .cheadrow')]; if (h.length < 2) return 'only ' + h.length; const s = getComputedStyle(h[1]); return [s.backgroundColor !== 'rgba(0, 0, 0, 0)', parseFloat(s.marginTop) >= 16].join(' '); })()`); got != "true true" {
+	// Each open collection begins with a band of its own; the second is set apart by space and a line above it.
+	if got := b.eval(`(() => { const h = [...document.querySelectorAll('[aria-label=Nav3] section > header')]; if (h.length < 2) return 'only ' + h.length; const s = getComputedStyle(h[1]), c = getComputedStyle(h[1].parentElement); return [s.backgroundColor !== 'rgba(0, 0, 0, 0)', parseFloat(c.marginTop) >= 8 && parseFloat(c.borderTopWidth) >= 1].join(' '); })()`); got != "true true" {
 		t.Errorf("collections in nav3 are not set apart: %q", got)
 	}
-	if got := b.eval(`document.querySelectorAll('.nav2 .star, .nav2 .pinmark, [data-act="star"]').length`); got != "0" {
+	if got := b.eval(`document.querySelectorAll('[aria-label=Nav2] .star, [aria-label=Nav2] .pinmark, [data-act="star"]').length`); got != "0" {
 		t.Errorf("no star and no pin any more: %s", got)
 	}
 	for s := 0; s <= 3; s++ {
 		b.eval(`S.s2=` + strconv.Itoa(s) + `;render()`)
-		if got := b.eval(`(() => { const h = document.querySelector('.n2head').getBoundingClientRect(), n = document.querySelector('.n2head .newplus').getBoundingClientRect(); return n.right <= h.right + 0.5 && n.left >= h.left - 0.5; })()`); got != "true" {
+		if got := b.eval(`(() => { const h = document.querySelector('[aria-label=Nav2] > header').getBoundingClientRect(), n = document.querySelector('[aria-label=Nav2] > header .btn').getBoundingClientRect(); return n.right <= h.right + 0.5 && n.left >= h.left - 0.5; })()`); got != "true" {
 			t.Errorf("at step %d, New is cut off", s)
 		}
 	}
-	if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .cheadrow')).borderTopStyle`); got != "none" {
+	if got := b.eval(`getComputedStyle(document.querySelector('[aria-label=Nav3] section')).borderTopWidth`); got != "0px" {
 		t.Errorf("no line above the first collection of nav3: %q", got)
 	}
 }
@@ -116,14 +119,14 @@ func TestDividersInNav2(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	b.rightClickOn(`.nav2 [data-favid="ops"]`)
+	b.rightClickOn(`[aria-label=Nav2] [data-favid="ops"]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).slice(0, 8).join(' ')`); !strings.Contains(got, "ops line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).slice(0, 8).join(' ')`); !strings.Contains(got, "ops line") {
 		t.Fatalf("the line is below ops: %q", got)
 	}
 	// While dragging, the line leaves its place and a gap of its height opens below pro, drawn with a dashed border.
-	h := b.eval(`Math.round(document.querySelector('#clist .deco').getBoundingClientRect().height)`)
-	b.dragTo(`#clist .deco`, `#clist [data-favid="pro"]`, 0.95, func() {
+	h := b.eval(`Math.round(document.querySelector('#clist [data-deco]').getBoundingClientRect().height)`)
+	b.dragTo(`#clist [data-deco]`, `#clist [data-favid="pro"]`, 0.95, func() {
 		b.shot("nav2-gap")
 		if got := b.eval(gapAt); got != "pro "+h {
 			t.Errorf("the gap is not below pro: %q", got)
@@ -131,24 +134,24 @@ func TestDividersInNav2(t *testing.T) {
 		if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('.dropgap')); return s.outlineStyle + ' ' + s.outlineWidth; })()`); got != "dashed 1px" {
 			t.Errorf("the place is not drawn: %q", got)
 		}
-		if got := b.eval(`[document.querySelector('#clist .deco[data-favid]').offsetParent === null, document.querySelectorAll('.dropgap .deco').length, !!document.getElementById('ghost')].join(' ')`); got != "true 1 false" {
+		if got := b.eval(`[document.querySelector('#clist [data-deco][data-favid]').offsetParent === null, document.querySelectorAll('.dropgap [data-deco]').length, !!document.getElementById('ghost')].join(' ')`); got != "true 1 false" {
 			t.Errorf("the line itself moves through the list, no picture floats: %q", got)
 		}
 	})
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
 		t.Errorf("the line moved below pro: %q", got)
 	}
 	b.settingsSent()
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid || n.querySelector(':scope > .collrow')?.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
+	if got := b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`); !strings.Contains(got, "pro line") {
 		t.Errorf("the browser keeps the line: %q", got)
 	}
-	b.clickOn(`.nav2 [data-act="coll"][data-id="pro"]`, 2)
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="pro"]`, 2)
 	b.shot("nav2-line-and-kept-open")
-	b.rightClickOn(`#clist .deco`)
+	b.rightClickOn(`#clist [data-deco]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Remove"), 1)
-	if got := b.eval(`document.querySelectorAll('#clist .deco').length`); got != "0" {
+	if got := b.eval(`document.querySelectorAll('#clist [data-deco]').length`); got != "0" {
 		t.Errorf("removed: %s", got)
 	}
 }
@@ -161,14 +164,14 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	names := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.dataset.deco || n.textContent.trim()).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.dataset.deco || n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
 	if got := names(); got != "A B C" {
 		t.Fatalf("the pages of the team: %q", got)
 	}
-	b.rightClickOn(probe(b, `.nav3 .row`, "A"))
+	b.rightClickOn(probe(b, `[aria-label=Nav3] li > div`, "A"))
 	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
-	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) {
+	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) {
 		t.Fatalf("no line: %q", names())
 	}
 	b.dragTo(rowNamed(b, "C"), rowNamed(b, "A"), 0.1, func() {
@@ -185,13 +188,13 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 	}
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) || names() != "C A line B" {
+	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) || names() != "C A line B" {
 		t.Errorf("the database keeps the order and the line: %q", names())
 	}
 	b.shot("nav3-line")
-	b.rightClickOn(`.nav3 .row.deco`)
+	b.rightClickOn(`[aria-label=Nav3] li > div[data-deco]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Remove"), 1)
-	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 0`) {
+	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 0`) {
 		t.Error("the line was not removed")
 	}
 	if !b.waitFor(`(() => { fetch('/api/state').then(r => r.json()).then(s => { const find = (l) => { for (const n of l || []) { if (n.id === '` + team + `') return n; const k = find(n.kids); if (k) return k; } return null; }; const t = find(s.collections); window.order = t ? t.kids.map(k => k.t === 'line' ? 'line' : k.n).join(' ') : ''; }); return window.order === 'C A B'; })()`) {
@@ -207,9 +210,9 @@ func TestDividersAndMovingInNav3(t *testing.T) {
 // rowNamed is the selector of the entry of nav3 with this name, by its ID, so two of them can be used at once.
 func rowNamed(b *browser, name string) string {
 	b.t.Helper()
-	b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === ` + strconv.Quote(name) + `)`)
-	id := b.eval(`[...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
-	return `.nav3 .row[data-row="` + id + `"]`
+	b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === ` + strconv.Quote(name) + `)`)
+	id := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].find(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === ` + strconv.Quote(name) + `)?.dataset.row`)
+	return `[aria-label=Nav3] div[data-row="` + id + `"]`
 }
 
 // The others move apart live, a gap is the same wherever in it the dragged entry is, and moving it to the right puts it
@@ -247,7 +250,7 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	}
 	b.press("Escape", "Escape", 27, 0)
 	b.mouse("mouseReleased", rb.X, ra.Top+(ra.Bottom-ra.Top)*0.1, 1, 0)
-	if got := b.eval(`[document.querySelectorAll('.dropgap, #ghost').length, [...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')].join(' ')`); got != "0 A B C" {
+	if got := b.eval(`[document.querySelectorAll('.dropgap, #ghost').length, [...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')].join(' ')`); got != "0 A B C" {
 		t.Errorf("Escape puts B back: %q", got)
 	}
 
@@ -268,7 +271,7 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	if got := b.eval(gapAt); got != "B "+hC {
 		t.Errorf("lifted, the gap first stays where C was, below B: %q", got)
 	}
-	if got := b.eval(`[...document.querySelectorAll('.dropgap .row')].map(n => n.textContent.trim()).join() + ' ' + !!document.getElementById('ghost')`); got != "C false" {
+	if got := b.eval(`[...document.querySelectorAll('.dropgap > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join() + ' ' + !!document.getElementById('ghost')`); got != "C false" {
 		t.Errorf("C is held in the list as it looks, nothing floats: %q", got)
 	}
 	to(a, 0.8)
@@ -284,7 +287,7 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 		t.Errorf("the upper half of B gives another place than the lower half of A: %q, then %q", first, got)
 	}
 	b.mouse("mouseReleased", r.X, r.Y, 1, 0)
-	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`); got != "A C B" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "A C B" {
 		t.Errorf("C lands between A and B: %q", got)
 	}
 
@@ -298,11 +301,11 @@ func TestDragOpensAGapAndNests(t *testing.T) {
 	b.shot("nav3-nested")
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`); got != "A B" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "A B" {
 		t.Errorf("C left the top of the team: %q", got)
 	}
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'C' && n.closest('ul:not(.top)'))`) {
-		t.Errorf("the database keeps C below A: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'C' && n.closest('ul:not(.workspace-tree)'))`) {
+		t.Errorf("the database keeps C below A: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
 }
 
@@ -311,15 +314,15 @@ func TestPrivateListsSortWithAGap(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/dev/ui")
 	b.ready("")
-	b.clickOn(`.strip [data-act="view"][data-id="todo"]`, 1)
+	b.clickOn(`[aria-label=Nav1] [data-act="view"][data-id="todo"]`, 1)
 	order := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav2 [data-secid]')].map(n => n.dataset.secid).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-secid]')].map(n => n.dataset.secid).join(' ')`)
 	}
 	if got := order(); got != "mine shop car" {
 		t.Fatalf("the lists: %q", got)
 	}
-	b.dragTo(`.nav2 [data-secid="car"]`, `.nav2 [data-secid="mine"]`, 0.2, func() {
-		if got := b.eval(`(() => { const g = document.querySelector('.nav2 .dropgap'), m = document.querySelector('.nav2 [data-secid="mine"]'); return !!g && g.getBoundingClientRect().bottom <= m.getBoundingClientRect().top + 1; })()`); got != "true" {
+	b.dragTo(`[aria-label=Nav2] [data-secid="car"]`, `[aria-label=Nav2] [data-secid="mine"]`, 0.2, func() {
+		if got := b.eval(`(() => { const g = document.querySelector('[aria-label=Nav2] .dropgap'), m = document.querySelector('[aria-label=Nav2] [data-secid="mine"]'); return !!g && g.getBoundingClientRect().bottom <= m.getBoundingClientRect().top + 1; })()`); got != "true" {
 			t.Errorf("the gap is not above the first list")
 		}
 	})
@@ -327,11 +330,11 @@ func TestPrivateListsSortWithAGap(t *testing.T) {
 		t.Errorf("after the drop: %q", got)
 	}
 	// Ctrl and click selects here too, and keeps nothing open.
-	r := b.rect(`.nav2 [data-secid="shop"]`)
+	r := b.rect(`[aria-label=Nav2] [data-secid="shop"]`)
 	b.mouse("mouseMoved", r.X, r.Y, 0, 0)
 	b.mouse("mousePressed", r.X, r.Y, 1, 2)
 	b.mouse("mouseReleased", r.X, r.Y, 1, 2)
-	if got := b.eval(`[document.querySelector('.nav2 [data-secid="shop"]').getAttribute('aria-selected'), document.querySelectorAll('.nav2 [data-pinned]').length].join(' ')`); got != "true 0" {
+	if got := b.eval(`[document.querySelector('[aria-label=Nav2] [data-secid="shop"]').getAttribute('aria-selected'), document.querySelectorAll('[aria-label=Nav2] [data-pinned]').length].join(' ')`); got != "true 0" {
 		t.Errorf("Ctrl and click selects a list: %q", got)
 	}
 }
@@ -342,18 +345,18 @@ func TestNoGapWhereOneMayOnlyRead(t *testing.T) {
 	b.open(base + "/dev/ui")
 	b.ready("")
 	b.eval(`S.view = 'workspace'; S.open = {ops: true, arc: true}; render()`)
-	src := `.nav3 .row[data-row="hand"]`
-	if b.eval(`!!document.querySelector('`+src+`') && !!document.querySelector('.nav3 .row[data-row="old"]')`) != "true" {
-		t.Fatalf("the demo changed: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	src := `[aria-label=Nav3] div[data-row="hand"]`
+	if b.eval(`!!document.querySelector('`+src+`') && !!document.querySelector('[aria-label=Nav3] div[data-row="old"]')`) != "true" {
+		t.Fatalf("the demo changed: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
 	// Onto it, after waiting, and below it: the entry stays faint where it was, and nothing is framed.
-	b.dragTo(`.nav3 .row[data-row="net"]`, `.nav3 .row[data-row="old"]`, 0.5, func() {
+	b.dragTo(`[aria-label=Nav3] div[data-row="net"]`, `[aria-label=Nav3] div[data-row="old"]`, 0.5, func() {
 		time.Sleep(600 * time.Millisecond)
 		if got := b.eval(`!!document.querySelector('.dropgap.idle') && !document.querySelector('.drop-into') && !document.querySelector('[data-row="old"]').closest('ul').querySelector('.dropgap')`); got != "true" {
 			t.Errorf("onto an entry of the archive, which may only be read: %s", b.eval(gapAt))
 		}
 	})
-	b.dragTo(`.nav3 .row[data-row="net"]`, `.nav3 .row[data-row="old"]`, 0.9, func() {
+	b.dragTo(`[aria-label=Nav3] div[data-row="net"]`, `[aria-label=Nav3] div[data-row="old"]`, 0.9, func() {
 		if got := b.eval(`!!document.querySelector('.dropgap.idle') && !document.querySelector('[data-row="old"]').closest('ul').querySelector('.dropgap')`); got != "true" {
 			t.Errorf("beside an entry of the archive: %s", b.eval(gapAt))
 		}
@@ -373,14 +376,14 @@ func TestDropOntoAndAcross(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	kids := func(name string) string {
-		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > .row') || [])].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > div') || [])].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
 	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
 	b.dragTo(rowNamed(b, "C"), rowNamed(b, "A"), 0.5, func() {
 		// Up and down goes between entries; only waiting on the middle of A goes into it.
-		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+		if got := b.eval(`document.querySelectorAll('[aria-label=Nav3] .drop-into').length`); got != "0" {
 			t.Errorf("at once, the middle of A is not yet onto it")
 		}
 		// Nothing answers the pointer while it drags, so nothing lights up under it.
@@ -389,7 +392,7 @@ func TestDropOntoAndAcross(t *testing.T) {
 		}
 		time.Sleep(350 * time.Millisecond)
 		b.shot("drop-onto")
-		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join() + ' ' + getComputedStyle(document.querySelector('.dropgap')).opacity`); got != "A 0.4" {
+		if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] .drop-into')].map(n => n.textContent.trim()).join() + ' ' + getComputedStyle(document.querySelector('.dropgap')).opacity`); got != "A 0.4" {
 			t.Errorf("after waiting, A is framed and C waits faint: %q", got)
 		}
 	})
@@ -397,7 +400,7 @@ func TestDropOntoAndAcross(t *testing.T) {
 		t.Fatalf("C is below A: %q", got)
 	}
 	b.dragTo(rowNamed(b, "B"), rowNamed(b, "C"), 0.8, func() {
-		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+		if got := b.eval(`document.querySelectorAll('[aria-label=Nav3] .drop-into').length`); got != "0" {
 			t.Errorf("the lower part of C is beside it, not onto it")
 		}
 	})
@@ -426,17 +429,17 @@ func TestOnlyWhoManagesMovesElsewhere(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	kids := func(name string) string {
-		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > .row') || [])].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...(document.querySelector(` + strconv.Quote(rowNamed(b, name)) + `)?.closest('li').querySelectorAll(':scope > ul > li > div') || [])].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
 	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
 	// C is someone else's page to the workspace, which the viewer may edit.
 	c := rowNamed(b, "C")
 	b.eval(`(() => { const d = D[document.querySelector(` + strconv.Quote(c) + `).dataset.row]; d.role = 'edit'; d.mine = false; })()`)
 	b.dragTo(c, rowNamed(b, "A"), 0.5, func() {
 		time.Sleep(350 * time.Millisecond)
-		if got := b.eval(`document.querySelectorAll('.nav3 .drop-into').length`); got != "0" {
+		if got := b.eval(`document.querySelectorAll('[aria-label=Nav3] .drop-into').length`); got != "0" {
 			t.Errorf("A is framed to take C, which the viewer only edits")
 		}
 	})
@@ -464,27 +467,27 @@ func TestSelectSeveralAndMove(t *testing.T) {
 		b.mouse("mouseReleased", r.X, r.Y, 1, mods)
 	}
 	selected := func() string {
-		return b.eval(`[...document.querySelectorAll('[aria-selected="true"]')].map(n => n.textContent.trim() || n.dataset.deco).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-selected="true"]')].map(n => (n.querySelector(':scope > button:not([data-toggle])') || n).textContent.trim() || n.dataset.deco).join(' ')`)
 	}
 	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
-	title := b.eval(`document.querySelector('.dtitle h1').textContent`)
+	title := b.eval(`document.querySelector('.workspace-main > header > h1').textContent`)
 	ctrl(rowNamed(b, "A"), 2)
 	ctrl(rowNamed(b, "C"), 2)
 	if got := selected(); got != "A C" {
 		t.Fatalf("Ctrl and click selects: %q", got)
 	}
 	b.shot("selected")
-	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('.nav3 [aria-selected="true"]')); return s.outlineStyle + ' ' + s.outlineWidth; })()`); got != "solid 1px" {
+	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[aria-label=Nav3] [aria-selected="true"]')); return s.outlineStyle + ' ' + s.outlineWidth; })()`); got != "solid 1px" {
 		t.Errorf("a selected entry is framed: %q", got)
 	}
-	if got := b.eval(`document.querySelector('.dtitle h1').textContent`); got != title {
+	if got := b.eval(`document.querySelector('.workspace-main > header > h1').textContent`); got != title {
 		t.Errorf("selecting opens nothing: %q", got)
 	}
 	b.dragTo(rowNamed(b, "A"), rowNamed(b, "B"), 0.8, func() {
 		b.shot("select-drag")
-		if got := b.eval(`[...document.querySelectorAll('.dropgap .row')].map(n => n.textContent.trim()).join(' ')`); got != "A C" {
+		if got := b.eval(`[...document.querySelectorAll('.dropgap > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "A C" {
 			t.Errorf("both are held together: %q", got)
 		}
 	})
@@ -508,33 +511,33 @@ func TestSelectSeveralAndMove(t *testing.T) {
 	}
 	ctrl(rowNamed(b, "A"), 2)
 	ctrl(rowNamed(b, "C"), 2)
-	b.dragTo(rowNamed(b, "A"), `[data-win="0"] .wbody`, 0.5, func() {
-		if got := b.eval(`!!document.querySelector('[data-win="0"].zone-open') && !!document.querySelector('.dropgap.idle')`); got != "true" {
+	b.dragTo(rowNamed(b, "A"), `[data-win="0"] .workspace-main > section`, 0.5, func() {
+		if got := b.eval(`!!document.querySelector('[data-win="0"] [data-drop-zone="here"]:not([hidden])') && !!document.querySelector('.dropgap.idle')`); got != "true" {
 			t.Error("over the window it says it opens there")
 		}
 	})
-	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .dtab')].map(n => n.textContent.trim()).filter(n => n === 'A' || n === 'C').join(' ')`); got != "A C" {
-		t.Errorf("dropped on the window, both open as tabs: %s", b.eval(`document.querySelector('[data-win="0"] .tabrow').innerText.replace(/\s+/g, ' ')`))
+	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .workspace-tab')].map(n => n.textContent.trim()).filter(n => n === 'A' || n === 'C').join(' ')`); got != "A C" {
+		t.Errorf("dropped on the window, both open as tabs: %s", b.eval(`document.querySelector('[data-win="0"] .workspace-tabs').innerText.replace(/\s+/g, ' ')`))
 	}
 	if got := tops(); got != "B A C" {
 		t.Errorf("opening moves nothing: %q", got)
 	}
 	// A tab still drags as a label; it takes the sizes of the workspace although it hangs outside it.
-	b.dragTo(probe(b, `[data-win="0"] .dtab`, "C"), `[data-win="0"] .wbody`, 0.5, func() {
+	b.dragTo(probe(b, `[data-win="0"] .workspace-tab`, "C"), `[data-win="0"] .workspace-main > section`, 0.5, func() {
 		if got := b.eval(`getComputedStyle(document.getElementById('ghost')).paddingLeft`); got == "0px" || got == "" {
 			t.Errorf("the label of a dragged tab has no padding: %q", got)
 		}
 	})
 
 	// In nav2, Ctrl and click selects and no longer keeps a collection open; the right click keeps the selection open.
-	ctrl(`.nav2 [data-act="coll"][data-id="ops"]`, 2)
-	ctrl(probe(b, `.nav2 [data-act="coll"]`, "Home"), 2)
-	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => n.textContent.trim()).join(' ') + ' ' + document.querySelectorAll('.nav2 [data-pinned]').length`); got != "Home Operations (demo) 0" {
+	ctrl(`[aria-label=Nav2] [data-act="coll"][data-id="ops"]`, 2)
+	ctrl(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "Home"), 2)
+	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => (n.querySelector(':scope > button:not([data-toggle])') || n).textContent.trim()).join(' ') + ' ' + document.querySelectorAll('[aria-label=Nav2] [data-pinned]').length`); got != "Home Operations (demo) 0" {
 		t.Fatalf("nav2 selects with Ctrl and click, and pins nothing: %q", got)
 	}
 	b.rightClickOn(`#clist [aria-selected="true"]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Keep them open"), 1)
-	if got := b.eval(`document.querySelectorAll('.nav2 [data-pinned]').length`); got != "2" {
+	if got := b.eval(`document.querySelectorAll('[aria-label=Nav2] [data-pinned]').length`); got != "2" {
 		t.Errorf("the right click keeps both open: %s", got)
 	}
 }
@@ -560,7 +563,7 @@ func TestShiftAfterAPlainClick(t *testing.T) {
 		}
 	}
 	selected := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 [aria-selected="true"]')].map(n => n.textContent.trim()).join(' ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] [aria-selected="true"]')].map(n => (n.querySelector(':scope > button:not([data-toggle])') || n).textContent.trim()).join(' ')`)
 	}
 	click(rowNamed(b, "A"), 0)
 	if got := selected(); got != "" {
@@ -576,9 +579,9 @@ func TestShiftAfterAPlainClick(t *testing.T) {
 		t.Errorf("Ctrl right after a plain click adds to it: %q", got)
 	}
 	// In nav2 too, where no open document stands in for the click.
-	click(probe(b, `.nav2 [data-act="coll"]`, "My notes"), 0)
-	click(probe(b, `.nav2 [data-act="coll"]`, "Home"), 8)
-	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => n.textContent.trim()).join(', ')`); !strings.HasPrefix(got, "My notes, ") || !strings.HasSuffix(got, ", Home") {
+	click(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "My notes"), 0)
+	click(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "Home"), 8)
+	if got := b.eval(`[...document.querySelectorAll('#clist [aria-selected="true"]')].map(n => (n.querySelector(':scope > button:not([data-toggle])') || n).textContent.trim()).join(', ')`); !strings.HasPrefix(got, "My notes, ") || !strings.HasSuffix(got, ", Home") {
 		t.Errorf("Shift after a plain click in nav2: %q", got)
 	}
 }
@@ -596,14 +599,14 @@ func TestIntoACollectionOfNav2(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	target := probe(b, `.nav2 [data-act="coll"]`, "Other")
+	target := probe(b, `[aria-label=Nav2] [data-act="coll"]`, "Other")
 	b.dragTo(rowNamed(b, "A"), target, 0.2, func() {
 		if got := b.eval(`(() => { const n = document.querySelector('#clist .drop-into'); return n ? n.textContent.trim() + ' ' + (getComputedStyle(n).boxShadow !== 'none') : 'none'; })()`); got != "Other true" {
 			t.Errorf("Other is framed at once: %q", got)
 		}
 	})
 	time.Sleep(500 * time.Millisecond)
-	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.textContent.trim()).join(' ')`); got != "B C" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "B C" {
 		t.Errorf("A left the team: %q", got)
 	}
 	b.eval(`window.kids = null; fetch('/api/state').then(r => r.json()).then(j => { window.kids = j.collections.find(c => c.id === '` + other + `').kids.map(k => k.n).join(' '); })`)
@@ -622,7 +625,7 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	tops := func() string {
-		return b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.dataset.deco || n.textContent.trim()).join(', ')`)
+		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.dataset.deco || n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(', ')`)
 	}
 	from, to := b.rect(rowNamed(b, "C")), b.rect(rowNamed(b, "A"))
 	b.mouse("mouseMoved", from.X, from.Y, 0, 0)
@@ -636,7 +639,7 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 		t.Error("with Ctrl held, the held entry says it is copied")
 	}
 	b.mouse("mouseReleased", from.X, y, 1, 2)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'C (copy)')`) {
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'C (copy)')`) {
 		t.Fatalf("Ctrl at the drop copies: %q", tops())
 	}
 	if got := tops(); got != "A, C (copy), B, C" {
@@ -647,10 +650,10 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 		t.Errorf("an entry of the menu has no icon: %s", b.eval(`[...document.querySelectorAll('.ctxpop button')].filter(n => !n.querySelector('svg')).map(n => n.textContent).join()`))
 	}
 	b.clickOn(probe(b, `.ctxpop button`, "Duplicate"), 1)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'B (copy)')`) {
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B (copy)')`) {
 		t.Fatalf("Duplicate: %q", tops())
 	}
-	b.rightClickOn(`.nav3 .cheadrow[data-cdrop="` + team + `"] .chead`)
+	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
 	b.clickOn(probe(b, `.ctxpop button`, "Sort its children Z to A"), 1)
 	if got := tops(); got != "C (copy), C, B (copy), B, A" {
 		t.Errorf("sorted Z to A: %q", got)
@@ -658,10 +661,10 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	// A line stays where it is: each group around it is sorted on its own.
 	b.rightClickOn(rowNamed(b, "B (copy)"))
 	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
-	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) {
+	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) {
 		t.Fatal("no line")
 	}
-	b.rightClickOn(`.nav3 .cheadrow[data-cdrop="` + team + `"] .chead`)
+	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
 	b.clickOn(probe(b, `.ctxpop button`, "Sort its children A to Z"), 1)
 	want := "B (copy), C, C (copy), line, A, B"
 	if got := tops(); got != want {
@@ -675,22 +678,22 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	}
 }
 
-// While a single window holds only the general tab, neither tabs nor the window are drawn; a button beside New holds
-// what the tab offers, and a second tab brings the tabs back.
+// While a single window holds only the general tab, no tab row is drawn and the window takes its place; a button beside
+// New holds what the tab offers, and a second tab brings the tabs back.
 func TestOneWindowShowsNoTabs(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[document.querySelectorAll('.tabrow').length, document.querySelectorAll('.brandrow .winbtn').length].join(' ')`); got != "0 1" {
+	if got := b.eval(`[document.querySelectorAll('.workspace-tabs, .workspace-tab').length, document.querySelectorAll('.workspace-top [data-act=winmenu]').length].join(' ')`); got != "0 1" {
 		t.Fatalf("no tabs, a window button: %q", got)
 	}
-	b.clickOn(`.brandrow .winbtn`, 1)
+	b.clickOn(`[data-act=winmenu]`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].every(n => n.querySelector('svg')) && !!document.querySelector('.ctxpop')`); got != "true" {
 		t.Errorf("the window menu, with icons: %s", b.eval(`document.querySelector('.ctxpop')?.innerText`))
 	}
 	b.shot("window-menu")
 	b.clickOn(probe(b, `.ctxpop button`, "Keep as a tab of its own"), 1)
-	if got := b.eval(`[document.querySelectorAll('.tabrow').length, document.querySelectorAll('.brandrow .winbtn').length].join(' ')`); got != "1 0" {
+	if got := b.eval(`[document.querySelectorAll('.workspace-tabs').length, document.querySelectorAll('[data-act=winmenu]').length].join(' ')`); got != "1 0" {
 		t.Errorf("a tab of its own brings the tabs back: %q", got)
 	}
 }
@@ -716,7 +719,7 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	inNav2 := func() string {
-		return b.eval(`[...document.querySelectorAll('#clist > .collrow:not(.deco)')].map(n => n.textContent.trim() + (n.dataset.alias ? '*' : '')).join(', ')`)
+		return b.eval(`[...document.querySelectorAll('#clist > [data-favid]:not([data-deco])')].map(n => n.textContent.trim() + (n.dataset.alias ? '*' : '')).join(', ')`)
 	}
 	if got := inNav2(); strings.Contains(got, "L1") || strings.Contains(got, "L2") {
 		t.Errorf("collections inside others stay out of nav2 by themselves: %q", got)
@@ -729,15 +732,15 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('#clist [data-alias][data-favid="` + l2 + `"]')`) {
 		t.Fatalf("L2 is shown in nav2: %q", inNav2())
 	}
-	if got := b.eval(`getComputedStyle(document.querySelector('#clist [data-alias] .lbl')).fontStyle`); got != "italic" {
+	if got := b.eval(`getComputedStyle(document.querySelector('#clist [data-alias] > span')).fontStyle`); got != "italic" {
 		t.Errorf("the entry only points at L2: %q", got)
 	}
 	b.shot("nav2-shown")
-	b.clickOn(`#clist [data-alias] [data-act="coll"]`, 1)
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .cheadrow .chead')].map(n => n.textContent.trim()).join() === 'L2'`) {
-		t.Errorf("it opens in nav3 on its own: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	b.clickOn(`#clist [data-alias][data-act="coll"]`, 1)
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] section > header > a')].map(n => n.textContent.trim()).join() === 'L2'`) {
+		t.Errorf("it opens in nav3 on its own: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
-	if !b.waitFor(`[...document.querySelectorAll('.nav3 .row')].some(n => n.textContent.trim() === 'Deep page')`) {
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'Deep page')`) {
 		t.Error("with its own entries")
 	}
 	b.settingsSent()
@@ -750,15 +753,15 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 		t.Error("the entry in nav2 changed where the pages of L2 lie")
 	}
 	// It still lies in L1: the tree of Team holds it as before.
-	if got := b.eval(`(() => { const n = [...document.querySelectorAll('.nav3 .row')].find(n => n.textContent.trim() === 'L2'); return !!n && !!n.closest('ul:not(.top)'); })()`); got != "true" {
-		t.Errorf("L2 left L1: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	if got := b.eval(`(() => { const n = [...document.querySelectorAll('[aria-label=Nav3] li > div')].find(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'L2'); return !!n && !!n.closest('ul:not(.workspace-tree)'); })()`); got != "true" {
+		t.Errorf("L2 left L1: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
 	b.rightClickOn(`#clist [data-alias]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Remove from nav2"), 1)
 	if got := b.eval(`document.querySelectorAll('#clist [data-alias]').length`); got != "0" {
 		t.Errorf("removed from nav2: %q", inNav2())
 	}
-	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
 	b.typeText("folder")
 	b.press("Enter", "Enter", 13, 0)
 	if !b.waitFor(`document.activeElement?.dataset?.ren !== undefined && document.activeElement.value === 'New folder (1)'`) {
@@ -798,7 +801,7 @@ func TestFoldersAndShowingInNav2(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('#clist [data-alias]')].some(n => n.textContent.trim() === 'Drawings')`); got != "false" {
 		t.Error("a folder stays shown in nav2")
 	}
-	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
 	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].some(n => n.textContent.includes('Turn into') || n.textContent.includes('Show in nav2'))`); got != "false" {
 		t.Error("a collection at the top offers to become a folder or to be shown in nav2")
 	}
@@ -812,7 +815,7 @@ func TestMenusStayInTheWindow(t *testing.T) {
 	inside := `(() => { const r = document.querySelector('.ctxpop').getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; })()`
 	h := b.eval(`innerHeight`)
 	hf, _ := strconv.ParseFloat(h, 64)
-	n2 := b.rect(`.nav2`)
+	n2 := b.rect(`[aria-label=Nav2]`)
 	b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": n2.X, "y": hf - 6}, nil)
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": hf - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
@@ -867,25 +870,25 @@ func TestDragIntoAnEmptyCollection(t *testing.T) {
 	empty, team, inner := ids[0], ids[1], ids[2]
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`.nav2 [data-act="coll"][data-id="`+team+`"]`, 2)
-	b.clickOn(`.nav2 [data-act="coll"][data-id="`+empty+`"]`, 1)
-	if !b.waitFor(`!!document.querySelector('.cheadrow[data-cdrop="` + empty + `"]') && !!document.querySelector('.cheadrow[data-cdrop="` + team + `"]')`) {
-		t.Fatalf("both are open: %s", b.eval(`document.querySelector('.nav3').innerText.replace(/\s+/g, ' ')`))
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="`+team+`"]`, 2)
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="`+empty+`"]`, 1)
+	if !b.waitFor(`!!document.querySelector('section > header[data-cdrop="` + empty + `"]') && !!document.querySelector('section > header[data-cdrop="` + team + `"]')`) {
+		t.Fatalf("both are open: %s", b.eval(`document.querySelector('[aria-label=Nav3]').innerText.replace(/\s+/g, ' ')`))
 	}
 	kids := func(of string) string {
 		return b.eval(`D[SID['` + of + `']].kids.map(k => D[k].n).join(' ')`)
 	}
-	b.dragTo(rowNamed(b, "A"), `.cheadrow[data-cdrop="`+empty+`"]`, 0.9, nil)
+	b.dragTo(rowNamed(b, "A"), `section > header[data-cdrop="`+empty+`"]`, 0.9, nil)
 	if got := kids(empty); got != "A" {
 		t.Errorf("below the heading of the empty collection: %q", got)
 	}
-	b.dragTo(rowNamed(b, "B"), `.cheadrow[data-cdrop="`+empty+`"]`, 0.5, func() { time.Sleep(400 * time.Millisecond) })
+	b.dragTo(rowNamed(b, "B"), `section > header[data-cdrop="`+empty+`"]`, 0.5, func() { time.Sleep(400 * time.Millisecond) })
 	if got := kids(empty); got != "A B" {
 		t.Errorf("onto the heading, after waiting: %q", got)
 	}
 	b.dragTo(rowNamed(b, "C"), rowNamed(b, "Inner"), 0.5, func() {
 		time.Sleep(400 * time.Millisecond)
-		if got := b.eval(`[...document.querySelectorAll('.nav3 .drop-into')].map(n => n.textContent.trim()).join()`); got != "Inner" {
+		if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] .drop-into')].map(n => n.textContent.trim()).join()`); got != "Inner" {
 			t.Errorf("waiting on the middle of Inner frames it: %q", got)
 		}
 	})
@@ -903,23 +906,23 @@ func TestSettingsInTheOverview(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Settings and name"), 1)
-	if !b.waitFor(`document.activeElement?.id === 'cname' && document.querySelector('.dtitle h1')?.textContent === 'Team'`) {
+	if !b.waitFor(`document.activeElement?.id === 'cname' && document.querySelector('.workspace-main > header > h1')?.textContent === 'Team'`) {
 		t.Fatalf("the overview of Team opens with its name ready: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 	}
-	if got := b.eval(`!!document.getElementById('tree') && [...document.querySelectorAll('article.doc h2')].some(n => n.textContent === 'Settings')`); got != "true" {
+	if got := b.eval(`!!document.getElementById('tree') && [...document.querySelectorAll('article.typeset h2')].some(n => n.textContent === 'Settings')`); got != "true" {
 		t.Error("nav3 keeps its tree, and the settings are in the overview")
 	}
 	b.shot("settings-in-overview")
 	b.typeText("Team space")
 	b.press("Enter", "Enter", 13, 0)
 	b.eval(`document.activeElement.blur()`)
-	if !b.waitFor(`[...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Team space')`) {
-		t.Errorf("the new name shows in nav2: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\\s+/g, ' ')`))
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].some(n => n.textContent === 'Team space')`) {
+		t.Errorf("the new name shows in nav2: %s", b.eval(`document.querySelector('[aria-label=Nav2]').innerText.replace(/\\s+/g, ' ')`))
 	}
-	b.clickOn(`article.doc [data-act="cacc"][data-id="comment"]`, 1)
-	if got := b.eval(`document.querySelector('article.doc [data-act="cacc"][data-id="comment"]').getAttribute('aria-pressed')`); got != "true" {
+	b.clickOn(`article.typeset [data-act="cacc"][data-id="comment"]`, 1)
+	if got := b.eval(`document.querySelector('article.typeset [data-act="cacc"][data-id="comment"]').getAttribute('aria-pressed')`); got != "true" {
 		t.Errorf("others may comment now: %q", got)
 	}
 	time.Sleep(400 * time.Millisecond)
@@ -932,7 +935,7 @@ func TestSettingsInTheOverview(t *testing.T) {
 	b.open(base + "/dev/ui")
 	b.ready("")
 	b.eval(`openDoc('arc'); render()`)
-	if !b.waitFor(`document.querySelector('.dtitle h1')?.textContent.startsWith('Archive')`) {
+	if !b.waitFor(`document.querySelector('.workspace-main > header > h1')?.textContent.startsWith('Archive')`) {
 		t.Fatal("no archive")
 	}
 	if got := b.eval(`!!document.getElementById('cname')`); got != "false" {
@@ -948,12 +951,12 @@ func TestSettingsFollowTheAccount(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	b.rightClickOn(`.nav2 [data-act="coll"][data-id="` + team + `"]`)
+	b.rightClickOn(`[aria-label=Nav2] [data-act="coll"][data-id="` + team + `"]`)
 	b.clickOn(probe(b, `.ctxpop button`, "Line below it"), 1)
-	b.clickOn(`.nav2 [data-act="coll"][data-id="`+team+`"]`, 2) // kept open
+	b.clickOn(`[aria-label=Nav2] [data-act="coll"][data-id="`+team+`"]`, 2) // kept open
 	b.eval(`S.s2 = 2; render()`)
 	state := func() string {
-		return b.eval(`[[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || (n.dataset.favid === '` + team + `' ? 'Team' : '')).filter(Boolean).join(' '), !!document.querySelector('.nav2 [data-id="` + team + `"][data-pinned]'), S.s2].join(' | ')`)
+		return b.eval(`[[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || (n.dataset.favid === '` + team + `' ? 'Team' : '')).filter(Boolean).join(' '), !!document.querySelector('[aria-label=Nav2] [data-id="` + team + `"][data-pinned]'), S.s2].join(' | ')`)
 	}
 	before := state()
 	if before != "Team line | true | 2" {
@@ -977,30 +980,30 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`article.doc [data-act="cacc"][data-id="read"]`, 1)
+	b.clickOn(`article.typeset [data-act="cacc"][data-id="read"]`, 1)
 	time.Sleep(400 * time.Millisecond)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[document.querySelector('article.doc [data-act="cacc"][aria-pressed="true"]')?.dataset.id, !!document.querySelector('.cheadrow[data-cdrop="` + team + `"] .acc')].join(' ')`); got != "read true" {
+	if got := b.eval(`[document.querySelector('article.typeset [data-act="cacc"][aria-pressed="true"]')?.dataset.id, !!document.querySelector('section > header[data-cdrop="` + team + `"] [data-lock]')].join(' ')`); got != "read true" {
 		t.Errorf("the database keeps it, nav3 shows the lock: %q", got)
 	}
 	// Someone else.
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('.cheadrow[data-cdrop="` + team + `"] .newplus') === null].join(' ')`); got != "false true" {
+	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('section > header[data-cdrop="` + team + `"] .btn') === null].join(' ')`); got != "false true" {
 		t.Errorf("for someone else no settings, and no New: %q", got)
 	}
 	// Back to edit: someone else may rename it, but not set what others may do.
 	b.signIn(true)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`article.doc [data-act="cacc"][data-id="edit"]`, 1)
+	b.clickOn(`article.typeset [data-act="cacc"][data-id="edit"]`, 1)
 	time.Sleep(400 * time.Millisecond)
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	if got := b.eval(`[!!document.getElementById('cname'), [...document.querySelectorAll('article.doc [data-act="cacc"]')].every(n => n.disabled)].join(' ')`); got != "true true" {
+	if got := b.eval(`[!!document.getElementById('cname'), [...document.querySelectorAll('article.typeset [data-act="cacc"]')].every(n => n.disabled)].join(' ')`); got != "true true" {
 		t.Errorf("someone who may edit renames, but sets no level: %q", got)
 	}
 	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
@@ -1048,15 +1051,15 @@ func TestPrivateNotesStayAtTheTop(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	notes := probe(b, `.nav2 [data-act="coll"]`, "My notes")
-	b.dragTo(notes, `.nav2 [data-act="coll"][data-id="`+team+`"]`, 0.5, func() {
+	notes := probe(b, `[aria-label=Nav2] [data-act="coll"]`, "My notes")
+	b.dragTo(notes, `[aria-label=Nav2] [data-act="coll"][data-id="`+team+`"]`, 0.5, func() {
 		time.Sleep(400 * time.Millisecond)
 		if got := b.eval(`document.querySelectorAll('.drop-into').length`); got != "0" {
 			t.Error("Team offers to take the private notes")
 		}
 	})
-	b.dragTo(probe(b, `.nav2 [data-act="coll"]`, "My notes"), rowNamed(b, "A"), 0.8, func() {
-		if got := b.eval(`!!document.querySelector('.nav3 .dropgap:not(.idle)')`); got != "false" {
+	b.dragTo(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "My notes"), rowNamed(b, "A"), 0.8, func() {
+		if got := b.eval(`!!document.querySelector('[aria-label=Nav3] .dropgap:not(.idle)')`); got != "false" {
 			t.Error("the private notes find a place in nav3")
 		}
 	})
@@ -1103,14 +1106,14 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 		t.Fatalf("pasting the address alone makes it an embedding: %q", got)
 	}
 	b.clickOn(`[data-act="edit"]`, 1) // leaving the editor saves it
-	if !b.waitFor(`!!document.querySelector('article.doc figure.embed td')`) {
-		t.Fatalf("the table of Plan shows in Rack: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	if !b.waitFor(`!!document.querySelector('article.typeset figure.embed td')`) {
+		t.Fatalf("the table of Plan shows in Rack: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 	b.shot("embedded")
-	if got := b.eval(`document.querySelector('article.doc figure.embed td:last-child').textContent + ' | ' + document.querySelector('article.doc figure.embed figcaption').textContent.trim()`); got != "10 | Plan · #b2" {
+	if got := b.eval(`document.querySelector('article.typeset figure.embed td:last-child').textContent + ' | ' + document.querySelector('article.typeset figure.embed figcaption').textContent.trim()`); got != "10 | Plan · #b2" {
 		t.Errorf("what shows and where it comes from: %q", got)
 	}
-	b.clickOn(`article.doc figure.embed figcaption a`, 1)
+	b.clickOn(`article.typeset figure.embed figcaption a`, 1)
 	b.ready("Plan")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
 	if got := b.eval(`document.querySelector('.fdrawer')?.innerText.includes('Rack (block #b2)')`); got != "true" {
@@ -1125,7 +1128,7 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 	if got := b.eval(`document.querySelector('.bmenu .bused')?.textContent`); got != "Used in Rack" {
 		t.Errorf("the handle of b2: %q", got)
 	}
-	b.clickOn(`.dtitle h1`, 1) // closes the menu, which covers the handle below
+	b.clickOn(`.workspace-main > header > h1`, 1) // closes the menu, which covers the handle below
 	b.clickOn(`.cm-ud-marker[data-edb="b3"] .bhandle`, 1)
 	b.clickOn(`.bmenu [data-act="eddel"]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-ud-ask[data-ask="b3"]')`) {
@@ -1138,13 +1141,13 @@ func TestEmbedABlockByItsAddress(t *testing.T) {
 // editor with a bar above it (ADR-21).
 func TestEditingIsFound(t *testing.T) {
 	b, base := setupWithDatabase(t)
-	status := `(() => { const p = document.querySelector('[data-win="0"] .dstatus'); return p ? p.disabled + ' ' + p.getAttribute('aria-label') + ' | ' + p.title : 'none'; })()`
+	status := `(() => { const p = document.querySelector('[data-win="0"] [data-mode]'); return p ? p.disabled + ' ' + p.getAttribute('aria-label') + ' | ' + p.title : 'none'; })()`
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	if got := b.eval(status); !strings.HasPrefix(got, "true Read only | Read only. From the folder source, read only") {
 		t.Errorf("a page of the folder source: %q", got)
 	}
-	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] .tools [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.doc .cblk').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
+	if got := b.eval(`(() => { const c = document.querySelector('[data-win="0"] [role=toolbar] [aria-label="Comments"]'); return (c ? c.disabled + ' ' + c.title : 'none') + ' | ' + document.querySelectorAll('article.typeset .cblk').length; })()`); got != "true No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database. | 0" {
 		t.Errorf("a page of the folder source takes no comments it would not keep: %q", got)
 	}
 	// New makes no page where it could not be written: in a collection of the folder source, Page says why.
@@ -1154,7 +1157,7 @@ func TestEditingIsFound(t *testing.T) {
 	}
 	b.eval(`S.addIn = null; render()`)
 	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'coll'); S.open[id] = true; render();
-		const h = document.querySelector('.cheadrow[data-cdrop="' + id + '"]'); return h ? String(!h.querySelector('.newplus')) : 'no head'; })()`); got != "true" {
+		const h = document.querySelector('section > header[data-cdrop="' + id + '"]'); return h ? String(!h.querySelector('header .btn')) : 'no head'; })()`); got != "true" {
 		t.Errorf("a collection of the folder source shows no New in nav3: %q", got)
 	}
 	if got := b.eval(`(() => { const id = Object.keys(D).find(k => D[k].real && !D[k].db && D[k].t === 'page'); S.ctx = {kind: 'row', id, x: 20, y: 20}; render();
@@ -1185,16 +1188,16 @@ func TestEditingIsFound(t *testing.T) {
 	if got := b.eval(status); got != "false Reading | Reading. Click to edit" {
 		t.Errorf("a page of the database opens for reading: %q", got)
 	}
-	if got := b.eval(`(() => { const r = e => document.querySelector('[data-win="0"] ' + e).getBoundingClientRect(), s = r('.dstatus'), p = r('.tools .place'), h = r('.dtitle h1');
+	if got := b.eval(`(() => { const r = e => document.querySelector('[data-win="0"] ' + e).getBoundingClientRect(), s = r('[data-mode]'), p = r('.breadcrumb'), h = r('.workspace-main > header > h1');
 		return [s.top <= p.top + 2, s.bottom >= h.bottom - 2, s.right <= Math.min(p.left, h.left), Math.abs(s.width - s.height) < 1].join(' '); })()`); got != "true true true true" {
 		t.Errorf("the button is square, left of path and title, as tall as both: %q", got)
 	}
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.doc .cm-editor').length + ' ' + document.querySelectorAll('[data-win="0"] > .edbar').length`); got != "false Editing | Editing. Click to read 1 1" {
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	if got := b.eval(status + ` + ' ' + document.querySelectorAll('article.typeset .cm-editor').length + ' ' + document.querySelectorAll('[data-win="0"] .workspace-main > [data-edbar]').length`); got != "false Editing | Editing. Click to read 1 1" {
 		t.Errorf("the button turns it to editing, one editor and one bar for the page: %q", got)
 	}
 	// What the editor and its bar do is tested in editor_test.go.
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if got := b.eval(status + ` + ' ' + document.querySelectorAll('.cm-editor').length`); got != "false Reading | Reading. Click to edit 0" {
 		t.Errorf("and back to reading: %q", got)
 	}
@@ -1233,10 +1236,10 @@ func TestTheHandleOfABlock(t *testing.T) {
 	page := b.eval(`window.made`)
 	b.open(base + "/o/" + page)
 	b.ready("Plan")
-	if got := b.eval(`document.querySelectorAll('article.doc [data-b] > .bhandle').length`); got != "2" {
+	if got := b.eval(`document.querySelectorAll('article.typeset [data-b] > .bhandle').length`); got != "2" {
 		t.Fatalf("each block has a handle: %s", got)
 	}
-	b.clickOn(`article.doc [data-b="b2"] > .bhandle`, 1)
+	b.clickOn(`article.typeset [data-b="b2"] > .bhandle`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ') + ' | ' + document.querySelector('.bmenu .bused')?.textContent`); got != "Copy address#b2, Edit this block, Move to page, Comment | Used in Rack" {
 		t.Errorf("the menu of b2: %q", got)
 	}
@@ -1244,10 +1247,10 @@ func TestTheHandleOfABlock(t *testing.T) {
 	if !b.waitFor(editorAt("b2")) {
 		t.Errorf("Edit this block opens the editor at b2: %s", b.eval(`document.activeElement?.outerHTML.slice(0, 100)`))
 	}
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
-	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
+	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
 	b.shot("block-handle")
-	b.clickOn(`.dtitle h1`, 1)
+	b.clickOn(`.workspace-main > header > h1`, 1)
 	if got := b.eval(`!!document.querySelector('.bmenu')`); got != "false" {
 		t.Errorf("a click elsewhere closes the menu")
 	}
@@ -1255,7 +1258,7 @@ func TestTheHandleOfABlock(t *testing.T) {
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + page)
 	b.ready("Plan")
-	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.bmenu [role=menuitem]')].map(x => x.textContent.trim() + (x.disabled ? ' (off)' : '')).join(', ')`); got != "Copy address#b1, Edit this block (off), Comment" {
 		t.Errorf("the menu for someone who may comment: %q", got)
 	}
@@ -1283,8 +1286,8 @@ func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
 	}
 	b.open(base + "/")
 	b.ready("")
-	n2 := b.rect(".nav2")
-	h := b.eval(`String(document.querySelector('.nav2').getBoundingClientRect().bottom)`)
+	n2 := b.rect("[aria-label=Nav2]")
+	h := b.eval(`String(document.querySelector('[aria-label=Nav2]').getBoundingClientRect().bottom)`)
 	y, _ := strconv.ParseFloat(h, 64)
 	for _, kind := range []string{"mousePressed", "mouseReleased"} {
 		b.call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": n2.X, "y": y - 6, "button": "right", "buttons": 2, "clickCount": 1}, nil)
@@ -1294,9 +1297,9 @@ func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
 	}
 	b.clickOn(probe(b, `.ctxpop button`, "Problems"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-problem]').length === 1`) {
-		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.doc')?.innerText.slice(0, 300)`))
+		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 300)`))
 	}
-	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.dtitle h1').textContent + ' | ' + [...document.querySelectorAll('article.doc table')].length + ':' + (document.querySelector('article.doc h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 2:Folder source" {
+	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.workspace-main > header > h1').textContent + ' | ' + [...document.querySelectorAll('article.typeset table')].length + ':' + (document.querySelector('article.typeset h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 2:Folder source" {
 		t.Errorf("the list: %q", got)
 	}
 	b.shot("problems")
@@ -1338,7 +1341,7 @@ func TestTagsOfAPage(t *testing.T) {
 	b.waitFor(`document.querySelectorAll('.fdrawer [data-act="tagsearch"]').length === 2`)
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
-	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .tools .tagline [data-act="tagsearch"]')].map(x => x.textContent).join(' ')`); got != "#network #rack" {
+	if got := b.eval(`[...document.querySelectorAll('[data-win="0"] .workspace-main > header .badge[data-act="tagsearch"]')].map(x => x.textContent).join(' ')`); got != "#network #rack" {
 		t.Errorf("the server keeps them, the head shows them: %q", got)
 	}
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
@@ -1347,8 +1350,8 @@ func TestTagsOfAPage(t *testing.T) {
 		t.Errorf("the x takes it off: %s", b.eval(`document.querySelector('.fdrawer .tagrow')?.innerText`))
 	}
 	b.clickOn(`.fdrawer [data-act="tagsearch"][data-tag="rack"]`, 1)
-	if !b.waitFor(`['Rack', 'Other'].every(n => [...document.querySelectorAll('.nav3 [data-id]')].some(x => D[x.dataset.id]?.n === n))`) {
-		t.Errorf("the tag finds the page, and one never opened: %s", b.eval(`document.querySelector('.nav3')?.innerText.slice(0, 200)`))
+	if !b.waitFor(`['Rack', 'Other'].every(n => [...document.querySelectorAll('[aria-label=Nav3] [data-id]')].some(x => D[x.dataset.id]?.n === n))`) {
+		t.Errorf("the tag finds the page, and one never opened: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText.slice(0, 200)`))
 	}
 	// Someone who may only read sees the tags, but changes none.
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)

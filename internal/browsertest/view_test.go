@@ -43,8 +43,8 @@ func TestTheGearKeepsWidthAndContents(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	b.call("Fetch.continueRequest", map[string]any{"requestId": paused.RequestID}, nil)
 	b.call("Fetch.disable", map[string]any{}, nil)
-	if !b.waitFor(`document.querySelector('article.doc').classList.contains('full') && [...document.querySelectorAll('nav.toc button')].map(x => x.textContent).join(',') === 'Switches,Routers'`) {
-		t.Errorf("full width and the contents at the side: %s", b.eval(`document.querySelector('article.doc').className + ' ' + document.querySelector('nav.toc')?.textContent`))
+	if !b.waitFor(`document.querySelector('article.typeset').dataset.width === 'full' && [...document.querySelectorAll('nav.toc a')].map(x => x.textContent).join(',') === 'Switches,Routers'`) {
+		t.Errorf("full width and the contents at the side: %s", b.eval(`document.querySelector('article.typeset').dataset.width + ' ' + document.querySelector('nav.toc')?.textContent`))
 	}
 	b.shot("gear-view")
 	if !b.waitFor(`window.written.filter(w => w.endsWith('/view')).length === 2`) {
@@ -52,8 +52,8 @@ func TestTheGearKeepsWidthAndContents(t *testing.T) {
 	}
 	b.open(base + "/o/" + page)
 	b.ready("Viewed")
-	if !b.waitFor(`document.querySelector('article.doc')?.classList.contains('full') && !!document.querySelector('nav.toc')`) {
-		t.Errorf("after a reload the page keeps its view: %s", b.eval(`document.querySelector('article.doc')?.className`))
+	if !b.waitFor(`document.querySelector('article.typeset')?.dataset.width === 'full' && !!document.querySelector('nav.toc')`) {
+		t.Errorf("after a reload the page keeps its view: %s", b.eval(`document.querySelector('article.typeset')?.dataset.width`))
 	}
 	b.clean("gear view")
 }
@@ -69,12 +69,12 @@ func TestBlocksAreAligned(t *testing.T) {
 	b.open(base + "/o/" + page)
 	b.ready("Aligned")
 	b.watch()
-	b.clickOn(`article.doc [data-b="b1"] > .bhandle`, 1)
+	b.clickOn(`article.typeset [data-b="b1"] > .bhandle`, 1)
 	b.clickOn(`.bmenu [data-act="balign"][data-k="center"]`, 1)
-	if !b.waitFor(`getComputedStyle(document.querySelector('article.doc [data-b="b1"] p')).textAlign === 'center'`) {
-		t.Errorf("reading shows the block centered: %s", b.eval(`document.querySelector('article.doc [data-b="b1"]')?.outerHTML`))
+	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-b="b1"] p')).textAlign === 'center'`) {
+		t.Errorf("reading shows the block centered: %s", b.eval(`document.querySelector('article.typeset [data-b="b1"]')?.outerHTML`))
 	}
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	if !b.waitFor(`!!document.querySelector('.cm-editor .cm-content')`) {
 		t.Fatal("no editor")
 	}
@@ -91,11 +91,11 @@ func TestBlocksAreAligned(t *testing.T) {
 		t.Errorf("aligned right in the editor: %q", b.eval(line("Text")))
 	}
 	b.shot("blocks-aligned")
-	b.clickOn(`[data-win="0"] .dstatus`, 1)
+	b.clickOn(`[data-win="0"] [data-mode]`, 1)
 	b.open(base + "/o/" + page)
 	b.ready("Aligned")
-	if !b.waitFor(`getComputedStyle(document.querySelector('article.doc [data-b="b2"] p')).textAlign === 'right' && getComputedStyle(document.querySelector('article.doc [data-b="b1"] p')).textAlign === 'center'`) {
-		t.Errorf("after a reload: %s", b.eval(`[...document.querySelectorAll('article.doc [data-b]')].map(x => x.className).join(',')`))
+	if !b.waitFor(`getComputedStyle(document.querySelector('article.typeset [data-b="b2"] p')).textAlign === 'right' && getComputedStyle(document.querySelector('article.typeset [data-b="b1"] p')).textAlign === 'center'`) {
+		t.Errorf("after a reload: %s", b.eval(`[...document.querySelectorAll('article.typeset [data-b]')].map(x => x.className).join(',')`))
 	}
 	if got := b.stored(page); got != "b1:Title | b2:Text" {
 		t.Errorf("the Markdown stays as written: %q", got)

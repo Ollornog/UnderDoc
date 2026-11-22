@@ -501,14 +501,14 @@ func (b *browser) settingsSent() {
 // ready waits until the workspace has drawn itself and, on the address of a page, has loaded that page.
 func (b *browser) ready(title string) {
 	b.t.Helper()
-	check := `!!document.querySelector('#root .dtitle, #root .n1top')`
+	check := `!!document.querySelector('#root .workspace-main > header > h1, #root [aria-label=Nav1]')`
 	if title != "" {
-		check += ` && document.querySelector('.dtitle h1')?.textContent === ` + strconv.Quote(title) + ` && !/^(Loading|This page could not)/.test(document.querySelector('article.doc')?.textContent.trim())`
+		check += ` && document.querySelector('.workspace-main > header > h1')?.textContent === ` + strconv.Quote(title) + ` && !/^(Loading|This page could not)/.test(document.querySelector('article.typeset')?.textContent.trim())`
 	}
 	if !b.waitFor(check) {
 		// The state of the document says whether its loading hung or failed (Register 2026-11-19, TestBlocksAreAligned).
-		b.t.Fatalf("the workspace did not show %q: %s", title, b.eval(`document.querySelector('.dtitle h1')?.textContent + ' | ' + location.pathname +
-			' | article: ' + (document.querySelector('article.doc')?.textContent.trim().slice(0, 120) || '-') +
+		b.t.Fatalf("the workspace did not show %q: %s", title, b.eval(`document.querySelector('.workspace-main > header > h1')?.textContent + ' | ' + location.pathname +
+			' | article: ' + (document.querySelector('article.typeset')?.textContent.trim().slice(0, 120) || '-') +
 			' | document: ' + (() => { try { const d = D[at(S.focus).d]; return d ? JSON.stringify({t: d.t, sid: d.sid, loading: !!d.loading, loaded: !!d.loaded, blocks: d.blocks ? d.blocks.length : null}) : 'none'; } catch (e) { return String(e); } })()`))
 	}
 }
@@ -540,7 +540,7 @@ func (b *browser) found(selector string) string {
 func (b *browser) clickOn(selector string, clicks int) {
 	b.t.Helper()
 	if !b.exists(selector) {
-		b.t.Fatalf("%s is not on the page; nav2: %s; nav3: %s", selector, b.eval(`document.querySelector('.nav2')?.innerText.replace(/\s+/g, ' ')`), b.eval(`[...document.querySelectorAll('.nav3 [data-id]')].map(n => n.dataset.id).join(' ')`))
+		b.t.Fatalf("%s is not on the page; nav2: %s; nav3: %s", selector, b.eval(`document.querySelector('[aria-label=Nav2]')?.innerText.replace(/\s+/g, ' ')`), b.eval(`[...document.querySelectorAll('[aria-label=Nav3] [data-id]')].map(n => n.dataset.id).join(' ')`))
 	}
 	r := b.rect(selector)
 	b.mouse("mouseMoved", r.X, r.Y, 0, 0)
@@ -594,7 +594,7 @@ func TestEveryPageIsClean(t *testing.T) {
 			b.shot(name)
 			continue
 		}
-		if got := b.eval(`getComputedStyle(document.querySelector('.nav3 .row') || document.body).height + ' ' + getComputedStyle(document.querySelector('.nav3 .row .name') || document.body).fontSize`); got != "30px 14px" {
+		if got := b.eval(`getComputedStyle(document.querySelector('[aria-label=Nav3] li > div') || document.body).height + ' ' + getComputedStyle(document.querySelector('[aria-label=Nav3] li > div > button:not([data-toggle])') || document.body).fontSize`); got != "30px 14px" {
 			t.Errorf("%s: a row of nav3 is %s, the mockup has 30px 14px", name, got)
 		}
 		if got := b.eval(`document.documentElement.scrollWidth > innerWidth || document.body.scrollHeight > innerHeight`); got != "false" {
@@ -624,7 +624,7 @@ func TestMarkdownCannotRunScripts(t *testing.T) {
 	if got := b.eval(`String(window.injected)`); got != "undefined" {
 		t.Errorf("a script from Markdown ran: %s", got)
 	}
-	if got := b.eval(`document.querySelectorAll('article.doc table').length + ' ' + document.querySelectorAll('article script, article a[href^="javascript"], article img[src^="http"]').length`); got != "1 0" {
+	if got := b.eval(`document.querySelectorAll('article.typeset table').length + ' ' + document.querySelectorAll('article script, article a[href^="javascript"], article img[src^="http"]').length`); got != "1 0" {
 		t.Errorf("the table should show and nothing dangerous: %s", got)
 	}
 }
@@ -660,9 +660,9 @@ func TestNamesStayText(t *testing.T) {
 	})
 	b.open(base + "/o/evil")
 	b.ready(`<b class="x2">Bold</b>`)
-	b.eval(`[...document.querySelectorAll('.nav2 .navitem')].find(n => n.textContent.includes('evil')).setAttribute('data-probe', '')`)
-	b.clickOn(`.nav2 [data-probe]`, 1)
-	b.clickOn(`.nav3 .chead`, 1)
+	b.eval(`[...document.querySelectorAll('[aria-label=Nav2] .workspace-item')].find(n => n.textContent.includes('evil')).setAttribute('data-probe', '')`)
+	b.clickOn(`[aria-label=Nav2] [data-probe]`, 1)
+	b.clickOn(`[aria-label=Nav3] section > header > a`, 1)
 	if !b.waitFor(`location.pathname === "/f/%3Ci%20class%3D%22x1%22%3Eevil%3C"`) {
 		t.Errorf("the address of the folder: %s", b.eval(`location.pathname`))
 	}
@@ -684,7 +684,7 @@ func TestWorkspaceOnAPhone(t *testing.T) {
 	if got := b.eval(`document.documentElement.scrollWidth > innerWidth`); got != "false" {
 		t.Error("the page scrolls sideways on a phone")
 	}
-	if got := b.eval(`document.querySelector('article.doc').getBoundingClientRect().width > 250`); got != "true" {
+	if got := b.eval(`document.querySelector('article.typeset').getBoundingClientRect().width > 250`); got != "true" {
 		t.Error("the window is too narrow to read")
 	}
 	b.shot("phone")
@@ -695,20 +695,20 @@ func TestClickOpensDoubleClickUnfolds(t *testing.T) {
 	b, base := setup(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	b.clickOn(probe(b, `.nav3 .name`, "plain"), 1)
+	b.clickOn(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "plain"), 1)
 	b.ready("plain")
 	if got := b.eval(`location.pathname`); got != "/o/~ops/plain.md" {
 		t.Errorf("the address did not follow: %s", got)
 	}
-	plan := `[...document.querySelectorAll('.nav3 .name')].some(n => n.textContent === 'Network plan')`
+	plan := `[...document.querySelectorAll('[aria-label=Nav3] li > div > button:not([data-toggle])')].some(n => n.textContent === 'Network plan')`
 	if got := b.eval(plan); got != "true" {
 		t.Fatal("the open page should show where it is")
 	}
-	b.clickOn(probe(b, `.nav3 .name`, "net"), 2)
+	b.clickOn(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "net"), 2)
 	if !b.waitFor(`!` + plan) {
 		t.Error("a double click should fold the folder")
 	}
-	b.clickOn(probe(b, `.nav3 .name`, "net"), 2)
+	b.clickOn(probe(b, `[aria-label=Nav3] li > div > button:not([data-toggle])`, "net"), 2)
 	if !b.waitFor(plan) {
 		t.Error("a second double click should unfold it again")
 	}
@@ -722,7 +722,7 @@ func TestLinksInAPageStayInTheWorkspace(t *testing.T) {
 	b.open(base + "/o/start")
 	b.ready("Start page")
 	b.eval(`window.sameLoad = true`)
-	b.clickOn(`article.doc a[href="/o/plan"]`, 1)
+	b.clickOn(`article.typeset a[href="/o/plan"]`, 1)
 	b.ready("Network plan")
 	if got := b.eval(`location.pathname + ' ' + window.sameLoad`); got != "/o/plan true" {
 		t.Errorf("the link left the workspace: %s", got)
@@ -775,11 +775,11 @@ func TestNewCollectionByHand(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('.nav2 .name, .nav2 button')].some(n => n.textContent.trim() === 'My notes')`); got != "true" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] button')].some(n => n.textContent.trim() === 'My notes')`); got != "true" {
 		t.Fatal("the private notes of the account are missing")
 	}
 	newIn := func() {
-		b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+		b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 		if !b.waitFor(`document.activeElement?.dataset?.nfilter !== undefined`) {
 			t.Fatalf("the filter of New did not get the focus: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 120)`))
 		}
@@ -813,10 +813,10 @@ func TestNewCollectionByHand(t *testing.T) {
 	}
 	b.typeText("Operations")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('.nav2 .lbl')].some(n => n.textContent === 'Operations')`) {
-		t.Fatalf("Enter makes it: %s", b.eval(`document.querySelector('.nav2').innerText.replace(/\s+/g, ' ')`))
+	if !b.waitFor(`!document.getElementById('udrights').open && [...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].some(n => n.textContent === 'Operations')`) {
+		t.Fatalf("Enter makes it: %s", b.eval(`document.querySelector('[aria-label=Nav2]').innerText.replace(/\s+/g, ' ')`))
 	}
-	b.rightClickOn(probe(b, `.nav2 [data-act="coll"]`, "Operations"))
+	b.rightClickOn(probe(b, `[aria-label=Nav2] [data-act="coll"]`, "Operations"))
 	if got := b.eval(`[...document.querySelectorAll('.ctxpop button')].find(n => n.textContent.trim() === 'Delete')?.disabled`); got != "false" {
 		t.Errorf("a collection just made is one's own: Delete is offered at once, got %q", got)
 	}
@@ -835,7 +835,7 @@ func TestNewCollectionByHand(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[...document.querySelectorAll('.nav2 .lbl')].map(n => n.textContent).filter(n => n === 'Operations' || n === 'Not made' || n.startsWith('New collection')).sort().join(', ')`); got != "Operations" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] .workspace-item > span')].map(n => n.textContent).filter(n => n === 'Operations' || n === 'Not made' || n.startsWith('New collection')).sort().join(', ')`); got != "Operations" {
 		t.Errorf("the database keeps the one made: %q", got)
 	}
 }
@@ -846,7 +846,7 @@ func TestNewMenuFilters(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	visible := `[...document.querySelectorAll('.cmdpop [role="menuitem"]')].filter(n => n.offsetParent).map(n => n.textContent.trim()).join(', ')`
-	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "Make, Set apart, Bring in" {
 		t.Errorf("the groups of New in nav2: %q", got)
 	}
@@ -861,12 +861,12 @@ func TestNewMenuFilters(t *testing.T) {
 	if got := b.eval(visible); got != "Space" {
 		t.Errorf("typing filters: %q", got)
 	}
-	before := b.eval(`document.querySelectorAll('#clist .deco[data-deco="space"]').length`)
+	before := b.eval(`document.querySelectorAll('#clist [data-deco][data-deco="space"]').length`)
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`!document.querySelector('.cmdpop') && document.querySelectorAll('#clist .deco[data-deco="space"]').length === ` + before + ` + 1 && document.querySelector('#clist').lastElementChild.dataset.deco === 'space'`) {
+	if !b.waitFor(`!document.querySelector('.cmdpop') && document.querySelectorAll('#clist [data-deco][data-deco="space"]').length === ` + before + ` + 1 && document.querySelector('#clist').lastElementChild.dataset.deco === 'space'`) {
 		t.Errorf("Enter adds a space at the end of nav2: %q", b.eval(`[...document.querySelectorAll('#clist > *')].map(n => n.dataset.deco || n.dataset.favid).join(' ')`))
 	}
-	b.clickOn(`.nav2 [data-act="addmenu"][data-id="n2"]`, 1)
+	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 	b.typeText("zzz")
 	if got := b.eval(visible); got != "" {
 		t.Errorf("nothing matches: %q", got)
@@ -879,7 +879,7 @@ func TestNewMenuFilters(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.cmdpop [role="heading"]')].map(n => n.textContent).join(', ')`); got != "From a template, Tables, Databases, Records, Boards and lists, Media, Organize, Set apart, Bring in" {
 		t.Errorf("New in a collection, in blocks: %q", got)
 	}
@@ -901,10 +901,10 @@ func TestNewMenuFilters(t *testing.T) {
 		t.Errorf("the arrow skips what is not built: %q", got)
 	}
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`document.querySelectorAll('.nav3 .row.deco').length === 1`) {
+	if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] li > div[data-deco]').length === 1`) {
 		t.Fatal("Enter adds a line to the collection")
 	}
-	if got := b.eval(`[...document.querySelectorAll('.nav3 .cheadrow[data-cdrop="` + team + `"] + ul > li > .row')].map(n => n.dataset.deco || n.textContent.trim()).join(' ')`); got != "A B C line" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.dataset.deco || n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`); got != "A B C line" {
 		t.Errorf("the line is at the end: %q", got)
 	}
 }
@@ -929,9 +929,9 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 
-	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
 	b.clickOn(`.cmdpop [data-act="add"][data-id="page"]`, 1)
-	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('.edbar')`) {
+	if !b.waitFor(`document.activeElement?.classList.contains('cm-content') && !!document.querySelector('[data-edbar]')`) {
 		t.Fatalf("a new page opens in the editor, ready to write: %q", b.eval(`document.activeElement?.outerHTML.slice(0, 160)`))
 	}
 	page := b.eval(`location.pathname.slice(3)`)
@@ -941,15 +941,15 @@ func TestANewPageOpensInTheEditor(t *testing.T) {
 	}
 	b.shot("edit-new-page")
 	b.clickOn(`[data-act="edit"]`, 1)
-	if !b.waitFor(`!!document.querySelector('article.doc h2') && !!document.querySelector('article.doc [data-b="b2"] p') && !document.querySelector('.cm-editor')`) {
-		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	if !b.waitFor(`!!document.querySelector('article.typeset h2') && !!document.querySelector('article.typeset [data-b="b2"] p') && !document.querySelector('.cm-editor')`) {
+		t.Fatalf("the view shows the blocks: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
-	if got := b.eval(`document.querySelector('article.doc [data-b="b2"] > .bhandle')?.title + ' ' + !document.querySelector('article.doc .blk')`); got != "Block #b2: address, editing, comments true" {
+	if got := b.eval(`document.querySelector('article.typeset [data-b="b2"] > .bhandle')?.title + ' ' + !document.querySelector('article.typeset .blk')`); got != "Block #b2: address, editing, comments true" {
 		t.Errorf("a block has its handle, to embed it by, and no chip of its own: %q", got)
 	}
 	b.open(base + "/o/" + page)
 	b.ready("New page")
-	if got := b.eval(`document.querySelector('article.doc h2')?.textContent + ' | ' + document.querySelector('article.doc [data-b="b2"]')?.textContent.trim()`); got != "Switches | Two in the rack." {
+	if got := b.eval(`document.querySelector('article.typeset h2')?.textContent + ' | ' + document.querySelector('article.typeset [data-b="b2"]')?.textContent.trim()`); got != "Switches | Two in the rack." {
 		t.Errorf("both blocks are kept: %q", got)
 	}
 	b.clickOn(`[data-act="gear"]`, 1)

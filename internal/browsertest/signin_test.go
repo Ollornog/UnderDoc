@@ -129,7 +129,7 @@ func TestSignInWithAPasskey(t *testing.T) {
 	}
 	b.typeInto(`#passkey-name`, "Laptop")
 	b.pressOn(`[data-passkey-create]`)
-	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatalf("after the passkey: %s %s", b.eval(`location.href`), b.eval(`document.querySelector('[data-passkey-error]')?.textContent`))
 	}
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
@@ -139,7 +139,7 @@ func TestSignInWithAPasskey(t *testing.T) {
 	}
 	b.shot("signin-passkey")
 	b.pressOn(`[data-passkey-sign-in]`)
-	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatalf("signed in with the passkey: %s %s", b.eval(`location.href`), b.eval(`document.querySelector('[data-passkey-error]')?.textContent`))
 	}
 	if got := b.whoAmI(); got != "pia passkey" {
@@ -167,7 +167,7 @@ func TestSignInWithAPassword(t *testing.T) {
 	b.typeInto(`#password`, password)
 	b.typeInto(`#repeat`, password)
 	b.pressOn(`form[action$="/password"] button[type="submit"]`)
-	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatalf("after the password: %s", b.eval(`location.href`))
 	}
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
@@ -187,7 +187,7 @@ func TestSignInWithAPassword(t *testing.T) {
 	b.shot("signin-wrong")
 	b.typeInto(`#password`, password)
 	b.pressOn(`form[action="/sign-in/password"] button`)
-	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatalf("signed in: %s", b.eval(`location.href`))
 	}
 }
@@ -201,7 +201,7 @@ func TestAdministratorsSetUpTheSignIn(t *testing.T) {
 	b.typeInto(`#password`, password)
 	b.typeInto(`#repeat`, password)
 	b.pressOn(`form[action$="/password"] button[type="submit"]`)
-	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root .n1top')`) {
+	if !b.waitFor(`location.pathname === '/' && !!document.querySelector('#root [aria-label=Nav1] > div')`) {
 		t.Fatal("signed in")
 	}
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)

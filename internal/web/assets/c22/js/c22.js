@@ -3745,8 +3745,16 @@ document.addEventListener('basecoat:initialized', function (e) {
 // [data-drawer-toggle="<id>"] opens and closes the drawer over the window, Escape closes it.
 // A right click in a .context-menu of the workspace names the row in the menu's [role=heading].
 // No onclick, no inline style: everything hangs off delegated listeners.
+// data-behaviour="app" on .workspace: the app drives this workspace itself (its own state, it redraws). Nothing of this
+// section touches it then — no pointer, key, click, double click or context menu handling, no restore or grip labels on
+// init. Every other part of c22.js (steps, confirm, drop zone, sticky table …) keeps working inside it.
 (function () {
   'use strict';
+  // The workspace an element belongs to leaves its behaviour to the app.
+  function byApp(el) {
+    var ws = el && el.closest && el.closest('.workspace');
+    return !!ws && ws.getAttribute('data-behaviour') === 'app';
+  }
   var PHONE = window.matchMedia ? window.matchMedia('(max-width: 47.999rem)') : { matches: false };
 
   // Length of a custom property in px: measured, so rem, px and calc() all work.
@@ -3794,7 +3802,7 @@ document.addEventListener('basecoat:initialized', function (e) {
 
   document.addEventListener('pointerdown', function (e) {
     var grip = e.target.closest && e.target.closest('.workspace > .workspace-nav > [data-grip]');
-    if (!grip || e.button !== 0) return;
+    if (!grip || e.button !== 0 || byApp(grip)) return;
     e.preventDefault();
     var n = grip.parentElement, ws = n.parentElement, level = n.dataset.level;
     var x0 = e.clientX, w0 = n.getBoundingClientRect().width, widths = level === '3' ? null : steps(ws);
@@ -3822,12 +3830,12 @@ document.addEventListener('basecoat:initialized', function (e) {
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      document.querySelectorAll('.workspace[data-nav-open]').forEach(function (ws) { ws.removeAttribute('data-nav-open'); });
-      document.querySelectorAll('.workspace-main > aside[data-drawer]:not([hidden])').forEach(function (d) { setDrawer(d, false); });
+      document.querySelectorAll('.workspace[data-nav-open]:not([data-behaviour="app"])').forEach(function (ws) { ws.removeAttribute('data-nav-open'); });
+      document.querySelectorAll('.workspace-main > aside[data-drawer]:not([hidden])').forEach(function (d) { if (!byApp(d)) setDrawer(d, false); });
       return;
     }
     var grip = e.target.closest && e.target.closest('.workspace > .workspace-nav > [data-grip]');
-    if (!grip || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')) return;
+    if (!grip || byApp(grip) || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')) return;
     e.preventDefault();
     var n = grip.parentElement, ws = n.parentElement;
     var dir = e.key === 'ArrowLeft' || e.key === 'Home' ? -1 : 1;
@@ -3857,7 +3865,7 @@ document.addEventListener('basecoat:initialized', function (e) {
 
   document.addEventListener('click', function (e) {
     var t = e.target;
-    if (!t.closest) return;
+    if (!t.closest || byApp(t)) return;
     var ws = t.closest('.workspace');
     var drawerBtn = t.closest('[data-drawer-toggle]');
     if (drawerBtn) {
@@ -3894,13 +3902,13 @@ document.addEventListener('basecoat:initialized', function (e) {
   // A double click on a name toggles; the browser would select the text otherwise.
   document.addEventListener('dblclick', function (e) {
     var name = e.target.closest && e.target.closest('.workspace-tree li > div > :is(a, button):not([data-toggle])');
-    if (name) e.preventDefault();
+    if (name && !byApp(name)) e.preventDefault();
   });
 
   // The context menu names the row it was opened on (capture: before c22's menu positions itself).
   document.addEventListener('contextmenu', function (e) {
     var menu = e.target.closest && e.target.closest('.workspace .context-menu');
-    if (!menu || (e.target.closest('[data-cm-panel]'))) return;
+    if (!menu || byApp(menu) || (e.target.closest('[data-cm-panel]'))) return;
     var panel = menu.querySelector(':scope > [data-cm-panel]');
     var heading = panel && panel.querySelector(':scope > [role="heading"]');
     menu.querySelectorAll('[data-menu-row]').forEach(function (r) { r.removeAttribute('data-menu-row'); });
@@ -3911,12 +3919,12 @@ document.addEventListener('basecoat:initialized', function (e) {
     if (heading) { heading.textContent = text; heading.hidden = !text; }
   }, true);
   document.addEventListener('click', function () {
-    document.querySelectorAll('.workspace [data-menu-row]').forEach(function (r) { r.removeAttribute('data-menu-row'); });
+    document.querySelectorAll('.workspace:not([data-behaviour="app"]) [data-menu-row]').forEach(function (r) { r.removeAttribute('data-menu-row'); });
   }, true);
 
   // Back from the small screen: the overlay closes.
   if (PHONE.addEventListener) PHONE.addEventListener('change', function () {
-    if (!PHONE.matches) document.querySelectorAll('.workspace[data-nav-open]').forEach(function (ws) { ws.removeAttribute('data-nav-open'); });
+    if (!PHONE.matches) document.querySelectorAll('.workspace[data-nav-open]:not([data-behaviour="app"])').forEach(function (ws) { ws.removeAttribute('data-nav-open'); });
   });
 
   // Put a stored state back (workspace-boot.js does this before the first paint; this is the late
@@ -3935,7 +3943,7 @@ document.addEventListener('basecoat:initialized', function (e) {
     }
   }
   function init(root) {
-    (root || document).querySelectorAll('.workspace').forEach(function (ws) {
+    (root || document).querySelectorAll('.workspace:not([data-behaviour="app"])').forEach(function (ws) {
       restore(ws);
       ws.querySelectorAll(':scope > .workspace-nav > [data-grip]').forEach(label);
     });

@@ -23,15 +23,15 @@ func TestQuickNotes(t *testing.T) {
 	}
 	b.typeText("Call the crane company")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`D[at(0)?.d]?.t === 'notes' && D[at(0).d].real && [...document.querySelectorAll('article.doc .keep .kard')].map(k => k.textContent.trim()).join(',') === 'Call the crane company'`) {
-		t.Fatalf("the card is on the board of quick notes: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	if !b.waitFor(`D[at(0)?.d]?.t === 'notes' && D[at(0).d].real && [...document.querySelectorAll('article.typeset .keep .kard')].map(k => k.textContent.trim()).join(',') === 'Call the crane company'`) {
+		t.Fatalf("the card is on the board of quick notes: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 	board := b.eval(`D[at(0).d].sid`)
-	b.clickOn(`article.doc .noteadd`, 1)
+	b.clickOn(`article.typeset .noteadd`, 1)
 	b.typeText("Spare antenna: check the shelf")
 	b.press("Enter", "Enter", 13, 0)
-	if !b.waitFor(`[...document.querySelectorAll('article.doc .keep .kard')].map(k => k.textContent.trim()).join(',') === 'Spare antenna: check the shelf,Call the crane company' && document.activeElement?.matches('.noteadd') && !document.activeElement.value`) {
-		t.Errorf("the field on top adds a card, newest first, and stays ready: %s", b.eval(`[...document.querySelectorAll('article.doc .kard')].map(k => k.textContent.trim()).join(',')`))
+	if !b.waitFor(`[...document.querySelectorAll('article.typeset .keep .kard')].map(k => k.textContent.trim()).join(',') === 'Spare antenna: check the shelf,Call the crane company' && document.activeElement?.matches('.noteadd') && !document.activeElement.value`) {
+		t.Errorf("the field on top adds a card, newest first, and stays ready: %s", b.eval(`[...document.querySelectorAll('article.typeset .kard')].map(k => k.textContent.trim()).join(',')`))
 	}
 	b.shot("quick-notes")
 	if got := b.stored(board); got != "b2:Spare antenna: check the shelf | b1:Call the crane company" {
@@ -46,8 +46,8 @@ func TestQuickNotes(t *testing.T) {
 	b.settingsSent()
 	b.open(base + "/o/" + board)
 	b.ready("Quick notes")
-	if !b.waitFor(`document.querySelectorAll('article.doc .keep .kard').length === 2`) {
-		t.Errorf("after a reload the board shows its cards: %s", b.eval(`document.querySelector('article.doc')?.innerHTML.slice(0, 300)`))
+	if !b.waitFor(`document.querySelectorAll('article.typeset .keep .kard').length === 2`) {
+		t.Errorf("after a reload the board shows its cards: %s", b.eval(`document.querySelector('article.typeset')?.innerHTML.slice(0, 300)`))
 	}
 	b.clickOn(`[data-act="newmenu"]`, 1)
 	if got := b.eval(`document.querySelector('.newpop [aria-pressed="true"][data-act="into"]')?.dataset.id`); got != coll {

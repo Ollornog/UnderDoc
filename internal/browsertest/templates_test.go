@@ -24,7 +24,7 @@ func TestTemplatesStartNewPages(t *testing.T) {
 	b.ready("Team")
 	b.watch()
 
-	b.clickOn(`.cheadrow[data-cdrop="`+team+`"] .newplus`, 1)
+	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
 	if got := b.eval(`[...document.querySelectorAll('.cmdpop [data-act="addtpl"] > span')].map(x => x.firstChild.textContent).join(',')`); got != "Meeting notes,How-to,Runbook,Decision" {
 		t.Errorf("New at a collection offers UnderDoc's templates: %q", got)
 	}
@@ -35,7 +35,7 @@ func TestTemplatesStartNewPages(t *testing.T) {
 	b.shot("templates-new-at-collection")
 	b.clickOn(`.cmdpop [data-act="addtpl"][data-id="builtin:meeting"]`, 1)
 	if !b.waitFor(`(EDS[at(0)?.d]?.ed.text() || '').includes('## Agenda') && document.activeElement?.classList.contains('cm-content')`) {
-		t.Fatalf("the page starts with the template, in the editor: %q", b.eval(`JSON.stringify({d: at(0)?.d, blocks: D[at(0)?.d]?.blocks?.length, loaded: D[at(0)?.d]?.loaded, can: D[at(0)?.d]?.canEdit, eds: Object.keys(EDS), path: location.pathname, art: document.querySelector("article.doc")?.innerHTML.slice(0,200)})`))
+		t.Fatalf("the page starts with the template, in the editor: %q", b.eval(`JSON.stringify({d: at(0)?.d, blocks: D[at(0)?.d]?.blocks?.length, loaded: D[at(0)?.d]?.loaded, can: D[at(0)?.d]?.canEdit, eds: Object.keys(EDS), path: location.pathname, art: document.querySelector("article.typeset")?.innerHTML.slice(0,200)})`))
 	}
 	meeting := b.eval(`location.pathname.slice(3)`)
 	if got := b.eval(`document.querySelector('[data-win="0"] .wtitle, [data-win="0"] h1')?.textContent || document.title`); !strings.Contains(got, "Meeting notes") {
