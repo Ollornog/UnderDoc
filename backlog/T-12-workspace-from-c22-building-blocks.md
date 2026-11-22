@@ -30,14 +30,15 @@ pack, named after the repository.** C22 rebuilt the mockup from `.workspace` and
 ## State
 
 - Step 1 (2026-11-22): the pack `underdoc` on every page, the class check reads the scripts (#126).
-- Step 2 (2026-11-22): the frame is `.workspace` with `data-behaviour="app"` (C22 at `70d7da3`): top row, nav1 to nav3
+- Step 2 (2026-11-22): the frame is `.workspace` with `data-behaviour="app"` (C22 at `4bc20af`): top row, nav1 to nav3
   with `data-step` and `--workspace-nav3`, the tree rows of every list in nav3, `.workspace-windows` with one
   `.workspace-window` per window (`data-focus` with several), the head of a window, `article.typeset[data-width]`, the
   status line, the drop zones and the mark of a dragged tab. Menus, drawers, the editor and the other views keep their
   old form for steps 3 and 4; until step 3 the article keeps the class `doc` of the old block for its blocks, and on a
-  phone the section gives the handles their room (`ps-9`). Open in C22: a blank space between entries of a list, a
-  window without tabs (solo), open and kept open apart (thin and thick line), the typeset flow inside block wrappers,
-  the head of a window and the room for handles on a phone.
+  phone the section gives the handles their room (`ps-9`). Open in C22 (the bridges go once it has them: `doc`,
+  `ps-9`, `--workspace-step-1` on a phone, `size-3`): a blank space between entries of a list, open and kept open
+  apart (thin and thick line), the typeset flow inside block wrappers, the room for handles on a phone, the width of
+  nav1 on a phone, the icon in the head of a section, the size of the avatar.
 
 ## Done when
 

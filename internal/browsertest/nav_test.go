@@ -678,13 +678,13 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	}
 }
 
-// While a single window holds only the general tab, no tab is drawn; a button in the empty tab row holds what the tab
-// offers, and a second tab brings the tabs back.
+// While a single window holds only the general tab, no tab row is drawn and the window takes its place; a button beside
+// New holds what the tab offers, and a second tab brings the tabs back.
 func TestOneWindowShowsNoTabs(t *testing.T) {
 	b, base := setupWithDatabase(t)
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
-	if got := b.eval(`[document.querySelectorAll('.workspace-tabs [role=tablist], .workspace-tab').length, document.querySelectorAll('.workspace-tabs [data-act=winmenu]').length].join(' ')`); got != "0 1" {
+	if got := b.eval(`[document.querySelectorAll('.workspace-tabs, .workspace-tab').length, document.querySelectorAll('.workspace-top [data-act=winmenu]').length].join(' ')`); got != "0 1" {
 		t.Fatalf("no tabs, a window button: %q", got)
 	}
 	b.clickOn(`[data-act=winmenu]`, 1)

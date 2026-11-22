@@ -510,18 +510,21 @@ function tabHtml(x,k,i){
     <button type="button" data-act="close" data-w="${i}" data-t="${k}" title="Close" aria-label="Close ${d.n}">${icon('x')}</button></div>`;
 }
 /* Everything opens in the general tab. While a single window holds nothing else, no tab is drawn: the page stands
-   alone, and a button in the empty tab row holds what the tab offers. A second tab or window brings the tabs back
+   alone, and a button beside New holds what the tab offers. A second tab or window brings the tabs back
    (the maintainer, 2026-11-09). */
 const solo=()=>S.wins.length===1&&!S.wins[0].tabs.some(x=>!x.general);
 /* A window is C22's .workspace-window inside .workspace-windows: its own tab row, then the window (.workspace-main) with
    its head, the document and the status line. With several windows the one worked in carries data-focus. */
+/* What the general tab offers while a single window has no tabs (solo): beside New in the top row; on a phone, where the
+   top row holds only New, in the tab row of the window. */
+const winBtn=v=>`<button type="button" class="btn" data-variant="${v}" data-size="icon-sm" data-act="winmenu" aria-expanded="${!!S.ctx&&S.ctx.kind==='win'}" aria-label="Window and tabs" title="Window and tabs: keep as a tab, a new column, opened before">${icon('win')}</button>`;
 const ghostBtn=(attrs,ico)=>`<button type="button" class="btn" data-variant="ghost" data-size="icon-sm" ${attrs}>${icon(ico)}</button>`;
 function winHtml(w,i){
   const t=at(i),has=t&&t.d;
-  /* Solo: no tabs. The row stays, as C22 keeps the window below it, and holds only the button with what the tab offers
-     (beside New it would not fit the top row of a phone). */
-  const head=`<div class="workspace-tabs">${solo()?`${ghostBtn(`data-act="winmenu" aria-expanded="${!!S.ctx&&S.ctx.kind==='win'}" aria-label="Window and tabs" title="Window and tabs: keep as a tab, a new column, opened before"`,'win')}`:`<div role="tablist" aria-label="Open in window ${i+1}">${w.tabs.map((x,k)=>tabHtml(x,k,i)).join('')}</div>
-    ${ghostBtn(`data-act="tablist" data-w="${i}" aria-expanded="${S.tlist===i}" aria-label="All tabs of this window" title="All tabs of this window"`,'list')}${S.wins.length>1?ghostBtn(`data-act="closewin" data-w="${i}" aria-label="Close window" title="Close window"`,'x'):''}${i===S.wins.length-1&&S.mods.ai?ghostBtn(`${off('tool','aid')} data-act="aid" aria-pressed="${S.aid}" aria-label="AI assistant" title="AI assistant"`,'ai'):''}`}</div>`;
+  /* Solo: no tab row, the window takes its place (C22). On a phone the row stays for the button beside New, which the
+     narrow top row there has no room for. */
+  const head=solo()?(phone()?`<div class="workspace-tabs">${winBtn('ghost')}</div>`:''):`<div class="workspace-tabs"><div role="tablist" aria-label="Open in window ${i+1}">${w.tabs.map((x,k)=>tabHtml(x,k,i)).join('')}</div>
+    ${ghostBtn(`data-act="tablist" data-w="${i}" aria-expanded="${S.tlist===i}" aria-label="All tabs of this window" title="All tabs of this window"`,'list')}${S.wins.length>1?ghostBtn(`data-act="closewin" data-w="${i}" aria-label="Close window" title="Close window"`,'x'):''}${i===S.wins.length-1&&S.mods.ai?ghostBtn(`${off('tool','aid')} data-act="aid" aria-pressed="${S.aid}" aria-label="AI assistant" title="AI assistant"`,'ai'):''}</div>`;
   const pop=(S.newAt===i?newMenuHtml('tab'):'')+(S.tmenu&&S.tmenu.w===i?`<div class="pop tabctx" role="menu" data-style="left:${S.tmenu.x}px">${tabMenuHtml(i,S.tmenu.t)}</div>`:'')
     +(S.hist===i?`<div class="pop histpop" role="menu"><b>Opened here before</b>${olderOf(w).map(x=>`<button data-act="open" data-id="${x}">${ic(TYPE[D[x].t][0])}${D[x].n}</button>`).join('')||'<span class="hint">Nothing yet.</span>'}</div>`:'')
     +(S.tlist===i?`<div class="pop tlistpop" role="menu"><b>Tabs of this window</b>${w.tabs.map((x,k)=>`<button data-act="sel" data-w="${i}" data-t="${k}" aria-pressed="${k===w.a}">${x.d?ic(TYPE[D[x.d].t][0])+D[x.d].n:'<em>empty general tab</em>'}</button>`).join('')}</div>`:'');
@@ -530,10 +533,8 @@ function winHtml(w,i){
   const open=`<section class="workspace-window" data-win="${i}"${S.wins.length>1&&i===S.focus?' data-focus':''} aria-label="Window ${i+1}">`;
   if(!has) return `${open}${head}${pop}<main class="workspace-main"><div data-drop-zone="start" hidden></div><div data-drop-zone="end" hidden></div><div data-drop-zone="here" hidden></div><section data-sc="${i}"><p class="text-muted-foreground">Empty.<br>What a list opens lands here, in the active window.</p></section>${ai}</main></section>`;
   const d=D[t.d],{h,hs,to}=bodyHtml(t,i),mode=d.toc,ids=hs.map((x,j)=>to?to[j]:`w${i}h${j}`);
-  /* A phone gets the head of C22 with little room: the button for reading or editing is the first of the tools (beside
-     the title it grows with the head, and the title then covers a second row of tools), the tools are the small size,
-     the sections only their icon, and tags and what others may do close the tools. The head keeps one row of tools, and
-     the page its height. */
+  /* On a phone the window is narrow: the tools take C22's small size and the sections only their icon, so the head
+     keeps one row of tools and the page its height. */
   const ph=phone(),toolBtn=(attrs,ico)=>`<button type="button" class="btn" data-variant="ghost" data-size="${ph?'icon-xs':'icon-sm'}" ${attrs}>${icon(ico)}</button>`;
   /* The sections of the document: a menu under a small button in the tools, or a contents column beside the document. */
   const marker=hs.length&&mode==='marker'&&!t.src?`<div class="dropdown-menu"><button type="button" class="btn" data-variant="${ph?'ghost" data-size="icon-xs" aria-label="'+hs.length+' sections':'outline" data-size="xs'}" data-act="fly" data-w="${i}" aria-haspopup="menu" aria-expanded="${t.fly}" title="In this document">${icon('list')}${ph?'':`<span>${hs.length} sections</span>`}</button><div data-popover data-align="end" aria-hidden="${!t.fly}"><div role="menu" aria-label="In this document"><div role="group"><div role="heading">In this document</div>${hs.map((x,j)=>`<button type="button" role="menuitem" data-act="jump" data-w="${i}" data-id="${ids[j]}">${x}</button>`).join('')}</div></div></div></div>`:'';
@@ -545,27 +546,27 @@ function winHtml(w,i){
   const place=`<nav class="breadcrumb" aria-label="Path" title="${crumbs}"><ol>${parts.map((x,k)=>(k?`<li aria-hidden="true">${icon('chev')}</li>`:'')+`<li><span>${x}</span></li>`).join('')}</ol></nav>`;
   const ac=othersOf(t.d),badge=ac==='edit'?'':`<span class="badge" data-variant="secondary" title="What others may do here">${icon(ac==='read'?'lock':'quote')}${ACC[ac]}</span>`;
   /* Reading or editing, as a large button left of the title: the state in words and icon, a click turns it (2026-11-09). */
-  const ed=editing(t)&&d.blocks&&d.canEdit,mode2=a=>`<button type="button" class="btn" data-mode data-variant="${ph?'ghost" data-size="icon-xs':'outline'}" data-act="edit" data-w="${i}" ${a}>`;
+  const ed=editing(t)&&d.blocks&&d.canEdit,mode2=a=>`<button type="button" class="btn" data-mode data-variant="outline" data-act="edit" data-w="${i}" ${a}>`;
   const status=d.blocks&&d.canEdit?`${mode2(`aria-pressed="${!!ed}" aria-label="${ed?'Editing':'Reading'}" title="${ed?'Editing. Click to read':'Reading. Click to edit'}"`)}${icon(ed?'pencil':'book')}</button>`
     :d.blocks||d.doc?`${mode2(`disabled aria-label="Read only" title="Read only. ${noEdit(t.d)}"`)}${icon('lock')}</button>`:'';
   const n=cmtCount(d);
   /* Tags and what others may do stand right of the path. */
   const marks=tagBadges(d.tags,'tagsearch')+badge;
   /* The toolbar is the anchor of the menu More (relative), which keeps its old form until step 4. */
-  const tools=`<div role="toolbar" class="relative" aria-label="Tools">${ph?status:''}${marker}${find}
+  const tools=`<div role="toolbar" class="relative" aria-label="Tools">${marker}${find}
     ${toolBtn(`data-act="find" data-w="${i}" aria-pressed="${t.find}" aria-label="Find on this page" title="Find on this page"`,'search')}
     ${d.doc?toolBtn(`data-act="src" data-w="${i}" aria-pressed="${t.src}" aria-label="Source view" title="Source view"`,'code'):''}
     ${S.wins.length<4?toolBtn(`data-act="split"${off('tool','split')} data-w="${i}" aria-label="Show also in a new column" title="Show also in a new column"`,'split'):''}
     ${cmtShown(t.d)?toolBtn(`data-act="cmt" data-w="${i}" aria-pressed="${t.cmt}" aria-label="Comments" title="Comments${n?', '+n:''}"${n?` data-count="${n}"`:''}`,'chat'):fromSource(t.d)?toolBtn(`disabled aria-label="Comments" title="No comments here: this page comes from the folder source, read only. Comments are kept on pages of the database."`,'chat'):''}
     ${toolBtn(`data-act="gear" data-w="${i}" aria-pressed="${t.gear}" aria-label="Document settings" title="Document settings"`,'gear')}
-    ${toolBtn(`data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More"`,'more')}${S.menu===i?menuHtml(i):''}${ph?marks:''}</div>`;
+    ${toolBtn(`data-act="menu" data-w="${i}" aria-expanded="${S.menu===i}" aria-label="More" title="More"`,'more')}${S.menu===i?menuHtml(i):''}</div>`;
   /* On a phone C22 leaves 16px beside the document, less than the handle of a block needs: the section takes the room
      of the handle as long as the blocks are the old ones (T-12 step 3). */
   /* The document column is C22's article.typeset with its width. Until the editor and its blocks move to building blocks
      (T-12 step 3) the article keeps the class doc of the old block as well: the blocks, handles, comment bubbles and
      embeds inside it are still drawn by it, and so is the space between paragraphs within and between blocks, which
      the typeset flow of C22 does not reach inside a wrapper. */
-  const whead=`<header>${ph?'':status}<div>${place}${ph?'':marks}<span data-fill></span>${tools}</div><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</header>`;
+  const whead=`<header>${status}<div>${place}${marks}<span data-fill></span>${tools}</div><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</header>`;
   const inner=t.src?`<div class="src" data-art="${i}">${sourceOf(d).map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:`<article class="typeset doc" data-width="${d.w}" data-art="${i}">${h}</article>`;
   return `${open}${head}${pop}<main class="workspace-main">${whead}<div data-drop-zone="start" hidden></div><div data-drop-zone="end" hidden></div><div data-drop-zone="here" hidden></div>${ed&&!t.src?edBarHtml(t.d,i):''}
     <section data-sc="${i}"${ph&&d.blocks?' class="ps-9"':''}>${toc}${inner}</section>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&cmtShown(t.d)?cmtHtml(t,i):''}${ai}${statusHtml(d)}</main></section>`;
@@ -823,7 +824,7 @@ function render(){
   const wide=S.rail&&!ph;
   const bar=`<header class="workspace-top relative">${wide?`<a class="brand" title="UnderDoc"><span class="brand-mark"><img class="size-full" src="${LOGO}" alt=""></span><span>UnderDoc</span></a>
     <form role="search"><input class="input" type="search" id="search" value="${esc(S.sq)}" placeholder="Search · Ctrl+K" aria-label="Search" title="Search: / here, Ctrl+K anywhere"></form>`:''}
-    <button type="button" class="btn" data-variant="outline" data-size="icon-sm" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${icon('plus')}</button>${S.newAt==='bar'?newMenuHtml('bar'):''}</header>`;
+    <button type="button" class="btn" data-variant="outline" data-size="icon-sm" data-act="newmenu" aria-expanded="${S.newAt==='bar'}" aria-label="New" title="New: type a note or pick a type">${icon('plus')}</button>${solo()&&!ph?winBtn('outline'):''}${S.newAt==='bar'?newMenuHtml('bar'):''}</header>`;
   const n1=(v,n,i)=>navItem('view',v,n,i,S.view===v);
   const grip=(n,label,title)=>`<span data-grip="${n}" role="separator" aria-orientation="vertical" aria-label="${label}" tabindex="0" title="${title}"></span>`;
   const privs=S.mods.private?`<hr>${navLabel('lock','Private','Only you see this')}${PRIVV.filter(x=>!S.real||S.timeOn||!['time','vac'].includes(x[0])).map(x=>n1(x[0],x[1],x[2])).join('')}`:'';
