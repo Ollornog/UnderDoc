@@ -64,6 +64,32 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- **Review of rights and sign-in: deleting for good and service accounts** (B-3, migration 035, ADR-32 part 3, ADR-36
+  part 2, [docs/rights.md](docs/rights.md#archived-groups), [docs/sign-in.md](docs/sign-in.md#the-gate)):
+  - **Groups are archived, never deleted.** `DELETE /api/groups/<id>` archives, `POST /api/groups/<id>/restore` brings
+    the group back with its members, groups, admins and entries. Only an administrator or the admin of a group it is
+    inside does, never its own admins, and only while every group inside it is archived. Archived, its allow entries
+    hold for nobody and nothing passes up through it; its deny entries keep holding, so archiving never gives anyone
+    more. The tab Rights shows Archive and Restore.
+  - **Deleting for good** from the trash is for the owner or an administrator, in a browser session only (never an
+    agent, a key or an app password), with the name typed in and checked by the server; emptying the trash needs
+    `Trash` typed in. Whoever only deleted something no longer deletes it for good. `db.SetApprover` is ready for the
+    gate's signed approvals (T-33). The trash page asks for the name in place.
+  - **Spaces:** a collection at the top, made, made among Files, copied or moved there, needs an administrator or the
+    new role `UNDERDOC_SPACES_ROLE` (`underdoc-spaces`); the workspace offers it only then (`canSpaces`).
+  - **Service accounts** come in only with an ID in the new `UNDERDOC_SERVICE_ACCOUNTS`, any other is refused (403).
+    An allowed one is always an agent and never belongs to everyone signed in or to a role of the gate, through every
+    door: the one check, the search, the export, the folder source and the share.
+  - **`Remote-Kind` is required:** a request without it or with an unknown value is refused (403, "Refused") now that
+    the gate's proxies set it; `UNDERDOC_GATE_KIND=legacy` is the explicit way back, with a warning. A malformed Remote
+    header or claim is 403 instead of 401.
+  - Attack round with tests (group admin archives their own group or the one above, a group with a group inside, a
+    deny that would vanish, purge as an agent, with a key, without or with a wrong name, as an editor with delete, a
+    space without the role, a service account nobody allowed, an allowed one reading what everyone reads through the
+    tree, a page, the export and the search, a missing, unknown or forged `Remote-Kind`); each guard proven by a
+    mutation. Browser tests for the typed name and for restoring an archived group.
+  - The gate's Go client is pinned by its release tag `clients/go/v0.29.0` (the same commit `4bb607f` as before).
+
 - Repokit 0.63.0 (with 0.61.0 and 0.62.0): the fast pre-push vets Go packages with the build tags of
   `scripts/check.sh` (`GO_PRUEF_TAGS`), so a change of a browser test no longer stops a push; hygiene and the affected
   tests choose the same Python; test scripts without a guard run in the hook; the nightly repeat run has English names.

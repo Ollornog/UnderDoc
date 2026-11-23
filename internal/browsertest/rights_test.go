@@ -18,7 +18,7 @@ import (
 // signInWith sets the headers of the gate for another person with groups.
 func (b *browser) signInWith(login, name, groups string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name, "Remote-Groups": groups}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name, "Remote-Groups": groups}}, nil)
 }
 
 // TestTheRoleDecidesWhatIsGreyed: what the viewer may do comes from their role (ADR-29), not from the level for all
@@ -257,6 +257,26 @@ func TestTheTabRights(t *testing.T) {
 	if !b.waitFor(`(document.querySelector('[data-rights="groups"]')?.innerText || '').includes('Bob Kern')`) {
 		t.Errorf("bob is a member: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
+	// Archived instead of deleted (B-3): the group stays with its member, marked, and comes back with Restore.
+	b.eval(`window.confirm = () => true`)
+	b.settled()
+	if !b.waitFor(`!!document.querySelector('[data-group="Board"] [data-ract="archivegroup"]')`) {
+		t.Fatalf("Archive is offered: %s", b.eval(`document.querySelector('[data-rights="groups"]')?.innerText`))
+	}
+	b.clickOn(`[data-group="Board"] [data-ract="archivegroup"]`, 1)
+	b.settled()
+	if !b.waitFor(`(document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText || '').includes('archived') && !!document.querySelector('[data-group="Board"] [data-ract="restoregroup"]')`) {
+		t.Fatalf("the group is archived: %s / %s", b.eval(`document.querySelector('[data-rights="groups"]')?.innerText`), b.eval(`String(window.confirm)`))
+	}
+	b.shot("group-archived")
+	b.clickOn(`[data-group="Board"] [data-ract="restoregroup"]`, 1)
+	b.settled()
+	if !b.waitFor(`!(document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText || 'archived').includes('archived') && !!document.querySelector('[data-group="Board"] [data-ract="archivegroup"]')`) {
+		t.Fatalf("the group is restored: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
+	}
+	if !b.waitFor(`(document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText || '').includes('1 person')`) {
+		t.Errorf("restored with its member: %s", b.eval(`document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText`))
+	}
 	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-rights="users"] [data-user="bob"]')`) {
 		t.Errorf("the users: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
@@ -267,8 +287,9 @@ func TestTheTabRights(t *testing.T) {
 		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.shot("rights-tab")
-	// What bob left behind: a collection of his own, which the administrator transfers without seeing what is in it.
-	b.signInWith("bob", "Bob Kern", "")
+	// What bob left behind: a collection of his own, which the administrator transfers without seeing what is in it. He
+	// holds the role to create spaces (B-3).
+	b.signInWith("bob", "Bob Kern", "underdoc-spaces")
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	b.eval(`window.left = null; fetch('/api/collections', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"title":"Left behind"}'}).then(r => r.json()).then(j => { window.left = j.id; })`)

@@ -50,6 +50,12 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 	if parent == "" && (o.Kind != KindCollection || o.Area == AreaFiles) {
 		return Object{}, ErrPlace
 	}
+	// A copy at the top is a new space (B-3).
+	if parent == "" {
+		if err := maySpace(ctx, viewer); err != nil {
+			return Object{}, err
+		}
+	}
 	if parent != "" {
 		p, err := db.Object(ctx, parent, viewer)
 		if err != nil {

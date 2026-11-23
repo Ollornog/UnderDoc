@@ -117,13 +117,18 @@ func TestTrashThroughTheAPI(t *testing.T) {
 	if trash := decode[[]apiTrashed](t, s.get("/api/trash")); len(trash) != 2 || !trash[1].PlaceDeleted {
 		t.Errorf("the list says that its place is in the trash: %+v", trash)
 	}
-	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", crossSite).Code; got != http.StatusForbidden {
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, `{"confirm":"Team"}`, crossSite).Code; got != http.StatusForbidden {
 		t.Errorf("a purge from another site = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", bobHere).Code; got != http.StatusNotFound {
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, `{"confirm":"Team"}`, bobHere).Code; got != http.StatusNotFound {
 		t.Errorf("bob purges Anna's collection = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, "", sameSite).Code; got != http.StatusNoContent {
+	for name, body := range map[string]string{"no body": "", "no name": `{}`, "wrong name": `{"confirm":"team"}`} {
+		if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, body, sameSite).Code; got != http.StatusBadRequest {
+			t.Errorf("purge with %s = %d", name, got)
+		}
+	}
+	if got := s.send(http.MethodDelete, "/api/trash/"+team.ID, `{"confirm":"Team"}`, sameSite).Code; got != http.StatusNoContent {
 		t.Errorf("purge = %d", got)
 	}
 	if trash := decode[[]apiTrashed](t, s.get("/api/trash")); len(trash) != 0 {
@@ -222,10 +227,13 @@ func TestEmptyingTheTrashThroughTheAPI(t *testing.T) {
 	if got := s.send(http.MethodDelete, "/api/objects/"+a.ID, "", sameSite).Code; got != http.StatusNoContent && got != http.StatusOK {
 		t.Fatalf("delete = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/trash", "", map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
+	if got := s.send(http.MethodDelete, "/api/trash", `{"confirm":"Trash"}`, map[string]string{"Sec-Fetch-Site": "cross-site"}).Code; got != http.StatusForbidden {
 		t.Errorf("emptying from another site = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/trash", "", sameSite).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodDelete, "/api/trash", `{"confirm":"trash"}`, sameSite).Code; got != http.StatusBadRequest {
+		t.Errorf("emptying without typing Trash = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/trash", `{"confirm":"Trash"}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("empty = %d", got)
 	}
 	if got := s.get("/api/trash").Body.String(); strings.TrimSpace(got) != "[]" {

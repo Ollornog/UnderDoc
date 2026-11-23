@@ -12,7 +12,7 @@ passkey or a password, OIDC, or the gate. Migration 032 removed those tables; ho
 
 ## The gate
 
-Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by commit). UnderDoc
+Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by its module tag `clients/go/v0.29.0`). UnderDoc
 never reads who someone is, how they signed in or what kind of account they have from a header on its own.
 
 | Setting | Meaning | Default |
@@ -23,8 +23,10 @@ never reads who someone is, how they signed in or what kind of account they have
 | `UNDERDOC_GATE_ISSUER`, `UNDERDOC_GATE_AUDIENCE` | Token mode: the gate's base address and the audience the proxy names | none |
 | `UNDERDOC_GATE_KEYS` or `UNDERDOC_GATE_JWKS_URL` | Token mode: the gate's public keys (`tinysesam gate-key`, comma separated), or the address of its key set | none |
 | `UNDERDOC_GATE_COOKIE` or `UNDERDOC_GATE_TOKEN_HEADER` | Token mode: where the token comes from | the gate cookie |
-| `UNDERDOC_GATE_KIND` | `required`: a request without `Remote-Kind` is refused, and a service account is one. Only once the gate says that its proxy sets `Remote-Kind` on every request | off |
+| `UNDERDOC_GATE_KIND` | Empty or `required`: a request without `Remote-Kind`, or with a value other than `user` or `service`, is refused (403). `legacy`: the way back for a proxy that does not set `Remote-Kind` yet, header mode only, with a warning at the start | `required` |
 | `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer UnderDoc (`UNDERDOC_ADMIN_GROUP` is still read as its old name). The gate's own `admin` is never one, and naming it stops the start | `underdoc-admin` |
+| `UNDERDOC_SPACES_ROLE` | The role of the app in the gate whose holders may create spaces, the collections at the top ([rights.md](rights.md#spaces)). Administrators may anyway | `underdoc-spaces` |
+| `UNDERDOC_SERVICE_ACCOUNTS` | The lasting IDs (`Remote-Id`) of the service accounts allowed in, separated by commas. Any other service account is refused (403) | none |
 
 The names of the claims of a gate token (`ts_user`, `ts_id`, `ts_auth`, `ts_kind`, …) are fixed by the gate's
 specification. `UNDERDOC_GATE` is gone: an instance with `UNDERDOC_GATE=off` does not start, since nobody could sign in.
@@ -50,13 +52,23 @@ that did not sign in as a session belongs to the built-in group Agents, a missin
 administrator's agent administers nothing. A gate token from before TinySesam 0.26.3 has no `ts_auth`, so it is an agent
 until it expires.
 
-**What kind of account.** `Remote-Kind` says person (`user`) or service account (`service`). A proxy older than the
-gate's spec version 2 passes on what the browser sent there, so it is not yet the only barrier: by default it is read and
-kept with the account, a request without it comes in as of unknown kind, and a service account counts as a person signed
-in with a token, an agent. `UNDERDOC_GATE_KIND=required` makes it decide. In token mode the kind is signed, so it always
-decides.
+**What kind of account.** `Remote-Kind` says person (`user`) or service account (`service`). The gate's proxies set it on
+every request and remove what the browser sent (TinySesam, 2026-11-23), so it is required: a request without it, empty,
+or with any other value is refused (403), as the gate's client refuses it. `UNDERDOC_GATE_KIND=legacy` is the way back
+for a proxy that does not set it yet: a missing `Remote-Kind` is then filled in as `user`, so that the client checks
+everything else, and kept as unknown; an unknown value stays refused. In token mode the kind is signed and always
+required.
 
-A request without the gate gets the page "Not signed in" (401), the API included. `UNDERDOC_DEV_USER` stands in for the
+**Service accounts** come in only with a lasting ID an administrator allowed in `UNDERDOC_SERVICE_ACCOUNTS`; any other
+request the gate names a service account is refused (403, the page "Refused"). An allowed ID is a service account
+whatever kind a request names, and a service account is always an agent
+([rights.md](rights.md#service-accounts)): it never belongs to everyone signed in or to a role of the gate, sees the
+folder source empty, and gets only what is granted to it or to a local group it is put in. The list is read at the start,
+which marks the accounts of those IDs in the database, so it holds for every decision about them.
+
+A request without the gate gets the page "Not signed in" (401), the API included. A request the gate passed on but the
+client refuses (a malformed Remote header or claim, a missing or unknown kind) and a service account nobody allowed get
+the page "Refused" (403). `UNDERDOC_DEV_USER` stands in for the
 gate on one machine, as the account with the lasting ID 1 and the role of the app.
 
 ## Share links
@@ -113,5 +125,5 @@ one in `UNDERDOC_SECRET_KEY_OLD`, run `underdoc rekey`, then drop the old key ([
 
 | Library | Version | Licence | For |
 |---|---|---|---|
-| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | commit `4bb607f` (0.29.0) | MIT | the gate: headers and gate token, standard library only |
+| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | `v0.29.0` (commit `4bb607f`) | MIT | the gate: headers and gate token, standard library only |
 | [golang.org/x/crypto](https://github.com/golang/crypto) | 0.59.0 | BSD-3-Clause | Argon2id of the passwords of share links |

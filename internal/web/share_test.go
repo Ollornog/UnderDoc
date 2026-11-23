@@ -268,7 +268,7 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 		s.send(http.MethodGet, "/api/state", "", who)
 	}
 	// Bob makes a collection of the files and shares it with the tenant; carl a folder in it that only he may see.
-	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Projects"}`, plain)
+	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Projects"}`, bobSpaces)
 	if made.Code != http.StatusCreated {
 		t.Fatalf("collection = %d %s", made.Code, made.Body.String())
 	}

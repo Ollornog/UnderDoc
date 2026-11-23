@@ -40,7 +40,7 @@ Quelltext mit Go oder Docker bauen, wie unten gezeigt.
 
 ## Ausprobieren
 
-UnderDoc hat keine eigene Anmeldung und lauscht deshalb standardmäßig nur auf Loopback. Angemeldet wird nur über die Anmeldeschranke davor, [TinySesam](https://github.com/Ollornog/TinySesam), deren Go-Client jede Anfrage prüft; eine Person wird über `Remote-Id` erkannt, Administratoren tragen die Rolle der App (`underdoc-admin`) ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md)).
+UnderDoc hat keine eigene Anmeldung und lauscht deshalb standardmäßig nur auf Loopback. Angemeldet wird nur über die Anmeldeschranke davor, [TinySesam](https://github.com/Ollornog/TinySesam), deren Go-Client jede Anfrage prüft; eine Person wird über `Remote-Id` erkannt, Administratoren tragen die Rolle der App (`underdoc-admin`), Bereiche auf oberster Ebene legen nur sie und Inhaber von `underdoc-spaces` an (`UNDERDOC_SPACES_ROLE`), eine Anfrage ohne bekanntes `Remote-Kind` wird abgelehnt, und ein Dienstkonto kommt nur herein, wenn seine ID in `UNDERDOC_SERVICE_ACCOUNTS` steht; es gilt dann immer als Agent und gehört nie zu „alle Angemeldeten“ ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md)). Gruppen werden archiviert statt gelöscht; endgültig aus dem Papierkorb löschen nur Besitzer oder Administratoren im Browser, mit eingetipptem Namen.
 
 ```bash
 go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080

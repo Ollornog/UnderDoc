@@ -40,23 +40,23 @@ type User struct {
 	Admin bool
 	// AdminRole tells that the gate gives the role of the app, not only the mark of the command line.
 	AdminRole bool
+	// Spaces tells that the gate gives the role of the app to create spaces, the collections at the top (B-3).
+	Spaces bool
 	// AuthKind is how this request signed in (AuthSession, AuthOAuth, …), as the gate's client checked it. Empty or
 	// unknown counts as an agent.
 	AuthKind string
-	// Kind is KindService for a service account where the gate's word on it can be trusted (Gate.KindTrusted); anything
-	// else is a person.
+	// Kind is KindService for a service account an administrator allowed by its lasting ID (B-3); anything else is a
+	// person.
 	Kind string
 	// GateKind is the kind of account the gate passed on ("user" or "service"), kept as it came; empty when it sent none.
-	// It decides nothing while the kind cannot be trusted.
 	GateKind string
 }
 
 // Agent tells whether the request belongs to the built-in group Agents (ADR-36): every sign-in that is not an
-// interactive session, and a missing or unknown one too (fail closed). A service account is a case of its own: it
-// gets what is granted to it, not this group.
+// interactive session, and a missing or unknown one too (fail closed). A service account is always an agent (B-3).
 func (u User) Agent() bool {
 	if u.Kind == KindService {
-		return false
+		return true
 	}
 	return u.AuthKind != AuthSession
 }

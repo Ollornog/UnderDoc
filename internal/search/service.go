@@ -23,7 +23,9 @@ type Request struct {
 	Groups  []string
 	Direct  []string
 	// Agent tells that the reader is an agent (ADR-36): it finds nothing a deny on Agents keeps from it.
-	Agent   bool
+	Agent bool
+	// Service tells that the reader is a service account (B-3): it never counts as everyone signed in (Everyone).
+	Service bool
 	Filters Filters
 	Limit   int
 	// Exact finds the words only as written and in this order, without typing errors (the strategy "exact words" of
@@ -200,6 +202,9 @@ func (s *Service) tenantOf(ctx context.Context) string {
 func (s *Service) searchEngine(ctx context.Context, tenantID string, r Request, limit int) (Result, error) {
 	q := Parse(r.Text)
 	readers := ReadersOf(r.Account, r.Groups, r.Direct)
+	if r.Service {
+		readers = slices.DeleteFunc(readers, func(t string) bool { return t == Everyone })
+	}
 	result := Result{Engine: s.engine.Name(), Hits: []Hit{}, Facets: Facets{}}
 	seen := map[string]bool{}
 	add := func(found Found, code bool) {

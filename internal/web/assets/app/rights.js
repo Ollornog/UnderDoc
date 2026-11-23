@@ -156,7 +156,7 @@ window.UDRights = (() => {
     const rows = st.groups.map((g) => {
       const open = st.members[g.id];
       const local = g.source === "local";
-      const may = g.admin && local;
+      const may = g.admin && local && !g.archived;
       let detail = "";
       if (open) {
         const people = open.members.map((m) => entry("", esc(m.name), esc(m.login), may ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "")).join("");
@@ -172,9 +172,12 @@ window.UDRights = (() => {
         detail = `<div class="flex flex-col gap-2 ps-4" data-group-detail="${esc(g.name)}">${people ? entries("", people) : hint("No person directly.")}${inner ? entries("data-subgroups", inner) : ""}${admins ? entries("data-admins", admins) : hint("No group admin.")}${forms}</div>`;
       }
       const inside = (g.parents || []).map((id) => names[id] || id);
-      const sub = `${g.members} ${g.members === 1 ? "person" : "persons"}${g.groups ? ` · ${g.groups} ${g.groups === 1 ? "group" : "groups"} inside` : ""} · ${local ? "local" : "from the sign-in, read only"}${inside.length ? " · inside " + inside.map(esc).join(", ") : ""}${g.admin && local ? " · ✓ you manage it" : ""}${g.description ? " · " + esc(g.description) : ""}`;
+      const sub = `${g.members} ${g.members === 1 ? "person" : "persons"}${g.groups ? ` · ${g.groups} ${g.groups === 1 ? "group" : "groups"} inside` : ""} · ${local ? "local" : "from the sign-in, read only"}${inside.length ? " · inside " + inside.map(esc).join(", ") : ""}${may ? " · ✓ you manage it" : ""}${g.archived ? " · archived: what is allowed to it holds for nobody" : ""}${g.description ? " · " + esc(g.description) : ""}`;
+      const archive = !g.archive ? "" : g.archived
+        ? small(`data-ract="restoregroup" data-g="${esc(g.id)}"`, "Restore")
+        : small(`data-ract="archivegroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}"`, "Archive");
       return entry(`data-group="${esc(g.name)}"`, esc(g.name), sub,
-        small(`data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}"`, "Members") + (may ? small(`data-ract="delgroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}"`, "Delete") : "")) + detail;
+        small(`data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}"`, "Members") + archive) + detail;
     });
     const make = me.admin
       ? `<form class="grid gap-2" data-rform="group">${head("New group")}<input class="input" name="name" maxlength="200" required placeholder="Name" aria-label="Name of the group"><input class="input" name="description" maxlength="1000" placeholder="What it is for (optional)" aria-label="Description"><div>${submit("Make the group")}</div></form>`
@@ -617,9 +620,12 @@ window.UDRights = (() => {
       case "unmember":
         act(() => api("PUT", `/api/groups/${encodeURIComponent(a.g)}/members/${encodeURIComponent(a.id)}`, { member: false }), "groups").then(() => b.dataset.g && refreshMembers(a.g));
         return;
-      case "delgroup":
-        if (!window.confirm(`Delete the group ${a.name}? Every role granted to it goes as well.`)) return;
+      case "archivegroup":
+        if (!window.confirm(`Archive the group ${a.name}? What is allowed to it holds for nobody until it is restored; what is denied to it still holds.`)) return;
         act(() => api("DELETE", `/api/groups/${encodeURIComponent(a.g)}`), "groups", "people");
+        return;
+      case "restoregroup":
+        act(() => api("POST", `/api/groups/${encodeURIComponent(a.g)}/restore`), "groups", "people");
         return;
       case "admin":
         act(() => api("PUT", `/api/users/${encodeURIComponent(a.id)}/admin`, { admin: a.on === "1" }), "users");

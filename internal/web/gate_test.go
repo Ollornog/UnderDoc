@@ -76,13 +76,21 @@ func TestForgedHeadersWithoutAGateToken(t *testing.T) {
 		t.Errorf("the headers of an administrator without a token = %d", got)
 	}
 	for name, token := range map[string]string{
-		"another app":   gatetest.Token("1007", map[string]any{"aud": "other.example.com"}),
-		"expired":       gatetest.Token("1007", map[string]any{"nbf": 1000, "iat": 1000, "exp": 1100}),
-		"not a token":   "anna",
-		"no kind":       gatetest.Token("1007", map[string]any{"ts_kind": nil}),
-		"no lasting ID": gatetest.Token("1007", map[string]any{"ts_id": nil, "sub": ""}),
+		"another app": gatetest.Token("1007", map[string]any{"aud": "other.example.com"}),
+		"expired":     gatetest.Token("1007", map[string]any{"nbf": 1000, "iat": 1000, "exp": 1100}),
+		"not a token": "anna",
 	} {
 		if got := s.raw(http.MethodGet, "/api/state", "", "", token, gateHeaders).Code; got != http.StatusUnauthorized {
+			t.Errorf("%s = %d", name, got)
+		}
+	}
+	// A token whose claims the client refuses is refused, not taken for nobody signed in (B-3).
+	for name, token := range map[string]string{
+		"no kind":       gatetest.Token("1007", map[string]any{"ts_kind": nil}),
+		"unknown kind":  gatetest.Token("1007", map[string]any{"ts_kind": "robot"}),
+		"no lasting ID": gatetest.Token("1007", map[string]any{"ts_id": nil, "sub": ""}),
+	} {
+		if got := s.raw(http.MethodGet, "/api/state", "", "", token, gateHeaders).Code; got != http.StatusForbidden {
 			t.Errorf("%s = %d", name, got)
 		}
 	}
@@ -152,7 +160,7 @@ func TestAgentWithTheAdminRole(t *testing.T) {
 	}
 	request.Header.Add("Remote-Auth", "session")
 	s.http.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusUnauthorized {
+	if recorder.Code != http.StatusForbidden {
 		t.Errorf("two Remote-Auth = %d", recorder.Code)
 	}
 	// The gate's own administrator is no administrator here.
@@ -203,7 +211,7 @@ func TestAccountKeepsWhatTheGateSays(t *testing.T) {
 	// After the minutes the account is kept in memory, an agent with fewer roles comes.
 	fresh := newSite(t, Options{DB: database, GateClient: gateOf(t, account.GateConfig{})}, sample)
 	fresh.raw(http.MethodGet, "/api/state", "", "", "", merged2(gateHeaders, map[string]string{"Remote-Auth": "oauth", "Remote-Groups": ""}))
-	if a, _ := database.AccountByID(ctx, "1007"); len(a.Groups) != 2 || a.GateKind != "" {
+	if a, _ := database.AccountByID(ctx, "1007"); len(a.Groups) != 2 || a.GateKind != "user" {
 		t.Errorf("an agent changed the groups, or the kind was not kept as sent: %+v", a)
 	}
 }
@@ -264,7 +272,7 @@ func TestEmergencyAccessThroughTheWeb(t *testing.T) {
 	if _, err := database.MarkAdmin(inMain(), "1300", true); err != nil {
 		t.Fatal(err)
 	}
-	marked := map[string]string{"Remote-Auth": "session", "Remote-User": "rescue", "Remote-Id": "1300", "Remote-Name": "Rescue"}
+	marked := map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "rescue", "Remote-Id": "1300", "Remote-Name": "Rescue"}
 	if state := decode[apiState](t, s.raw(http.MethodGet, "/api/state", "", "", "", marked)); !state.User.Admin || state.User.ID != "1300" {
 		t.Errorf("the marked account without the role: %+v", state.User)
 	}

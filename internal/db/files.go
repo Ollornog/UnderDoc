@@ -242,8 +242,13 @@ func (db *DB) FileRoot(ctx context.Context, rootID, viewer string) (Root, error)
 }
 
 // CreateFileCollection makes a collection among the roots of the view Files, owned by whoever makes it and theirs alone
-// until they share it, as a new collection of the documents is (ADR-29, 2026-11-19).
+// until they share it, as a new collection of the documents is (ADR-29, 2026-11-19). Like one there, only an
+// administrator or a holder of the role to create spaces makes it.
 func (db *DB) CreateFileCollection(ctx context.Context, owner account.User, title string) (Object, error) {
+	// A collection among the roots stands at the top: a space (B-3).
+	if err := maySpace(ctx, owner.ID); err != nil {
+		return Object{}, err
+	}
 	var made Object
 	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var err error

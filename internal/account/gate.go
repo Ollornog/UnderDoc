@@ -29,6 +29,10 @@ const (
 // DefaultAdminRole is the role of the app in the gate whose holders administer UnderDoc (ADR-35).
 const DefaultAdminRole = "underdoc-admin"
 
+// DefaultSpacesRole is the role of the app in the gate whose holders may create spaces, the collections at the top
+// (ADR-35, B-3). Administrators may anyway.
+const DefaultSpacesRole = "underdoc-spaces"
+
 // gateAdmin is the name under which the gate passes on its own administrators. It is never a right in UnderDoc (ADR-35).
 const gateAdmin = "admin"
 
@@ -51,10 +55,17 @@ type GateConfig struct {
 	TokenHeader      string
 	// AdminRole is the role of the app that makes an administrator; DefaultAdminRole when empty.
 	AdminRole string
-	// KindRequired refuses a request without Remote-Kind and lets a service account be one (header mode). Until the
-	// gate says that its proxy removes a Remote-Kind sent by the browser, it stays off: then a missing Remote-Kind is
-	// let through as unknown, and a service account counts as a person signed in with a token, an agent (ADR-36).
-	KindRequired bool
+	// SpacesRole is the role of the app that lets a person create spaces; DefaultSpacesRole when empty.
+	SpacesRole string
+	// ServiceAccounts are the lasting IDs (Remote-Id) of the service accounts an administrator allowed (B-3). A request
+	// the gate names a service account is refused unless its ID is here; an ID here is a service account whatever the
+	// request says of its kind.
+	ServiceAccounts []string
+	// KindLegacy is the way back for a proxy of the gate that does not set Remote-Kind yet (header mode): a missing
+	// Remote-Kind is filled in as user, so that the client checks everything else, and kept as unknown. Off, the default
+	// since the gate's proxies set Remote-Kind on every request, a request without it or with an unknown one is refused,
+	// as the gate's client does on its own (ADR-32, B-3). What makes a service account does not depend on it.
+	KindLegacy bool
 	// Logger receives one line for each refused request, with the reason's class only.
 	Logger *slog.Logger
 }
@@ -65,15 +76,20 @@ type Gate struct {
 	mode         string
 	kindHeader   string
 	adminRole    string
+	spacesRole   string
+	services     []string
 	kindRequired bool
 }
 
 // ErrNoID is a request whose sign-in names no lasting ID. A person is bound by that ID alone (ADR-35), never by a name.
 var ErrNoID = errors.New("the gate passed on no Remote-Id")
 
+// ErrService is a service account whose lasting ID no administrator allowed (B-3).
+var ErrService = errors.New("a service account that is not allowed")
+
 // NewGate checks the configuration. Anything contradictory or incomplete stops the start.
 func NewGate(cfg GateConfig) (*Gate, error) {
-	g := &Gate{mode: cfg.Mode, adminRole: strings.TrimSpace(cfg.AdminRole), kindRequired: cfg.KindRequired}
+	g := &Gate{mode: cfg.Mode, adminRole: strings.TrimSpace(cfg.AdminRole), kindRequired: !cfg.KindLegacy}
 	if g.mode == "" {
 		g.mode = GateHeader
 	}
@@ -82,6 +98,18 @@ func NewGate(cfg GateConfig) (*Gate, error) {
 	}
 	if g.adminRole == gateAdmin {
 		return nil, fmt.Errorf("the role %q is the gate's own administrator, which is no right in UnderDoc: name a role of the app", gateAdmin)
+	}
+	if g.spacesRole = strings.TrimSpace(cfg.SpacesRole); g.spacesRole == "" {
+		g.spacesRole = DefaultSpacesRole
+	}
+	if g.spacesRole == gateAdmin {
+		return nil, fmt.Errorf("the role %q is the gate's own administrator, which is no right in UnderDoc: name a role of the app", gateAdmin)
+	}
+	for _, id := range cfg.ServiceAccounts {
+		if id = strings.TrimSpace(id); !digits(id) {
+			return nil, fmt.Errorf("a service account is named by its lasting ID in the gate, a number: %q is none", id)
+		}
+		g.services = append(g.services, id)
 	}
 	// Every setting goes to the client, which refuses one that does not belong to the mode.
 	client := tinysesam.Config{Logger: cfg.Logger, TrustedProxies: cfg.Proxies, HeaderNames: cfg.Headers, Issuer: cfg.Issuer,
@@ -95,8 +123,11 @@ func NewGate(cfg GateConfig) (*Gate, error) {
 		}
 	case GateToken:
 		client.Mode = tinysesam.TokenMode
-		// A signed token always carries the kind of the account (ts_kind), so the kind can be trusted.
-		g.kindRequired = true
+		// A signed token always carries the kind of the account (ts_kind): the client refuses one without it, and
+		// there is no way back.
+		if cfg.KindLegacy {
+			return nil, errors.New("the way back for Remote-Kind is for header mode only: a gate token always carries its kind")
+		}
 	default:
 		return nil, fmt.Errorf("unknown mode of the gate %q: %s or %s", cfg.Mode, GateHeader, GateToken)
 	}
@@ -110,9 +141,15 @@ func NewGate(cfg GateConfig) (*Gate, error) {
 // Mode is GateHeader or GateToken.
 func (g *Gate) Mode() string { return g.mode }
 
-// KindTrusted tells whether a service account is taken for one: in token mode, and in header mode once KindRequired is
-// on.
-func (g *Gate) KindTrusted() bool { return g.kindRequired }
+// KindRequired tells whether a request without Remote-Kind is refused: always, but where UNDERDOC_GATE_KIND=legacy
+// takes the way back in header mode.
+func (g *Gate) KindRequired() bool { return g.kindRequired }
+
+// SpacesRole is the role of the app that lets a person create spaces.
+func (g *Gate) SpacesRole() string { return g.spacesRole }
+
+// HasSpacesRole tells whether groups hold the role to create spaces, compared exactly.
+func (g *Gate) HasSpacesRole(groups []string) bool { return slices.Contains(groups, g.spacesRole) }
 
 // AdminRole is the role of the app that makes an administrator.
 func (g *Gate) AdminRole() string { return g.adminRole }
@@ -126,9 +163,9 @@ func (g *Gate) Identify(r *http.Request) (User, error) {
 	checked := r
 	kindSent := true
 	if g.mode == GateHeader && !g.kindRequired && !sent(r.Header, g.kindHeader) {
-		// The client of the gate refuses a request without Remote-Kind. Until the gate says that its proxy sets it on
-		// every request, its absence is no reason to refuse: the client checks everything else as if a person had come,
-		// and the kind stays unknown. This can only make the request weaker, never a service account.
+		// The way back (KindLegacy): the client of the gate refuses a request without Remote-Kind, so it is filled in as
+		// user and the client checks everything else as if a person had come; the kind stays unknown. This can only make
+		// the request weaker, never a service account.
 		kindSent = false
 		checked = r.Clone(r.Context())
 		for name := range checked.Header {
@@ -153,12 +190,34 @@ func (g *Gate) Identify(r *http.Request) (User, error) {
 	if kindSent {
 		user.GateKind = string(id.AccountKind)
 	}
-	if id.IsService() && g.kindRequired {
+	// A service account comes in only with the lasting ID an administrator allowed, and is then always one, an agent
+	// (B-3). Refusing one the gate names a service account can only make a request weaker, so it holds whether or not
+	// the kind is required; an allowed ID is a service account even where a proxy passed on another kind.
+	allowed := slices.Contains(g.services, id.ID)
+	if id.IsService() && !allowed {
+		return User{}, ErrService
+	}
+	if allowed {
 		user.Kind = KindService
 	}
-	// The role of the app makes an administrator, compared exactly; the gate's own administrator is no right here.
+	// The roles of the app make an administrator and one who creates spaces, compared exactly; the gate's own
+	// administrator is no right here.
 	user.Admin = id.HasRole(g.adminRole)
+	user.Spaces = id.HasRole(g.spacesRole)
 	return user, nil
+}
+
+// digits tells whether s is a non-empty string of ASCII digits, as a lasting ID of the gate is.
+func digits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // sent tells whether a request carries a header with a value, in any spelling of its name.

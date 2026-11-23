@@ -19,6 +19,13 @@ func trashButton(b *browser, name, act string) string {
 	return `tr[data-trash] [data-probe]`
 }
 
+// typeName types into the field that asks for a name before deleting for good, as a person does after clicking it.
+func (b *browser) typeName(selector, text string) {
+	b.t.Helper()
+	b.eval(`document.querySelector('` + selector + `').focus()`)
+	b.typeText(text)
+}
+
 // The right click deletes an entry after asking in place; it goes from the lists, from the window and from the database,
 // and the trash, reached from the free part of nav2, brings it back where it lay or deletes it for good, asking as well.
 func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
@@ -91,12 +98,25 @@ func TestDeleteAndRestoreFromTheTrash(t *testing.T) {
 	}
 	b.shot("trash")
 	b.clickOn(trashButton(b, "C", "trpurge"), 1)
-	if got := b.eval(`document.querySelector('tr[data-trash] [aria-pressed="true"]')?.textContent.trim()`); got != "Delete for good? Yes" {
-		t.Fatalf("deleting for good asks in place: %q", got)
+	if got := b.eval(`document.querySelector('tr[data-trash] [aria-pressed="true"]')?.textContent.trim() + ' | ' + document.querySelector('[data-trconfirm]')?.placeholder`); got != "Delete it for good | Type “C” to delete it for good" {
+		t.Fatalf("deleting for good asks for the name in place: %q", got)
 	}
 	if got := b.eval(`document.querySelectorAll('tr[data-trash]').length`); got != "2" {
 		t.Errorf("asking deletes nothing: %s", got)
 	}
+	b.shot("trash-purge-asks-name")
+	// Without the name, and with a wrong one, nothing goes and the field stays (B-3).
+	b.clickOn(trashButton(b, "C", "trpurge"), 1)
+	if !b.waitFor(`!!document.querySelector('[data-trconfirm]') && document.querySelectorAll('tr[data-trash]').length === 2`) {
+		t.Fatal("without the name the field goes, or C went")
+	}
+	b.typeName(`[data-trconfirm]`, "c")
+	b.clickOn(trashButton(b, "C", "trpurge"), 1)
+	if !b.waitFor(`document.querySelector('[data-trconfirm]')?.value === 'c' && document.querySelectorAll('tr[data-trash]').length === 2`) {
+		t.Fatalf("with a wrong name C went, or the field lost what was typed: %s", b.eval(`String(document.querySelector('[data-trconfirm]')?.value)`))
+	}
+	b.eval(`document.querySelector('[data-trconfirm]').value = ''`)
+	b.typeName(`[data-trconfirm]`, "C")
 	b.clickOn(trashButton(b, "C", "trpurge"), 1)
 	if !b.waitFor(`document.querySelectorAll('tr[data-trash]').length === 1`) {
 		t.Fatal("C is still in the trash")
@@ -146,9 +166,10 @@ func TestEmptyTheTrash(t *testing.T) {
 		t.Fatalf("two in the trash: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))
 	}
 	b.clickOn(`[data-act="trempty"]`, 1)
-	if got := b.eval(`[document.querySelector('[data-act="trempty"]').textContent.trim(), document.querySelectorAll('tr[data-trash]').length].join(' | ')`); got != "Empty the trash? Yes | 2" {
-		t.Errorf("it asks first: %q", got)
+	if got := b.eval(`[document.querySelector('[data-act="trempty"]').textContent.trim(), document.querySelector('[data-trconfirm="all"]')?.placeholder, document.querySelectorAll('tr[data-trash]').length].join(' | ')`); got != "Empty it for good | Type Trash to empty it | 2" {
+		t.Errorf("it asks for the name first: %q", got)
 	}
+	b.typeName(`[data-trconfirm="all"]`, "Trash")
 	b.clickOn(`[data-act="trempty"]`, 1)
 	if !b.waitFor(`document.querySelector('article.typeset')?.innerText.includes('The trash is empty.')`) {
 		t.Errorf("emptied: %s", b.eval(`document.querySelector('article.typeset')?.innerText`))

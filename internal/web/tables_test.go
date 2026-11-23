@@ -95,7 +95,7 @@ func (b workbookSpec) xlsx(t *testing.T) []byte {
 // bobsCollection makes a collection of the files for Bob, his alone, and returns its ID.
 func bobsCollection(t *testing.T, s *filesSite) string {
 	t.Helper()
-	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Bobs"}`, plain)
+	made := s.send(http.MethodPost, "/api/files/collections", `{"title":"Bobs"}`, bobSpaces)
 	if made.Code != http.StatusCreated {
 		t.Fatalf("collection = %d %s", made.Code, made.Body.String())
 	}

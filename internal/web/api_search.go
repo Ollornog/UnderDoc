@@ -77,6 +77,7 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		request.Filters.To = to.Add(24*time.Hour - time.Second)
 	}
 	request.Agent = user.Agent()
+	request.Service = user.Kind == account.KindService
 	// The filter "AI changes to check" (ADR-33): the pages the database names, of what the reader sees.
 	if query.Get("check") == "ai" && h.options.DB != nil {
 		pages, err := h.options.DB.PagesToCheck(r.Context(), user.ID)
@@ -90,11 +91,17 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		request.Filters.Objects = pages
 	}
 	if h.options.DB != nil {
-		groups, err := h.options.DB.GroupsOf(r.Context(), user.ID)
+		// A service account finds through the groups whose allow holds for it only: never a role of the gate (B-3). The
+		// check of each hit below holds every deny.
+		groupsOf, directOf := h.options.DB.GroupsOf, h.options.DB.DirectGroupsOf
+		if request.Service {
+			groupsOf, directOf = h.options.DB.AllowGroupsOf, h.options.DB.AllowDirectGroupsOf
+		}
+		groups, err := groupsOf(r.Context(), user.ID)
 		if h.failed(w, err, "search") {
 			return
 		}
-		direct, err := h.options.DB.DirectGroupsOf(r.Context(), user.ID)
+		direct, err := directOf(r.Context(), user.ID)
 		if h.failed(w, err, "search") {
 			return
 		}

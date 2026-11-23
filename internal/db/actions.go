@@ -112,6 +112,23 @@ func requestAgent(ctx context.Context) bool {
 // ErrAgent is what the group Agents never does: manage rights, share, delete for good, read passwords (ADR-36).
 var ErrAgent = fmt.Errorf("%w: agents may not do this; sign in to do it yourself", ErrNotAllowed)
 
+// ErrSession is something only a person does in the browser: a request of an agent, a key, an app password or no
+// request at all is refused (ADR-35, B-3).
+var ErrSession = fmt.Errorf("%w: only a person signed in in the browser does this", ErrNotAllowed)
+
+// browserSession refuses anything but a request of the account itself, signed in in an interactive session as the
+// gate's client checked it (account.User.AuthKind), never an agent. A context without a user is refused too.
+func browserSession(ctx context.Context, accountID string) error {
+	u, ok := account.From(ctx)
+	if ok && u.Agent() {
+		return ErrAgent
+	}
+	if !ok || u.ID == "" || u.ID != accountID || u.AuthKind != account.AuthSession {
+		return ErrSession
+	}
+	return nil
+}
+
 // noAgent refuses a request of an agent.
 func noAgent(ctx context.Context) error {
 	if requestAgent(ctx) {

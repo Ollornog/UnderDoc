@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	tinysesam "github.com/Ollornog/TinySesam/clients/go"
+
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -25,6 +27,10 @@ const formLimit = 16 << 10
 
 // errNotSignedIn is a request without anyone signed in.
 var errNotSignedIn = errors.New("not signed in")
+
+// errRefused is a request the gate passed on in a way UnderDoc does not take: a Remote header or a claim of the token the
+// gate's client refuses, such as a missing or unknown Remote-Kind while it is required (ADR-32, B-3).
+var errRefused = errors.New("refused")
 
 // who finds who sent a request: the person the gate's client checked, bound to their account, else the user that stands
 // in for development. It fails with errNotSignedIn, or with db.ErrQuota for a person new to a tenant that has as many
@@ -42,14 +48,24 @@ func (h *handler) whoAny(r *http.Request) (account.User, error) {
 	ctx := r.Context()
 	// Who someone is, how they signed in and what kind of account they have come only from what the gate's client
 	// checked, never raw from a header. The role of the app makes an administrator (ADR-35).
-	if user, err := h.options.GateClient.Identify(r); err == nil {
+	user, err := h.options.GateClient.Identify(r)
+	if err == nil {
 		user.AdminRole = user.Admin
 		return h.bindGate(ctx, user)
+	}
+	// A service account no administrator allowed, and what the gate passed on wrongly, are refused, not taken for
+	// nobody signed in: the gate did sign someone in (B-3).
+	if errors.Is(err, account.ErrService) {
+		return account.User{}, account.ErrService
+	}
+	if errors.Is(err, tinysesam.ErrHeader) || errors.Is(err, tinysesam.ErrClaims) {
+		return account.User{}, errRefused
 	}
 	if h.options.DevUser != nil {
 		user := *h.options.DevUser
 		user.Admin = h.options.GateClient.HasAdminRole(user.Groups)
 		user.AdminRole = user.Admin
+		user.Spaces = h.options.GateClient.HasSpacesRole(user.Groups)
 		user.AuthKind = account.AuthSession
 		if user.RemoteID == "" {
 			return user, nil
@@ -106,6 +122,15 @@ func (h *handler) notSignedIn(w http.ResponseWriter) {
 		Text:  "UnderDoc is reached through its sign-in gate, which tells it who you are. This request came without it.",
 		Link:  "Try again",
 	})
+}
+
+// refused answers a request the gate passed on but UnderDoc does not take (B-3).
+func (h *handler) refused(w http.ResponseWriter, err error) {
+	text := "The sign-in gate passed this request on in a way UnderDoc does not take. Whoever runs the gate can tell why."
+	if errors.Is(err, account.ErrService) {
+		text = "This service account may not use UnderDoc. An administrator allows it by its ID in the gate."
+	}
+	h.message(w, http.StatusForbidden, message{Title: "Refused", Text: text, Link: "Try again"})
 }
 
 // quotaText says that a tenant has as many accounts as its hoster allows.

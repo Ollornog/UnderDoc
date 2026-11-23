@@ -78,7 +78,7 @@ func TestTextQueueAndTexts(t *testing.T) {
 	}
 	// The text goes with its blob.
 	_ = db.Delete(ctx, file.ID, anna.ID)
-	_ = db.Purge(ctx, file.ID, anna.ID)
+	_ = purgeAs(ctx, db, anna.ID, file.ID)
 	if _, err := db.CollectBlobs(ctx, func(string) error { return nil }); err != nil {
 		t.Fatal(err)
 	}

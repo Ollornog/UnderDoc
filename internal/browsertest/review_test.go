@@ -12,7 +12,7 @@ import (
 // asAgent sets the headers of the gate for an agent of anna: she signed in with OAuth, not in a session (ADR-36).
 func (b *browser) asAgent() {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "oauth", "Remote-User": "anna", "Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "oauth", "Remote-Kind": "user", "Remote-User": "anna", "Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}}, nil)
 }
 
 // agentWrites changes a block as anna's agent, through the API, and signs anna in again.

@@ -148,7 +148,7 @@ func TestCommentsOnAPageAndItsBlocks(t *testing.T) {
 	if err := db.Delete(ctx, page.ID, anna.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, page.ID, anna.ID); err != nil {
+	if err := purgeAs(ctx, db, anna.ID, page.ID); err != nil {
 		t.Fatal(err)
 	}
 	var left int

@@ -151,11 +151,20 @@ func TestWhoRevealsASecret(t *testing.T) {
 	if _, err := reveal(db, secretID, carl.ID); err != nil {
 		t.Errorf("a member of a reading group does not reveal it: %v", err)
 	}
-	if err := db.DeleteGroup(ctx, Actor{ID: anna.ID, Admin: true}, group.ID); err != nil {
+	if err := db.ArchiveGroup(ctx, Actor{ID: anna.ID, Admin: true}, group.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := reveal(db, secretID, carl.ID); !errors.Is(err, ErrNotFound) {
-		t.Errorf("the group is gone and its member still reveals it: %v", err)
+		t.Errorf("the group is archived and its member still reveals it: %v", err)
+	}
+	if err := db.RestoreGroup(ctx, Actor{ID: anna.ID, Admin: true}, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reveal(db, secretID, carl.ID); err != nil {
+		t.Errorf("restored, the group reads it again: %v", err)
+	}
+	if err := db.ArchiveGroup(ctx, Actor{ID: anna.ID, Admin: true}, group.ID); err != nil {
+		t.Fatal(err)
 	}
 	if err := db.SetPageSecretReaders(ctx, secretID, anna.ID, true, []SecretReader{{Kind: ToPerson, Who: "u-nobody"}}); !errors.Is(err, ErrReader) {
 		t.Errorf("an unknown reader: %v", err)
@@ -267,7 +276,7 @@ func TestASecretGoesWithItsPage(t *testing.T) {
 	if err := db.Delete(ctx, page.ID, anna.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, page.ID, anna.ID); err != nil {
+	if err := purgeAs(ctx, db, anna.ID, page.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM page_secret_versions WHERE secret = $1", secretID).Scan(&n); err != nil || n != 0 {

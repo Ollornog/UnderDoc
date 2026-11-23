@@ -22,7 +22,7 @@ const (
 )
 
 // hosterAdmin is an administrator of the hoster: on the hoster host, the gate gives them the role of the app.
-var hosterAdmin = map[string]string{"Remote-Auth": "session", "Remote-User": "host", "Remote-Id": "9001", "Remote-Name": "Hoster Admin",
+var hosterAdmin = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "host", "Remote-Id": "9001", "Remote-Name": "Hoster Admin",
 	"Remote-Groups": "underdoc-admin"}
 
 // hosterSite is an instance with many tenants, Main and acme, and the hoster administration at its own host. Everyone

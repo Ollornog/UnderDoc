@@ -36,6 +36,8 @@ const (
 	// LogChecked and LogTakenBack are a check of a change by agents and its taking back (ADR-33), each kept.
 	LogChecked   = "checked"
 	LogTakenBack = "taken back"
+	// LogPurge is deleting for good from the trash (B-3), each kept.
+	LogPurge = "deleted for good"
 )
 
 // hourly are the actions kept at most once per account, object and hour.

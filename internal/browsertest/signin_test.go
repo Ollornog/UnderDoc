@@ -85,7 +85,7 @@ func TestAnAgentInTheBrowser(t *testing.T) {
 	b.open(base + "/o/plan")
 	b.ready("Network plan")
 	team := makeTeam(b)
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "oauth", "Remote-User": "anna",
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "oauth", "Remote-Kind": "user", "Remote-User": "anna",
 		"Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -208,18 +209,70 @@ func mayTakeAll(ctx context.Context, tx pgx.Tx, objectID, viewer, below string) 
 	return nil
 }
 
-// Purge takes an object of the trash away for good, with everything below it, its blocks and their versions. Whoever
-// owns it or deleted it may, if they may edit everything that goes with it.
-func (db *DB) Purge(ctx context.Context, objectID, viewer string) error {
-	// Agents never delete for good (ADR-36).
-	if err := noAgent(ctx); err != nil {
+// Errors of deleting for good (B-3).
+var (
+	// ErrPurger is deleting for good by someone who neither owns it nor administers the tenant.
+	ErrPurger = fmt.Errorf("%w: only its owner or an administrator deletes it for good", ErrNotAllowed)
+	// ErrConfirmName is deleting for good without typing the name of what goes.
+	ErrConfirmName = errors.New("type its name exactly to delete it for good")
+)
+
+// TrashName is the name to type to empty the whole trash.
+const TrashName = "Trash"
+
+// ApprovePurge is the action of the app that a signed approval of the gate names for deleting for good (ADR-35, T-33).
+const ApprovePurge = "underdoc.purge"
+
+// Approver confirms a dangerous action with a signed one-time approval of the gate, its jti used once (ADR-35). T-33
+// wires the gate's VerifyApproval; until then there is none, and such actions stay with owners and administrators in
+// the browser.
+type Approver interface {
+	Approve(ctx context.Context, action, objectID string) error
+}
+
+// SetApprover makes deleting for good wait for an approval of the gate; nil (the default) asks for none. Set once
+// before the first request.
+func (db *DB) SetApprover(a Approver) { db.approver = a }
+
+// Purge takes an object of the trash away for good, with everything below it, its blocks and their versions. Only its
+// owner or an administrator does, in a browser session, never an agent or a key (ADR-35, B-3), with its name typed as
+// confirm, and with the approval of the gate once there is one (SetApprover). It must lie in their trash (they deleted
+// it or own it), and they must be allowed to delete everything that goes with it.
+func (db *DB) Purge(ctx context.Context, objectID string, actor Actor, confirm string) error {
+	t, err := db.forPurge(ctx, objectID, actor)
+	if err != nil {
 		return err
 	}
-	if _, err := db.inTrash(ctx, objectID, viewer); err != nil {
-		return err
+	if strings.TrimSpace(confirm) != t.Title {
+		return ErrConfirmName
+	}
+	return db.purge(ctx, objectID, actor)
+}
+
+// forPurge returns an object of the trash the actor may delete for good, as far as that can be told before the name.
+func (db *DB) forPurge(ctx context.Context, objectID string, actor Actor) (Trashed, error) {
+	// Agents never delete for good (ADR-36), and neither does anything but a person in the browser (ADR-35).
+	if err := browserSession(ctx, actor.ID); err != nil {
+		return Trashed{}, err
+	}
+	t, err := db.inTrash(ctx, objectID, actor.ID)
+	if err != nil {
+		return Trashed{}, err
+	}
+	if t.Owner != actor.ID && !actor.Admin {
+		return Trashed{}, ErrPurger
+	}
+	return t, nil
+}
+
+func (db *DB) purge(ctx context.Context, objectID string, actor Actor) error {
+	if db.approver != nil {
+		if err := db.approver.Approve(ctx, ApprovePurge, objectID); err != nil {
+			return err
+		}
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		if err := mayTakeAll(ctx, tx, objectID, viewer, "true"); err != nil {
+		if err := mayTakeAll(ctx, tx, objectID, actor.ID, "true"); err != nil {
 			return err
 		}
 		// One statement takes the whole tree, so the parent of each is gone in the same moment as it is.
@@ -240,20 +293,32 @@ func (db *DB) Purge(ctx context.Context, objectID, viewer string) error {
 // TrashDays is how long something stays in the trash before it goes for good by itself (2026-11-09).
 const TrashDays = 30
 
-// EmptyTrash takes away for good everything in the trash the viewer may purge: what they deleted or own. It returns how
-// many deletions went.
-func (db *DB) EmptyTrash(ctx context.Context, viewer string) (int, error) {
-	list, err := db.Trash(ctx, viewer)
+// EmptyTrash takes away for good everything in the trash the actor may purge: what they own, and for an administrator
+// what they deleted too. The rules of Purge hold, with TrashName typed as confirm. What someone deleted but does not own
+// stays for its owner until it goes by itself. It returns how many deletions went.
+func (db *DB) EmptyTrash(ctx context.Context, actor Actor, confirm string) (int, error) {
+	if err := browserSession(ctx, actor.ID); err != nil {
+		return 0, err
+	}
+	if strings.TrimSpace(confirm) != TrashName {
+		return 0, ErrConfirmName
+	}
+	list, err := db.Trash(ctx, actor.ID)
 	if err != nil {
 		return 0, err
 	}
 	gone := 0
 	for _, t := range list {
-		err := db.Purge(ctx, t.ID, viewer)
-		if errors.Is(err, ErrHeldBelow) {
+		if _, err := db.forPurge(ctx, t.ID, actor); errors.Is(err, ErrPurger) || errors.Is(err, ErrNotFound) {
+			continue
+		} else if err != nil {
+			return gone, err
+		}
+		err := db.purge(ctx, t.ID, actor)
+		if errors.Is(err, ErrHeldBelow) || errors.Is(err, ErrNotFound) {
 			continue
 		}
-		if err != nil && !errors.Is(err, ErrNotFound) {
+		if err != nil {
 			return gone, err
 		}
 		gone++

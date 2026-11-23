@@ -45,8 +45,9 @@ it, [TinySesam](https://github.com/Ollornog/TinySesam) ([ADR-32](backlog/ADR-32-
 [docs/sign-in.md](docs/sign-in.md)). The gate checks who someone is and passes that on in the headers `Remote-User`,
 `Remote-Id`, `Remote-Name`, `Remote-Email`, `Remote-Groups`, `Remote-Auth` and `Remote-Kind`, which its proxy removes
 from every incoming request first, or in its signed gate token; TinySesam's Go client checks either. A person is bound
-by `Remote-Id`, administrators hold the role of the app (`underdoc-admin`), and a request whose `Remote-Auth` is not
-`session` counts as an agent. In an emergency `underdoc admin grant <remote-id>` marks an administrator. To try it on
+by `Remote-Id`, administrators hold the role of the app (`underdoc-admin`), spaces at the top are made by them and the
+holders of `underdoc-spaces`, a request without a known `Remote-Kind` is refused, a service account only comes in with
+its ID allowed, and a request whose `Remote-Auth` is not `session` counts as an agent. In an emergency `underdoc admin grant <remote-id>` marks an administrator. To try it on
 your own machine, let a made-up user stand in for the gate:
 
 ```bash
@@ -65,6 +66,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
 | `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer UnderDoc ([docs/sign-in.md](docs/sign-in.md#the-gate)) | `underdoc-admin` |
+| `UNDERDOC_SPACES_ROLE` | The role of the app in the gate whose holders may create spaces, the collections at the top ([docs/rights.md](docs/rights.md#spaces)) | `underdoc-spaces` |
+| `UNDERDOC_SERVICE_ACCOUNTS` | The lasting IDs (`Remote-Id`) of the service accounts allowed in; any other is refused ([docs/rights.md](docs/rights.md#service-accounts)) | none |
 | `UNDERDOC_GATE_MODE`, `UNDERDOC_GATE_PROXIES`, `UNDERDOC_GATE_*` | How the sign-in gate reaches UnderDoc: its headers from the addresses of its proxy, or its token; the gate's Go client checks either ([docs/sign-in.md](docs/sign-in.md#the-gate)) | header mode, any address |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
@@ -102,8 +105,9 @@ makes an app password in its profile, and saving in Office or LibreOffice become
 **Rights** hold for documents and files alike: an owner, and the actions read, comment, create, write, delete, share and
 manage, each inherit, allow or deny, for persons, groups (local and nested, or taken over from the gate) and the
 whole tenant, with the roles read, comment, edit and manage as presets. The nearest entry wins, deny beats allow on the
-same level, and the built-in group Agents (every sign-in that is not a session) can be denied as a ceiling. Private notes
-stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+same level, and the built-in group Agents (every sign-in that is not a session, and every service account) can be denied
+as a ceiling. Groups are archived, never deleted; deleting for good from the trash is for the owner or an administrator in
+the browser, with the name typed in. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
 
 **Passwords in the text** are references, `::secret{id="…"}`: the value lives sealed in the database, shows as a mask
 with Reveal and Copy, comes from the server on a click only, and every reveal is logged. Whoever reads the page reveals

@@ -19,8 +19,10 @@ import (
 // carlOf is carl, signed in through the gate with the group editors and nothing else; plain is bob with no group, so
 // neither administers.
 var (
-	carlOf = map[string]string{"Remote-Auth": "session", "Remote-User": "carl", "Remote-Id": "1003", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
-	plain  = map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
+	carlOf = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "carl", "Remote-Id": "1003", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
+	plain  = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
+	// bobSpaces is bob with the role of the gate to create spaces (B-3).
+	bobSpaces = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "underdoc-spaces", "Sec-Fetch-Site": "same-origin"}
 )
 
 // TestRightsThroughTheAPI: roles to persons, groups and the tenant, breaking the inheritance, and embedding that bypasses

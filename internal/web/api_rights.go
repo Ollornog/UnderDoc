@@ -198,6 +198,10 @@ type apiGroup struct {
 	Admin bool `json:"admin"`
 	// Parents are the IDs of the groups it is directly inside.
 	Parents []string `json:"parents"`
+	// Archived tells that the group is archived; Archive that the viewer may archive or restore it: administrators and
+	// the admins of a group it is inside, never the admins of the group itself (B-3).
+	Archived bool `json:"archived,omitempty"`
+	Archive  bool `json:"archive,omitempty"`
 }
 
 type apiPerson struct {
@@ -233,8 +237,15 @@ func (h *handler) groupsSeen(r *http.Request) ([]apiGroup, error) {
 		for _, p := range parents {
 			ids = append(ids, p.ID)
 		}
+		archive := false
+		if !agent && g.Source == db.GroupLocal {
+			if archive, err = h.options.DB.MayArchiveGroup(ctx, actor, g.ID); err != nil {
+				return nil, err
+			}
+		}
 		out = append(out, apiGroup{ID: g.ID, Name: g.Name, Source: g.Source, Description: g.Description, Members: g.Members, Groups: g.Groups,
-			Mine: slices.Contains(mine, g.ID), Admin: !agent && (actor.Admin || slices.Contains(administered, g.ID)), Parents: ids})
+			Mine: slices.Contains(mine, g.ID), Admin: !agent && (actor.Admin || slices.Contains(administered, g.ID)), Parents: ids,
+			Archived: g.Archived, Archive: archive})
 	}
 	return out, nil
 }
@@ -253,7 +264,7 @@ func (h *handler) apiGroups(w http.ResponseWriter, r *http.Request) {
 	actor := h.actor(r)
 	out := []apiGroup{}
 	for _, g := range seen {
-		if actor.Admin || g.Mine || g.Admin {
+		if actor.Admin || g.Mine || g.Admin || g.Archive {
 			out = append(out, g)
 		}
 	}
@@ -283,6 +294,10 @@ func (h *handler) apiPeople(w http.ResponseWriter, r *http.Request) {
 		out.People = append(out.People, apiPerson{ID: a.ID, Login: a.Login, Name: a.Name})
 	}
 	for _, g := range groups {
+		// An archived group gets no new entries (B-3).
+		if g.Archived {
+			continue
+		}
 		out.Groups = append(out.Groups, apiGroup{ID: g.ID, Name: g.Name, Source: g.Source, Groups: g.Groups, Parents: []string{}})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -345,15 +360,28 @@ func (h *handler) apiChangeGroup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// apiDeleteGroup deletes a local group: administrators and its group admins.
-func (h *handler) apiDeleteGroup(w http.ResponseWriter, r *http.Request) {
+// apiArchiveGroup archives a local group instead of deleting it (B-3): administrators and the admins of a group it is
+// inside, while every group inside it is archived. Nothing deletes a group for good.
+func (h *handler) apiArchiveGroup(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.change(w, r, 0, nil); !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.DeleteGroup(r.Context(), h.actor(r), r.PathValue("id")), "group") {
+	if h.failed(w, h.options.DB.ArchiveGroup(r.Context(), h.actor(r), r.PathValue("id")), "group") {
 		return
 	}
-	h.note(r, db.LogGroup, "", "deleted "+r.PathValue("id"))
+	h.note(r, db.LogGroup, "", "archived "+r.PathValue("id"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiRestoreGroup brings an archived group back with its members, groups and entries.
+func (h *handler) apiRestoreGroup(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.change(w, r, 0, nil); !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.RestoreGroup(r.Context(), h.actor(r), r.PathValue("id")), "group") {
+		return
+	}
+	h.note(r, db.LogGroup, "", "restored "+r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 

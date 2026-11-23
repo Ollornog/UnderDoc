@@ -46,6 +46,8 @@ type DB struct {
 	guard func(ctx context.Context, objectID string) error
 	// sheets reads spreadsheets as tables for the search (SetSheets, ADR-31); set once before the indexers start.
 	sheets SheetReader
+	// approver confirms deleting for good with an approval of the gate (SetApprover, T-33); nil asks for none.
+	approver Approver
 }
 
 // SheetReader reads the workbook of a blob of a tenant (sheet.Cache).
@@ -274,9 +276,9 @@ func (db *DB) bindGate(ctx context.Context, user account.User) (Account, error) 
 			if taken {
 				accountID = id.New()
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, remote_id, login, name, email, groups, source, gate_kind)
-				VALUES ($1, $2, $3, $4, $5, $6, 'gate', $7)`, accountID, user.RemoteID, user.Login, user.Name, user.Email,
-				nonNil(user.Groups), user.GateKind); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, remote_id, login, name, email, groups, source, gate_kind, service)
+				VALUES ($1, $2, $3, $4, $5, $6, 'gate', $7, $8)`, accountID, user.RemoteID, user.Login, user.Name, user.Email,
+				nonNil(user.Groups), user.GateKind, user.Kind == account.KindService); err != nil {
 				return err
 			}
 			if _, err := insertObject(ctx, tx, Object{Kind: KindCollection, Title: MyNotes, Owner: accountID, Private: true}); err != nil {
@@ -286,8 +288,8 @@ func (db *DB) bindGate(ctx context.Context, user account.User) (Account, error) 
 			return err
 		default:
 			if _, err := tx.Exec(ctx, `UPDATE accounts SET login = $2, name = $3, email = $4, gate_kind = $5, last_seen = now(),
-				groups = CASE WHEN $6 THEN $7 ELSE groups END WHERE id = $1`, accountID, user.Login, user.Name, user.Email,
-				user.GateKind, user.AuthKind == account.AuthSession, nonNil(user.Groups)); err != nil {
+				groups = CASE WHEN $6 THEN $7 ELSE groups END, service = $8 WHERE id = $1`, accountID, user.Login, user.Name, user.Email,
+				user.GateKind, user.AuthKind == account.AuthSession, nonNil(user.Groups), user.Kind == account.KindService); err != nil {
 				return err
 			}
 		}
@@ -299,6 +301,17 @@ func (db *DB) bindGate(ctx context.Context, user account.User) (Account, error) 
 		return err
 	})
 	return a, err
+}
+
+// SetServiceAccounts marks the accounts bound to these lasting IDs of the gate as service accounts, and every other one
+// as none, in every tenant (B-3). The start calls it with the IDs an administrator allowed, so a decision about an
+// account that has not signed in since holds as well; each sign-in marks its account again (BindGate).
+func (db *DB) SetServiceAccounts(ctx context.Context, remoteIDs []string) error {
+	return db.ForEachTenant(ctx, func(ctx context.Context) error {
+		_, err := db.pool.Exec(ctx, `UPDATE accounts SET service = (remote_id IS NOT NULL AND remote_id = ANY ($1::text[]))
+			WHERE service IS DISTINCT FROM (remote_id IS NOT NULL AND remote_id = ANY ($1::text[]))`, nonNil(remoteIDs))
+		return err
+	})
 }
 
 func nonNil(list []string) []string {
@@ -424,11 +437,34 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	}
 }
 
-// CreateCollection makes a collection at the top, or inside parent if that is set. One at the top belongs to its owner
-// alone until they share it: it grants nobody a role, not even the whole tenant (ADR-29, 2026-11-19). It is not private:
-// roles and links can be granted on it like on any other. One inside a parent inherits what holds there.
+// ErrSpaces is a new collection at the top, a space, made by someone without the role of the gate to create spaces
+// (ADR-35, B-3).
+var ErrSpaces = fmt.Errorf("%w: only administrators and whoever the gate gives the role to create spaces make a collection at the top", ErrNotAllowed)
+
+// maySpace refuses a new collection at the top, made, copied or moved there, to a request of anyone but an
+// administrator or a holder of the role to create spaces (account.User.Spaces). Without a request in the context (the
+// command line, an import, a job), whoever runs the instance acts, and it is allowed.
+func maySpace(ctx context.Context, accountID string) error {
+	u, ok := account.From(ctx)
+	if !ok {
+		return nil
+	}
+	if u.ID != accountID || !(u.Admin || u.Spaces) {
+		return ErrSpaces
+	}
+	return nil
+}
+
+// CreateCollection makes a collection at the top, or inside parent if that is set. One at the top is a space: only an
+// administrator or a holder of the role to create spaces makes one (maySpace), and it belongs to its owner alone until
+// they share it: it grants nobody a role, not even the whole tenant (ADR-29, 2026-11-19). It is not private: roles and
+// links can be granted on it like on any other. One inside a parent inherits what holds there, and needs create there.
 func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, parent string) (Object, error) {
-	if parent != "" {
+	if parent == "" {
+		if err := maySpace(ctx, owner.ID); err != nil {
+			return Object{}, err
+		}
+	} else {
 		p, err := db.Object(ctx, parent, owner.ID)
 		if err != nil {
 			return Object{}, err

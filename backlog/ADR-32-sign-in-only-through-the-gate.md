@@ -116,3 +116,24 @@ security, the hoster) stays. ADR-9 is right again in what it decided: the gate i
     administrators of a tenant and of the hoster are those the gate gives the role of the app on its host.
   - `UNDERDOC_GATE=off` stops the start, since nobody could sign in; any other value of it only warns.
   - A request without the gate gets the page "Not signed in" for the API too, as an instance behind the gate did before.
+- **Built on 2026-11-23, part 3** ([docs/sign-in.md](../docs/sign-in.md#the-gate), migration 035, B-3). The gate's
+  proxies set `Remote-Kind` on every request and remove what the browser sent (TinySesam, 2026-11-23), so the switch
+  went on and became the default. Settled in the build:
+  - `Remote-Kind` is required in header mode as in token mode: a request without it, empty or with a value other than
+    `user` or `service` is refused with 403 (the page "Refused"), as the gate's client refuses it. The filling in of a
+    missing kind as `user` is gone from the default. `UNDERDOC_GATE_KIND=legacy` is the one explicit way back, header
+    mode only, for a proxy that does not set it yet, with a warning at the start; an unknown value stays refused there
+    too. Empty or `required` is the default; any other value stops the start. Proven by `TestGateKind` and
+    `TestServiceAccountsThroughTheAPI`.
+  - A request the gate passed on but its client refuses for a malformed Remote header or claim (`header`, `claims`) is
+    answered 403, not 401: someone was signed in, but not in a way UnderDoc takes. A request without the gate stays 401.
+  - Service accounts no longer hang on the switch: one comes in only with a lasting ID in `UNDERDOC_SERVICE_ACCOUNTS`,
+    and an allowed ID is a service account whatever kind a request names, so a proxy that passed on a wrong kind cannot
+    turn it into a person. Refusing a service account nobody allowed only makes a request weaker, so it holds in the way
+    back as well. The list is a setting rather than a table: whoever runs the instance (the fleet's inventory) sets it
+    once, idempotently, and it needs no command of its own; the start marks the accounts of those IDs
+    (`accounts.service`), so every decision about them, also on the share, knows them.
+  - The role to create spaces is read like the administrator's: `UNDERDOC_SPACES_ROLE`, `underdoc-spaces` unless
+    configured, compared exactly; the gate's own `admin` stops the start.
+  - The gate's Go client has a release tag now: `go.mod` pins `clients/go v0.29.0` instead of the pseudo-version of
+    commit `4bb607f`, the same commit, so nothing changes in what checks a request.

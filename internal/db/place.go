@@ -139,6 +139,12 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if parent == "" && o.Kind != KindCollection {
 		return Object{}, ErrPlace
 	}
+	// A collection moved up to the top becomes a space (B-3).
+	if parent == "" && o.Parent != "" {
+		if err := maySpace(ctx, viewer); err != nil {
+			return Object{}, err
+		}
+	}
 	// The roots of the view Files stand at the top, and nothing else of that area does: a collection there without a
 	// root would show nowhere.
 	isRoot, err := isFileRoot(ctx, db.pool, objectID)

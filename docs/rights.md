@@ -72,8 +72,36 @@ it, only for the persons and groups taken over that are directly in the group.
   whoever is in a group inside G is also in G. A group can never be inside itself, also not through others: the
   database refuses it under a lock, so two changes at once cannot close a cycle.
 - A local group has **group admins**. They manage the group and every group inside it: members, groups inside it,
-  admins, name, deleting it, and making a new group inside it. Administrators of the tenant manage all groups.
+  admins, name, and making a new group inside it. Administrators of the tenant manage all groups.
 - The interface says "group" for both kinds and marks where each comes from.
+
+### Archived groups
+
+A local group is **archived, never deleted** (B-3). It keeps its members, the groups inside it, its admins and every
+entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc deletes a group for good.
+
+- **Who:** administrators of the tenant, and the admins of a group it is inside, at any depth, through groups that are
+  not archived. The admins of a group never archive or restore it themselves. Agents never do.
+- **When:** only while every group inside it is archived already (or taken out); otherwise `409`. A group comes back
+  only while no group it is inside is archived.
+- **What holds while it is archived:**
+  - its **allow** entries hold for nobody, and nothing passes up through it: its members do not count as members of the
+    groups it is inside;
+  - its **deny** entries keep holding for whoever is in it, also through the groups it is inside. Archiving never gives
+    anyone more: if a deny went with the group, the next entry above could allow what it denied. An allow that holds
+    for nobody only lets the decision go on up, which never allows more than the allow did;
+  - restricted passwords ([secrets.md](secrets.md)) are not revealed through it; its admins manage nothing through it;
+  - it gets no new entry, member, admin or group inside, is put inside no group, and is offered nowhere for a grant.
+  Its entries can still be taken back.
+
+## Spaces
+
+A **space** is a collection at the top, of the documents or of Files. Only **administrators** and the holders of the
+role of the app to create spaces in the gate (`UNDERDOC_SPACES_ROLE`, `underdoc-spaces` unless configured,
+[sign-in.md](sign-in.md#the-gate)) make one (ADR-35, B-3), also by copying a collection to the top or moving one up
+there; anyone else gets `403`, and the workspace offers it nowhere (`canSpaces` in `/api/state`). An agent of a holder
+of the role may as well. Inside a space, the rights decide as everywhere. The command line (`underdoc import`) makes
+collections at the top as whoever runs the instance.
 
 ## The group Agents
 
@@ -81,9 +109,7 @@ it, only for the persons and groups taken over that are directly in the group.
   `Remote-Auth` (`session`, `oauth`, `apikey`, `app-password`), and a missing or unknown value counts as an agent (fail closed). The value comes only from the result
   the gate's Go client checked ([sign-in.md](sign-in.md#the-gate)), never raw from a header. In the code it is
   `account.User.AuthKind`, and `account.User.Agent()` decides.
-- **Service accounts** (`Remote-Kind: service`) are a case of their own: they get what is granted to them, not this
-  group. Until the gate's proxy sets `Remote-Kind` on every request, that holds only with `UNDERDOC_GATE_KIND=required`
-  or in token mode; otherwise a service account counts as an agent.
+- **Service accounts** are always in it (B-3, [below](#service-accounts)).
 - **A deny on Agents is a ceiling** after the evaluation above: an action denied for Agents on the object or anywhere
   above it is refused, for the owner too, and breaking the inheritance below it does not lift it.
 - **Agents never** manage rights or groups, share (links), delete for good (empty the trash) or read passwords
@@ -91,6 +117,20 @@ it, only for the persons and groups taken over that are directly in the group.
 - **No agents** on a space is a deny on read for Agents there, set like any entry (kind `agents`).
 - **Every person limits their own agents** (`PUT /api/me/agents`), for example to read only; only the person in a
   session changes it, never an agent.
+
+### Service accounts
+
+A service account (`Remote-Kind: service`) comes in only with a lasting ID an administrator allowed
+(`UNDERDOC_SERVICE_ACCOUNTS`, [sign-in.md](sign-in.md#the-gate)); any other is refused (B-3). Then:
+
+- it is **always an agent**, whatever a request or a caller says: the one check (`object_decide`) takes every service
+  account for an agent, so its ceilings hold in the web, the API, the search, the export and on the share;
+- it **never belongs to everyone signed in**: an allow for the tenant never holds for it, and neither does an allow for a
+  group taken over from the gate, since a role such as the one that lets people use UnderDoc means everyone too. It sees
+  the folder source empty;
+- it gets what is **granted to it**, and to a **local group** it is put in directly (not through a group taken over
+  inside one);
+- a **deny** for the tenant or for a group taken over still holds for it.
 
 ## Inheritance
 
@@ -119,6 +159,11 @@ copied: they hold as a ceiling anyway.
 - **Deleting takes nothing one may not delete:** deleting or purging needs delete on the object and everything below it. A
   page below that breaks the inheritance and shuts the deleter out refuses the deletion with a message; its owner moves
   it out first.
+- **Deleting for good** from the trash (B-3, ADR-35) is for its **owner** or an **administrator** only, in a **browser
+  session** (`Remote-Auth: session`, never an agent, a key or an app password), with its **name typed in**, which the
+  server checks exactly; emptying the trash needs `Trash` typed in and takes only what the person may delete for good.
+  Whoever only deleted it waits for its owner, or for the trash to empty itself after 30 days. Once the gate signs
+  approvals for actions of an app (T-33), it will need one as well (`db.SetApprover`).
 - **Versions are for write:** the history of a page or a file holds what was taken out, so whoever only reads gets the
   current state, not the versions.
 - **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever may not read it, a deny
@@ -250,7 +295,11 @@ GET    /api/groups                           administrators: all; everyone else:
 GET    /api/groups/<id>                      the group, its persons, groups inside it, groups it is in, its admins
 POST   /api/groups                           {"name", "description", "parent"}   administrators; group admins inside theirs
 PATCH  /api/groups/<id>                      {"name", "description"}   administrators and group admins, local groups
-DELETE /api/groups/<id>                      administrators and group admins, local groups; their entries go with them
+DELETE /api/groups/<id>                      archives a local group (B-3): administrators and the admins of a group it is
+                                             inside, while every group inside it is archived; 409 otherwise
+POST   /api/groups/<id>/restore              brings an archived group back, the same people
+DELETE /api/trash/<id>                       {"confirm": "<its name>"}   deletes for good: owner or administrator, session
+DELETE /api/trash                            {"confirm": "Trash"}   empties what the person may delete for good
 GET    /api/groups/<id>/members              administrators, members and group admins
 PUT    /api/groups/<id>/members/<account>    {"member": true}   administrators and group admins, local groups
 PUT    /api/groups/<id>/groups/<group>       {"member": true}   a group inside a local group; a cycle answers 409

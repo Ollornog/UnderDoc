@@ -36,7 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 2/9 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 3/9 erledigt
 
 ## Aufgaben
 
@@ -81,7 +81,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 * ☑ **[B-1](B-1-folder-links-broken.md)** Links to folders count as broken · M-1
 * ☐ **[B-2](B-2-spreadsheet-attack-round-leftovers.md)** Spreadsheets, what the attack round of ADR-31 left open · M-2
-* ☐ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
+* ☑ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
 
 ## Entscheidungen (ADR)
 

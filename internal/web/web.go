@@ -199,7 +199,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/groups", h.apiGroups)
 	mux.HandleFunc("POST /api/groups", h.apiCreateGroup)
 	mux.HandleFunc("PATCH /api/groups/{id}", h.apiChangeGroup)
-	mux.HandleFunc("DELETE /api/groups/{id}", h.apiDeleteGroup)
+	mux.HandleFunc("DELETE /api/groups/{id}", h.apiArchiveGroup)
+	mux.HandleFunc("POST /api/groups/{id}/restore", h.apiRestoreGroup)
 	mux.HandleFunc("GET /api/groups/{id}/members", h.apiGroupMembers)
 	mux.HandleFunc("PUT /api/groups/{id}/members/{account}", h.apiSetMember)
 	// Nested groups, group admins and what each person lets their agents do (ADR-36).
@@ -404,8 +405,12 @@ func (h *handler) tenanted(next http.Handler) http.Handler {
 }
 
 // library returns the folder source as the tenant of the request sees it: whole for Main, and empty for every other
-// tenant, since the folder belongs to the instance.
+// tenant, since the folder belongs to the instance. The folder is for everyone signed in, which a service account never
+// is (B-3): it sees it empty.
 func (h *handler) library(ctx context.Context) *library.Library {
+	if u, ok := account.From(ctx); ok && u.Kind == account.KindService {
+		return h.noFolder
+	}
 	if t, _ := tenant.From(ctx); t == tenant.Main {
 		return h.store.Library()
 	}
@@ -427,6 +432,9 @@ func (h *handler) signedIn(next http.Handler) http.Handler {
 			return
 		case errors.Is(err, errNotSignedIn):
 			h.notSignedIn(w)
+			return
+		case errors.Is(err, errRefused), errors.Is(err, account.ErrService):
+			h.refused(w, err)
 			return
 		case err != nil:
 			http.Error(w, "internal error", http.StatusInternalServerError)

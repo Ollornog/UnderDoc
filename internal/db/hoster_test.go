@@ -249,7 +249,7 @@ func TestTheStorageCounterFollowsEveryWay(t *testing.T) {
 		if err := db.Delete(ctx, p.ID, anna.ID); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.Purge(ctx, p.ID, anna.ID); err != nil {
+		if err := purgeAs(ctx, db, anna.ID, p.ID); err != nil {
 			t.Fatal(err)
 		}
 		same(ctx, "a page with its attachment purged")

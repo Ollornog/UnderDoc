@@ -27,7 +27,7 @@ func withDatabase(t *testing.T) *site {
 
 var sameSite = map[string]string{"Sec-Fetch-Site": "same-origin"}
 
-var bob = map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob"}
+var bob = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob"}
 
 func TestAccountAndPrivateNotes(t *testing.T) {
 	s := withDatabase(t)
