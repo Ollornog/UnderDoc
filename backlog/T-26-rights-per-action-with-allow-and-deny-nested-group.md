@@ -1,7 +1,7 @@
 ---
 type: Task
 title: Rights per action with allow and deny, nested groups and the group Agents
-status: offen
+status: erledigt
 id: T-26
 milestone: M-30
 created: '2026-11-23'

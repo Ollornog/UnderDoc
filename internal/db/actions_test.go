@@ -576,3 +576,81 @@ func TestGrantsBecomeAllowEntries(t *testing.T) {
 		t.Errorf("the groups stay: %+v %v", grants, err)
 	}
 }
+
+// TestDenyHoldsThroughEveryDoor: the attack round of T-26. A deny holds for a share link its maker no longer may make, in
+// a copy, in an export, in the path of a search hit and for the role a link lends (ADR-36).
+func TestDenyHoldsThroughEveryDoor(t *testing.T) {
+	db, ctx := setup(t)
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	folder, _ := db.CreateFolder(ctx, anna, "Projects", team.ID)
+	open, _ := db.CreatePage(ctx, anna, "Open", folder.ID)
+	closed, _ := db.CreatePage(ctx, anna, "Closed", folder.ID)
+	if err := db.SetGrant(ctx, team.ID, admin, ToTenant, "", RoleEdit); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetGrant(ctx, folder.ID, admin, ToPerson, bob.ID, RoleManage); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetEntries(ctx, closed.ID, admin, ToPerson, carl.ID, entries(ActRead, Deny), true); err != nil {
+		t.Fatal(err)
+	}
+	// A link of bob's lives while bob may share.
+	link, token, err := db.CreateLink(ctx, open.ID, Actor{ID: bob.ID}, NewLink{Mode: LinkRead, Frozen: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.LinkByToken(ctx, token); err != nil {
+		t.Fatalf("the link lives: %v", err)
+	}
+	if err := db.SetEntries(ctx, folder.ID, admin, ToPerson, bob.ID, entries(ActRead, Allow, ActShare, Deny), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.LinkByToken(ctx, token); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a link whose maker may no longer share answers like none: %+v %v", link, err)
+	}
+	if _, _, err := db.CreateLink(ctx, open.ID, Actor{ID: bob.ID}, NewLink{Mode: LinkRead, Frozen: "x"}); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("bob makes a link without share: %v", err)
+	}
+	// Carl copies Projects into Team: Closed does not come along.
+	cp, err := db.Copy(ctx, folder.ID, carl.ID, team.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kids, _ := db.Children(ctx, cp.ID, carl.ID); len(kids) != 1 || kids[0].Title != "Open" {
+		t.Errorf("the copy of carl holds only what he reads: %v", titles(kids))
+	}
+	// Carl exports Projects: without Closed.
+	tree, err := db.Subtree(ctx, folder.ID, carl.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range tree.Kids {
+		if k.ID == closed.ID {
+			t.Error("the export of carl holds the page denied to him")
+		}
+	}
+	// The path of a hit: a level that denies someone is never named to the readers of a page below it.
+	below, _ := db.CreatePage(ctx, anna, "Below", closed.ID)
+	if err := db.SetEntries(ctx, below.ID, admin, ToPerson, carl.ID, entries(ActRead, Allow), true); err != nil {
+		t.Fatal(err)
+	}
+	docs, err := db.SearchSource().Docs(ctx, below.ID)
+	if err != nil || len(docs) == 0 {
+		t.Fatalf("docs: %v %v", docs, err)
+	}
+	if !strings.HasSuffix(docs[0].Path, "…") || !docs[0].MayRead([]string{"all", "account:" + carl.ID}, false) {
+		t.Errorf("carl finds Below without the name of Closed, which is denied to him: %q", docs[0].Path)
+	}
+	// A link to edit lends nothing past a nearer deny.
+	edit, etoken, err := db.CreateLink(ctx, team.ID, Actor{ID: anna.ID}, NewLink{Mode: LinkEdit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UseLink(ctx, edit.ID, carl.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = etoken
+	if may(t, db, ctx, closed.ID, carl.ID, ActRead) {
+		t.Error("a link to edit Team lets carl read the page denied to him")
+	}
+}

@@ -116,3 +116,26 @@ comes from.
   interface shows that Samba cannot express it, as ADR-29 does for rights per file.
 - The access check and the log name the deciding entry, so that a deny is never a riddle.
 - An attack round looks at deny before release: inheritance, nested groups, cycles, the owner, embedding, search.
+- **Built on 2026-11-23** ([docs/rights.md](../docs/rights.md), migration 030, T-26). Settled in the build:
+  - The owner of something above holds every action there as an allow on that level, so a deny on the same level beats
+    it like any other; only on their own object is the owner beyond a deny.
+  - A deny on Agents holds on the object and everywhere above it, whatever breaks the inheritance, so a manager below a
+    space with no agents cannot let agents in by breaking it. Agents can only be denied: an allow for Agents would give
+    every agent what its person may not hold.
+  - The way of signing in reaches the check through `account.User.AuthKind`: a session of the sign-in pages is a
+    session, the gate's `Remote-Auth` is read as `Remote-User` is until T-27 takes it from the checked result, and an
+    empty or unknown value is an agent. An agent is no administrator for its request, takes no share link for its
+    person and makes no app password for the share, since the share decides each person as a person.
+  - Moving to another place needs delete on the object and on everything below it, as a deletion does, and create where
+    it goes; it is refused where it would let the mover share or manage the object there (the attack of ADR-29,
+    2026-11-19, under actions).
+  - Breaking the inheritance copies, for each holder and action, the nearest entry from above. Where entries above
+    overlap, deny on the one level now wins, so breaking never gives anyone more.
+  - A group admin puts only groups inside theirs that they manage already; otherwise putting a group inside would make
+    them its admin.
+  - The search index keeps the owner and up to six levels of entries on read with their allowed and denied tokens, and
+    whether no agent may find a record; each hit is checked once more in the database, so a deny holds while the index
+    catches up. A record with more levels is found by its owner alone.
+  - Samba: each account is decided on its own, so a deny on a folder holds on the share without a deny entry in an ACL;
+    a deny on a single file of a shared library is refused, as breaking its inheritance is (T-1 proves no rights per
+    file).

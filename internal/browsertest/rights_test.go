@@ -197,7 +197,7 @@ func TestTheRightsDialog(t *testing.T) {
 	// From C22's rights block: owner and inheritance are entries with their action, a role from above names its origin and
 	// the role as one split badge, each grant has the icon of its kind (T-12).
 	if got := b.eval(`[...document.querySelectorAll('#udrights .item-group > .item h4')].map(n => n.textContent).join(' | ') + ' / ' +
-		[...document.querySelectorAll('#udrights [data-inherited] li')].map(n => n.querySelector('svg')?.dataset.iconLu + ' ' + n.innerText.replace(/\s+/g, ' ').trim() + ' ' + [...n.querySelectorAll('.badge-split > span')].map(x => x.textContent).join('|')).join(', ')`); got != "Owner | Takes the roles from above / user Anna Berg from above manage from above|manage, globe Everyone from above read from above|read" {
+		[...document.querySelectorAll('#udrights [data-inherited] li')].map(n => n.querySelector('svg')?.dataset.iconLu + ' ' + n.innerText.replace(/\s+/g, ' ').trim() + ' ' + [...n.querySelectorAll('.badge-split > span')].map(x => x.textContent).join('|')).join(', ')`); got != "Owner | Takes the roles from above | Agents / user Anna Berg from above manage from above|manage, globe Everyone from above read from above|read" {
 		t.Errorf("the parts of the rights dialog: %q", got)
 	}
 	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:bob", "role": "comment"})
