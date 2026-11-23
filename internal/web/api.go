@@ -36,6 +36,12 @@ type apiUser struct {
 	Admin    bool     `json:"admin"`
 	// Agent tells that this request did not sign in as a session (ADR-36).
 	Agent bool `json:"agent"`
+	// Delegate tells that the gate gives the role of the delegated administrator (T-33).
+	Delegate bool `json:"delegate"`
+	// Accounts tells that this person may manage accounts through the gate's account API where they may (T-33); Reset
+	// that they may have the access of an account reset, as a holder of the gate's approver role.
+	Accounts bool `json:"accounts"`
+	Reset    bool `json:"reset"`
 }
 
 // apiNode is one object in a list: a collection, folder or page, with what lies inside it.
@@ -167,7 +173,8 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 	}
 	state := apiState{
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
-			Admin: user.Admin, Agent: user.Agent()},
+			Admin: user.Admin, Agent: user.Agent(), Delegate: user.Delegate && user.Has(account.PermAccounts),
+			Accounts: h.accountsOn() && personAtWork(user), Reset: h.mayReset(user)},
 		CanCreate: h.options.DB != nil && documents,
 		CanSpaces: h.options.DB != nil && documents && (user.Admin || user.Spaces) && !user.Agent(),
 		Problems:  len(lib.Problems()),

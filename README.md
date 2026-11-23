@@ -68,6 +68,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer UnderDoc ([docs/sign-in.md](docs/sign-in.md#the-gate)) | `underdoc-admin` |
 | `UNDERDOC_SPACES_ROLE` | The role of the app in the gate whose holders may create spaces, the collections at the top ([docs/rights.md](docs/rights.md#spaces)) | `underdoc-spaces` |
 | `UNDERDOC_SERVICE_ACCOUNTS` | The lasting IDs (`Remote-Id`) of the service accounts allowed in; any other is refused ([docs/rights.md](docs/rights.md#service-accounts)) | none |
+| `UNDERDOC_DELEGATE_ROLE` | The role of the app in the gate whose holders are delegated administrators: accounts of every group and archiving groups ([docs/accounts.md](docs/accounts.md#two-levels-of-administration)) | `underdoc-delegate` |
+| `UNDERDOC_GATE_URL`, `UNDERDOC_GATE_SERVICE_KEY_FILE`, `UNDERDOC_ACCOUNTS_ROLES`, `UNDERDOC_APPROVALS` | The gate's account API and approvals: group admins invite, give new sign-in links and lock accounts, and deleting for good waits for the gate's confirmation ([docs/accounts.md](docs/accounts.md)) | off |
 | `UNDERDOC_GATE_MODE`, `UNDERDOC_GATE_PROXIES`, `UNDERDOC_GATE_*` | How the sign-in gate reaches UnderDoc: its headers from the addresses of its proxy, or its token; the gate's Go client checks either ([docs/sign-in.md](docs/sign-in.md#the-gate)) | header mode, any address |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
@@ -108,7 +110,15 @@ whole tenant, with the roles read, comment, edit, members (manage without delete
 same level, and the built-in group Agents (every sign-in that is not a session, and every service account) can be denied
 as a ceiling. Groups are archived, never deleted, and a space goes into the archive without a limit: hidden from the tree
 and the search until asked for, read only through every door, restored by its owner or an administrator in the browser.
-Deleting for good from the trash is for the owner or an administrator in the browser, with the name typed in. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+Deleting for good from the trash is for the owner or an administrator in the browser, with the name typed in, and where
+configured with a signed confirmation of the gate. Private notes stay private, also from administrators. How it works:
+[docs/rights.md](docs/rights.md).
+
+**Accounts** stay in the gate. Where its account API is configured, a group admin invites a colleague from the group's
+page (the profile is bound to the new account at once and in the group), gives a new sign-in link before the first
+sign-in, locks and unlocks; administrators reset the access of an account with the gate's approval, and a delegated
+administrator manages the accounts of every group. A locked account comes in through no way, MCP, Samba and its share
+links included. How it works: [docs/accounts.md](docs/accounts.md).
 
 **Passwords in the text** are references, `::secret{id="…"}`: the value lives sealed in the database, shows as a mask
 with Reveal and Copy, comes from the server on a click only, and every reveal is logged. Whoever reads the page reveals

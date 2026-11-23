@@ -23,8 +23,10 @@
 //	UNDERDOC_TEXT_WAYS, _TEXT_MAX_SIZE, UNDERDOC_TESSERACT, UNDERDOC_AI_OCR_PAGES_USER, _TENANT
 //	                        how the text of files is read for the search (docs/files.md)
 //	UNDERDOC_SEARCH_*       the search service, see search.go and docs/search.md
-//	UNDERDOC_GATE_*, UNDERDOC_ADMIN_ROLE
+//	UNDERDOC_GATE_*, UNDERDOC_ADMIN_ROLE, UNDERDOC_DELEGATE_ROLE
 //	                        the sign-in gate and its client, see gate.go and docs/sign-in.md
+//	UNDERDOC_GATE_URL, UNDERDOC_GATE_SERVICE_KEY_FILE, UNDERDOC_ACCOUNTS_ROLES, UNDERDOC_APPROVALS
+//	                        accounts and approvals through the gate, see gateapi.go and docs/accounts.md
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -35,6 +37,9 @@
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
 //	underdoc account [--tenant <id>] list                         every account, with the lasting ID of the gate it is bound to
 //	underdoc account [--tenant <id>] bind <key|login> <remote-id> an account made before ADR-32 bound to its person in the gate
+//	underdoc account [--tenant <id>] add <remote-id> <login> <name>  an account bound to its person in the gate before
+//	                                                               the first sign-in, without an administrator's mark
+//	underdoc account [--tenant <id>] adopt [--dry-run]             an account for each the gate's account API shows UnderDoc
 //	underdoc admin [--tenant <id>] grant|revoke <remote-id>        the emergency access: marks the account of that lasting ID as an
 //	                                                               administrator, or takes the mark back
 //	underdoc reindex [--tenant <id>]                               everything of a tenant queued for the search service again
@@ -47,6 +52,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -72,7 +78,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] [--archived] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] [--archived] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc account [--tenant <id>] add <remote-id> <login> <name> | underdoc account [--tenant <id>] adopt [--dry-run] | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -275,6 +281,12 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		// It stands for the account with the lasting ID 1 of a gate, an administrator.
 		options.DevUser = &account.User{ID: "1", RemoteID: "1", Login: login, Name: login, Groups: []string{options.GateClient.AdminRole()}}
 		log.Warn("UNDERDOC_DEV_USER is set: every request counts as signed in, never use this behind a real gate", slog.String("user", login))
+	}
+	if options.Gate, err = readGateAPI(ctx, options.GateClient, log); err != nil {
+		return err
+	}
+	if options.Gate != nil && options.DB == nil {
+		return errors.New("the accounts and approvals of the gate need the database (UNDERDOC_DATABASE_URL)")
 	}
 	handler, err := web.New(lib, log, options)
 	if err != nil {

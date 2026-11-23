@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/module"
 )
@@ -74,7 +75,7 @@ func grantsOut(grants []db.Grant) []apiGrant {
 
 func (h *handler) actor(r *http.Request) db.Actor {
 	user := h.me(r)
-	return db.Actor{ID: user.ID, Admin: user.Admin, Role: user.AdminRole}
+	return db.Actor{ID: user.ID, Admin: user.Admin, Role: user.AdminRole, Delegate: user.Has(account.PermArchiveGroups) && !user.Admin}
 }
 
 // apiRights returns who holds which role on an object, for whoever sees it and for administrators.
@@ -385,10 +386,11 @@ func (h *handler) apiRestoreGroup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// mayReadGroup tells whether the viewer sees a group's members: administrators, its members and whoever manages it.
+// mayReadGroup tells whether the viewer sees a group's members: administrators, delegated administrators (T-33), its
+// members and whoever manages it.
 func (h *handler) mayReadGroup(r *http.Request, groupID string) (bool, error) {
 	actor := h.actor(r)
-	if actor.Admin {
+	if actor.Admin || actor.Delegate {
 		return true, nil
 	}
 	mine, err := h.options.DB.GroupsOf(r.Context(), actor.ID)
@@ -711,6 +713,7 @@ type apiAccount struct {
 	Admin  bool     `json:"admin"`
 	Groups []string `json:"groups"`
 	Bound  bool     `json:"bound"`
+	Locked bool     `json:"locked"`
 }
 
 // apiUsers lists the accounts of the tenant for the administration of users; only administrators see it.
@@ -719,7 +722,9 @@ func (h *handler) apiUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
 		return
 	}
-	if !h.adminAPI(w, r) {
+	// A delegated administrator manages the accounts of every group, so sees them as well (T-33).
+	if me := h.me(r); !administers(me) && !(me.Has(account.PermAccounts) && h.accountsOn() && personAtWork(me)) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only administrators"})
 		return
 	}
 	everyone, err := h.options.DB.Everyone(r.Context())
@@ -728,7 +733,8 @@ func (h *handler) apiUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []apiAccount{}
 	for _, u := range everyone {
-		out = append(out, apiAccount{ID: u.ID, Login: u.Login, Name: u.Name, Source: u.Source, Admin: u.Admin, Groups: u.Groups, Bound: u.Bound})
+		out = append(out, apiAccount{ID: u.ID, Login: u.Login, Name: u.Name, Source: u.Source, Admin: u.Admin, Groups: u.Groups, Bound: u.Bound,
+			Locked: u.Locked})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

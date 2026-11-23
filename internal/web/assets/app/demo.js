@@ -2255,6 +2255,8 @@ async function trashGone(url,key,done){
   try{const r=await fetch(url,{...same,method:'DELETE',body:JSON.stringify({confirm})});
     if(r.status===400){S.trashAsk=key;render();const n=document.querySelector(`[data-trconfirm="${key}"]`);if(n){n.value=confirm;n.focus();}toast(key==='all'?'Type Trash to empty it.':'Type its name exactly to delete it for good.');return;}
     if(r.status===403){toast('Only its owner or an administrator deletes it for good, in the browser.');return;}
+    /* The instance asks the gate to have it confirmed (T-33): the gate's page, and back here to delete it. */
+    if(r.status===202){const a=await r.json();if(a&&typeof a.approveUrl==='string'&&/^https?:\/\//.test(a.approveUrl)){toast('Confirm it in the sign-in gate, code '+(a.matchCode||''));location.assign(a.approveUrl);return;}}
     if(!r.ok)throw new Error(String(r.status));toast(done);}
   catch(e){toast(key==='all'?'The trash could not be emptied.':'It could not be deleted.');}
   loadTrash();

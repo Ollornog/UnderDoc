@@ -28,6 +28,9 @@ const formLimit = 16 << 10
 // errNotSignedIn is a request without anyone signed in.
 var errNotSignedIn = errors.New("not signed in")
 
+// errLocked is a request of an account UnderDoc locked (T-33).
+var errLocked = errors.New("locked")
+
 // errRefused is a request the gate passed on in a way UnderDoc does not take: a Remote header or a claim of the token the
 // gate's client refuses, such as a missing or unknown Remote-Kind while it is required (ADR-32, B-3).
 var errRefused = errors.New("refused")
@@ -37,7 +40,8 @@ var errRefused = errors.New("refused")
 // accounts as its hoster allows.
 func (h *handler) who(r *http.Request) (account.User, error) {
 	user, err := h.whoAny(r)
-	// An agent administers nothing, also for an administrator (ADR-36): agents never manage rights.
+	// An agent administers nothing, also for an administrator (ADR-36): agents never manage rights. The delegated
+	// administrator's permissions are decided by account.User.Has, which an agent never passes.
 	if err == nil && user.Agent() {
 		user.Admin, user.AdminRole = false, false
 	}
@@ -66,6 +70,7 @@ func (h *handler) whoAny(r *http.Request) (account.User, error) {
 		user.Admin = h.options.GateClient.HasAdminRole(user.Groups)
 		user.AdminRole = user.Admin
 		user.Spaces = h.options.GateClient.HasSpacesRole(user.Groups)
+		user.Delegate = h.options.GateClient.HasDelegateRole(user.Groups)
 		user.AuthKind = account.AuthSession
 		if user.RemoteID == "" {
 			return user, nil
@@ -95,21 +100,38 @@ func (h *handler) bindGate(ctx context.Context, user account.User) (account.User
 			}
 			return account.User{}, err
 		}
-		b = boundAccount{id: a.ID, admin: a.Admin, at: time.Now()}
+		b = boundAccount{id: a.ID, admin: a.Admin, locked: a.Locked, at: time.Now()}
 		h.boundMu.Lock()
 		h.bound[key] = b
 		h.boundMu.Unlock()
+	}
+	// An account UnderDoc locked comes in through no way: the workspace, the API and MCP alike (T-33).
+	if b.locked {
+		return account.User{}, errLocked
 	}
 	user.ID = b.id
 	user.Admin = user.Admin || b.admin
 	return user, nil
 }
 
+// forget drops what was kept of the account bound to a lasting ID, so that a lock or an unlock holds from the next
+// request on, not after minutes.
+func (h *handler) forget(remoteID string) {
+	h.boundMu.Lock()
+	defer h.boundMu.Unlock()
+	for key := range h.bound {
+		if strings.HasSuffix(key, "\x00"+remoteID) {
+			delete(h.bound, key)
+		}
+	}
+}
+
 // boundAccount is the account a lasting ID of the gate was bound to, and when that was read.
 type boundAccount struct {
-	id    string
-	admin bool
-	at    time.Time
+	id     string
+	admin  bool
+	locked bool
+	at     time.Time
 }
 
 // public tells the paths that answer without anyone signed in: those of share links, which carry a token of their own.
@@ -127,8 +149,12 @@ func (h *handler) notSignedIn(w http.ResponseWriter) {
 // refused answers a request the gate passed on but UnderDoc does not take (B-3).
 func (h *handler) refused(w http.ResponseWriter, err error) {
 	text := "The sign-in gate passed this request on in a way UnderDoc does not take. Whoever runs the gate can tell why."
-	if errors.Is(err, account.ErrService) {
+	switch {
+	case errors.Is(err, account.ErrService):
 		text = "This service account may not use UnderDoc. An administrator allows it by its ID in the gate."
+	case errors.Is(err, errLocked):
+		h.message(w, http.StatusForbidden, message{Title: "Locked", Text: "This account is locked in UnderDoc. Nothing of it is lost. Ask a group admin or an administrator.", Link: "Try again"})
+		return
 	}
 	h.message(w, http.StatusForbidden, message{Title: "Refused", Text: text, Link: "Try again"})
 }

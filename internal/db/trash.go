@@ -235,11 +235,16 @@ const (
 	ApproveEmptyTrash = "trash.empty"
 )
 
+// ErrApproval is an action that waits for a signed one-time approval of the gate: everything else allowed it, so the
+// caller asks the gate and carries the action out again with the confirmation (T-33).
+var ErrApproval = errors.New("this waits for a confirmation in the gate")
+
 // Approver confirms a dangerous action with a signed one-time approval of the gate, its jti used once (ADR-35, T-33).
 // Approve runs after every other check of the action, with what goes locked, right before it goes: a confirmation is
 // used up only by an action that goes (B-4 finding 8, B-6). subject is what the approval is bound to: the object for
-// ApprovePurge, the cutoff in Unix seconds for ApproveEmptyTrash. Until T-33 wires the gate's VerifyApproval there is
-// none, and such actions stay with owners and administrators in the browser.
+// ApprovePurge, the cutoff in Unix seconds for ApproveEmptyTrash. The gate's VerifyApproval is behind it where
+// UNDERDOC_APPROVALS is on (T-33); without it there is none, and such actions stay with owners and administrators in
+// the browser. It answers ErrApproval when the request carries no confirmation yet.
 type Approver interface {
 	Approve(ctx context.Context, action, subject string) error
 }

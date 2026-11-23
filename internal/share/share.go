@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -289,6 +290,8 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// A locked account has no user on the share (T-33): it signs in nowhere until it is unlocked.
+	accounts = slices.DeleteFunc(accounts, func(a db.SambaAccount) bool { return a.Locked })
 	v := &view{accounts: accounts, byName: map[string]string{}, byUID: map[int]string{}, who: map[string]string{},
 		open: map[string][]string{}, openWrite: map[string]bool{}, held: map[string]bool{}, told: ts.held, refused: map[string]refusal{}}
 	defer func() { ts.held = v.held }()

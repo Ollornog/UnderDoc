@@ -313,3 +313,32 @@ func TestGateConfiguration(t *testing.T) {
 		}
 	}
 }
+
+// The delegated administrator (T-33): the role of the app makes one of a person, never of a service account, and its
+// permissions hold for a person in a session only, never for an agent.
+func TestTheDelegatedAdministratorRole(t *testing.T) {
+	g := newGate(t, GateConfig{ServiceAccounts: []string{"42"}})
+	user, err := g.Identify(request(person(map[string]string{"Remote-Groups": "underdoc-delegate"})))
+	if err != nil || !user.Delegate || user.Admin || !user.Has(PermAccounts) || !user.Has(PermArchiveGroups) || user.Has(PermAdminister) {
+		t.Errorf("a person with the delegate's role: %+v %v", user, err)
+	}
+	user.AuthKind = AuthOAuth
+	if user.Has(PermAccounts) || user.Has(PermArchiveGroups) {
+		t.Error("the agent of a delegated administrator holds its permissions")
+	}
+	service, err := g.Identify(request(person(map[string]string{"Remote-Id": "42", "Remote-Kind": "user", "Remote-Auth": "session",
+		"Remote-Groups": "underdoc-delegate"})))
+	if err != nil || service.Delegate {
+		t.Errorf("a service account with the delegate's role is one: %+v %v", service, err)
+	}
+	admin := User{Admin: true, AuthKind: AuthSession}
+	if !admin.Has(PermAccounts) || !admin.Has(PermArchiveGroups) || !admin.Has(PermAdminister) {
+		t.Error("an administrator lacks a permission")
+	}
+	if _, err := NewGate(GateConfig{DelegateRole: "admin"}); err == nil {
+		t.Error("the gate's own admin as the delegate's role")
+	}
+	if _, err := NewGate(GateConfig{DelegateRole: "underdoc-admin"}); err == nil {
+		t.Error("the administrator's role as the delegate's role")
+	}
+}

@@ -29,6 +29,9 @@ const (
 // DefaultAdminRole is the role of the app in the gate whose holders administer UnderDoc (ADR-35).
 const DefaultAdminRole = "underdoc-admin"
 
+// DefaultDelegateRole is the role of the app in the gate whose holders are delegated administrators (T-33, ADR-35).
+const DefaultDelegateRole = "underdoc-delegate"
+
 // DefaultSpacesRole is the role of the app in the gate whose holders may create spaces, the collections at the top
 // (ADR-35, B-3). Administrators may anyway.
 const DefaultSpacesRole = "underdoc-spaces"
@@ -57,6 +60,8 @@ type GateConfig struct {
 	AdminRole string
 	// SpacesRole is the role of the app that lets a person create spaces; DefaultSpacesRole when empty.
 	SpacesRole string
+	// DelegateRole is the role of the app that makes a delegated administrator; DefaultDelegateRole when empty.
+	DelegateRole string
 	// ServiceAccounts are the lasting IDs (Remote-Id) of the service accounts an administrator allowed (B-3). A request
 	// the gate names a service account is refused unless its ID is here; an ID here is a service account whatever the
 	// request says of its kind.
@@ -77,6 +82,7 @@ type Gate struct {
 	kindHeader   string
 	adminRole    string
 	spacesRole   string
+	delegateRole string
 	services     []string
 	kindRequired bool
 }
@@ -104,6 +110,15 @@ func NewGate(cfg GateConfig) (*Gate, error) {
 	}
 	if g.spacesRole == gateAdmin {
 		return nil, fmt.Errorf("the role %q is the gate's own administrator, which is no right in UnderDoc: name a role of the app", gateAdmin)
+	}
+	if g.delegateRole = strings.TrimSpace(cfg.DelegateRole); g.delegateRole == "" {
+		g.delegateRole = DefaultDelegateRole
+	}
+	if g.delegateRole == gateAdmin {
+		return nil, fmt.Errorf("the role %q is the gate's own administrator, which is no right in UnderDoc: name a role of the app", gateAdmin)
+	}
+	if g.delegateRole == g.adminRole {
+		return nil, errors.New("the delegated administrator needs a role of its own, not the administrator's")
 	}
 	for _, id := range cfg.ServiceAccounts {
 		if id = strings.TrimSpace(id); !digits(id) {
@@ -150,6 +165,12 @@ func (g *Gate) SpacesRole() string { return g.spacesRole }
 
 // HasSpacesRole tells whether groups hold the role to create spaces, compared exactly.
 func (g *Gate) HasSpacesRole(groups []string) bool { return slices.Contains(groups, g.spacesRole) }
+
+// DelegateRole is the role of the app that makes a delegated administrator.
+func (g *Gate) DelegateRole() string { return g.delegateRole }
+
+// HasDelegateRole tells whether groups hold the role of the delegated administrator, compared exactly.
+func (g *Gate) HasDelegateRole(groups []string) bool { return slices.Contains(groups, g.delegateRole) }
 
 // AdminRole is the role of the app that makes an administrator.
 func (g *Gate) AdminRole() string { return g.adminRole }
@@ -200,12 +221,13 @@ func (g *Gate) Identify(r *http.Request) (User, error) {
 	if allowed {
 		user.Kind = KindService
 	}
-	// The roles of the app make an administrator and one who creates spaces, compared exactly; the gate's own
+	// The roles of the app make an administrator, a delegated administrator and one who creates spaces, compared exactly; the gate's own
 	// administrator is no right here. A service account holds neither, whatever roles the gate gives it (B-4): it gets
 	// only what is granted to it.
 	if user.Kind != KindService {
 		user.Admin = id.HasRole(g.adminRole)
 		user.Spaces = id.HasRole(g.spacesRole)
+		user.Delegate = id.HasRole(g.delegateRole)
 	}
 	return user, nil
 }

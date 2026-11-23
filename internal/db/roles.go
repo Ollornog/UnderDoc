@@ -86,6 +86,9 @@ type Actor struct {
 	// Role tells that the actor administers through the role of the app in the gate, not only through the mark of the
 	// command line.
 	Role bool
+	// Delegate tells that the actor holds the role of the delegated administrator in the gate (T-33, ADR-35): accounts of
+	// every group, archiving and restoring groups, nothing else of an administrator.
+	Delegate bool
 }
 
 // visible is a condition on o: the viewer ($1) may read it (ADR-36). The function object_may decides, the same for
@@ -792,7 +795,8 @@ var (
 	ErrGroupArchived = errors.New("this group is archived: restore it first, or the group it is inside")
 	// ErrGroupHasGroups is archiving a group with groups inside it that are not archived.
 	ErrGroupHasGroups = errors.New("this group has groups inside it: take them out or archive them first")
-	// ErrGroupArchiver is archiving or restoring a group by someone who is no administrator (B-5).
+	// ErrGroupArchiver is archiving or restoring a group by someone who is no administrator (B-5) or delegated
+	// administrator (T-33).
 	ErrGroupArchiver = fmt.Errorf("%w: only administrators archive or restore a group", ErrNotAllowed)
 )
 
@@ -805,13 +809,13 @@ func lockGroups(ctx context.Context, tx pgx.Tx) error {
 
 // mayArchiveGroup refuses whoever may not archive or restore a group: administrators of the tenant only (B-5). Group
 // admins never do, also not those of a group it is inside: through nesting (put it inside, take oneself out as its admin,
-// archive, restore, take oneself in again) every such rule could be walked around. The delegated administrator of T-33
-// will join. Agents never do.
+// archive, restore, take oneself in again) every such rule could be walked around. The delegated administrator does as
+// well (T-33). Agents never do.
 func (db *DB) mayArchiveGroup(ctx context.Context, _ execer, actor Actor, _ string) error {
 	if err := noAgent(ctx); err != nil {
 		return err
 	}
-	if !actor.Admin {
+	if !actor.Admin && !actor.Delegate {
 		return ErrGroupArchiver
 	}
 	return nil
@@ -939,6 +943,39 @@ func (db *DB) SetMember(ctx context.Context, actor Actor, groupID, accountID str
 	}
 	_, err := db.pool.Exec(ctx, "INSERT INTO group_members (grp, account) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, accountID)
 	return err
+}
+
+// InviteMember puts an account a person was just invited as into a local group (T-33): who may change the members of
+// the group, and the delegated administrator into any local group. The group must not be archived.
+func (db *DB) InviteMember(ctx context.Context, actor Actor, groupID, accountID string) error {
+	if err := noAgent(ctx); err != nil {
+		return err
+	}
+	g, err := db.GroupOf(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if g.Source != GroupLocal {
+		return ErrGroup
+	}
+	if g.Archived {
+		return ErrGroupArchived
+	}
+	if !actor.Delegate {
+		if err := db.mayAdministerGroup(ctx, actor, groupID); err != nil {
+			return err
+		}
+	}
+	_, err = db.pool.Exec(ctx, "INSERT INTO group_members (grp, account) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, accountID)
+	return err
+}
+
+// MayInvite tells whether the actor may invite a person into a group: InviteMember would take them.
+func (db *DB) MayInvite(ctx context.Context, actor Actor, groupID string) (bool, error) {
+	if actor.Delegate || actor.Admin {
+		return !requestAgent(ctx), nil
+	}
+	return db.MayAdministerGroup(ctx, actor, groupID)
 }
 
 // ErrGroupCycle is a group put inside itself, directly or through the groups inside it.
@@ -1251,18 +1288,21 @@ type User struct {
 	Groups []string
 	// Bound tells that the account is bound to a lasting ID of the gate (ADR-32); one that is not waits for its binding.
 	Bound bool
+	// Locked tells that UnderDoc locked the account (T-33); Service that it is a service account (B-3).
+	Locked, Service bool
 }
 
 // Everyone returns every account of the tenant with its source, its mark of an administrator and its groups taken over,
 // for the administration of users (ADR-16, ADR-29).
 func (db *DB) Everyone(ctx context.Context) ([]User, error) {
-	rows, err := db.pool.Query(ctx, `SELECT id, login, name, source, admin, groups, remote_id IS NOT NULL FROM accounts ORDER BY lower(name), login`)
+	rows, err := db.pool.Query(ctx, `SELECT id, login, name, source, admin, groups, remote_id IS NOT NULL, locked IS NOT NULL, service
+		FROM accounts ORDER BY lower(name), login`)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
 		var p User
-		err := row.Scan(&p.ID, &p.Login, &p.Name, &p.Source, &p.Admin, &p.Groups, &p.Bound)
+		err := row.Scan(&p.ID, &p.Login, &p.Name, &p.Source, &p.Admin, &p.Groups, &p.Bound, &p.Locked, &p.Service)
 		p.Groups = nonNil(p.Groups)
 		return p, err
 	})

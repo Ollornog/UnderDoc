@@ -43,6 +43,8 @@ type SambaAccount struct {
 	// Sealed is the NT hash of the app password, sealed by the vault for the tenant and samba:<account>.
 	Sealed []byte
 	Login  string
+	// Locked tells that UnderDoc locked the account (T-33): the share leaves its user out, so it signs in nowhere.
+	Locked bool
 }
 
 // SambaSecretName is the name the NT hash of an account is sealed under.
@@ -89,14 +91,14 @@ func (db *DB) SambaAccountOf(ctx context.Context, accountID string) (SambaAccoun
 
 // SambaAccounts returns every Samba user of the tenant.
 func (db *DB) SambaAccounts(ctx context.Context) ([]SambaAccount, error) {
-	rows, err := db.pool.Query(ctx, `SELECT s.account, s.name, s.uid, s.nt_hash, a.login FROM samba_accounts s JOIN accounts a ON a.id = s.account
-		ORDER BY s.name`)
+	rows, err := db.pool.Query(ctx, `SELECT s.account, s.name, s.uid, s.nt_hash, a.login, a.locked IS NOT NULL
+		FROM samba_accounts s JOIN accounts a ON a.id = s.account ORDER BY s.name`)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (SambaAccount, error) {
 		var a SambaAccount
-		err := row.Scan(&a.Account, &a.Name, &a.UID, &a.Sealed, &a.Login)
+		err := row.Scan(&a.Account, &a.Name, &a.UID, &a.Sealed, &a.Login, &a.Locked)
 		return a, err
 	})
 }

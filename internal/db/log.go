@@ -38,6 +38,14 @@ const (
 	LogTakenBack = "taken back"
 	// LogPurge is deleting for good from the trash (B-3), each kept.
 	LogPurge = "deleted for good"
+	// Accounts through the gate's account API (T-33), each kept, with the person UnderDoc named to the gate as the one it
+	// acted for (TinySesam-On-Behalf-Of).
+	LogInvited    = "invited"
+	LogSigninLink = "sign-in link"
+	LogLocked     = "locked"
+	LogUnlocked   = "unlocked"
+	LogReset      = "access reset"
+	LogAccount    = "account added"
 )
 
 // hourly are the actions kept at most once per account, object and hour.

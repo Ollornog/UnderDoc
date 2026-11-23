@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -35,18 +38,21 @@ var (
 
 var remoteIDPattern = regexp.MustCompile(`^[0-9]{1,30}$`)
 
-// Account is an account with where it comes from and whether it is marked as an administrator (the emergency access).
+// Account is an account with where it comes from, whether it is marked as an administrator (the emergency access) and
+// whether UnderDoc locked it (T-33).
 type Account struct {
 	account.User
-	Source string
-	Admin  bool
+	Source  string
+	Admin   bool
+	Service bool
+	Locked  bool
 }
 
-const accountColumns = `id, login, name, email, groups, source, admin, coalesce(remote_id, ''), gate_kind`
+const accountColumns = `id, login, name, email, groups, source, admin, coalesce(remote_id, ''), gate_kind, service, locked IS NOT NULL`
 
 func scanAccount(row pgx.Row) (Account, error) {
 	var a Account
-	err := row.Scan(&a.ID, &a.Login, &a.Name, &a.Email, &a.Groups, &a.Source, &a.Admin, &a.RemoteID, &a.GateKind)
+	err := row.Scan(&a.ID, &a.Login, &a.Name, &a.Email, &a.Groups, &a.Source, &a.Admin, &a.RemoteID, &a.GateKind, &a.Service, &a.Locked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -128,6 +134,73 @@ func (db *DB) MarkAdmin(ctx context.Context, remoteID string, admin bool) (Accou
 	}
 	a, err := scanAccount(db.pool.QueryRow(ctx, `UPDATE accounts SET admin = $2 WHERE remote_id = $1 RETURNING `+accountColumns, remoteID, admin))
 	return a, err
+}
+
+// AccountByRemoteID returns the account bound to a lasting ID of the gate.
+func (db *DB) AccountByRemoteID(ctx context.Context, remoteID string) (Account, error) {
+	return scanAccount(db.pool.QueryRow(ctx, `SELECT `+accountColumns+` FROM accounts WHERE remote_id = $1`, remoteID))
+}
+
+// ErrLogin is a login or a name of an account that is empty, too long or carries a control character.
+var ErrLogin = errors.New("a login and a name have 1 to 200 characters and no control characters")
+
+// AddAccount makes an account bound to a lasting ID of the gate before its first sign-in, without an administrator's
+// mark (T-33): `underdoc account add` for an import, an invitation through the gate's account API, and an account the
+// gate's operator handed to UnderDoc (adopt). Its person comes into it at their first sign-in, with what was prepared
+// for them. Accounts are only ever bound by that ID: an account under the same login or name stays another one. An ID
+// that is bound already keeps its account as it is; created says whether one was made.
+func (db *DB) AddAccount(ctx context.Context, remoteID, login, name, email string) (Account, bool, error) {
+	if !remoteIDPattern.MatchString(remoteID) {
+		return Account{}, false, ErrRemoteID
+	}
+	login, name, email = strings.TrimSpace(login), strings.TrimSpace(name), strings.TrimSpace(email)
+	if name == "" {
+		name = login
+	}
+	for _, s := range []string{login, name} {
+		if n := utf8.RuneCountInString(s); n < 1 || n > 200 || strings.ContainsFunc(s, unicode.IsControl) {
+			return Account{}, false, ErrLogin
+		}
+	}
+	if utf8.RuneCountInString(email) > 320 || strings.ContainsFunc(email, unicode.IsControl) {
+		return Account{}, false, ErrLogin
+	}
+	if a, err := db.AccountByRemoteID(ctx, remoteID); err == nil {
+		return a, false, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return Account{}, false, err
+	}
+	// Made as the first request of the person would make it, but as nobody's session: no groups of the gate are taken
+	// over before the person brings them, and no mark of an administrator is set.
+	a, err := db.BindGate(ctx, account.User{RemoteID: remoteID, Login: login, Name: name, Email: email, Kind: account.KindPerson})
+	if err != nil {
+		return Account{}, false, err
+	}
+	return a, true, nil
+}
+
+// SetLocked locks an account in UnderDoc, or unlocks it (T-33): locked, it comes in through no way and may do nothing
+// (migration 039). by is the account that did it, kept with the lock.
+func (db *DB) SetLocked(ctx context.Context, accountID string, locked bool, by string) (Account, error) {
+	if locked {
+		return scanAccount(db.pool.QueryRow(ctx, `UPDATE accounts SET locked = coalesce(locked, now()), locked_by = $2
+			WHERE id = $1 RETURNING `+accountColumns, accountID, by))
+	}
+	return scanAccount(db.pool.QueryRow(ctx, `UPDATE accounts SET locked = NULL, locked_by = '' WHERE id = $1
+		RETURNING `+accountColumns, accountID))
+}
+
+// MayManagePerson tells whether an account manages the account of a person as a group admin (T-33): the person is
+// directly in a local group the actor administers, or in one inside it, and no group on the way is archived.
+func (db *DB) MayManagePerson(ctx context.Context, actorID, personID string) (bool, error) {
+	mine, err := db.AdministeredGroups(ctx, actorID)
+	if err != nil || len(mine) == 0 {
+		return false, err
+	}
+	var found bool
+	err = db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM group_members m JOIN groups g ON g.id = m.grp
+		WHERE m.account = $1 AND g.archived IS NULL AND m.grp = ANY ($2::text[]))`, personID, mine).Scan(&found)
+	return found, err
 }
 
 // seeExternal records a user under the ID it carries, never under the key or the login of an account made locally before.

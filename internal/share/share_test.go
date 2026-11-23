@@ -753,3 +753,43 @@ func TestADenyOnAFileOfASharedLibrary(t *testing.T) {
 		t.Errorf("sharing a library with a file that denies: %v", err)
 	}
 }
+
+// A locked account has no user on the share (T-33): the next pass takes it away, and unlocking brings it back.
+func TestALockedAccountLeavesTheShare(t *testing.T) {
+	f := setup(t)
+	ctx := inMain()
+	f.sync()
+	if len(f.h.state.Users) != 2 {
+		t.Fatalf("before the lock the companion has %+v", f.h.state.Users)
+	}
+	locked := f.h.state.Users[0].Name
+	var accountID string
+	accounts, err := f.db.SambaAccounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range accounts {
+		if a.Name == locked {
+			accountID = a.Account
+		}
+	}
+	if _, err := f.db.SetLocked(ctx, accountID, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	f.sync()
+	for _, u := range f.h.state.Users {
+		if u.Name == locked {
+			t.Errorf("the locked account %s is still a user of the share", locked)
+		}
+	}
+	if len(f.h.state.Users) != 1 {
+		t.Errorf("the companion has %+v", f.h.state.Users)
+	}
+	if _, err := f.db.SetLocked(ctx, accountID, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	f.sync()
+	if len(f.h.state.Users) != 2 {
+		t.Errorf("after the unlock the companion has %+v", f.h.state.Users)
+	}
+}
