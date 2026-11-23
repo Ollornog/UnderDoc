@@ -88,7 +88,7 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		request.Filters.Objects = pages
 	}
-	result, err := h.searchAs(r.Context(), request)
+	result, err := h.searchAs(r.Context(), request, query.Get("archive") == "1")
 	if h.failed(w, err, "search") {
 		return
 	}
@@ -103,12 +103,20 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 
 // searchAs runs a search as the user of ctx, through the search service: with their groups, as an agent or a service
 // account where they are one, and each hit checked once more against the one check of the database. The browser and the
-// MCP access search through it alike (ADR-34).
-func (h *handler) searchAs(ctx context.Context, request search.Request) (search.Result, error) {
+// MCP access search through it alike (ADR-34). The archived spaces are left out unless archive asks for them, or the
+// search is limited to one of them by name (T-34).
+func (h *handler) searchAs(ctx context.Context, request search.Request, archive bool) (search.Result, error) {
 	user, _ := account.From(ctx)
 	request.Account = user.ID
 	request.Agent = user.Agent()
 	request.Service = user.Kind == account.KindService
+	if h.options.DB != nil && !archive {
+		archived, err := h.options.DB.ArchivedSpaceIDs(ctx)
+		if err != nil {
+			return search.Result{}, err
+		}
+		request.Filters.NotCollections = slices.DeleteFunc(archived, func(id string) bool { return slices.Contains(request.Filters.Collections, id) })
+	}
 	if h.options.DB != nil {
 		// A service account finds through the groups whose allow holds for it only: never a role of the gate (B-3). The
 		// check of each hit below holds every deny.

@@ -115,7 +115,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "findings": rule.Findings})
 	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName),
 		errors.Is(err, db.ErrLogKeep), errors.Is(err, db.ErrFileName), errors.Is(err, db.ErrSambaName), errors.Is(err, db.ErrNoSamba),
-		errors.Is(err, db.ErrConfirmName):
+		errors.Is(err, db.ErrConfirmName), errors.Is(err, db.ErrArchivePlace):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.As(err, new(*db.OpenError)), errors.Is(err, db.ErrPerFolder):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -332,7 +332,7 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	answer := apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
-		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created), SeenBy: h.seenBy(r, o)}
+		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created), SeenBy: h.seenBy(r, o), Archived: h.inArchive(r, o)}
 	used, err := h.options.DB.UsedIn(ctx, o.ID, user.ID)
 	if err != nil {
 		h.log.Error("used in failed", slog.String("error", err.Error()))

@@ -74,10 +74,10 @@ address is only ever looked up by its ID: nothing in it reaches a path on a disk
 
 | Tool | Does |
 |---|---|
-| `context` | Start here: who the agent acts for and what it may, the rules page, open hints, the tree to a depth (2 unless asked, at most 4, at most 200 entries; `under` for a part of it) |
+| `context` | Start here: who the agent acts for and what it may, the rules page, open hints, the tree to a depth (2 unless asked, at most 4, at most 200 entries; `under` for a part of it); archived spaces only with `archived` |
 | `read` | One to five pages as Markdown with front matter, the marker before each block and the version to write against; or one block or section (`#b3`); a page of the folder source as its outline |
 | `used_in` | The pages that embed a page, block, section or part |
-| `search` | One search over the sections of pages and the pages of PDFs and other files: one line per hit with its address and section and an excerpt, at most 20 hits, the total at the end; error codes exactly |
+| `search` | One search over the sections of pages and the pages of PDFs and other files: one line per hit with its address and section and an excerpt, at most 20 hits, the total at the end; error codes exactly; archived spaces only with `archived` or named with `in` |
 | `write` | A page, or the section a block opens (`#b3`), as Markdown with the markers read gave, against the version read (`base`); `dry_run` answers the check and the diff without saving |
 | `replace` | One passage that stands once in the page, against `base`; `dry_run` as in `write` |
 | `set_front_matter` | The title, the tags or the kind of a page |
@@ -160,6 +160,14 @@ The search returns sections (ADR-24): one record per heading and what follows, o
 their own and exact, the rights as a filter and each hit checked once more in the database. The text of a PDF keeps its
 pages apart, on the server and in the browser, so each page is records of its own and a hit names its page
 (`#page=3`). A word takes a typing error from four letters on (T-24, measured in [search.md](search.md)).
+
+## The archive
+
+Archived spaces ([rights.md](rights.md#archived-spaces), T-34) are read only for everyone and left out of `context` and
+`search` unless the agent asks with `archived: true` (the tree then lists them below the others, marked "archived, read
+only"; without it, `context` says how many it left out). `read` and `used_in` open what lies inside by its address.
+Every tool that changes something, and an `upload_link` made before, is refused there with "this space is archived".
+Agents never archive or restore a space.
 
 ## What is not here yet
 

@@ -207,8 +207,18 @@ func (db *DB) limitOf(role string, quota int64) int64 {
 // FileRoots returns the roots of the view Files the viewer sees: the folder of the tenant, their own folder, then the
 // collections, each with what it uses.
 func (db *DB) FileRoots(ctx context.Context, viewer string) ([]Root, error) {
+	return db.fileRoots(ctx, viewer, notArchived)
+}
+
+// ArchivedFileRoots returns the archived collections of the view Files the viewer sees (T-34), for when the archive is
+// shown.
+func (db *DB) ArchivedFileRoots(ctx context.Context, viewer string) ([]Root, error) {
+	return db.fileRoots(ctx, viewer, `o.archived IS NOT NULL`)
+}
+
+func (db *DB) fileRoots(ctx context.Context, viewer, archive string) ([]Root, error) {
 	rows, err := db.pool.Query(ctx, `SELECT `+columns+rootColumns+` FROM objects o JOIN file_roots r ON r.object = o.id
-		WHERE `+alive+` AND `+visible+`
+		WHERE `+alive+` AND `+archive+` AND `+visible+`
 		ORDER BY CASE r.role WHEN 'tenant' THEN 0 WHEN 'user' THEN 1 ELSE 2 END, o.position, o.created`, viewer)
 	if err != nil {
 		return nil, err

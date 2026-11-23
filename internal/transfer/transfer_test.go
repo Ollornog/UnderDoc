@@ -281,3 +281,31 @@ func TestParseBlocks(t *testing.T) {
 		t.Errorf("without markers: %+v", plain)
 	}
 }
+
+// TestArchivedSpaceRoundTrip (T-34): an archived space says so in its metadata, and reading it back keeps it archived; a
+// folder below never is.
+func TestArchivedSpaceRoundTrip(t *testing.T) {
+	old := &db.Node{Object: db.Object{ID: "8888888888", Kind: db.KindCollection, Title: "Old", Archived: true}, Kids: []*db.Node{
+		{Object: db.Object{ID: "9999999999", Kind: db.KindFolder, Title: "Inside", Parent: "8888888888", Archived: true}},
+	}}
+	files, _ := collect(t, Tree{Shared: []*db.Node{old}})
+	if got := files["Old/.underdoc.yaml"]; !strings.Contains(got, "archived: true") {
+		t.Errorf("the archived space does not say so:\n%s", got)
+	}
+	if got := files["Old/Inside/.underdoc.yaml"]; strings.Contains(got, "archived") {
+		t.Errorf("a folder below says it is archived:\n%s", got)
+	}
+	fsys := fstest.MapFS{}
+	for name, content := range files {
+		if strings.HasPrefix(name, "Old/") {
+			fsys[strings.TrimPrefix(name, "Old/")] = &fstest.MapFile{Data: []byte(content)}
+		}
+	}
+	top, _, err := Read(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !top.Archived || len(top.Kids) != 1 || top.Kids[0].Archived {
+		t.Errorf("read back: top archived %v, kids %+v", top.Archived, top.Kids)
+	}
+}

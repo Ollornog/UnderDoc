@@ -36,7 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 4/12 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 5/12 erledigt
 
 ## Aufgaben
 
@@ -73,7 +73,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-31](T-31-connectors-to-outside-systems-through-an-extension.md)** Connectors to outside systems through an extension point · M-30
 * ☐ **[T-32](T-32-german-translation-of-the-interface.md)** German translation of the interface · M-14
 * ☐ **[T-33](T-33-accounts-through-the-gate-s-account-api-invite-loc.md)** Accounts through the gate''s account API: invite, lock, new link, delegated admin · M-30
-* ☐ **[T-34](T-34-archive-for-groups-and-spaces-and-a-members-preset.md)** Archive for groups and spaces, and a Members preset · M-30
+* ☑ **[T-34](T-34-archive-for-groups-and-spaces-and-a-members-preset.md)** Archive for groups and spaces, and a Members preset · M-30
 * ☐ **[T-35](T-35-folder-mode-reviewed-agent-changes-to-human-docume.md)** Folder mode "reviewed": changes by agents to human documentation wait as a proposal · M-20
 * ☐ **[T-36](T-36-inbox-list-ai-changes-to-check.md)** Inbox list "AI changes to check" · M-16
 * ☐ **[T-37](T-37-mcp-tools-second-round-conflict-diff-move-a-sectio.md)** MCP tools, second round: conflict diff, move a section, search filters, attachment text · M-30

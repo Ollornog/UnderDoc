@@ -25,6 +25,8 @@ import (
 type contextIn struct {
 	Depth int    `json:"depth,omitempty" jsonschema:"how deep the tree goes, 1 to 4; 2 unless given"`
 	Under string `json:"under,omitempty" jsonschema:"an address to show the tree below instead of from the top"`
+	// Archived lists the archived spaces too (T-34), which the tree leaves out unless asked for.
+	Archived bool `json:"archived,omitempty" jsonschema:"list the archived spaces too; they are read only"`
 }
 
 // context answers who the agent acts for, what it may, the rules page, open hints and the tree.
@@ -90,13 +92,29 @@ func (t *mcpTools) context(_ context.Context, _ *mcp.CallToolRequest, in context
 		for _, c := range collections {
 			tree.node(c, 0)
 		}
-		if t.h.moduleOn(ctx, module.Files) && t.h.options.Store != nil {
+		files := t.h.moduleOn(ctx, module.Files) && t.h.options.Store != nil
+		if files {
 			if roots, err := database.FileRoots(ctx, user.ID); err == nil && len(roots) > 0 {
 				b.WriteString("Files:\n")
 				for _, root := range roots {
 					tree.node(root.Object, 0)
 				}
 			}
+		}
+		// The archive (T-34): left out unless asked for, and then read only.
+		archived, err := database.ArchivedSpaces(ctx, user.ID)
+		if err != nil {
+			return t.failure(err, "read the tree"), nil, nil
+		}
+		archived = slices.DeleteFunc(archived, func(o db.Object) bool { return o.Area == db.AreaFiles && !files })
+		switch {
+		case len(archived) > 0 && in.Archived:
+			b.WriteString("Archive (read only):\n")
+			for _, a := range archived {
+				tree.node(a, 0)
+			}
+		case len(archived) > 0:
+			fmt.Fprintf(&b, "%d archived spaces are left out; ask with archived for them (read only).\n", len(archived))
 		}
 		if lib := t.h.library(ctx); len(lib.Tree().Root().Documents) > 0 || len(lib.Tree().Root().Folders) > 0 {
 			b.WriteString("The folder source (read only) is found by search, its pages as underdoc:folder/<id>.\n")
@@ -133,6 +151,9 @@ func (w *treeWriter) node(o db.Object, level int) {
 	}
 	if len(o.Tags) > 0 {
 		line += " #" + strings.Join(o.Tags, " #")
+	}
+	if o.Archived {
+		line += " (archived, read only)"
 	}
 	kids, err := w.t.h.options.DB.Children(w.t.ctx(), o.ID, w.t.user().ID)
 	if err != nil {
@@ -357,6 +378,8 @@ type searchIn struct {
 	Types []string `json:"types,omitempty" jsonschema:"only these: page, file, folder, collection"`
 	Tags  []string `json:"tags,omitempty" jsonschema:"only what carries every one of these tags"`
 	In    string   `json:"in,omitempty" jsonschema:"only inside this collection at the top, by its address"`
+	// Archived searches the archived spaces too (T-34), which are left out unless asked for or named with in.
+	Archived bool `json:"archived,omitempty" jsonschema:"search the archived spaces too; they are read only"`
 }
 
 // search answers one line per hit with its address and section and a short excerpt, the total at the end.
@@ -377,7 +400,7 @@ func (t *mcpTools) search(_ context.Context, _ *mcp.CallToolRequest, in searchIn
 		}
 		request.Filters.Collections = []string{ref.Address.Object}
 	}
-	result, err := t.h.searchAs(t.ctx(), request)
+	result, err := t.h.searchAs(t.ctx(), request, in.Archived)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return refusal("The search was cancelled."), nil, nil

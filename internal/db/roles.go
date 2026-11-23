@@ -26,6 +26,10 @@ const (
 	RoleOwner   = "owner"
 )
 
+// RoleMembers is the preset Members (T-34): every action but delete. Whoever holds it manages members and rights, but
+// deletes nothing and archives nothing. It stands beside the order of the roles, since it is no edit: Rank gives it none.
+const RoleMembers = "members"
+
 // Kinds of whom a role is granted to.
 const (
 	ToPerson = "person"
@@ -72,7 +76,7 @@ func roleOf(rank int) string {
 }
 
 // grantable tells whether a role may be granted: every role but the owner, which is the column of the object.
-func grantable(role string) bool { return Rank(role) >= 1 && Rank(role) <= 4 }
+func grantable(role string) bool { return Rank(role) >= 1 && Rank(role) <= 4 || role == RoleMembers }
 
 // Actor is who changes rights: an account, and whether it administers the tenant. Administrators manage the rights of
 // everything that is not private, but read content only where they hold a role (ADR-29).
@@ -348,6 +352,14 @@ func (db *DB) SetEntries(ctx context.Context, objectID string, actor Actor, kind
 	if !known && len(keys) > 0 {
 		return ErrNotFound
 	}
+	// Whoever manages gives and opens up only what they hold themselves (T-34): the preset Members gives no delete.
+	old, err := entriesOf(ctx, db.pool, objectID, kind, who)
+	if err != nil {
+		return err
+	}
+	if err := db.mayOpenUp(ctx, o, actor, openedBy(old, actions, subgroups)); err != nil {
+		return err
+	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		return setEntries(ctx, tx, objectID, kind, who, keys, actions, subgroups, actor.ID)
 	})
@@ -396,6 +408,13 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 	}
 	if o.Breaks != inherit {
 		return nil
+	}
+	// Restoring takes every entry from above again, which may open up any action: only whoever holds all of them here
+	// does it (T-34). Breaking copies what holds and never opens up anything.
+	if inherit {
+		if err := db.mayOpenUp(ctx, o, actor, Actions); err != nil {
+			return err
+		}
 	}
 	// In a library shared over Samba, rights hold per folder (ADR-29, ADR-30): a single file that broke the inheritance
 	// would be hidden in the web and shown on the share.
@@ -480,10 +499,15 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 	})
 }
 
-// TransferOwner gives an object to another account of the tenant. Only the owner or an administrator does; the former
-// owner keeps the preset edit for every action of it they hold no entry for, which can be taken back like any other
+// TransferOwner gives an object to another account of the tenant. Only the owner or an administrator does, in a browser
+// session; the former owner keeps the preset edit for every action of it they hold no entry for, which can be taken back like any other
 // (ADR-29).
 func (db *DB) TransferOwner(ctx context.Context, objectID string, actor Actor, to string) error {
+	// A person in the browser only, never an agent, a service account, a key or an app password (T-34), as for archiving
+	// and deleting for good.
+	if err := browserSession(ctx, actor.ID); err != nil {
+		return err
+	}
 	o, err := db.forRights(ctx, objectID, actor)
 	if err != nil {
 		return err

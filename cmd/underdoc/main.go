@@ -72,7 +72,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] [--archived] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -124,13 +124,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		err = export(ctx, rest[0], stdout, stderr)
 	case args[0] == "import":
-		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		// --archived makes the new space archived (T-34), as an export of an archived space says by itself.
+		archived := slices.Contains(args, "--archived")
+		ctx, rest, terr := tenantFlag(context.Background(), slices.DeleteFunc(slices.Clone(args[1:]), func(a string) bool { return a == "--archived" }))
 		owner, rest, ok := ownerFlag(rest)
 		if terr != nil || !ok || len(rest) != 2 {
 			fmt.Fprintln(stderr, usage)
 			return 2
 		}
-		err = importTree(ctx, owner, rest[0], rest[1], stdout, stderr)
+		err = importTree(ctx, owner, rest[0], rest[1], archived, stdout, stderr)
 	case args[0] == "rekey" && len(args) == 1:
 		err = rekey(context.Background(), stdout)
 	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":

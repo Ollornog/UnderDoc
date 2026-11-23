@@ -248,6 +248,13 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 		if err != nil {
 			return err
 		}
+		// An archived space arrives archived (T-34); nothing below the top is.
+		if top.Archived && !root.Private {
+			if _, err := tx.Exec(ctx, "UPDATE objects SET archived = now() WHERE id = $1", m.ID); err != nil {
+				return err
+			}
+			m.Archived = true
+		}
 		result.Top = m
 		for _, a := range all {
 			next := max(a.n.NextBlock, 1)

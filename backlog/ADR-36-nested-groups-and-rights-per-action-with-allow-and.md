@@ -159,3 +159,14 @@ comes from.
     everyone as well; only local groups it is put in directly count for it, and the local groups those are inside, as
     for anyone (B-4: "directly" means not through a group taken over from the gate). Its denies hold as for anyone. The search
     leaves out its token for everyone and checks each hit once more, and the folder source is empty for it.
+- **Built on 2026-11-23, part 3** ([docs/rights.md](../docs/rights.md#archived-spaces), migration 037, T-34). Settled in
+  the build:
+  - **The preset Members:** read, comment, create, write, share and manage, without delete. It joins the presets of the
+    decision above between edit and manage; it is no edit, so it stands beside the order of the roles.
+  - **Nobody opens up what they do not hold:** setting entries that allow an action, or take back a deny of it, needs
+    that action on the object; restoring the inheritance needs all seven. Taking back and denying stay open to every
+    manager. Administrators manage rights whatever they hold.
+  - **A link lends only what its maker holds:** besides share, the maker must still hold the action the link is asked
+    for.
+  - **An archived space** is a ceiling of its own, for everyone and after everything else: comment, create, write,
+    delete and share are refused inside it; read and manage decide as before.

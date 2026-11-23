@@ -165,7 +165,10 @@ function collDoc(id,n,kids,i){D[id]={t:'coll',n,i,kids,w:'wide',toc:'marker',tag
       <span class="label">Others can</span>${segs('cacc',(top?(this.db?[['none','Nobody']]:[]):[['inherit','As above']]).concat([['edit','Edit'],['comment','Comment'],['read','Read']]),this.acc||(top?(this.db?'none':'edit'):'inherit'),`data-c="${id}"`+(owner?'':' disabled title="Only the owner sets this"'),'Others can')}
       <p class="text-muted-foreground text-sm">Everyone in this workspace. Inherited by everything in it, unless something sets its own. The owner can always edit, and only the owner sets this; groups and people get roles in its rights.</p></div>`:'';
     const rights=this.db?`<p>${pbtn(`data-act="rights" data-id="${id}"`,'Rights and sharing')}</p>`:'';
-    return facts+rights+set+(this.kids.length?'':'<p class="text-muted-foreground text-sm">Empty. New + at its heading in nav3 adds something.</p>');}};}
+    /* The archive (T-34): a note that it is read only, and archiving or restoring for its owner and administrators. */
+    const arch=(this.archived?`<p class="text-sm" role="status" data-archived-note><span class="badge" data-variant="secondary">${icon('box')} ${TA.archived}</span> ${TA.note}</p>`:'')
+      +(this.archive?`<p>${pbtn(`data-act="${this.archived?'unarchive':'archive'}" data-id="${id}"`,this.archived?TA.restore:TA.archive)}</p>`:'');
+    return facts+arch+rights+(this.archived?'':set)+(this.kids.length?'':'<p class="text-muted-foreground text-sm">Empty. New + at its heading in nav3 adds something.</p>');}};}
 /* A collection in nav2 reads its name and list from its object, so moving it between nav2 and nav3 keeps one object. */
 function asTop(c){Object.defineProperty(c,'n',{get(){return D[c.id].n;},set(v){D[c.id].n=v;},configurable:true,enumerable:true});Object.defineProperty(c,'top',{get(){return D[c.id].kids;},configurable:true,enumerable:true});return c;}
 C.forEach(c=>{const n=c.n,top=c.top;delete c.n;delete c.top;collDoc(c.id,n,top,c.i);asTop(c);});
@@ -378,7 +381,9 @@ function nav2Html(){
     const row=c=>isDeco(c.id)?`<div data-deco="${D[c.id].t}" data-favid="${c.id}"${sl(c)} data-ctx="deco" data-ctxid="${c.id}" title="${D[c.id].n}: drag it, or right click to remove it">${decoInner(D[c.id].t)}</div>`
       :S.ren===c.id?`<div class="workspace-item">${icon(c.i||'grid')}<input class="input" data-size="sm" data-ren="${c.id}" value="${D[c.id].n}" aria-label="Name of the collection"></div>`
       :navItem('coll',c.id,c.n,c.i||D[c.id].i||'grid',!!S.open[c.id],`data-ctx="coll" data-ctxid="${c.id}" data-favid="${c.id}"${sl(c)}${c.alias?' data-alias="1" data-ref':''}${S.pin[c.id]?' data-pinned="1"':''}`,false,c.alias?`Lies in ${placeOf(c.id)}, shown here too`:'');
-    return `<header><span>Collections</span>${newBtn(`data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"`)}</header><div id="clist">${C.map(row).join('')}</div>`;
+    /* The archive (T-34): hidden until asked for, then below the others, each marked archived. */
+    const arch=S.real?`<hr><button type="button" class="btn" data-variant="ghost" data-size="xs" data-act="showarch" aria-pressed="${!!S.showArch}" data-archive-toggle>${icon('box')}<span>${S.showArch?TA.hide:TA.show}</span></button>${S.showArch?`<div data-archive-list>${ARCH.length?ARCH.map(id=>navItem('coll',id,D[id].n,'box',!!S.open[id],`data-ctx="coll" data-ctxid="${id}" data-archived="1"`,false,TA.readOnly)).join(''):`<p class="text-muted-foreground text-xs">${TA.none}</p>`}</div>`:''}`:'';
+    return `<header><span>Collections</span>${newBtn(`data-act="addmenu" data-id="n2" aria-expanded="${S.addIn==='n2'}" aria-label="New in nav2" title="New: a collection, a line, a space"`)}</header><div id="clist">${C.filter(c=>!c.arch).map(row).join('')}</div>${arch}`;
   }
   if(S.view==='search') return '<div>'+[['exact','Exact words','quote'],['full','Full text','search'],['meaning','Similar meaning','spark']].map(x=>navItem('strat',x[0],x[1],x[2],S.strat===x[0])).join('')+'<hr>'+navItem('ai','ai','Also ask AI','ai',S.ai)+'</div>';
   if(S.view==='profile') return '<div>'+PROFSET.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+'<hr>'+navLabel('shield','Administration')+PROFADM.map(x=>navItem('sec',x[0],x[1],x[2],S.sec.profile===x[0])).join('')+'</div>';
@@ -389,7 +394,7 @@ function nav2Html(){
   return '<div>'+items.map(one).join('')+(acts.length?'<hr>'+acts.map(one).join(''):'')+'</div>';
 }
 const SECTIONS={
-  files:()=>FS.pending?[]:FS.on?[...FS.roots.map(r=>[r.id,esc(r.n),r.role==='user'?'user':r.role==='tenant'?'hd':'grid']),['newfcoll','New collection','plus',1],['ext','Add a source','plus',1]]
+  files:()=>FS.pending?[]:FS.on?[...FS.roots.map(r=>[r.id,esc(r.n),r.archived?'box':r.role==='user'?'user':r.role==='tenant'?'hd':'grid']),['newfcoll','New collection','plus',1],['ext','Add a source','plus',1],['farch',S.showArch?TA.hide:TA.show,'box',1]]
     :[['home','My files','user'],['share','Share','hd'],['ext','Add a source','plus',1]],
   todo:()=>[...TL.map(l=>[l.id,l.n,l.i]),['newlist','New list','plus',1]],
   cal:()=>[['all','All calendars','grid',0,1],...CALS.map(c=>[c.id,c.n,c.i]),['import','Import a calendar','down',1]],
@@ -1060,6 +1065,8 @@ document.addEventListener('click',e=>{
     case 'sec':{const v=S.view;S.treeTop=0;
       /* Where a third column adds nothing, nav2 opens straight into the window. */
       const ad={cal:{import:'cal:import'},time:{export:'time:export'},vac:{plan:'vac:new'},bookmarks:{import:'bm:import'},news:{sub:'news:sub'}}[v];if(ad&&ad[a.id]){openDoc(ad[a.id]);break;}
+      /* The archive of Files (T-34): shown or hidden below the roots, the roots load again. */
+      if(v==='files'&&a.id==='farch'){S.showArch=!S.showArch;loadRoots();break;}
       if(v==='todo'&&a.id==='newlist'){const id='l'+(++S.newN);TL.push({id,n:'New list',i:'list',items:[]});todoDocs();S.sec.todo=id;S.so.todo[id]=true;break;}
       if(v==='notes'&&a.id==='newboard'){const id='b'+(++S.newN);D['nb:'+id]=boardDoc('New board',[]);BOARDS.push({id,n:'New board',i:'note',doc:'nb:'+id});S.sec.notes=id;S.so.notes[id]=true;break;}
       /* Private lists open like collections: a click opens one and closes what is not kept open, a double click keeps it open or stops. */
@@ -1179,6 +1186,11 @@ document.addEventListener('click',e=>{
       if(act==='hist')S.hist=hadHist===i?null:i;else S.tlist=hadTl===i?null:i;break;}
     case 'split':S.wins.splice(i+1,0,{tabs:[newTab(null,true),{...t,general:false,gear:false,fly:false}],a:1,hist:[]});S.focus=i+1;break;
     case 'rights':if(window.UDRights&&D[a.id]&&D[a.id].db)UDRights.open(D[a.id].sid,D[a.id].n);return;
+    case 'showarch':S.showArch=!S.showArch;if(S.showArch)loadArchive();else hideArchive();render();return;
+    case 'archive':if(D[a.id]&&D[a.id].db)setArchived(a.id,true);return;
+    case 'unarchive':if(D[a.id]&&D[a.id].db)setArchived(a.id,false);return;
+    case 'farchive':case 'funarchive':{const on=a.act==='farchive',r=FS.roots.find(x=>x.id===a.id);if(!r)return;if(on&&!window.confirm(TA.ask(esc(r.n))))return;
+      fsend('/api/objects/'+encodeURIComponent(r.id)+'/archive','PUT',{archived:on}).then(()=>{toast(on?TA.done:TA.back);loadRoots();}).catch(e=>toast(e.message||TA.failed));return;}
     case 'gear':t.gear=!t.gear;if(t.gear){t.cmt=false;if(D[t.d].blocks)loadVersions(t.d);}break;
     case 'edit':setEdit(t,!editing(t));t.src=false;if(editing(t))S.focusNext={d:t.d};break;
     case 'edfmt':{const e=EDS[t.d];if(e)e.ed.format(a.k);return;}
@@ -1565,6 +1577,8 @@ function addNode(node){
   D[id].sid=node.id;D[id].tags=node.tags?node.tags.map(esc):D[id].tags||[];D[id].db=!!node.owner;D[id].mine=!!node.mine;if(node.role)D[id].role=node.role;
   if(node.owner)D[id].owner=esc(node.owner);if(node.access)D[id].acc=node.access;
   if(node.width)D[id].w=node.width;if(node.contents)D[id].toc=node.contents;D[id].tpl=!!node.template;
+  /* The archive (T-34): an archived space is read only; archive tells that the viewer may archive or restore it. */
+  D[id].archived=!!node.archived;D[id].archive=!!node.archive;
   return id;
 }
 
@@ -1592,6 +1606,34 @@ async function setAccess(id,level){
   if(!D[id].db)return;
   try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/access',{...same,method:'POST',body:JSON.stringify({access:level})});if(!r.ok)throw new Error(String(r.status));}
   catch(e){if(before)D[id].acc=before;else delete D[id].acc;render();toast(e.message==='403'?'Only the owner sets what others may do.':'What others may do could not be saved.');}
+}
+/* The archive of spaces (T-34, docs/rights.md#archived-spaces). Every word stands in TA, so the translation (T-32) finds
+   them in one place. ARCH holds the archived spaces the viewer may read, loaded when the archive is shown; they sit in C
+   marked arch, so they open like any collection, but nav2 lists them apart and the settings never keep them. */
+const TA={show:'Show the archive',hide:'Hide the archive',none:'Nothing archived that you may read.',readOnly:'Archived, read only',
+  archived:'Archived',note:'Read only until its owner or an administrator restores it.',archive:'Archive this space',restore:'Restore from the archive',
+  ask:n=>`Archive ${n}? It stays with everything in it, without a limit, hidden from the tree and the search, and read only for everyone until it is restored. Share links lend nothing meanwhile.`,
+  done:'Archived. Show the archive to find it again.',back:'Restored from the archive.',refused:'Only its owner or an administrator archives or restores a space, in the browser.',
+  failed:'The archive could not be changed.',search:'Also in the archive'};
+let ARCH=[];
+async function loadArchive(quiet){
+  let st;try{const r=await fetch('/api/state?archive=1',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;st=await r.json();}catch(e){return;}
+  C.splice(0,C.length,...C.filter(c=>!c.arch));
+  ARCH=st.collections.filter(n=>n.archived).map(addNode);
+  ARCH.forEach(id=>C.push(asTop({id,i:'box',arch:true})));
+  if(quiet)return;
+  rebuildPlaces();render();
+}
+function hideArchive(){ARCH.forEach(id=>{delete S.open[id];});C.splice(0,C.length,...C.filter(c=>!c.arch));ARCH=[];rebuildPlaces();render();}
+async function setArchived(id,on){
+  if(on&&!window.confirm(TA.ask(D[id].n)))return;
+  try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/archive',{...same,method:'PUT',body:JSON.stringify({archived:on})});if(!r.ok)throw new Error(String(r.status));}
+  catch(e){toast(e.message==='403'?TA.refused:TA.failed);return;}
+  /* Restored, the roles inside come back as they were: the workspace loads again to show them. */
+  if(!on){location.reload();return;}
+  D[id].archived=true;const ro=x=>{if(D[x]&&D[x].db){D[x].role='read';(D[x].kids||[]).forEach(ro);}};ro(id);
+  const i=C.findIndex(c=>c.id===id&&!c.arch);if(i>=0)C.splice(i,1);delete S.open[id];
+  if(S.showArch)await loadArchive();toast(TA.done);rebuildPlaces();render();
 }
 async function convertKind(id,kind){
   if(D[id].db){try{const r=await fetch('/api/objects/'+encodeURIComponent(D[id].sid)+'/kind',{...same,method:'POST',body:JSON.stringify({kind})});if(!r.ok)throw new Error(String(r.status));}
@@ -2232,7 +2274,7 @@ function sortKids(id,dir){
 async function moveAll(moves,undo){for(const [id,cont,after] of moves)if(!await moveObject(id,cont,after,undo))return;}
 /* The order of nav2 with its lines, spaces and shown collections, as the account keeps it. A collection it does not know
    yet keeps its place. */
-const n2Of=()=>C.map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.alias?{k:'show',id:c.id}:c.id);
+const n2Of=()=>C.filter(c=>!c.arch).map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.alias?{k:'show',id:c.id}:c.id);
 function applyN2(list){
   if(!Array.isArray(list))return;const byId={};C.forEach(c=>{byId[c.id]=c;});const out=[];
   list.forEach(x=>{if(x&&typeof x==='object'){if((x.k==='line'||x.k==='space')&&/^d[0-9a-z]{4,20}$/.test(x.id)&&!D[x.id])out.push(asTop({id:decoDoc(x.id,x.k),i:'grid'}));
@@ -2275,7 +2317,7 @@ const fget=async url=>{const r=await fetch(url,{credentials:'same-origin',header
 const fsend=async(url,method,body)=>{const r=await fetch(url,{...same,method,body:body===undefined?undefined:JSON.stringify(body)});
   const a=r.status===204?{}:await r.json().catch(()=>({}));if(!r.ok)throw new Error(a.error||String(r.status));return a;};
 const loadRoots=()=>fbusy(async()=>{
-  let a;try{const r=await fetch('/api/files',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
+  let a;try{const r=await fetch('/api/files'+(S.showArch?'?archive=1':''),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)return;a=await r.json();}catch(e){return;}
   FS.on=true;FS.roots=a.roots;FS.admin=a.admin;FS.chunk=a.chunk||FS.chunk;FS.text=a.text||{};
   if(!FS.roots.some(x=>x.id===S.sec.files)&&!['ext','newfcoll'].includes(S.sec.files))S.sec.files=(FS.roots.find(x=>x.role==='user')||FS.roots[0]||{id:'ext'}).id;
   render();
@@ -2307,7 +2349,10 @@ function filesNav3(){
   const tools=d.canEdit?`<div class="flex flex-wrap gap-1.5">${pbtn(`data-act="fup" data-id="${cur}"`,'Upload','plus')}${pbtn(`data-act="fnewdir" data-id="${cur}"`,'New folder','folder')}</div>
     <input type="file" multiple hidden data-fpick="${cur}" aria-label="Files to upload">`:hint(r.role==='tenant'?'Everyone reads this folder; its writers change it.':'You may only read here.');
   const form=FS.form===cur?pform(`data-fform="dir" data-id="${cur}"`,`fdir:${cur}`,'New folder','Name of the folder'):'';
-  return `<div id="tree" class="flex flex-col gap-2" data-fdrop="${d.canEdit?cur:''}">${colLabel(esc(r.n))}${hint(`${fcrumbs(r.id,cur)} · ${room}`,' data-fpath')}${tools}${form}
+  /* The archive (T-34): the note that it is read only, and archiving or restoring for its owner and administrators. */
+  const arch=(r.archived?`<p class="text-sm" role="status" data-archived-note><span class="badge" data-variant="secondary">${icon('box')} ${TA.archived}</span> ${TA.note}</p>`:'')
+    +(r.archive&&cur===r.id?`<div>${pbtn(`data-act="${r.archived?'funarchive':'farchive'}" data-id="${r.id}"`,r.archived?TA.restore:TA.archive,'box')}</div>`:'');
+  return `<div id="tree" class="flex flex-col gap-2" data-fdrop="${d.canEdit?cur:''}">${colLabel(esc(r.n))}${hint(`${fcrumbs(r.id,cur)} · ${room}`,' data-fpath')}${arch}${tools}${form}
     <ul class="workspace-tree">${rows||(d.loading?'':'<li class="text-muted-foreground">Empty. Upload files or drop them here.</li>')}</ul>${ups}</div>`;
 }
 /* A file opens in the window like any document: what the browser may show inline is shown, everything else is a
@@ -2468,8 +2513,10 @@ async function boot(){
   if(window.udTheme)S.theme=window.udTheme();
   rebuildPlaces();
   if(S.into!=='qn'&&!C.some(c=>c.id===S.into&&!isDeco(c.id)))S.into='qn';
-  const start=idFromPath();
-  const first=C.find(c=>D[c.id].real);
+  let start=idFromPath();
+  /* An address inside an archived space (T-34): the archive loads, so the space opens read only. */
+  if(!start&&S.real&&/^\/o\/[0-9a-z]{10}$/.test(location.pathname)){await loadArchive(true);start=idFromPath();if(start)fileStart=null;}
+  const first=C.find(c=>D[c.id].real&&!c.arch);
   if(start&&D[start]){openDoc(start);const top=COLL[start]?COLL[start].id:start;if(C.some(c=>c.id===top))S.open[top]=true;}
   else if(first){S.open[first.id]=true;const home=D[first.id].kids.find(k=>D[k].t==='page');S.wins=[{tabs:[newTab(home||first.id,true)],a:0,hist:[home||first.id]}];if(home)loadDoc(home);}
   S.booted=true;render();

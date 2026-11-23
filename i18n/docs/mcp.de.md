@@ -74,10 +74,10 @@ Host). Eine Adresse wird immer nur über ihre ID nachgeschlagen: Nichts davon er
 
 | Werkzeug | Tut |
 |---|---|
-| `context` | Hier anfangen: für wen der Agent handelt und was er darf, die Regelseite, offene Hinweise, der Baum bis zu einer Tiefe (2, wenn nicht anders verlangt, höchstens 4, höchstens 200 Einträge; `under` für einen Teil davon) |
+| `context` | Hier anfangen: für wen der Agent handelt und was er darf, die Regelseite, offene Hinweise, der Baum bis zu einer Tiefe (2, wenn nicht anders verlangt, höchstens 4, höchstens 200 Einträge; `under` für einen Teil davon); archivierte Bereiche nur mit `archived` |
 | `read` | Eine bis fünf Seiten als Markdown mit Front Matter, der Markierung vor jedem Block und der Version, gegen die geschrieben wird; oder ein Block oder Abschnitt (`#b3`); eine Seite der Ordnerquelle als Gliederung |
 | `used_in` | Die Seiten, die eine Seite, einen Block, Abschnitt oder Teil einbetten |
-| `search` | Eine Suche über die Abschnitte von Seiten und die Seiten von PDF und anderen Dateien: eine Zeile je Treffer mit Adresse, Abschnitt und Auszug, höchstens 20 Treffer, die Gesamtzahl am Ende; Fehlercodes exakt |
+| `search` | Eine Suche über die Abschnitte von Seiten und die Seiten von PDF und anderen Dateien: eine Zeile je Treffer mit Adresse, Abschnitt und Auszug, höchstens 20 Treffer, die Gesamtzahl am Ende; Fehlercodes exakt; archivierte Bereiche nur mit `archived` oder über `in` benannt |
 | `write` | Eine Seite oder den Abschnitt, den ein Block eröffnet (`#b3`), als Markdown mit den Markierungen, die read geliefert hat, gegen die gelesene Version (`base`); `dry_run` liefert Prüfung und Diff ohne zu speichern |
 | `replace` | Eine Passage, die einmal in der Seite steht, gegen `base`; `dry_run` wie bei `write` |
 | `set_front_matter` | Titel, Tags oder Art einer Seite |
@@ -171,6 +171,14 @@ eigenen Feldern und exakt, die Rechte als Filter und jeder Treffer noch einmal i
 PDF hält seine Seiten auseinander, auf dem Server und im Browser, also ist jede Seite eigene Datensätze, und ein Treffer
 nennt seine Seite (`#page=3`). Ein Wort verträgt ab vier Buchstaben einen Tippfehler (T-24, gemessen in
 [search.md](../../docs/search.md)).
+
+## Das Archiv
+
+Archivierte Bereiche ([rights.md](../../docs/rights.md#archived-spaces), T-34) sind für alle nur lesbar, und `context`
+und `search` lassen sie weg, bis der Agent mit `archived: true` danach fragt (der Baum führt sie dann unter den anderen,
+markiert „archived, read only“; ohne die Angabe sagt `context`, wie viele er weggelassen hat). `read` und `used_in`
+öffnen, was darin liegt, über seine Adresse. Jedes Werkzeug, das etwas ändert, und ein vorher geholter `upload_link`
+werden dort abgelehnt („this space is archived“). Agenten archivieren und stellen nie einen Bereich wieder her.
 
 ## Was noch fehlt
 

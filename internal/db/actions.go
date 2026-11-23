@@ -59,6 +59,8 @@ func PresetActions(role string) []string {
 		return []string{ActRead, ActComment}
 	case RoleEdit:
 		return []string{ActRead, ActComment, ActCreate, ActWrite, ActDelete}
+	case RoleMembers:
+		return []string{ActRead, ActComment, ActCreate, ActWrite, ActShare, ActManage}
 	case RoleManage, RoleOwner:
 		return slices.Clone(Actions)
 	}
@@ -79,7 +81,7 @@ func PresetOf(entries map[string]string) string {
 		allowed = append(allowed, action)
 	}
 	slices.Sort(allowed)
-	for _, role := range []string{RoleRead, RoleComment, RoleEdit, RoleManage} {
+	for _, role := range []string{RoleRead, RoleComment, RoleEdit, RoleMembers, RoleManage} {
 		want := PresetActions(role)
 		slices.Sort(want)
 		if slices.Equal(allowed, want) {
@@ -142,7 +144,7 @@ func noAgent(ctx context.Context) error {
 type Decision struct {
 	Action  string
 	Allowed bool
-	// Via is owner, owner above, entry, link, private, none, agents, agents default, agents own or unknown.
+	// Via is owner, owner above, entry, link, private, none, agents, agents default, agents own, archived or unknown.
 	Via string
 	// Object is where the deciding entry is, Title its name; Kind and Who the holder (person, group, tenant, agents,
 	// link) and Name how the interface names it; Value allow or deny.
@@ -163,6 +165,8 @@ const (
 	ViaAgentsDefault = "agents default"
 	ViaAgentsOwn     = "agents own"
 	ViaUnknown       = "unknown"
+	// ViaArchived is a space that is archived: read only for everyone until it is restored (T-34).
+	ViaArchived = "archived"
 )
 
 // decideColumns reads a right_decision d with the names of where it was found and of whom.
@@ -215,6 +219,9 @@ func (db *DB) mayDo(ctx context.Context, o Object, viewer, action string) error 
 	if d.Allowed {
 		return nil
 	}
+	if d.Via == ViaArchived {
+		return ErrArchived
+	}
 	if d.Value == Deny && viewer != "" {
 		if private, err := isPrivate(ctx, db.pool, o.ID); err == nil && !private {
 			_ = db.Log(ctx, viewer, LogRefused, o.ID, DescribeDecision(d))
@@ -236,6 +243,8 @@ func DescribeDecision(d Decision) string {
 		return d.Action + ": the person does not let their agents do this"
 	case ViaNone:
 		return d.Action + ": no entry up to the top"
+	case ViaArchived:
+		return d.Action + ": the space " + d.Object + " is archived"
 	}
 	where := ""
 	if d.Object != "" {

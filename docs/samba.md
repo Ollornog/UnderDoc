@@ -31,6 +31,10 @@ collection holding a file that breaks the inheritance or denies someone is not s
 into a shared library: both answer `409` naming the files, which must inherit again and lose their deny first. A file that is in a shared library anyway (it broke the inheritance before the tenant had a
 companion, or came back from the trash) is kept off the disk, and the log says so.
 
+An **archived** library ([rights.md](rights.md#archived-spaces), T-34) is read only on the share for everyone until it
+is restored: the one check refuses create, write and delete there, so the ACLs give read only, and a new file or version
+over SMB is refused like one without rights.
+
 A file moved into another folder, in the web or over SMB, and a file saved through a rename get the ACL of their folder
 at the next pass, and belong to UnderDoc's UID from then on.
 
