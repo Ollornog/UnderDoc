@@ -173,6 +173,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- OpenSearch 3.10.0 in the tests, the CI and `deploy/compose.yml` (replaces Dependabot's pull request, which only moved the
+  Dockerfile). The shared search tests and the German corpus give the same numbers as on 3.9.0, so the table in
+  [docs/search.md](docs/search.md) only changes its version. The release notes list no change that touches the index
+  (removed: the experimental Views, the macOS x64 archives).
 - Meilisearch 1.57.0 in the tests, the CI and `deploy/compose.yml`. The Compose file sets `MEILI_UPGRADE_DB`, so a new
   image takes over the database of the old one instead of refusing to start; the upgrade is not atomic, so
   [docs/services.md](docs/services.md#updating-meilisearch) says how to take a snapshot first. The search engines of

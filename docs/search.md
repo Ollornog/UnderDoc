@@ -150,7 +150,7 @@ keeps the ranking from getting worse unnoticed.
 
 *Section* counts the questions with a heading whose hit opened at that heading.
 
-#### OpenSearch 3.9.0 (2026-11-17)
+#### OpenSearch 3.10.0 (2026-11-23)
 
 | opensearch | questions | hit@1 | hit@5 | MRR | section |
 |---|---|---|---|---|---|
@@ -189,7 +189,7 @@ the cluster, which the image does not bring.
 
 #### The two compared
 
-| | Meilisearch v1.56.2 | OpenSearch 3.9.0 |
+| | Meilisearch v1.56.2 | OpenSearch 3.10.0 |
 |---|---|---|
 | codes (104 questions, hard gate) | 100 % first | 100 % first |
 | MRR of all 179 questions | 0.951 | 0.964 |
