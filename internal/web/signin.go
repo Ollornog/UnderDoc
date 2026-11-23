@@ -77,12 +77,23 @@ func (h *handler) adminGroup(s db.SignIn) string {
 // identify finds who sent a request: the gate where the tenant trusts it, else the session cookie, else the user that
 // stands in for development.
 func (h *handler) identify(r *http.Request, s db.SignIn) (account.User, bool) {
+	user, ok := h.identifyAny(r, s)
+	// An agent administers nothing, also for an administrator (ADR-36): agents never manage rights.
+	if ok && user.Agent() {
+		user.Admin = false
+	}
+	return user, ok
+}
+
+func (h *handler) identifyAny(r *http.Request, s db.SignIn) (account.User, bool) {
 	ctx := r.Context()
 	group := h.adminGroup(s)
 	if h.gateTrusted(s) {
 		if user, ok := account.FromRequest(r); ok {
 			user.Admin = group != "" && slices.Contains(user.Groups, group)
 			user.Method = db.MethodGate
+			// AuthKind and Kind come from Remote-Auth and Remote-Kind, trusted as Remote-User is: the proxy of the gate
+			// sets them on every request. T-27 takes them from the result the gate's Go client checked instead.
 			return user, true
 		}
 	}
@@ -94,6 +105,8 @@ func (h *handler) identify(r *http.Request, s db.SignIn) (account.User, bool) {
 					user := a.User
 					user.Admin = a.Admin || group != "" && slices.Contains(a.Groups, group)
 					user.Method = method
+					// A session cookie is an interactive sign-in in the browser (ADR-36).
+					user.AuthKind = account.AuthSession
 					return user, true
 				}
 			} else if err != nil && !errors.Is(err, db.ErrNotFound) {
@@ -105,6 +118,7 @@ func (h *handler) identify(r *http.Request, s db.SignIn) (account.User, bool) {
 		user := *h.options.DevUser
 		user.Admin = group != "" && slices.Contains(user.Groups, group)
 		user.Method = db.MethodGate
+		user.AuthKind = account.AuthSession
 		return user, true
 	}
 	return account.User{}, false

@@ -97,13 +97,13 @@ func logIn(ctx context.Context, tx pgx.Tx, actor, action, page, detail string) e
 // secretOf reads a secret for a viewer in a transaction, locked: its page, whether the viewer may reveal it, and their
 // role on its page counted without links. A secret the viewer may not reveal is not found, the same as one that does not
 // exist, unless they read its page and asked to see it anyway (see).
-func secretOf(ctx context.Context, tx pgx.Tx, secretID, viewer string) (page string, may bool, role int, err error) {
-	err = tx.QueryRow(ctx, `SELECT s.page, secret_may(s.id, $2), object_role(s.page, $2, false) FROM page_secrets s WHERE s.id = $1 FOR UPDATE OF s`,
-		secretID, viewer).Scan(&page, &may, &role)
+func secretOf(ctx context.Context, tx pgx.Tx, secretID, viewer string) (page string, may, write bool, err error) {
+	err = tx.QueryRow(ctx, `SELECT s.page, secret_may(s.id, $2), (object_decide(s.page, $2, 'write', request_agent(), false)).allowed FROM page_secrets s WHERE s.id = $1 FOR UPDATE OF s`,
+		secretID, viewer).Scan(&page, &may, &write)
 	if errors.Is(err, pgx.ErrNoRows) || err == nil && !may {
-		return "", false, 0, ErrNotFound
+		return "", false, false, ErrNotFound
 	}
-	return page, may, role, err
+	return page, may, write, err
 }
 
 // CreatePageSecret makes a secret of a page, with its first value sealed by seal, for whoever may edit the page. It
@@ -113,7 +113,7 @@ func (db *DB) CreatePageSecret(ctx context.Context, pageID, viewer string, seal 
 	if err != nil {
 		return "", err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return "", err
 	}
 	secretID := id.New()
@@ -149,12 +149,16 @@ var ErrTooManyReveals = errors.New("too many passwords revealed in a short time"
 // log took it down in the same transaction. number 0 is the newest; an older one needs edit on the page, as versions do
 // (ADR-29). copied says the value goes to the clipboard, not on the screen; the log tells them apart.
 func (db *DB) RevealPageSecret(ctx context.Context, secretID, viewer string, number int, copied bool) (sealed []byte, name string, err error) {
+	// Agents never read passwords (ADR-36, ADR-7).
+	if err := noAgent(ctx); err != nil {
+		return nil, "", err
+	}
 	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		page, _, role, err := secretOf(ctx, tx, secretID, viewer)
+		page, _, write, err := secretOf(ctx, tx, secretID, viewer)
 		if err != nil {
 			return err
 		}
-		if number != 0 && role < Rank(RoleEdit) {
+		if number != 0 && !write {
 			return ErrNotAllowed
 		}
 		var n int
@@ -199,11 +203,11 @@ func (db *DB) RevealPageSecret(ctx context.Context, secretID, viewer string, num
 
 // changeSecret checks that the viewer may change a secret: reveal it and edit its page.
 func changeSecret(ctx context.Context, tx pgx.Tx, secretID, viewer string) (string, error) {
-	page, _, role, err := secretOf(ctx, tx, secretID, viewer)
+	page, _, write, err := secretOf(ctx, tx, secretID, viewer)
 	if err != nil {
 		return "", err
 	}
-	if role < Rank(RoleEdit) {
+	if !write {
 		return "", ErrNotAllowed
 	}
 	return page, nil
@@ -289,16 +293,17 @@ func (db *DB) SetPageSecretReaders(ctx context.Context, secretID, viewer string,
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var page string
-		var role int
-		err := tx.QueryRow(ctx, `SELECT s.page, object_role(s.page, $2, false) FROM page_secrets s JOIN objects o ON o.id = s.page
-			WHERE s.id = $1 AND o.deleted_at IS NULL FOR UPDATE OF s`, secretID, viewer).Scan(&page, &role)
-		if errors.Is(err, pgx.ErrNoRows) || err == nil && role == 0 {
+		var read, manage bool
+		err := tx.QueryRow(ctx, `SELECT s.page, (object_decide(s.page, $2, 'read', request_agent(), false)).allowed,
+				(object_decide(s.page, $2, 'manage', request_agent(), false)).allowed FROM page_secrets s JOIN objects o ON o.id = s.page
+			WHERE s.id = $1 AND o.deleted_at IS NULL FOR UPDATE OF s`, secretID, viewer).Scan(&page, &read, &manage)
+		if errors.Is(err, pgx.ErrNoRows) || err == nil && !read {
 			return ErrNotFound
 		}
 		if err != nil {
 			return err
 		}
-		if role < Rank(RoleManage) {
+		if !manage {
 			return ErrNotAllowed
 		}
 		var named []string
@@ -345,16 +350,17 @@ func (db *DB) SetPageSecretReaders(ctx context.Context, secretID, viewer string,
 	})
 }
 
-const secretColumns = `s.id, s.page, s.restricted, secret_may(s.id, $1), object_role(s.page, $1, false),
+const secretColumns = `s.id, s.page, s.restricted, secret_may(s.id, $1),
+	(object_decide(s.page, $1, 'write', request_agent(), false)).allowed, (object_decide(s.page, $1, 'manage', request_agent(), false)).allowed,
 	EXISTS (SELECT 1 FROM blocks b WHERE b.page = s.page AND strpos(b.body, '::secret{id="' || s.id || '"}') > 0),
 	v.number, v.at, v.author`
 
 func scanSecret(row pgx.Row) (PageSecret, error) {
 	var s PageSecret
-	var role int
-	err := row.Scan(&s.ID, &s.Page, &s.Restricted, &s.May, &role, &s.Referenced, &s.Version, &s.Changed, &s.ChangedBy)
-	s.MayChange = s.May && role >= Rank(RoleEdit)
-	s.MayRestrict = role >= Rank(RoleManage)
+	var write, manage bool
+	err := row.Scan(&s.ID, &s.Page, &s.Restricted, &s.May, &write, &manage, &s.Referenced, &s.Version, &s.Changed, &s.ChangedBy)
+	s.MayChange = s.May && write
+	s.MayRestrict = manage
 	if !s.May {
 		s.Version, s.Changed, s.ChangedBy = 0, time.Time{}, ""
 	}

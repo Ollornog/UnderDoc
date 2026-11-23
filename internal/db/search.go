@@ -104,8 +104,9 @@ func (objectSource) Name() string { return SourceObjects }
 
 // Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
 // of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29), 4 paths without
-// the names of levels not every reader sees (ADR-29), 5 the cells of spreadsheets by sheet and range (ADR-31).
-func (objectSource) Version() string { return "5" }
+// the names of levels not every reader sees (ADR-29), 5 the cells of spreadsheets by sheet and range (ADR-31), 6 the
+// levels of entries on read with their denies and the denies on Agents (ADR-36).
+func (objectSource) Version() string { return "6" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
@@ -152,22 +153,21 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 	if self.deleted || IsDivider(self.kind) || (self.area != "docs" && self.kind != KindFile) {
 		return nil, nil
 	}
-	// Who may read it: the tokens of the persons, groups and the tenant that hold a role on it (ADR-29), the same rule
-	// as the condition visible.
-	var readers []string
-	if err := s.db.pool.QueryRow(ctx, "SELECT object_readers($1)", objectID).Scan(&readers); err != nil {
+	// Who may read it: its owner, and the levels of entries on read above it (ADR-36), the same rule as the condition
+	// visible, apart from share links.
+	access, err := s.db.readAccess(ctx, objectID)
+	if err != nil {
 		return nil, err
 	}
-	readers = nonNil(readers)
 	// The path names only the levels above that everyone who finds the record may see; the others show as "…", once for
 	// each run of them (ADR-29). A page shared on its own does not give away the folders it lies in.
 	shown := make([]bool, len(chain))
 	for i := 1; i < len(chain); i++ {
-		var above []string
-		if err := s.db.pool.QueryRow(ctx, "SELECT object_readers($1)", chain[i].id).Scan(&above); err != nil {
+		above, err := s.db.readAccess(ctx, chain[i].id)
+		if err != nil {
 			return nil, err
 		}
-		shown[i] = coversReaders(above, readers)
+		shown[i] = above.covers(access)
 	}
 	top := chain[len(chain)-1]
 	topName := top.title
@@ -185,7 +185,8 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 	}
 	base := search.Doc{Object: self.id, Type: self.kind, Title: self.title, Tags: self.tags, Path: strings.Join(path, " › "),
 		Collection: top.id, CollectionName: topName, Author: self.owner, AuthorName: self.ownerName,
-		Changed: self.changed.Unix(), Readers: readers}
+		Changed: self.changed.Unix(), Readers: access.always, NoAgents: access.noAgents}
+	base.SetLevels(access.levels)
 	if self.kind == KindFile {
 		base.Type = search.TypeFile
 		var blob, contentType, name string
@@ -351,16 +352,95 @@ func (db *DB) SearchTitles(ctx context.Context, text, viewer string, tags []stri
 // hiddenLevel stands in a path for levels above a record that not everyone who finds it may see.
 const hiddenLevel = "…"
 
-// coversReaders tells whether every reader of a record also reads a level above it: the tenant reads it, or each token of
-// the record is a reader there too.
-func coversReaders(above, record []string) bool {
-	if slices.Contains(above, "all") {
-		return true
+// readers is who may read an object as the index keeps it: the tokens that always do (its owner), the levels of entries
+// on read nearest first, pruned of what can never decide, and whether no agent does.
+type readers struct {
+	always   []string
+	levels   []search.Level
+	noAgents bool
+}
+
+// readAccess reads object_access and prunes it: a token named on a level never decides on a level farther up, since a
+// reader holding it is decided where it was named first; and nothing above a level that names the whole tenant counts.
+// More than search.MaxLevels levels keep the record to its owner (fail closed).
+func (db *DB) readAccess(ctx context.Context, objectID string) (readers, error) {
+	var raw struct {
+		Owner  string `json:"owner"`
+		Levels []struct {
+			A []string `json:"a"`
+			D []string `json:"d"`
+		} `json:"levels"`
+		NoAgents bool `json:"no_agents"`
 	}
-	for _, r := range record {
-		if !slices.Contains(above, r) {
+	if err := db.pool.QueryRow(ctx, "SELECT object_access($1)", objectID).Scan(&raw); err != nil {
+		return readers{}, err
+	}
+	r := readers{always: []string{}, noAgents: raw.NoAgents}
+	if raw.Owner != "" {
+		r.always = []string{search.ReaderAccount(raw.Owner)}
+	}
+	seen := map[string]bool{}
+	for _, t := range r.always {
+		seen[t] = true
+	}
+	for _, l := range raw.Levels {
+		var level search.Level
+		for _, t := range l.A {
+			if !seen[t] {
+				level.Allow = append(level.Allow, t)
+			}
+		}
+		for _, t := range l.D {
+			if !seen[t] {
+				level.Deny = append(level.Deny, t)
+			}
+		}
+		for _, t := range slices.Concat(l.A, l.D) {
+			seen[t] = true
+		}
+		if len(level.Allow)+len(level.Deny) == 0 {
+			continue
+		}
+		r.levels = append(r.levels, level)
+		if seen[search.Everyone] {
+			break
+		}
+	}
+	if len(r.levels) > search.MaxLevels {
+		r.levels = nil
+	}
+	return r, nil
+}
+
+// covers tells whether everyone who may read the record may read this object above it, judged from the tokens alone and
+// on the safe side: this object denies nobody, keeps out agents only where the record does too, and allows every token
+// the record allows (the whole tenant covers all, a group with its subgroups covers its direct members).
+func (above readers) covers(record readers) bool {
+	if above.noAgents && !record.noAgents {
+		return false
+	}
+	allowed := slices.Clone(above.always)
+	for _, l := range above.levels {
+		if len(l.Deny) > 0 {
 			return false
 		}
+		allowed = append(allowed, l.Allow...)
+	}
+	if slices.Contains(allowed, search.Everyone) {
+		return true
+	}
+	need := slices.Clone(record.always)
+	for _, l := range record.levels {
+		need = append(need, l.Allow...)
+	}
+	for _, t := range need {
+		if slices.Contains(allowed, t) {
+			continue
+		}
+		if g, ok := strings.CutPrefix(t, "direct:"); ok && slices.Contains(allowed, search.ReaderGroup(g)) {
+			continue
+		}
+		return false
 	}
 	return true
 }

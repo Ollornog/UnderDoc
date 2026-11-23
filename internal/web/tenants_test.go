@@ -103,7 +103,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		if host == acmeHost {
 			tid = "acme"
 		}
-		board, err := database.CreateGroup(tenant.With(context.Background(), tid), word+" board", "")
+		board, err := database.CreateGroup(tenant.With(context.Background(), tid), db.Actor{Admin: true}, word+" board", "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -248,9 +248,9 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 			hctx := tenant.With(context.Background(), here)
 			for name, err := range map[string]error{
-				"member": database.SetMember(hctx, c.other.group, "u-7", true),
-				"rename": database.RenameGroup(hctx, c.other.group, "taken", ""),
-				"delete": database.DeleteGroup(hctx, c.other.group),
+				"member": database.SetMember(hctx, db.Actor{Admin: true}, c.other.group, "u-7", true),
+				"rename": database.RenameGroup(hctx, db.Actor{Admin: true}, c.other.group, "taken", ""),
+				"delete": database.DeleteGroup(hctx, db.Actor{Admin: true}, c.other.group),
 			} {
 				if !errors.Is(err, db.ErrNotFound) {
 					t.Errorf("%s of the other tenant's group: %v", name, err)

@@ -12,7 +12,7 @@ import (
 // signInAs sets the headers of the gate for another person, on every request of the browser.
 func (b *browser) signInAs(login, name string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": login, "Remote-Name": name}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Name": name}}, nil)
 }
 
 // drawer returns the text of the comments drawer in one line, or "none".

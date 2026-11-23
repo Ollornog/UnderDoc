@@ -76,16 +76,36 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 	if to, err := time.Parse(time.DateOnly, query.Get("to")); err == nil {
 		request.Filters.To = to.Add(24*time.Hour - time.Second)
 	}
+	request.Agent = user.Agent()
 	if h.options.DB != nil {
 		groups, err := h.options.DB.GroupsOf(r.Context(), user.ID)
 		if h.failed(w, err, "search") {
 			return
 		}
-		request.Groups = groups
+		direct, err := h.options.DB.DirectGroupsOf(r.Context(), user.ID)
+		if h.failed(w, err, "search") {
+			return
+		}
+		request.Groups, request.Direct = groups, direct
 	}
 	result, err := h.options.Search.Search(r.Context(), request)
 	if h.failed(w, err, "search") {
 		return
+	}
+	// The index may lag behind a change of rights for a moment: each hit is checked once more against the one check of
+	// the database, so a deny holds at once (ADR-36).
+	if h.options.DB != nil {
+		kept := result.Hits[:0]
+		for _, hit := range result.Hits {
+			ok, err := h.options.DB.MayFind(r.Context(), hit.Object, user.ID)
+			if h.failed(w, err, "search") {
+				return
+			}
+			if ok {
+				kept = append(kept, hit)
+			}
+		}
+		result.Hits = kept
 	}
 	answer := apiSearchResult{Engine: result.Engine, Notice: result.Notice, Hits: []apiHit{}, Facets: h.facets(r.Context(), result.Facets, user.ID)}
 	for _, hit := range result.Hits {

@@ -40,18 +40,13 @@ type Version struct {
 	Origin string
 }
 
-// mayEdit tells whether the viewer may change an object: whoever holds the role edit on it (ADR-29).
-func (db *DB) mayEdit(ctx context.Context, o Object, viewer string) error {
-	return db.may(ctx, o, viewer, RoleEdit)
-}
-
 // CreatePage makes an empty page inside parent, which the owner must see and may change.
 func (db *DB) CreatePage(ctx context.Context, owner account.User, title, parent string) (Object, error) {
 	p, err := db.Object(ctx, parent, owner.ID)
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, p, owner.ID); err != nil {
+	if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
 		return Object{}, err
 	}
 	return insertObject(ctx, db.pool, Object{Kind: KindPage, Title: title, Owner: owner.ID, Parent: parent})
@@ -92,7 +87,7 @@ func (db *DB) change(ctx context.Context, pageID, viewer string, do func(tx pgx.
 	if err != nil {
 		return err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return err
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
@@ -263,7 +258,7 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 	if err != nil {
 		return nil, err
 	}
-	if err := db.mayEdit(ctx, p, viewer); err != nil {
+	if err := db.mayDo(ctx, p, viewer, ActWrite); err != nil {
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `
@@ -282,5 +277,6 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 
 // MayEdit tells whether the viewer may change an object, for showing the means to do so. Each change checks again.
 func (db *DB) MayEdit(ctx context.Context, o Object, viewer string) bool {
-	return db.mayEdit(ctx, o, viewer) == nil
+	ok, err := db.May(ctx, o.ID, viewer, ActWrite)
+	return err == nil && ok
 }

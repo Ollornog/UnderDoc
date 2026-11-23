@@ -20,8 +20,8 @@ import (
 // carlOf is carl, signed in through the gate with the group editors and nothing else; plain is bob with no group, so
 // neither administers.
 var (
-	carlOf = map[string]string{"Remote-User": "carl", "Remote-Id": "u-carl", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
-	plain  = map[string]string{"Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
+	carlOf = map[string]string{"Remote-Auth": "session", "Remote-User": "carl", "Remote-Id": "u-carl", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
+	plain  = map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
 )
 
 // TestRightsThroughTheAPI: roles to persons, groups and the tenant, breaking the inheritance, and embedding that bypasses
@@ -194,11 +194,16 @@ func TestTheAccessCheck(t *testing.T) {
 	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
 	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"u-bob","role":"manage"}`, sameSite)
 	check := decode[struct {
-		Role    string      `json:"role"`
-		Reasons []apiReason `json:"reasons"`
+		Role    string        `json:"role"`
+		Actions []apiDecision `json:"actions"`
 	}](t, s.get("/api/rights/check?object="+team.ID+"&account=u-bob"))
-	if check.Role != "manage" || len(check.Reasons) != 2 {
-		t.Errorf("bob manages Team, as a person, and edits as everyone: %+v", check)
+	if check.Role != "manage" || len(check.Actions) != len(db.Actions) {
+		t.Fatalf("bob manages Team: %+v", check)
+	}
+	for _, d := range check.Actions {
+		if !d.Allowed || d.Via != db.ViaEntry || d.Kind != db.ToPerson || d.Who != "u-bob" || d.Object != team.ID || d.Value != db.Allow {
+			t.Errorf("each action of bob is decided by his own entry on Team: %+v", d)
+		}
 	}
 	held := decode[[]apiHeld](t, s.get("/api/rights/held?account=u-bob"))
 	if len(held) != 2 {

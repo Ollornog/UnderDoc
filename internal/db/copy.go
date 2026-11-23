@@ -55,7 +55,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if err != nil {
 			return Object{}, err
 		}
-		if err := db.mayEdit(ctx, p, viewer); err != nil {
+		if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 			return Object{}, err
 		}
 		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {

@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -84,8 +85,22 @@ func (db *DB) CreateLink(ctx context.Context, objectID string, actor Actor, in N
 		}
 		return Link{}, "", err
 	}
-	if err := db.may(ctx, o, actor.ID, RoleManage); err != nil {
+	if err := db.mayDo(ctx, o, actor.ID, ActShare); err != nil {
 		return Link{}, "", err
+	}
+	// A link never lends more than its maker holds (ADR-29): share alone does not make a link to edit.
+	held, err := db.ActionsOf(ctx, o.ID, actor.ID)
+	if err != nil {
+		return Link{}, "", err
+	}
+	lends := PresetActions(in.Mode)
+	if in.Mode == LinkUpload {
+		lends = []string{ActCreate}
+	}
+	for _, a := range lends {
+		if !slices.Contains(held, a) {
+			return Link{}, "", ErrNotAllowed
+		}
 	}
 	switch in.Mode {
 	case LinkRead:
@@ -142,7 +157,7 @@ func (db *DB) link(ctx context.Context, linkID string) (Link, error) {
 // something private, or whose maker no longer manages its object looks like one that never was.
 func (db *DB) LinkByToken(ctx context.Context, token string) (Link, error) {
 	l, err := scanLink(db.pool.QueryRow(ctx, `SELECT `+linkColumns+linkJoins+` WHERE l.token = $1 AND (l.expires IS NULL OR l.expires > now())
-		AND o.deleted_at IS NULL AND object_role(l.object, l.created_by, false) >= 4`, auth.HashToken(token)))
+		AND o.deleted_at IS NULL AND (object_decide(l.object, l.created_by, 'share', false, false)).allowed`, auth.HashToken(token)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Link{}, ErrNotFound
 	}
@@ -159,7 +174,7 @@ func (db *DB) LinkByToken(ctx context.Context, token string) (Link, error) {
 // everyone else the links they made and those on objects they manage (ADR-29).
 func (db *DB) Links(ctx context.Context, actor Actor, objectID string) ([]Link, error) {
 	rows, err := db.pool.Query(ctx, `SELECT `+linkColumns+linkJoins+` WHERE ($2 = '' OR l.object = $2) AND o.deleted_at IS NULL
-		AND ($3 OR l.created_by = $1 OR object_role(l.object, $1) >= 4) ORDER BY l.created DESC, l.id`, actor.ID, objectID, actor.Admin)
+		AND ($3 OR l.created_by = $1 OR object_may(l.object, $1, 'share')) ORDER BY l.created DESC, l.id`, actor.ID, objectID, actor.Admin)
 	if err != nil {
 		return nil, err
 	}
@@ -173,15 +188,19 @@ func (db *DB) mayChangeLink(ctx context.Context, linkID string, actor Actor) (Li
 	if err != nil {
 		return Link{}, err
 	}
+	// Agents never make or revoke links (ADR-36).
+	if err := noAgent(ctx); err != nil {
+		return Link{}, err
+	}
 	if actor.Admin || l.CreatedBy == actor.ID {
 		return l, nil
 	}
-	role, err := db.Role(ctx, l.Object, actor.ID)
+	held, err := db.ActionsOf(ctx, l.Object, actor.ID)
 	if err != nil {
 		return Link{}, err
 	}
-	if Rank(role) < Rank(RoleManage) {
-		if role == RoleNone {
+	if !slices.Contains(held, ActShare) {
+		if !slices.Contains(held, ActRead) {
 			return Link{}, ErrNotFound
 		}
 		return Link{}, ErrNotAllowed
@@ -257,7 +276,7 @@ func (db *DB) Below(ctx context.Context, objectID, top, maker string) bool {
 			UNION ALL SELECT p.id, p.parent, p.deleted_at FROM objects p JOIN up ON p.id = up.parent WHERE up.id <> $2
 		)
 		SELECT EXISTS (SELECT 1 FROM up WHERE id = $2) AND NOT EXISTS (SELECT 1 FROM up WHERE deleted_at IS NOT NULL)
-			AND object_role($1, $3, false) > 0`, objectID, top, maker).Scan(&ok)
+			AND (object_decide($1, $3, 'read', false, false)).allowed`, objectID, top, maker).Scan(&ok)
 	return err == nil && ok
 }
 
@@ -273,7 +292,7 @@ type Shared struct {
 func (db *DB) SharedFiles(ctx context.Context, folderID, maker string) ([]Shared, error) {
 	rows, err := db.pool.Query(ctx, `SELECT o.id, o.title, o.kind, coalesce((SELECT v.size FROM file_versions v WHERE v.file = o.id
 			ORDER BY v.number DESC LIMIT 1), 0), o.changed
-		FROM objects o WHERE o.parent = $1 AND `+alive+` AND o.kind IN ('folder', 'file') AND object_role(o.id, $2, false) > 0
+		FROM objects o WHERE o.parent = $1 AND `+alive+` AND o.kind IN ('folder', 'file') AND (object_decide(o.id, $2, 'read', false, false)).allowed
 		ORDER BY o.kind = 'file', lower(o.title), o.id`, folderID, maker)
 	if err != nil {
 		return nil, err

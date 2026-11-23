@@ -21,7 +21,37 @@ const (
 	HeaderName   = "Remote-Name"
 	HeaderEmail  = "Remote-Email"
 	HeaderGroups = "Remote-Groups"
+	// HeaderAuth says how the request signed in at the gate (session, oauth, apikey, app-password), HeaderKind whether
+	// the account is a person or a service account (ADR-35).
+	HeaderAuth = "Remote-Auth"
+	HeaderKind = "Remote-Kind"
 )
+
+// How a request signed in (ADR-35, ADR-36). Only an interactive session is a person at work; every other way is an
+// agent acting for them.
+const (
+	AuthSession     = "session"
+	AuthOAuth       = "oauth"
+	AuthAPIKey      = "apikey"
+	AuthAppPassword = "app-password"
+)
+
+// Kinds of accounts: a person, or a service account that gets what is granted to it (ADR-35).
+const (
+	KindPerson  = "person"
+	KindService = "service"
+)
+
+// AuthKindOf reads the way a request signed in. A value it does not know is kept as it is, and counts as an agent.
+func AuthKindOf(value string) string { return strings.ToLower(strings.TrimSpace(value)) }
+
+// KindOf reads the kind of an account. Only "service" is a service account; anything else is a person.
+func KindOf(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), KindService) {
+		return KindService
+	}
+	return KindPerson
+}
 
 // User is the person behind a request.
 type User struct {
@@ -35,6 +65,21 @@ type User struct {
 	Admin bool
 	// Method is the way the user signed in (db.Method*), set by the web.
 	Method string
+	// AuthKind is how this request signed in (AuthSession, AuthOAuth, …). The web sets it from the session or from what
+	// the gate checked (T-27 will take it from the gate's checked result). Empty or unknown counts as an agent.
+	AuthKind string
+	// Kind is KindService for a service account; anything else is a person.
+	Kind string
+}
+
+// Agent tells whether the request belongs to the built-in group Agents (ADR-36): every sign-in that is not an
+// interactive session, and a missing or unknown one too (fail closed). A service account is a case of its own: it
+// gets what is granted to it, not this group.
+func (u User) Agent() bool {
+	if u.Kind == KindService {
+		return false
+	}
+	return u.AuthKind != AuthSession
 }
 
 // FromRequest reads the user from the headers of the gate. It reports false if there is none.
@@ -56,6 +101,8 @@ func FromRequest(r *http.Request) (User, bool) {
 		user.Name = login
 	}
 	user.Groups = splitGroups(r.Header.Get(HeaderGroups))
+	user.AuthKind = AuthKindOf(r.Header.Get(HeaderAuth))
+	user.Kind = KindOf(r.Header.Get(HeaderKind))
 	return user, true
 }
 

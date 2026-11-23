@@ -138,8 +138,8 @@ func TestSearchDocsOfAPage(t *testing.T) {
 	if card.Path != "Team › Kasse" || card.Collection != team.ID || card.CollectionName != "Team" || card.AuthorName != anna.Name {
 		t.Errorf("place and author: %+v", card)
 	}
-	if !slices.Equal(card.Readers, []string{search.ReaderAccount(anna.ID), search.Everyone}) || !slices.Equal(card.Tags, []string{"kasse"}) {
-		t.Errorf("readers and tags: %v %v", card.Readers, card.Tags)
+	if !slices.Equal(docReaders(card), []string{search.ReaderAccount(anna.ID), search.Everyone}) || !slices.Equal(card.Tags, []string{"kasse"}) {
+		t.Errorf("readers and tags: %v %v", docReaders(card), card.Tags)
 	}
 	for _, d := range docs {
 		if strings.Contains(d.Body, "s3cr3t") || strings.Contains(d.Body, "secret") {
@@ -346,7 +346,7 @@ func TestFilesAreFoundByTheirText(t *testing.T) {
 	}
 	last := docs[len(docs)-1]
 	if last.Type != search.TypeFile || last.Heading != "scan.png" || last.Anchor != block.ID || last.Object != page.ID ||
-		!strings.Contains(last.Body, "4711") || last.Origin != "ocr" || !slices.Equal(last.Readers, []string{search.ReaderAccount(anna.ID), search.Everyone}) {
+		!strings.Contains(last.Body, "4711") || last.Origin != "ocr" || !slices.Equal(docReaders(last), []string{search.ReaderAccount(anna.ID), search.Everyone}) {
 		t.Errorf("the attachment is a record of its page: %+v", last)
 	}
 	if docs[0].Type != search.TypePage {
@@ -381,10 +381,23 @@ func TestSearchPathHidesLevelsNotEveryReaderSees(t *testing.T) {
 		}
 		return docs[0]
 	}
-	if d := doc(page.ID); !slices.Contains(d.Readers, "account:"+carl.ID) || d.Path != "…" || d.CollectionName != "…" {
-		t.Errorf("carl finds the page with the titles above it he may not see: path %q, collection %q, readers %v", d.Path, d.CollectionName, d.Readers)
+	if d := doc(page.ID); !slices.Contains(docReaders(d), "account:"+carl.ID) || d.Path != "…" || d.CollectionName != "…" {
+		t.Errorf("carl finds the page with the titles above it he may not see: path %q, collection %q, readers %v", d.Path, d.CollectionName, docReaders(d))
 	}
 	if d := doc(notes.ID); d.Path != "Board › Layoffs 2027" || d.CollectionName != "Board" {
 		t.Errorf("anna alone reads the notes and every level above: path %q, collection %q", d.Path, d.CollectionName)
 	}
+}
+
+// docReaders is every token a record lets read, its levels flattened: for records without a deny.
+func docReaders(d search.Doc) []string {
+	got := slices.Clone(d.Readers)
+	for _, l := range d.Levels() {
+		if len(l.Deny) > 0 {
+			return append(got, "deny!")
+		}
+		got = append(got, l.Allow...)
+	}
+	slices.Sort(got)
+	return slices.Compact(got)
 }

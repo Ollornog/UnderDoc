@@ -29,10 +29,14 @@ const (
 	LogLinkPassword = "link wrong password"
 	LogLinkUpload   = "link upload"
 	LogKept         = "log kept"
+	// LogRefused is an action a deny refused, with the deciding entry (ADR-36).
+	LogRefused = "refused"
+	// LogAgents is a change of what a person lets their agents do.
+	LogAgents = "agents"
 )
 
 // hourly are the actions kept at most once per account, object and hour.
-var hourly = map[string]bool{LogOpen: true, LogChange: true, LogLinkOpened: true}
+var hourly = map[string]bool{LogOpen: true, LogChange: true, LogLinkOpened: true, LogRefused: true}
 
 // Log writes an entry. Opening and changing are kept once per account, object and hour, so reading a page all day is one
 // line an hour, not a thousand.
@@ -76,8 +80,8 @@ func (db *DB) LogEntries(ctx context.Context, actor Actor, f LogFilter) ([]Entry
 	rows, err := db.pool.Query(ctx, `SELECT l.id, l.at, l.actor, coalesce(a.name, l.actor), l.action, l.object, coalesce(o.title, ''), l.detail
 		FROM audit_log l LEFT JOIN accounts a ON a.id = l.actor LEFT JOIN objects o ON o.id = l.object
 		WHERE ($2 = '' OR l.object = $2) AND ($3 = '' OR l.actor = $3) AND ($4 = 0 OR l.id < $4)
-		  AND ($5 OR l.actor = $1 OR (l.object <> '' AND object_role(l.object, $1) >= 4))
-		  AND (l.object = '' OR o.id IS NULL OR NOT object_private(l.object) OR object_role(l.object, $1) > 0)
+		  AND ($5 OR l.actor = $1 OR (l.object <> '' AND object_may(l.object, $1, 'manage')))
+		  AND (l.object = '' OR o.id IS NULL OR NOT object_private(l.object) OR object_may(l.object, $1, 'read'))
 		ORDER BY l.id DESC LIMIT $6`, actor.ID, f.Object, f.Actor, f.Before, actor.Admin, f.Limit)
 	if err != nil {
 		return nil, err

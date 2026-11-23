@@ -90,9 +90,11 @@ func Open(ctx context.Context, url string) (*DB, error) {
 		return err
 	}
 	// Every connection taken from the pool is set to the tenant of the context it is taken for, and to none without one.
+	// It also carries whether the request is one of an agent (ADR-36), which the check of rights reads (request_agent).
 	config.PrepareConn = func(ctx context.Context, conn *pgx.Conn) (bool, error) {
 		t, _ := tenant.From(ctx)
-		if _, err := conn.Exec(ctx, "SELECT set_config('underdoc.tenant', $1, false)", t); err != nil {
+		if _, err := conn.Exec(ctx, "SELECT set_config('underdoc.tenant', $1, false), set_config('underdoc.agent', $2, false)",
+			t, agentSetting(ctx)); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -362,7 +364,7 @@ func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, p
 		if err != nil {
 			return Object{}, err
 		}
-		if err := db.mayEdit(ctx, p, owner.ID); err != nil {
+		if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
 			return Object{}, err
 		}
 	}
@@ -433,7 +435,7 @@ func (db *DB) Rename(ctx context.Context, objectID, viewer, title string) (Objec
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
 	// A name of the view Files becomes a path on a share and in an export (ADR-30).

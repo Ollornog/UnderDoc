@@ -37,7 +37,7 @@ func (db *DB) SetView(ctx context.Context, objectID, viewer string, width, place
 	if IsDivider(o.Kind) {
 		return Object{}, ErrPlace
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
 	if width != nil {

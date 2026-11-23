@@ -304,7 +304,7 @@ func TestGoingPrivateEndsGrantsAndLinks(t *testing.T) {
 		}
 	}
 	// A grant left on something private from before names it to nobody.
-	if _, err := db.pool.Exec(ctx, "INSERT INTO grants (object, kind, who, role) VALUES ($1, 'tenant', '', 'read')", page.ID); err != nil {
+	if _, err := db.pool.Exec(ctx, "INSERT INTO grants (object, kind, who, action, value) VALUES ($1, 'tenant', '', 'read', 'allow')", page.ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, asker := range []Actor{{ID: carl.ID}, {ID: anna.ID, Admin: true}} {

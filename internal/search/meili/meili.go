@@ -18,8 +18,9 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/search"
 )
 
-// version changes whenever the shape of the records or the settings change in a way that needs every record again.
-const version = "meilisearch-1"
+// version changes whenever the shape of the records or the settings change in a way that needs every record again: 2 the
+// levels of entries on read and the denies on Agents (ADR-36).
+const version = "meilisearch-2"
 
 // settings of every index, chosen by measuring the German corpus (docs/search.md). Title before headings before text
 // (attributeRank), exact words before typing errors (typo), newer only to break a tie (changed:desc last). Title, headings
@@ -28,7 +29,7 @@ const version = "meilisearch-1"
 // searched as text at all but through their fields (search.Service).
 var settings = map[string]any{
 	"searchableAttributes": []string{"title", "title_words", "heading", "heading_words", "tags", "body"},
-	"filterableAttributes": []string{"readers", "type", "collection", "author", "tags", "changed", "object", "source", "key",
+	"filterableAttributes": []string{"readers", "l0a", "l0d", "l1a", "l1d", "l2a", "l2d", "l3a", "l3d", "l4a", "l4d", "l5a", "l5d", "no_agents", "type", "collection", "author", "tags", "changed", "object", "source", "key",
 		search.FieldCodes, search.FieldCodeParts, search.FieldTitleCodes, search.FieldHeadingCodes},
 	"sortableAttributes": []string{"changed"},
 	"rankingRules":       []string{"words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness", "changed:desc"},
@@ -241,6 +242,24 @@ func quote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
+// access is the filter of who reads (ADR-36): one of the tokens that always find the record, or, from the nearest level
+// up, the first level that names a token of the reader allows one and denies none.
+func access(readers []string) string {
+	t := list(readers)
+	expr := ""
+	for i := search.MaxLevels - 1; i >= 0; i-- {
+		a := search.LevelField(i, false) + " IN " + t
+		d := search.LevelField(i, true) + " IN " + t
+		here := "(" + a + " AND NOT " + d + ")"
+		if expr == "" {
+			expr = here
+			continue
+		}
+		expr = "(" + here + " OR (NOT " + a + " AND NOT " + d + " AND " + expr + "))"
+	}
+	return "(readers IN " + t + " OR " + expr + ")"
+}
+
 func list(values []string) string {
 	quoted := make([]string, len(values))
 	for i, v := range values {
@@ -333,7 +352,10 @@ func (e *Engine) Search(ctx context.Context, tenant string, q search.Query) (sea
 // filters writes the readers, the filters of the results page and the codes as filters of Meilisearch, all of which must
 // hold.
 func filters(q search.Query) []string {
-	out := []string{"readers IN " + list(q.Readers)}
+	out := []string{access(q.Readers)}
+	if q.Agent {
+		out = append(out, "NOT no_agents = true")
+	}
 	for _, f := range []struct {
 		field  string
 		values []string

@@ -80,7 +80,7 @@ func (db *DB) SetTemplate(ctx context.Context, pageID, viewer string, on bool) (
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
 	return scan(db.pool.QueryRow(ctx, "UPDATE objects SET template = $2 WHERE id = $1 RETURNING "+columns, pageID, on))
@@ -123,7 +123,7 @@ func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, par
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, p, owner.ID); err != nil {
+	if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
 		return Object{}, err
 	}
 	var made Object

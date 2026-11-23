@@ -711,3 +711,45 @@ func TestOtherTenantsShareNothing(t *testing.T) {
 		t.Errorf("the share directory holds %v", entries)
 	}
 }
+
+// TestADenyOnAFileOfASharedLibrary: a deny of ADR-36 on a folder holds on the share, since each account is decided on
+// its own; a deny on a single file would hide it in the web and show it on the share, so it is refused there, and a
+// library holding such a file is not shared (ADR-29, ADR-36).
+func TestADenyOnAFileOfASharedLibrary(t *testing.T) {
+	f := setup(t)
+	ctx := inMain()
+	admin := db.Actor{ID: anna.ID, Admin: true}
+	board, _ := f.db.CreateFolder(ctx, anna, "Board", f.company.ID)
+	if err := f.db.SetEntries(ctx, board.ID, admin, db.ToPerson, bob.ID, map[string]string{db.ActRead: db.Deny}, true); err != nil {
+		t.Fatal(err)
+	}
+	file := f.upload(anna.ID, f.company.ID, "plan.txt", "x")
+	if err := f.db.SetEntries(ctx, file.ID, admin, db.ToPerson, bob.ID, map[string]string{db.ActRead: db.Deny}, true); !errors.Is(err, db.ErrPerFolder) {
+		t.Errorf("a deny on a single file of a shared library: %v", err)
+	}
+	if err := f.db.SetEntries(ctx, file.ID, admin, db.ToPerson, bob.ID, map[string]string{db.ActWrite: db.Allow}, true); err != nil {
+		t.Errorf("an allow on a single file holds in the web: %v", err)
+	}
+	f.sync()
+	a, b := 20000, 20001
+	if got := f.h.acl[f.path("Board")]; got[a] != samba.Write {
+		t.Errorf("anna on Board: %v", got)
+	} else if _, ok := got[b]; ok {
+		t.Errorf("bob reaches Board on the share despite the deny: %v", got)
+	}
+	if got := f.h.acl[f.path("")]; got[b] != samba.Read {
+		t.Errorf("bob still reads Company: %v", got)
+	}
+	// A library with such a file is not shared.
+	team, err := f.db.CreateFileCollection(ctx, anna, "Team")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := f.upload(anna.ID, team.ID, "note.txt", "y")
+	if err := f.db.SetEntries(ctx, note.ID, admin, db.ToPerson, bob.ID, map[string]string{db.ActRead: db.Deny}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetRootSamba(ctx, team.ID, anna.ID, true); !errors.Is(err, db.ErrPerFolder) || !strings.Contains(err.Error(), "note.txt") {
+		t.Errorf("sharing a library with a file that denies: %v", err)
+	}
+}

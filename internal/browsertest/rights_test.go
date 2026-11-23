@@ -19,7 +19,7 @@ import (
 // signInWith sets the headers of the gate for another person with groups.
 func (b *browser) signInWith(login, name, groups string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-User": login, "Remote-Name": name, "Remote-Groups": groups}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Name": name, "Remote-Groups": groups}}, nil)
 }
 
 // TestTheRoleDecidesWhatIsGreyed: what the viewer may do comes from their role (ADR-29), not from the level for all

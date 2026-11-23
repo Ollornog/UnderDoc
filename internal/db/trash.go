@@ -47,7 +47,7 @@ func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before 
 	if IsDivider(o.Kind) {
 		return db.DeleteDivider(ctx, objectID, viewer)
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActDelete); err != nil {
 		return err
 	}
 	if err := db.guardFile(ctx, o); err != nil {
@@ -154,7 +154,7 @@ func (db *DB) Restore(ctx context.Context, objectID, viewer string) (Object, err
 		if err != nil {
 			return Object{}, err
 		}
-		if err := db.mayEdit(ctx, p, viewer); err != nil {
+		if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 			return Object{}, err
 		}
 	}
@@ -199,7 +199,7 @@ func mayTakeAll(ctx context.Context, tx pgx.Tx, objectID, viewer, below string) 
 	if err := tx.QueryRow(ctx, `WITH RECURSIVE down AS (
 			SELECT id FROM objects WHERE id = $1
 			UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id WHERE `+below+`
-		) SELECT EXISTS (SELECT 1 FROM down WHERE object_role(id, $2) < 3)`, objectID, viewer).Scan(&shut); err != nil {
+		) SELECT EXISTS (SELECT 1 FROM down WHERE NOT object_may(id, $2, 'delete'))`, objectID, viewer).Scan(&shut); err != nil {
 		return err
 	}
 	if shut {
@@ -211,6 +211,10 @@ func mayTakeAll(ctx context.Context, tx pgx.Tx, objectID, viewer, below string) 
 // Purge takes an object of the trash away for good, with everything below it, its blocks and their versions. Whoever
 // owns it or deleted it may, if they may edit everything that goes with it.
 func (db *DB) Purge(ctx context.Context, objectID, viewer string) error {
+	// Agents never delete for good (ADR-36).
+	if err := noAgent(ctx); err != nil {
+		return err
+	}
 	if _, err := db.inTrash(ctx, objectID, viewer); err != nil {
 		return err
 	}

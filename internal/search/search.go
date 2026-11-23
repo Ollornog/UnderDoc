@@ -17,6 +17,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"slices"
 	"time"
 )
 
@@ -39,14 +41,46 @@ func ReaderAccount(accountID string) string { return "account:" + accountID }
 // ReaderGroup is the reader token of one group.
 func ReaderGroup(groupID string) string { return "group:" + groupID }
 
-// Readers returns the reader tokens of an account and the groups it belongs to: what it may read is what lists one of
-// them.
+// ReaderDirect is the reader token of the persons directly in one group: a grant to a group without its subgroups
+// (ADR-36).
+func ReaderDirect(groupID string) string { return "direct:" + groupID }
+
+// Readers returns the reader tokens of an account and the groups it belongs to, with the groups inside which it is
+// directly: what it may read is decided by the entries that name one of them.
 func Readers(accountID string, groups ...string) []string {
 	readers := []string{Everyone, ReaderAccount(accountID)}
 	for _, g := range groups {
 		readers = append(readers, ReaderGroup(g))
 	}
 	return readers
+}
+
+// ReadersOf is Readers with the groups an account is in directly, for the grants that leave out the subgroups.
+func ReadersOf(accountID string, groups, direct []string) []string {
+	readers := Readers(accountID, groups...)
+	for _, g := range direct {
+		readers = append(readers, ReaderDirect(g))
+	}
+	return readers
+}
+
+// MaxLevels is how many objects with entries on read, from a record up, the index keeps (ADR-36). A record whose
+// entries lie on more levels is found by its owner alone (fail closed).
+const MaxLevels = 6
+
+// Level is one object from a record up that has entries on read for someone: the tokens allowed and denied there. The
+// first level that names one of a reader's tokens decides, and on it deny beats allow (ADR-36).
+type Level struct {
+	Allow []string
+	Deny  []string
+}
+
+// LevelField names the field of the index that holds the allowed (or denied) tokens of a level.
+func LevelField(i int, deny bool) string {
+	if deny {
+		return fmt.Sprintf("l%dd", i)
+	}
+	return fmt.Sprintf("l%da", i)
 }
 
 // Doc is one record in the index: a section of a page, or an object that has no sections, such as a folder.
@@ -80,8 +114,26 @@ type Doc struct {
 	AuthorName     string `json:"author_name"`
 	// Changed is in Unix seconds.
 	Changed int64 `json:"changed"`
-	// Readers are the tokens of who may read this record (Everyone, ReaderAccount). An empty list is read by no one.
+	// Readers are the tokens that always find this record: its owner, who keeps every action on it, or the owner of the
+	// private tree it lies in. Everyone else is decided by the levels below (ADR-36). Nobody else finds a record without
+	// levels.
 	Readers []string `json:"readers"`
+	// L0A to L5D are the levels of entries on read from the record up, nearest first (Level, MaxLevels): the allowed
+	// (A) and the denied (D) tokens of each.
+	L0A []string `json:"l0a"`
+	L0D []string `json:"l0d"`
+	L1A []string `json:"l1a"`
+	L1D []string `json:"l1d"`
+	L2A []string `json:"l2a"`
+	L2D []string `json:"l2d"`
+	L3A []string `json:"l3a"`
+	L3D []string `json:"l3d"`
+	L4A []string `json:"l4a"`
+	L4D []string `json:"l4d"`
+	L5A []string `json:"l5a"`
+	L5D []string `json:"l5d"`
+	// NoAgents tells that a deny on read for Agents holds on the record or above it: no agent finds it.
+	NoAgents bool `json:"no_agents"`
 	// Origin says where the text came from, for text taken out of files: typed, browser, server or ai.
 	Origin string `json:"origin,omitempty"`
 }
@@ -109,6 +161,61 @@ func (d *Doc) Prepare() {
 	if d.Readers == nil {
 		d.Readers = []string{}
 	}
+	for _, f := range d.levelFields() {
+		if *f == nil {
+			*f = []string{}
+		}
+	}
+}
+
+func (d *Doc) levelFields() []*[]string {
+	return []*[]string{&d.L0A, &d.L0D, &d.L1A, &d.L1D, &d.L2A, &d.L2D, &d.L3A, &d.L3D, &d.L4A, &d.L4D, &d.L5A, &d.L5D}
+}
+
+// SetLevels keeps the levels of a record, at most MaxLevels; Levels reads them back.
+func (d *Doc) SetLevels(levels []Level) {
+	f := d.levelFields()
+	for i := 0; i < MaxLevels; i++ {
+		*f[2*i], *f[2*i+1] = []string{}, []string{}
+		if i < len(levels) {
+			*f[2*i], *f[2*i+1] = append([]string{}, levels[i].Allow...), append([]string{}, levels[i].Deny...)
+		}
+	}
+}
+
+// Levels returns the levels of a record.
+func (d *Doc) Levels() []Level {
+	f := d.levelFields()
+	var out []Level
+	for i := 0; i < MaxLevels; i++ {
+		if len(*f[2*i]) == 0 && len(*f[2*i+1]) == 0 {
+			break
+		}
+		out = append(out, Level{Allow: *f[2*i], Deny: *f[2*i+1]})
+	}
+	return out
+}
+
+// MayRead decides from the record alone whether a reader with these tokens finds it, as every engine does in its
+// filter: one of the always tokens, or the first level that names a token allows it and denies none; an agent never
+// finds a record with NoAgents.
+func (d *Doc) MayRead(readers []string, agent bool) bool {
+	if agent && d.NoAgents {
+		return false
+	}
+	has := func(list []string) bool {
+		return slices.ContainsFunc(list, func(t string) bool { return slices.Contains(readers, t) })
+	}
+	if has(d.Readers) {
+		return true
+	}
+	for _, l := range d.Levels() {
+		a, x := has(l.Allow), has(l.Deny)
+		if a || x {
+			return a && !x
+		}
+	}
+	return false
 }
 
 // Key names one key of a source: the unit a source replaces at once, such as one page.
@@ -145,8 +252,10 @@ type CodeCondition struct {
 // Query is what an engine runs. Readers are never empty: a query without them would find what nobody may read.
 type Query struct {
 	// Text is searched in title, headings, tags and text. Empty finds all that the filters let through.
-	Text    string
+	Text string
+	// Readers are the tokens of the reader (ReadersOf), Agent whether the reader is an agent (ADR-36).
 	Readers []string
+	Agent   bool
 	Filters Filters
 	// Codes limits the query to records that meet one of the conditions.
 	Codes []CodeCondition

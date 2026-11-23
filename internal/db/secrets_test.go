@@ -138,11 +138,11 @@ func TestWhoRevealsASecret(t *testing.T) {
 		t.Errorf("anna added herself and does not reveal it: %v", err)
 	}
 	// A group counts: anna's group from the sign-in.
-	group, err := db.CreateGroup(ctx, "Network", "")
+	group, err := db.CreateGroup(ctx, Actor{ID: anna.ID, Admin: true}, "Network", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMember(ctx, group.ID, carl.ID, true); err != nil {
+	if err := db.SetMember(ctx, Actor{ID: anna.ID, Admin: true}, group.ID, carl.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetPageSecretReaders(ctx, secretID, anna.ID, true, []SecretReader{{Kind: ToGroup, Who: group.ID}}); err != nil {
@@ -151,7 +151,7 @@ func TestWhoRevealsASecret(t *testing.T) {
 	if _, err := reveal(db, secretID, carl.ID); err != nil {
 		t.Errorf("a member of a reading group does not reveal it: %v", err)
 	}
-	if err := db.DeleteGroup(ctx, group.ID); err != nil {
+	if err := db.DeleteGroup(ctx, Actor{ID: anna.ID, Admin: true}, group.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := reveal(db, secretID, carl.ID); !errors.Is(err, ErrNotFound) {

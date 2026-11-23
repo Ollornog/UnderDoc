@@ -74,15 +74,15 @@ func TestRolesForPersonsGroupsAndTheTenant(t *testing.T) {
 		t.Fatalf("the group of anna's sign-in is taken over: %+v %v", groups, err)
 	}
 	ops := groups[0].ID
-	if err := db.SetMember(ctx, ops, carl.ID, true); !errors.Is(err, ErrGroup) {
+	if err := db.SetMember(ctx, Actor{ID: anna.ID, Admin: true}, ops, carl.ID, true); !errors.Is(err, ErrGroup) {
 		t.Errorf("a group taken over can only be read: %v", err)
 	}
 	// A local group.
-	editors, err := db.CreateGroup(ctx, "Editors", "They write the plans")
+	editors, err := db.CreateGroup(ctx, Actor{ID: anna.ID, Admin: true}, "Editors", "They write the plans", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.CreateGroup(ctx, " Editors ", ""); !errors.Is(err, ErrGroupName) {
+	if _, err := db.CreateGroup(ctx, Actor{ID: anna.ID, Admin: true}, " Editors ", "", ""); !errors.Is(err, ErrGroupName) {
 		t.Errorf("two local groups of one name: %v", err)
 	}
 	if err := db.SetGrant(ctx, folder.ID, admin, ToGroup, editors.ID, RoleEdit); err != nil {
@@ -91,7 +91,7 @@ func TestRolesForPersonsGroupsAndTheTenant(t *testing.T) {
 	if got := role(t, db, page.ID, carl.ID); got != RoleComment {
 		t.Errorf("not a member yet: %q", got)
 	}
-	if err := db.SetMember(ctx, editors.ID, carl.ID, true); err != nil {
+	if err := db.SetMember(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID, carl.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	if got := role(t, db, page.ID, carl.ID); got != RoleEdit {
@@ -103,7 +103,7 @@ func TestRolesForPersonsGroupsAndTheTenant(t *testing.T) {
 	if mine, _ := db.GroupsOf(ctx, carl.ID); len(mine) != 1 || mine[0] != editors.ID {
 		t.Errorf("carl's groups: %v", mine)
 	}
-	if err := db.DeleteGroup(ctx, editors.ID); err != nil {
+	if err := db.DeleteGroup(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := role(t, db, page.ID, carl.ID); got != RoleComment {
@@ -278,7 +278,7 @@ func TestTheLevelsOfADR20BecomeGrants(t *testing.T) {
 		t.Errorf("anna's notes: %q", got)
 	}
 	var grants, broken int
-	if err := db.pool.QueryRow(main, "SELECT count(*) FROM grants").Scan(&grants); err != nil {
+	if err := db.pool.QueryRow(main, "SELECT count(DISTINCT (object, kind, who)) FROM grants").Scan(&grants); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.pool.QueryRow(main, "SELECT count(*) FROM objects WHERE NOT inherit").Scan(&broken); err != nil {
@@ -304,17 +304,11 @@ func TestReadersFollowTheRoles(t *testing.T) {
 	ctx := inMain()
 	team, _ := db.createShared(ctx, anna, "Team")
 	page, _ := db.CreatePage(ctx, bob, "Plan", team.ID)
-	readers := func() []string {
-		var got []string
-		if err := db.pool.QueryRow(ctx, "SELECT object_readers($1)", page.ID).Scan(&got); err != nil {
-			t.Fatal(err)
-		}
-		return got
-	}
+	readers := func() []string { return flatReaders(t, db, page.ID) }
 	if got := readers(); !slices.Equal(got, []string{"account:" + anna.ID, "account:" + bob.ID, "all"}) {
 		t.Errorf("the owners and the tenant: %v", got)
 	}
-	board, _ := db.CreateGroup(ctx, "Board", "")
+	board, _ := db.CreateGroup(ctx, Actor{ID: anna.ID, Admin: true}, "Board", "", "")
 	if err := db.SetInherit(ctx, page.ID, Actor{ID: bob.ID}, false); err != nil {
 		t.Fatal(err)
 	}
@@ -337,10 +331,27 @@ func TestReadersFollowTheRoles(t *testing.T) {
 		t.Errorf("a change of roles queues the page for the index: %v %v", queued, err)
 	}
 	notes, _ := db.Collections(ctx, anna.ID)
-	var got []string
-	if err := db.pool.QueryRow(ctx, "SELECT object_readers($1)", notes[0].ID).Scan(&got); err != nil || !slices.Equal(got, []string{"account:" + anna.ID}) {
-		t.Errorf("private notes are read by their owner alone: %v %v", got, err)
+	if got := flatReaders(t, db, notes[0].ID); !slices.Equal(got, []string{"account:" + anna.ID}) {
+		t.Errorf("private notes are read by their owner alone: %v", got)
 	}
+}
+
+// flatReaders is every token the index allows to read an object, without its levels: for objects without a deny.
+func flatReaders(t *testing.T, db *DB, objectID string) []string {
+	t.Helper()
+	r, err := db.readAccess(inMain(), objectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slices.Clone(r.always)
+	for _, l := range r.levels {
+		if len(l.Deny) > 0 {
+			t.Fatalf("%s denies: %+v", objectID, r.levels)
+		}
+		got = append(got, l.Allow...)
+	}
+	slices.Sort(got)
+	return slices.Compact(got)
 }
 
 // TestTakingBackAnAdministrator: an administrator makes a local account an administrator and takes that back again; the

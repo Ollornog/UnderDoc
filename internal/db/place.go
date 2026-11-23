@@ -36,7 +36,7 @@ func (db *DB) CreateDivider(ctx context.Context, owner account.User, kind, paren
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, p, owner.ID); err != nil {
+	if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
 		return Object{}, err
 	}
 	var made Object
@@ -65,7 +65,7 @@ func (db *DB) DeleteDivider(ctx context.Context, objectID, viewer string) error 
 	if !IsDivider(o.Kind) {
 		return ErrNotFound
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActDelete); err != nil {
 		return err
 	}
 	_, err = db.pool.Exec(ctx, "DELETE FROM objects WHERE id = $1", objectID)
@@ -94,13 +94,18 @@ func place(ctx context.Context, tx pgx.Tx, parent, after string) (int, error) {
 	return position, err
 }
 
+// ErrMoveWidens is a move that would give the mover a right on the object they did not hold: to share it or to manage
+// its rights, as the owner of where it goes.
+var ErrMoveWidens = fmt.Errorf("%w: there it would be yours to share or to manage, which it is not here; ask whoever manages it to move it", ErrNotAllowed)
+
 // ErrForeignBelow is a move into something private of an object with something of someone else below it: private
 // stays private, so it would take that away from its owner (ADR-29).
 var ErrForeignBelow = fmt.Errorf("%w: something in it belongs to someone else, and only what is all yours goes into something private", ErrNotAllowed)
 
 // Move puts an object into parent, after the entry named by after or first. Within the parent it lies in, whoever may
-// edit the object and the parent reorders it; to another place it goes only with the role manage on the object and edit
-// on where it goes, since the owner of what is above manages it there (ADR-29, 2026-11-19). Only a collection stands at
+// write the object and the parent reorders it; to another place it goes with delete on the object and create on where it
+// goes (ADR-36), unless it would give the mover there a right to share or manage it that they do not hold here, since
+// the owner of what is above manages it there (ADR-29, 2026-11-19). Only a collection stands at
 // the top, private notes stay there, and nothing goes into itself or below itself. Only its owner takes an object into
 // something private, and only when everything below it is theirs too; its grants and links end then, and the log keeps
 // that.
@@ -109,12 +114,24 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if err != nil {
 		return Object{}, err
 	}
-	need := RoleManage
+	// Within its parent, write on the object reorders it; to another place it goes with delete where it is and create
+	// where it goes (ADR-36), and only if the move gives the mover no right on it they did not hold (below).
+	need := ActDelete
 	if parent == o.Parent {
-		need = RoleEdit
+		need = ActWrite
 	}
-	if err := db.may(ctx, o, viewer, need); err != nil {
+	if err := db.mayDo(ctx, o, viewer, need); err != nil {
 		return Object{}, err
+	}
+	widens := map[string]bool{}
+	if parent != o.Parent {
+		for _, a := range []string{ActShare, ActManage} {
+			ok, err := db.May(ctx, o.ID, viewer, a)
+			if err != nil {
+				return Object{}, err
+			}
+			widens[a] = !ok
+		}
 	}
 	if err := db.guardFile(ctx, o); err != nil {
 		return Object{}, err
@@ -145,7 +162,11 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		if err != nil {
 			return Object{}, err
 		}
-		if err := db.mayEdit(ctx, p, viewer); err != nil {
+		need := ActCreate
+		if parent == o.Parent {
+			need = ActWrite
+		}
+		if err := db.mayDo(ctx, p, viewer, need); err != nil {
 			return Object{}, err
 		}
 		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {
@@ -190,6 +211,13 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 				return ErrForeignBelow
 			}
 		}
+		// To another place goes only what the mover may delete, everything below it included, as a deletion would
+		// (ADR-36: moving is delete where it is and create where it goes).
+		if parent != o.Parent {
+			if err := mayTakeAll(ctx, tx, objectID, viewer, "c.deleted_at IS NULL"); err != nil {
+				return err
+			}
+		}
 		// Into a library shared over Samba from somewhere else, nothing goes that holds a file breaking the inheritance:
 		// Samba knows rights per folder only (ADR-29, ADR-30).
 		if parent != o.Parent && o.Area == AreaFiles {
@@ -209,8 +237,25 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		}
 		moved, err = scan(tx.QueryRow(ctx, `UPDATE objects SET parent = nullif($2, ''), position = $3, changed = now() WHERE id = $1 RETURNING `+columns,
 			objectID, parent, position))
-		if err != nil || !intoPrivate {
+		if err != nil {
 			return err
+		}
+		// Whoever only deletes an object must not move it under something of their own and so come to share it or
+		// manage its rights (the attack of ADR-29, 2026-11-19, under the actions of ADR-36).
+		if !intoPrivate {
+			for _, a := range []string{ActShare, ActManage} {
+				if !widens[a] {
+					continue
+				}
+				var now bool
+				if err := tx.QueryRow(ctx, "SELECT object_may($1, $2, $3)", objectID, viewer, a).Scan(&now); err != nil {
+					return err
+				}
+				if now {
+					return ErrMoveWidens
+				}
+			}
+			return nil
 		}
 		return endShares(ctx, tx, objectID, viewer)
 	})
@@ -249,9 +294,9 @@ func endShares(ctx context.Context, tx pgx.Tx, objectID, actor string) error {
 			SELECT id FROM objects WHERE id = $1
 			UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
 		) `
-	if _, err := tx.Exec(ctx, down+`, gone AS (DELETE FROM grants WHERE object IN (SELECT id FROM down) RETURNING object, kind, who, role)
+	if _, err := tx.Exec(ctx, down+`, gone AS (DELETE FROM grants WHERE object IN (SELECT id FROM down) RETURNING object, kind, who, action, value)
 		INSERT INTO audit_log (actor, action, object, detail)
-		SELECT $2, '`+LogGrant+`', object, btrim(kind || ' ' || who) || ' ' || role || ' taken back: moved into something private' FROM gone`,
+		SELECT $2, '`+LogGrant+`', object, btrim(kind || ' ' || who) || ' ' || action || ' ' || value || ' taken back: moved into something private' FROM gone`,
 		objectID, actor); err != nil {
 		return err
 	}

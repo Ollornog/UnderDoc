@@ -192,7 +192,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("POST /api/folders", h.apiCreateFolder)
 	mux.HandleFunc("PUT /api/settings", h.apiSettings)
 	doc("POST /api/objects/{id}/access", h.apiAccess)
-	// The rights of ADR-29 hold for documents and files alike.
+	// The rights of ADR-29 and ADR-36 hold for documents and files alike.
 	mux.HandleFunc("GET /api/objects/{id}/rights", h.apiRights)
 	mux.HandleFunc("PUT /api/objects/{id}/grants", h.apiSetGrant)
 	mux.HandleFunc("PUT /api/objects/{id}/inherit", h.apiSetInherit)
@@ -204,6 +204,12 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("DELETE /api/groups/{id}", h.apiDeleteGroup)
 	mux.HandleFunc("GET /api/groups/{id}/members", h.apiGroupMembers)
 	mux.HandleFunc("PUT /api/groups/{id}/members/{account}", h.apiSetMember)
+	// Nested groups, group admins and what each person lets their agents do (ADR-36).
+	mux.HandleFunc("GET /api/groups/{id}", h.apiGroup)
+	mux.HandleFunc("PUT /api/groups/{id}/groups/{group}", h.apiSetSubgroup)
+	mux.HandleFunc("PUT /api/groups/{id}/admins/{account}", h.apiSetGroupAdmin)
+	mux.HandleFunc("GET /api/me/agents", h.apiAgentLimit)
+	mux.HandleFunc("PUT /api/me/agents", h.apiSetAgentLimit)
 	mux.HandleFunc("GET /api/rights/check", h.apiCheck)
 	mux.HandleFunc("GET /api/rights/held", h.apiHeld)
 	mux.HandleFunc("GET /api/users", h.apiUsers)

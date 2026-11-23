@@ -104,6 +104,11 @@ func (db *DB) SambaAccounts(ctx context.Context) ([]SambaAccount, error) {
 // SetSambaPassword keeps the sealed NT hash of a new app password for an account, making its Samba user with the name and
 // a free UID of the range when it has none; the name of an existing one stays. The log names the change, never a value.
 func (db *DB) SetSambaPassword(ctx context.Context, accountID, name string, sealed []byte, uidMin, uidMax int) (SambaAccount, error) {
+	// The share decides each person as a person, never as an agent: an agent that made an app password would pass its
+	// own limits (ADR-36).
+	if err := noAgent(ctx); err != nil {
+		return SambaAccount{}, err
+	}
 	if !db.SambaOn(ctx) {
 		return SambaAccount{}, ErrNoSamba
 	}
@@ -238,7 +243,7 @@ func (db *DB) SetRootSamba(ctx context.Context, rootID, viewer string, on bool) 
 	if err != nil {
 		return err
 	}
-	if err := db.may(ctx, o, viewer, RoleManage); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActManage); err != nil {
 		return err
 	}
 	// Samba knows rights per folder only (ADR-29, ADR-30): a library holding a file that broke the inheritance is not
@@ -262,7 +267,8 @@ func (db *DB) SetRootSamba(ctx context.Context, rootID, viewer string, on bool) 
 	return db.Log(ctx, viewer, "samba share", rootID, detail)
 }
 
-// perFolder answers ErrPerFolder, naming the files, when an object or something below it is a file that breaks the
+// perFolder answers ErrPerFolder, naming the files, when an object or something below it is a file that denies an action
+// to a person, a group or the tenant (the share would show what the web hides, ADR-36), or one that breaks the
 // inheritance: it cannot go into a library shared over Samba, nor can a library holding one be shared.
 func perFolder(ctx context.Context, q interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
@@ -271,7 +277,9 @@ func perFolder(ctx context.Context, q interface {
 			SELECT id, kind, title, inherit, 0 AS depth FROM objects WHERE id = $1 AND deleted_at IS NULL
 			UNION ALL SELECT c.id, c.kind, c.title, c.inherit, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
 				WHERE c.deleted_at IS NULL AND down.depth < 100
-		) SELECT title FROM down WHERE kind = 'file' AND NOT inherit ORDER BY lower(title) LIMIT 11`, objectID)
+		) SELECT title FROM down WHERE kind = 'file' AND (NOT inherit OR EXISTS (
+			SELECT 1 FROM grants g WHERE g.object = down.id AND g.value = 'deny' AND g.kind <> 'agents'))
+		ORDER BY lower(title) LIMIT 11`, objectID)
 	if err != nil {
 		return err
 	}
@@ -283,7 +291,7 @@ func perFolder(ctx context.Context, q interface {
 	if len(names) > 10 {
 		list += ", …"
 	}
-	return fmt.Errorf("%w; these files do, and must inherit again first: %s", ErrPerFolder, list)
+	return fmt.Errorf("%w; these files break it or deny someone, and must not first: %s", ErrPerFolder, list)
 }
 
 // ShareNode is an object of a shared library as the working copy needs it: where it lies, what it is, the current
@@ -366,8 +374,9 @@ func (db *DB) DeleteShareRecords(ctx context.Context, rootID string, objects ...
 	return err
 }
 
-// FolderAccess returns, for the root of a library and every folder in it, the role of each named account as a rank
-// (0 none, 1 read, 2 comment, 3 edit, 4 manage, 5 owner): what the ACLs of the working copy are made of.
+// FolderAccess returns, for the root of a library and every folder in it, what each named account may do there as a rank:
+// 3 where it may read, create, write and delete, 1 where it may only read, 0 where it may not read. The ACLs of the
+// working copy are made of it; a deny of ADR-36 on a folder holds there, since each account is decided on its own.
 func (db *DB) FolderAccess(ctx context.Context, rootID string, accounts []string) (map[string]map[string]int, error) {
 	out := map[string]map[string]int{}
 	if len(accounts) == 0 {
@@ -377,7 +386,9 @@ func (db *DB) FolderAccess(ctx context.Context, rootID string, accounts []string
 			SELECT id, 0 AS depth FROM objects WHERE id = $1 AND deleted_at IS NULL
 			UNION ALL SELECT c.id, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
 				WHERE c.deleted_at IS NULL AND c.kind = 'folder' AND down.depth < 100
-		) SELECT d.id, a, object_role(d.id, a) FROM down d CROSS JOIN unnest($2::text[]) a`, rootID, accounts)
+		) SELECT d.id, a, CASE WHEN object_actions(d.id, a, false, true) @> ARRAY['read', 'create', 'write', 'delete'] THEN 3
+			WHEN object_actions(d.id, a, false, true) @> ARRAY['read'] THEN 1 ELSE 0 END
+		FROM down d CROSS JOIN unnest($2::text[]) a`, rootID, accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +418,7 @@ func (db *DB) ShareNewFile(ctx context.Context, viewer, parentID, name, sha stri
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, p, viewer); err != nil {
+	if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 		return Object{}, err
 	}
 	if p.Area != AreaFiles || (p.Kind != KindFolder && p.Kind != KindCollection) {
@@ -451,7 +462,7 @@ func (db *DB) ShareNewVersion(ctx context.Context, viewer, fileID, sha string, s
 	if f.Kind != KindFile {
 		return 0, ErrNotFile
 	}
-	if err := db.mayEdit(ctx, f, viewer); err != nil {
+	if err := db.mayDo(ctx, f, viewer, ActWrite); err != nil {
 		return 0, err
 	}
 	var number int
