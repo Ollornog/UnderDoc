@@ -56,9 +56,9 @@ MEILI_MASTER_KEY=check docker compose -f deploy/compose.yml --profile opensearch
     fail "deploy/compose.yml (docker compose config)"
 docker compose -f deploy/samba/compose.yml config -q || fail "deploy/samba/compose.yml (docker compose config)"
 
-# The browser test and the test of the office module (scripts/check-services.sh) sit behind tags, so they also have to
+# The browser test and the tests of the office module and Mailpit (scripts/check-services.sh) sit behind tags, so they also have to
 # pass vet and staticcheck explicitly.
-export GO_PRUEF_TAGS="browser office"
+export GO_PRUEF_TAGS="browser office mailpit"
 if [[ $FAST -eq 1 ]]; then
     scripts/_go_check.sh --fast
 else

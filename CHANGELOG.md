@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Acceptance test for Mailpit in `scripts/check-services.sh` ([docs/services.md](docs/services.md)): a mail sent over
+  SMTP has to come out of `GET /api/v1/messages` with subject, recipient and text (`internal/mailpit`, tag `mailpit`).
+  Until M-22 sends real mail it tests the service itself; with it Dependabot's updates of Mailpit merge by themselves
+  like those of Meilisearch and Gotenberg. Mailpit 1.34.0.
+
 - The table view of a spreadsheet in the workspace (ADR-31, [docs/tables.md](docs/tables.md#in-the-workspace)): the
   visible sheets as buttons, a head and row numbers that stay while scrolling, pages of 500 rows, a range marked with
   the mouse or the keyboard, Embed (the line to paste goes to the clipboard) and Download CSV for the range or the sheet,
