@@ -55,7 +55,7 @@ auth turns a bearer token into the same `Remote-*` headers as a browser session,
 
 ## Decision
 
-Proposed by the team wiki and UnderDoc on 2026-11-23. The maintainer decides.
+Proposed by the team wiki and UnderDoc on 2026-11-23. Accepted by the maintainer on 2026-11-23.
 
 **The core tools:**
 

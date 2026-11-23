@@ -36,8 +36,8 @@ UnderDoc wants documentation that reads as if people wrote it, while agents do m
 
 ## Decision
 
-The last option, worked out with the maintainer and the team wiki on 2026-11-23. The maintainer gave the direction; the
-details stay open until he has seen the whole concept round (ADR-34, ADR-35, M-30).
+The last option, worked out with the maintainer and the team wiki and accepted by the maintainer on 2026-11-23, together
+with the concept round (ADR-34, ADR-35, ADR-36, M-30).
 
 **Every page has a kind (T-20), and the kind decides its audience:**
 
