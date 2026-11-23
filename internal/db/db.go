@@ -449,7 +449,8 @@ func maySpace(ctx context.Context, accountID string) error {
 	if !ok {
 		return nil
 	}
-	if u.ID != accountID || !(u.Admin || u.Spaces) {
+	// A service account makes no space, whatever it carries (B-4).
+	if u.ID != accountID || u.Kind == account.KindService || !(u.Admin || u.Spaces) {
 		return ErrSpaces
 	}
 	return nil

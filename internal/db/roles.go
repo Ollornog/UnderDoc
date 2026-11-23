@@ -778,7 +778,8 @@ func lockGroups(ctx context.Context, tx pgx.Tx) error {
 
 // mayArchiveGroup refuses whoever may not archive or restore a group: administrators may, and the admins of a group it
 // is inside, at any depth, through groups that are not archived. Being the admin of the group itself is not enough, so
-// nobody archives their own group (B-3). Agents never do.
+// nobody archives their own group (B-3); an admin of the group never does, even one who is also the admin of a group it
+// was put inside, which would otherwise let them put it there, archive it and take it out again (B-4). Agents never do.
 func (db *DB) mayArchiveGroup(ctx context.Context, q execer, actor Actor, groupID string) error {
 	if err := noAgent(ctx); err != nil {
 		return err
@@ -786,7 +787,13 @@ func (db *DB) mayArchiveGroup(ctx context.Context, q execer, actor Actor, groupI
 	if actor.Admin {
 		return nil
 	}
-	var above bool
+	var own, above bool
+	if err := q.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM group_admins WHERE grp = $1 AND account = $2)", groupID, actor.ID).Scan(&own); err != nil {
+		return err
+	}
+	if own {
+		return ErrGroupArchiver
+	}
 	if err := q.QueryRow(ctx, `WITH RECURSIVE up(id) AS (
 			SELECT gg.grp FROM group_groups gg JOIN groups g ON g.id = gg.grp WHERE gg.member = $2 AND g.archived IS NULL
 			UNION SELECT gg.grp FROM group_groups gg JOIN up ON gg.member = up.id
@@ -1083,7 +1090,9 @@ type Held struct {
 
 // HeldBy lists where an account holds entries of its own, through a group or as the whole tenant, allow or deny: the
 // start of "what may X do" in the tab Rights. Administrators ask it for anyone, everyone else for themselves. Objects in
-// the trash are left out, and nothing private is ever there.
+// the trash are left out, and nothing private is ever there. An allow that does not hold for the account is left out: one
+// through an archived group, and for a service account one for the whole tenant or a role of the gate (B-4); its denies
+// stay, as they hold.
 func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held, error) {
 	if accountID != actor.ID && !actor.Admin {
 		return nil, ErrNotAllowed
@@ -1096,12 +1105,20 @@ func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held
 	if err != nil {
 		return nil, err
 	}
+	allow, err := db.AllowGroupsOf(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	var service bool
+	if err := db.pool.QueryRow(ctx, "SELECT account_service($1)", accountID).Scan(&service); err != nil {
+		return nil, err
+	}
 	rows, err := db.pool.Query(ctx, `
-		SELECT o.id, o.title, o.kind, o.area, 'owner', '', '{}'::text[], '{}'::text[] FROM objects o
+		SELECT o.id, o.title, o.kind, o.area, 'owner', '', '', '{}'::text[], '{}'::text[] FROM objects o
 		WHERE o.owner = $1 AND o.deleted_at IS NULL AND NOT object_private(o.id)
 		  AND (o.parent IS NULL OR (SELECT p.owner FROM objects p WHERE p.id = o.parent) <> $1)
 		UNION ALL
-		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(min(gr.name), ''), array_agg(g.action ORDER BY g.action), array_agg(g.value ORDER BY g.action)
+		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(min(gr.name), ''), coalesce(g.who, ''), array_agg(g.action ORDER BY g.action), array_agg(g.value ORDER BY g.action)
 		FROM grants g JOIN objects o ON o.id = g.object LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
 		WHERE o.deleted_at IS NULL AND NOT object_private(o.id)
 		  AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1)
@@ -1111,23 +1128,29 @@ func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held
 	if err != nil {
 		return nil, err
 	}
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Held, error) {
+	all, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Held, error) {
 		var h Held
+		var who string
 		var actions, values []string
-		err := row.Scan(&h.Object, &h.Title, &h.Kind, &h.Area, &h.Via, &h.Name, &actions, &values)
+		err := row.Scan(&h.Object, &h.Title, &h.Kind, &h.Area, &h.Via, &h.Name, &who, &actions, &values)
 		if h.Via == ViaOwner {
 			h.Role, h.Actions = RoleOwner, allowAll()
 			return h, err
 		}
+		allows := h.Via == ToPerson || h.Via == ToTenant && !service || h.Via == ToGroup && slices.Contains(allow, who)
 		h.Actions = map[string]string{}
 		for i, a := range actions {
-			if i < len(values) {
+			if i < len(values) && (values[i] == Deny || allows) {
 				h.Actions[a] = values[i]
 			}
 		}
 		h.Role = PresetOf(h.Actions)
 		return h, err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(all, func(h Held) bool { return len(h.Actions) == 0 }), nil
 }
 
 // AgentLimit returns what an account lets its own agents do (ADR-36): at most AgentActions, all of them by default.

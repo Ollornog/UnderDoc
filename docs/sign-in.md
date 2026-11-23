@@ -56,8 +56,9 @@ until it expires.
 every request and remove what the browser sent (TinySesam, 2026-11-23), so it is required: a request without it, empty,
 or with any other value is refused (403), as the gate's client refuses it. `UNDERDOC_GATE_KIND=legacy` is the way back
 for a proxy that does not set it yet: a missing `Remote-Kind` is then filled in as `user`, so that the client checks
-everything else, and kept as unknown; an unknown value stays refused. In token mode the kind is signed and always
-required.
+everything else, and kept as unknown; an unknown value stays refused. A service account nobody allowed is refused there
+only when the proxy sends its kind; without it, it comes in as a person, which the warning at the start says (B-4). An
+allowed one stays a service account either way. In token mode the kind is signed and always required.
 
 **Service accounts** come in only with a lasting ID an administrator allowed in `UNDERDOC_SERVICE_ACCOUNTS`; any other
 request the gate names a service account is refused (403, the page "Refused"). An allowed ID is a service account

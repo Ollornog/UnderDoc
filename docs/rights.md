@@ -81,7 +81,8 @@ A local group is **archived, never deleted** (B-3). It keeps its members, the gr
 entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc deletes a group for good.
 
 - **Who:** administrators of the tenant, and the admins of a group it is inside, at any depth, through groups that are
-  not archived. The admins of a group never archive or restore it themselves. Agents never do.
+  not archived. The admins of a group never archive or restore it themselves, also when they administer a group it was
+  put inside (B-4). Agents never do.
 - **When:** only while every group inside it is archived already (or taken out); otherwise `409`. A group comes back
   only while no group it is inside is archived.
 - **What holds while it is archived:**
@@ -91,8 +92,9 @@ entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc 
     anyone more: if a deny went with the group, the next entry above could allow what it denied. An allow that holds
     for nobody only lets the decision go on up, which never allows more than the allow did;
   - restricted passwords ([secrets.md](secrets.md)) are not revealed through it; its admins manage nothing through it;
-  - it gets no new entry, member, admin or group inside, is put inside no group, and is offered nowhere for a grant.
-  Its entries can still be taken back.
+  - it gets no new entry, member, admin or group inside, is put inside no group, becomes no new reader of a password,
+  and is offered nowhere for a grant. Its entries can still be taken back, and a reader of a password it already is stays
+  while the list is written anew (B-4).
 
 ## Spaces
 
@@ -129,8 +131,10 @@ A service account (`Remote-Kind: service`) comes in only with a lasting ID an ad
   group taken over from the gate, since a role such as the one that lets people use UnderDoc means everyone too. It sees
   the folder source empty;
 - it gets what is **granted to it**, and to a **local group** it is put in directly (not through a group taken over
-  inside one);
-- a **deny** for the tenant or for a group taken over still holds for it.
+  inside one), and to the local groups that group is inside, as for anyone (B-4);
+- a **deny** for the tenant or for a group taken over still holds for it;
+- it **administers nothing and makes no space**, whatever roles the gate gives it (B-4): the sign-in does not read the
+  roles of the app for it, and the checks of the administration and of spaces refuse it as well.
 
 ## Inheritance
 
@@ -221,7 +225,9 @@ give it to themselves; the log keeps every transfer (`owner`).
 ```text
 GET  /api/rights/check?object=<id>&account=<id>[&agent=1]   each action of an account (or its agent) on an object, with
                                                    the deciding entry: via, object, kind, who, value
-GET  /api/rights/held[?account=<id>]               where an account holds entries of its own
+GET  /api/rights/held[?account=<id>]               where an account holds entries of its own that hold for it: an allow
+                                                   through an archived group, and for a service account one for the
+                                                   tenant or a role of the gate, is left out, its denies stay (B-4)
 GET  /api/me/agents                                what one's own agents may do: {"actions": [...], "possible": [...]}
 PUT  /api/me/agents                                {"actions": ["read"]}   in a session only
 GET  /api/users                                    administrators: every account with its source and administration

@@ -158,6 +158,23 @@ func TestGateServiceAccounts(t *testing.T) {
 		if err != nil || user.Kind != KindService || !user.Agent() {
 			t.Errorf("required=%v: an allowed ID passed on as a person in a session is still a service account: %+v %v", required, user, err)
 		}
+		// The roles of the app make no administrator and no maker of spaces of a service account (B-4).
+		if user.Admin || user.Spaces {
+			t.Errorf("required=%v: a service account with the roles of the app administers or makes spaces: %+v", required, user)
+		}
+	}
+	// The way back takes a request without Remote-Kind as a person's: a service account nobody allowed comes in as a
+	// person there, as the warning at the start says; an allowed one stays a service account (B-4).
+	legacy := newGate(t, GateConfig{KindLegacy: true, ServiceAccounts: []string{"42"}})
+	unlisted := person(map[string]string{"Remote-Id": "43", "Remote-Auth": "apikey"})
+	delete(unlisted, "Remote-Kind")
+	if user, err := legacy.Identify(request(unlisted)); err != nil || user.Kind != KindPerson || user.GateKind != "" {
+		t.Errorf("the way back, an unlisted ID without Remote-Kind: %+v %v", user, err)
+	}
+	listed := person(map[string]string{"Remote-Id": "42", "Remote-Auth": "apikey", "Remote-Groups": "underdoc-admin"})
+	delete(listed, "Remote-Kind")
+	if user, err := legacy.Identify(request(listed)); err != nil || user.Kind != KindService || user.Admin {
+		t.Errorf("the way back, an allowed ID without Remote-Kind: %+v %v", user, err)
 	}
 	for _, bad := range []string{"svc", "4 2", "-1"} {
 		if _, err := NewGate(GateConfig{ServiceAccounts: []string{bad}}); err == nil {

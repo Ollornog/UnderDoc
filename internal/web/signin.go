@@ -186,9 +186,15 @@ func (h *handler) me(r *http.Request) account.User {
 	return user
 }
 
+// administers tells whether the user of a request administers the tenant: never an agent, a service account included
+// (account.User.Agent), whatever a role or a mark says (ADR-36, B-4).
+func administers(user account.User) bool {
+	return user.Admin && !user.Agent()
+}
+
 // adminOnly lets an administrator of the tenant through, and answers anyone else that there is nothing.
 func (h *handler) adminOnly(w http.ResponseWriter, r *http.Request) bool {
-	if h.options.DB == nil || !h.me(r).Admin {
+	if h.options.DB == nil || !administers(h.me(r)) {
 		h.notFound(w, r)
 		return false
 	}

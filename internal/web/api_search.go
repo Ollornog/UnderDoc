@@ -125,6 +125,10 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		result.Hits = kept
+		// The counts beside the hits come from them, after the check: the index counts by the reader's tokens, which
+		// leave out the denies of groups that drop out of them (archived ones, and for a service account everyone and
+		// the roles of the gate), so its counts could tell of what the reader may not find (B-4).
+		result.Facets = facetsOf(result.Hits)
 	}
 	answer := apiSearchResult{Engine: result.Engine, Notice: result.Notice, Hits: []apiHit{}, Facets: h.facets(r.Context(), result.Facets, user.ID)}
 	for _, hit := range result.Hits {
@@ -133,6 +137,29 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 			Changed: changedOf(hit.Changed), Tags: nonEmpty(hit.Tags), Code: hit.Code})
 	}
 	writeJSON(w, http.StatusOK, answer)
+}
+
+// facetsOf counts hits by type, collection, author and tag, as the engine counts records.
+func facetsOf(hits []search.Hit) search.Facets {
+	facets := search.Facets{}
+	bump := func(field, value string) {
+		if value == "" {
+			return
+		}
+		if facets[field] == nil {
+			facets[field] = map[string]int{}
+		}
+		facets[field][value]++
+	}
+	for _, hit := range hits {
+		bump(search.FacetType, hit.Type)
+		bump(search.FacetCollection, hit.Collection)
+		bump(search.FacetAuthor, hit.Author)
+		for _, tag := range hit.Tags {
+			bump(search.FacetTag, tag)
+		}
+	}
+	return facets
 }
 
 func placeOf(hit search.Hit) string {

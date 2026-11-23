@@ -156,5 +156,6 @@ comes from.
     a case of their own" above (B-3).
   - **A service account never belongs to everyone signed in:** an allow for the tenant never holds for it, nor an allow
     for a group taken over from the gate, since a role of the gate (the one that lets people use the app, say) can mean
-    everyone as well; only local groups it is put in directly count for it. Its denies hold as for anyone. The search
+    everyone as well; only local groups it is put in directly count for it, and the local groups those are inside, as
+    for anyone (B-4: "directly" means not through a group taken over from the gate). Its denies hold as for anyone. The search
     leaves out its token for everyone and checks each hit once more, and the folder source is empty for it.

@@ -305,7 +305,7 @@ func (h *handler) apiPeople(w http.ResponseWriter, r *http.Request) {
 
 // adminAPI answers 403 to whoever does not administer the tenant, and reports whether they do.
 func (h *handler) adminAPI(w http.ResponseWriter, r *http.Request) bool {
-	if !h.me(r).Admin {
+	if !administers(h.me(r)) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only administrators"})
 		return false
 	}
