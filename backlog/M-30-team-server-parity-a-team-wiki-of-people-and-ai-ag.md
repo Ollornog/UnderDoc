@@ -45,6 +45,19 @@ Until then, both keep the same syntax and concepts: page kinds, embedding, `id:`
 - **Import:** a Git Markdown wiki with author and date per version. Old paths become redirects (M-17).
 - **Connectors:** access to outside systems, shared or per person, stored encrypted. A private connector plugs in at an
   extension point (M-4).
+- **MCP server** as in ADR-34: the core tools with a start context, dry run, reading several pages, "used in", one search and
+  read over all sources.
+- **Rights split with the gate** as in ADR-35, with resetting access through the gate's approval.
+- **Service accounts** limited to granted paths, for example an export that replaces one data page.
+- **People:**
+  - a private area per person with publishing to the team (M-24)
+  - a drop area whose files expire
+  - person and profile pages, set up on the first sign-in
+  - a page "set up your agent" for onboarding
+- **Agents:** a feedback inbox for unclear rules; the rules page as the single source of conventions.
+- **Administration:** a count of page kinds per space; the check results cached per state, so large wikis stay fast.
+- **Files** show inside the documentation frame.
+- **Look:** the C22 pack underdoc, shared with the team wiki.
 - **Navigation:**
   - tree and breadcrumbs
   - a folder view with its overview
