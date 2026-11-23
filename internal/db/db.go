@@ -417,6 +417,26 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	if o.Access != "" && (!grantable(o.Access) || o.Private || IsDivider(o.Kind)) {
 		return Object{}, ErrRole
 	}
+	// Nothing new lands in a space that is archived meanwhile (B-6): the insert holds the space, in a transaction of its
+	// own where the caller has none.
+	if o.Parent != "" {
+		if _, inTx := tx.(pgx.Tx); !inTx {
+			if b, ok := tx.(interface {
+				Begin(context.Context) (pgx.Tx, error)
+			}); ok {
+				var made Object
+				err := pgx.BeginFunc(ctx, b, func(t pgx.Tx) error {
+					var err error
+					made, err = insertObject(ctx, t, o)
+					return err
+				})
+				return made, err
+			}
+		}
+		if err := holdSpace(ctx, tx, o.Parent); err != nil {
+			return Object{}, err
+		}
+	}
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `

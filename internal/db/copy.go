@@ -64,10 +64,6 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 			return Object{}, err
 		}
-		// An agent publishes nothing by copying it either (B-5).
-		if err := db.agentNoWider(ctx, o.ID, parent); err != nil {
-			return Object{}, err
-		}
 		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {
 			return Object{}, ErrPlace
 		}
@@ -118,6 +114,20 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 	}
 	tree, err := read(o)
 	if err != nil {
+		return Object{}, err
+	}
+	// An agent publishes nothing by copying it either (B-5): every copy is checked, since one below the top keeps none
+	// of the entries of its original (B-6).
+	var ids []string
+	var walk func(n *node)
+	walk = func(n *node) {
+		ids = append(ids, n.o.ID)
+		for _, k := range n.kids {
+			walk(k)
+		}
+	}
+	walk(tree)
+	if err := db.agentNoWider(ctx, ids, parent, false); err != nil {
 		return Object{}, err
 	}
 	var top Object

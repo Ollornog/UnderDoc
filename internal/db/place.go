@@ -125,7 +125,7 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	}
 	// An agent publishes nothing by moving it (B-5).
 	if parent != o.Parent {
-		if err := db.agentNoWider(ctx, o.ID, parent); err != nil {
+		if err := db.agentNoWider(ctx, []string{o.ID}, parent, true); err != nil {
 			return Object{}, err
 		}
 	}

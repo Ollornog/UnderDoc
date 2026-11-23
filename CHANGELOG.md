@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- **Review of T-34 and B-5** (B-6, migration 039, [docs/rights.md](docs/rights.md#known-limits),
+  [docs/mcp.md](docs/mcp.md#the-rules-page)). An agent's copy of a folder with a page that broke its inheritance made
+  that page readable for everyone around the copy: every object a copy makes is checked now, not only its top. A link to
+  comment or edit lent an action where its maker held it on the object of the link but not on the page asked for: the
+  one check asks the maker's rights on the object asked for. A live link that shows its object counts as readers without
+  limit for an agent's move, copy or block move, and so does a dead link of what an agent moves that would come alive at
+  the target. Emptying the trash checks and locks first, asks for one approval bound to a cutoff and takes only what was
+  deleted at or before it; deleting one object for good locks it before its check. Whoever opens up an action must hold
+  it on every object below that inherits, and the entries are read under a lock in the transaction that changes them.
+  Writes of content hold their space, so nothing lands in a space archived while it was being written. Moving a block
+  rewrites no reference on the rules page or in an archived space. The rules page is no private page and none in an
+  archived space; one taken over from the tag waits for an administrator to confirm it, and `context` gives its text as
+  written without following its embeds. The trash of an archived space waits while it is archived. An empty page sends
+  its blocks as `[]`, so the workspace offers its kind. Known limits documented. Attack round as tests in
+  `internal/db/review_b6_test.go` and `internal/web/review_b6_test.go`; 24 mutations, all red.
+
 ### Added
 
 - **An archive for spaces, and the preset Members** (T-34, ADR-36 part 3, [docs/rights.md](docs/rights.md#archived-spaces),

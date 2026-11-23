@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -48,7 +49,8 @@ func (t *mcpTools) context(_ context.Context, _ *mcp.CallToolRequest, in context
 		fmt.Fprintf(&b, "Your person lets agents: %s (and only where they may themselves).\n", strings.Join(limit, ", "))
 	}
 	if rules, err := database.RulesPage(ctx, user.ID); err == nil {
-		fmt.Fprintf(&b, "Rules page: %s %q. Read it before you write.\n", uri(db.Address{Object: rules.ID}), rules.Title)
+		fmt.Fprintf(&b, "Rules page: %s %q. Its text follows as written on it: embeds in it are not followed, since agents may write what they embed, and only what stands on the rules page itself holds (B-6).\n", uri(db.Address{Object: rules.ID}), rules.Title)
+		b.WriteString(rulesText(ctx, database, rules, user.ID))
 	} else {
 		b.WriteString("Rules page: none yet. An administrator names one in the browser, a page of the kind agent-notes; ask a person for it.\n")
 	}
@@ -445,4 +447,28 @@ func plainSnippet(fragments []search.Fragment) string {
 		b.WriteString(f.Text)
 	}
 	return b.String()
+}
+
+// maxRulesText is the most of the rules page the context carries; a longer one is cut there, with a word.
+const maxRulesText = 16 << 10
+
+// rulesText is the text of the rules page as written, blocks without their embeds resolved (B-6), between markers.
+func rulesText(ctx context.Context, database *db.DB, rules db.Object, viewer string) string {
+	blocks, err := database.Blocks(ctx, rules.ID, viewer)
+	if err != nil {
+		return "(the rules page cannot be read now)\n"
+	}
+	raw, err := transfer.PageMarkdown(&db.Node{Object: rules, Blocks: blocks})
+	if err != nil {
+		return "(the rules page cannot be read now)\n"
+	}
+	text := string(raw)
+	if len(text) > maxRulesText {
+		cut := maxRulesText
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut] + "\n[… the rules page goes on: read it whole]\n"
+	}
+	return "--- rules page, as written ---\n" + strings.TrimRight(text, "\n") + "\n--- end of the rules page ---\n"
 }

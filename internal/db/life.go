@@ -511,8 +511,8 @@ func insertBlock(ctx context.Context, tx pgx.Tx, page, after, body, viewer, orig
 	return id, err
 }
 
-// redirectAll rewrites every reference to the old addresses, in every page, and keeps a redirect for each, so links and
-// bookmarks to the old place keep working (ADR-22). It runs in the transaction of the move.
+// redirectAll rewrites every reference to the old addresses, in every page but those of archived spaces and the rules
+// page, and keeps a redirect for each, so links and bookmarks to the old place keep working (ADR-22, B-6). It runs in the transaction of the move.
 func redirectAll(ctx context.Context, tx pgx.Tx, page, viewer string, moved map[string]Address) error {
 	if len(moved) == 0 {
 		return nil
@@ -522,7 +522,10 @@ func redirectAll(ctx context.Context, tx pgx.Tx, page, viewer string, moved map[
 		targets = append(targets, t)
 	}
 	slices.Sort(targets)
-	rows, err := tx.Query(ctx, "SELECT DISTINCT page, block FROM refs WHERE target = $1 AND target_block = ANY($2) ORDER BY 1, 2", page, targets)
+	// A page in an archived space and the rules page keep their text: archived is read only, and nobody writes into the
+	// rules page in passing, under the name of whoever moved the block (B-6). The redirect leads them to the new place.
+	rows, err := tx.Query(ctx, `SELECT DISTINCT r.page, r.block FROM refs r WHERE r.target = $1 AND r.target_block = ANY($2)
+		AND NOT object_archived(r.page) AND r.page IS DISTINCT FROM (SELECT rules_page FROM agent_settings) ORDER BY 1, 2`, page, targets)
 	if err != nil {
 		return err
 	}
@@ -924,7 +927,7 @@ func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, 
 		return "", err
 	}
 	// An agent publishes no block by moving it to a page more people read (B-5).
-	if err := db.agentNoWider(ctx, pageID, toPage); err != nil {
+	if err := db.agentNoWider(ctx, []string{pageID}, toPage, false); err != nil {
 		return "", err
 	}
 	var id string

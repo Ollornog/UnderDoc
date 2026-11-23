@@ -352,15 +352,19 @@ func (db *DB) SetEntries(ctx context.Context, objectID string, actor Actor, kind
 	if !known && len(keys) > 0 {
 		return ErrNotFound
 	}
-	// Whoever manages gives and opens up only what they hold themselves (T-34): the preset Members gives no delete.
-	old, err := entriesOf(ctx, db.pool, objectID, kind, who)
-	if err != nil {
-		return err
-	}
-	if err := db.mayOpenUp(ctx, o, actor, openedBy(old, actions, subgroups)); err != nil {
-		return err
-	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		// One change of the entries of an object at a time: what it reads to decide is what it replaces (B-6).
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
+			return err
+		}
+		// Whoever manages gives and opens up only what they hold themselves (T-34): the preset Members gives no delete.
+		old, err := entriesOf(ctx, tx, objectID, kind, who)
+		if err != nil {
+			return err
+		}
+		if err := db.mayOpenUp(ctx, tx, o, actor, openedBy(old, actions, subgroups)); err != nil {
+			return err
+		}
 		return setEntries(ctx, tx, objectID, kind, who, keys, actions, subgroups, actor.ID)
 	})
 }
@@ -412,7 +416,7 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 	// Restoring takes every entry from above again, which may open up any action: only whoever holds all of them here
 	// does it (T-34). Breaking copies what holds and never opens up anything.
 	if inherit {
-		if err := db.mayOpenUp(ctx, o, actor, Actions); err != nil {
+		if err := db.mayOpenUp(ctx, db.pool, o, actor, Actions); err != nil {
 			return err
 		}
 	}
