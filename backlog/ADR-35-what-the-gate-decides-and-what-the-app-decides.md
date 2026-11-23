@@ -97,6 +97,17 @@ The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 
 - Clear names in the interface: "group" for both kinds, with a mark for where each comes from. There are no "teams" next to
   groups.
 
+**After review by the team wiki (2026-11-23):**
+
+- The approver of `reset_access` is UnderDoc's admin role in the gate. It never stands in the account API's allowlist of
+  roles.
+- **Accounts that exist before UnderDoc:** the account API only sees accounts the app made itself. Existing ones are taken
+  over by the operator with the gate's `adopt` (account API, stage B). This belongs to the move of the team wiki.
+- A person is bound to their `Remote-Id` at first contact. When a group admin invites someone, the profile is prepared with
+  that ID, so the invited person is in the group at once.
+- The test channel is opened by a role of the gate (for example `test`).
+- The private area per person stays as in ADR-29.
+
 ## Consequences
 
 - ADR-32 uses the gate's Go client for the gate token and the headers, pinned by commit, and binds persons by `Remote-Id`.

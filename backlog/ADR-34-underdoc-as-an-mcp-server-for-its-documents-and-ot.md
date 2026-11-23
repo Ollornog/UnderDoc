@@ -98,6 +98,17 @@ Proposed by the team wiki and UnderDoc on 2026-11-23. The maintainer decides.
 - **No MCP resources and no prompts** for now.
 - **Without an AI model on the server:** the MCP server needs no model and works without the AI drawer (M-13).
 
+**After review by the team wiki (2026-11-23):**
+
+- A search result is compact: one line per hit with where it is, a short excerpt, and the total count at the end.
+- The team wiki's search on Meilisearch, built along M-12, is a reference:
+  - one document per section, distinct per object, title and heading also whole;
+  - codes in a field of their own;
+  - rights as a filter on the space, then the exceptions per folder;
+  - PDF pages as documents of their own, the source as a facet;
+  - sync per space when its state changes, then the old state is removed by filter.
+  - Measurably better: word parts, typos and the jump to the section.
+
 ## Consequences
 
 - UnderDoc carries no OAuth code. The operator lists UnderDoc's address as an OAuth resource in the gate's configuration,

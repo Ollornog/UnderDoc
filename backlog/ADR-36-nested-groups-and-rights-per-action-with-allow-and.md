@@ -34,6 +34,8 @@ and administrators still holds.
 - A **local group** contains persons, other local groups and roles taken over from the gate. A role from the gate can be a
   member of a local group, but it does not nest itself (ADR-35).
 - Membership is passed down: whoever is in a group inside group G is also in G. A cycle is refused when it is made.
+- A right granted to a group holds for its subgroups by default. The rights dialog shows a box "with subgroups", ticked and
+  removable.
 - A local group has admins. They manage the group and the groups inside it. Administrators of the tenant manage all groups.
 - The interface says "group" for both kinds and marks where each comes from (ADR-35).
 
