@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Repokit 0.59.1 (with 0.58.0): `fc-pin` keeps one rolling pin PR `pin/underdoc` in the deployment repository and closes the old
+  per-commit ones. Dependabot's updates of `deploy/compose.yml` (Mailpit, Gotenberg) now merge by themselves:
+  `docker_compose` joined the ecosystems of the auto-merge, because the required check runs `scripts/check-services.sh`. New `nightly-repeat.yml` runs `ci.yml` (now with
+  `workflow_call`) twice a night on `main`; a result that differs between the runs is red (flaky). The fast pre-push
+  replaces "check.sh twice green" before each push.
+
 ### Added
 
 - Acceptance test for Mailpit in `scripts/check-services.sh` ([docs/services.md](docs/services.md)): a mail sent over

@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:   # called twice a night by nightly-repeat.yml (repeatability)
 
 permissions:
   contents: read
