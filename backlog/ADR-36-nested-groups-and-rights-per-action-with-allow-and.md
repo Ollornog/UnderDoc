@@ -57,7 +57,7 @@ and administrators still holds.
 
 ### Which entry wins
 
-This is the proposal of UnderDoc; the maintainer can correct it.
+Confirmed by the maintainer on 2026-11-23.
 
 1. For each action, UnderDoc looks for the **nearest object** that has an explicit allow or deny for the person or for any
    group they belong to. It starts at the object itself and walks up.
@@ -73,6 +73,28 @@ This is the order most people know from file servers: what is set closer wins, a
 - **Administrators** manage rights, not content (ADR-29). Deny cannot stop them from managing rights; their access to
   content follows the same rules as everyone else's.
 - **Private stays private** (ADR-29). No right can be granted or denied there.
+
+### The built-in group Agents
+
+Confirmed by the maintainer on 2026-11-23, sharpened with the gate.
+
+- **Who is in it:** every request whose sign-in is not an interactive `session`, which means `oauth`, `apikey` and
+  `app-password`. A missing or unknown value counts as an agent (fail closed). The value is taken only from the result the
+  gate's Go client has checked, never raw from the header (ADR-35).
+- **Service accounts** (`Remote-Kind: service`) are a case of their own. They get what is granted to them (ADR-35), not this
+  group.
+- **A deny on Agents is a ceiling, not an entry in the order above.** After the normal evaluation, an action denied for
+  Agents on the object or above it is refused, even if the person is the owner or holds an allow through any other way.
+  Test: owner + `oauth` + deny on Agents → refused.
+- **What agents may by default:** everything their person may, except:
+  - manage rights
+  - share (links)
+  - delete for good
+  - read passwords (ADR-7)
+
+  Undoable work stays allowed: read, create, write, comment and moving to the trash.
+- **A space can be set to "no agents"**, which is a deny on read for Agents there.
+- **Every person can limit their own agents**, for example to read only.
 
 ### Everywhere the same
 
