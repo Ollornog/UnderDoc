@@ -40,7 +40,13 @@ func (t *mcpTools) context(_ context.Context, _ *mcp.CallToolRequest, in context
 	if len(user.Groups) > 0 {
 		fmt.Fprintf(&b, ", groups of the gate: %s", strings.Join(user.Groups, ", "))
 	}
-	b.WriteString(".\nAs an agent you never manage rights, make share links, delete for good or read passwords.\n")
+	b.WriteString(".\nAs an agent you never manage rights, make share links, delete for good or read passwords")
+	if user.Admin || user.Spaces {
+		b.WriteString("; you may make spaces at the top")
+	} else {
+		b.WriteString(", and make no space at the top")
+	}
+	b.WriteString(".\n")
 	if limit, err := database.AgentLimit(ctx, user.ID); err == nil {
 		fmt.Fprintf(&b, "Your person lets agents: %s (and only where they may themselves).\n", strings.Join(limit, ", "))
 	}

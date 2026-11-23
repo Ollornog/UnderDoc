@@ -16,9 +16,10 @@ import (
 // The MCP server (ADR-34, docs/mcp.md), through the SDK's own client, signed in as the gate's proxy passes an agent on:
 // the same Remote headers as a browser, with Remote-Auth: oauth.
 
-// annasAgent is a request of anna's agent through the gate (OAuth), bobsAgent one of bob's.
+// annasAgent is a request of anna's agent through the gate (OAuth), bobsAgent one of bob's. Anna administers and holds
+// the role to create spaces, which her agent never does (B-4).
 var (
-	annasAgent = merged2(gateHeaders, map[string]string{"Remote-Auth": "oauth"})
+	annasAgent = merged2(gateHeaders, map[string]string{"Remote-Auth": "oauth", "Remote-Groups": "ops,underdoc-admin,underdoc-spaces"})
 	bobsAgent  = merged2(plain, map[string]string{"Remote-Auth": "oauth"})
 )
 
@@ -114,7 +115,7 @@ func TestMCPReadAndSearch(t *testing.T) {
 	}
 
 	got, failed := call(t, session, "context", nil)
-	if failed || !strings.Contains(got, "You act for Anna Berg (anna)") || !strings.Contains(got, "- [collection] Team underdoc:"+team.ID) ||
+	if failed || !strings.Contains(got, "You act for Anna Berg (anna)") || !strings.Contains(got, "make no space at the top") || !strings.Contains(got, "- [collection] Team underdoc:"+team.ID) ||
 		!strings.Contains(got, "  - [page] Kassen underdoc:"+page.ID+" (reference)") || !strings.Contains(got, "Rules page: none yet") {
 		t.Errorf("context:\n%s", got)
 	}

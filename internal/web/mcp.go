@@ -123,8 +123,8 @@ func (h *handler) mcpHandler() http.Handler {
 			return
 		}
 		// Every call through MCP is an agent's (ADR-34, ADR-36): the connection of each request learns it from the
-		// context, and an agent administers nothing.
-		user.MCP, user.Admin, user.AdminRole = true, false, false
+		// context, and an agent administers nothing and makes no space, whatever roles the gate gives its person (B-4).
+		user.MCP, user.Admin, user.AdminRole, user.Spaces = true, false, false, false
 		streamable.ServeHTTP(w, r.WithContext(account.With(r.Context(), user)))
 	}))
 }

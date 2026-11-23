@@ -118,3 +118,18 @@ Proposed by the team wiki and UnderDoc on 2026-11-23. Accepted by the maintainer
 - The search of M-12 has to return sections and rank sources together.
 - The tool set is small enough to keep in step with the browser. A tool that the browser cannot do is a sign of a missing
   feature in the interface.
+- **Built on 2026-11-23, part 1** ([docs/mcp.md](../docs/mcp.md), T-21, T-24). Settled in the build:
+  - The official Go SDK (`github.com/modelcontextprotocol/go-sdk`, v1.8.0, MIT and Apache-2.0) carries the protocol, in
+    its stateless mode with JSON answers: each request makes its own server, so every tool sees only the person, tenant
+    and connection of that request. The path is fixed, `/mcp`; the gate serves `/.well-known/oauth-protected-resource`
+    for it, so UnderDoc has neither a handler nor a setting for OAuth.
+  - Every call through MCP is an agent's, also a browser session sent there (`account.User.MCP`), and makes no space
+    and administers nothing. A browser's cross-site request is refused, as the gate signs browsers in with a cookie.
+  - The addresses are `underdoc:<id>` with the fragments of ADR-18, `#page=<n>` for a page of a file and
+    `underdoc:folder/<id>` for the folder source, so other sources add schemes of their own (T-31).
+  - The rules page is the oldest page of the kind agent-notes tagged `rules` the person reads; no setting.
+  - The version to write against is the newest change of the page's blocks; moving a block inside the page makes none.
+  - The search of M-12 already kept one record per section, codes in fields of their own, the rights as a filter and
+    one hit per object. New: the pages of a PDF are records of their own; the type stands in for the source facet until
+    other sources come (T-31). A word takes a typing error from four letters on (T-24).
+  - Automatic sections (T-30) do not exist yet, so `read` has no count of them.
