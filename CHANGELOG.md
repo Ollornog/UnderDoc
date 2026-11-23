@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **The rights of ADR-36 in the workspace** (T-26, [docs/rights.md](docs/rights.md#in-the-workspace)): the rights dialog
+  shows the presets first and, under **Actions**, the seven actions of a holder, each inherit, allow or deny, with the
+  box **with subgroups** for a group; a changed preset shows as Custom with what it allows and denies; **No agents here**
+  denies read to Agents, and a deny on Agents from above is named. The tab Rights shows each group with the groups it
+  is in and those inside it, its admins and the forms to put a group inside, make a group admin or a new group inside,
+  for whoever manages it; **My agents** narrows what one's own agents may do; the access check answers, also for an
+  agent, each action with ✅ or ❌, the deciding entry and the object it is on. Browser tests for both.
+
 ### Changed
 
 - Repokit 0.63.0 (with 0.61.0 and 0.62.0): the fast pre-push vets Go packages with the build tags of

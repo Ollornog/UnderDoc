@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rights (ADR-29, docs/rights.md): the tab Rights of nav1 and the rights dialog of a document, folder or file. The server
+// Rights (ADR-29, ADR-36, docs/rights.md): the tab Rights of nav1 and the rights dialog of a document, folder or file. The server
 // decides who may do what; this script only shows it and sends what a person changes. The workspace (demo.js) draws the
 // tab through UDRights.nav3 and opens the dialog through UDRights.open; this script keeps what it loaded and asks the
 // workspace to draw again when something arrives.
@@ -9,8 +9,9 @@ window.UDRights = (() => {
   const ACTIONS = ["read", "comment", "create", "write", "delete", "share", "manage"];
   const ACTIONWORD = { read: "Read", comment: "Comment", create: "Create", write: "Write", delete: "Delete", share: "Share", manage: "Manage" };
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
+  const VALUES = [["", "Inherit"], ["allow", "Allow"], ["deny", "Deny"]];
   const VIA = { owner: "owns it", "owner above": "owns what lies above", person: "as a person", group: "through a group", tenant: "as everyone", link: "through a link" };
-  const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
+  const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, agents: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
   let redraw = () => {};
   let me = { id: "", admin: false };
 
@@ -68,8 +69,24 @@ window.UDRights = (() => {
   };
   const X_ICON = '<svg data-icon-lu="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
+  // roleSelect picks a preset (ADR-36): the roles of ADR-29 as sets of actions. Entries that are no preset show as Custom,
+  // which cannot be picked: it comes from the single actions.
   const roleSelect = (name, current, disabled) =>
-    `<select class="select" name="${name}" data-rsel="${name}"${disabled ? " disabled" : ""} aria-label="Role">${ROLES.map((r) => `<option value="${r[0]}"${r[0] === current ? " selected" : ""}>${r[1]}</option>`).join("")}</select>`;
+    `<select class="select" name="${name}" data-rsel="${name}"${disabled ? " disabled" : ""} aria-label="Role">${current === "custom" ? '<option value="custom" selected disabled>Custom</option>' : ""}${ROLES.map((r) => `<option value="${r[0]}"${r[0] === current ? " selected" : ""}>${r[1]}</option>`).join("")}</select>`;
+  // summary says entries in words: what is allowed and what is denied.
+  const summary = (actions) => {
+    const a = ACTIONS.filter((x) => (actions || {})[x] === "allow").map((x) => ACTIONWORD[x]);
+    const d = ACTIONS.filter((x) => (actions || {})[x] === "deny").map((x) => ACTIONWORD[x]);
+    return [a.length ? `✅ ${a.join(", ")}` : "", d.length ? `❌ ${d.join(", ")}` : ""].filter(Boolean).join(" · ");
+  };
+  // actionsForm sets each action of one holder to inherit, allow or deny, with the box "with subgroups" for a group.
+  const actionsForm = (g) =>
+    `<form class="grid gap-2" data-rform="actions" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}"><div class="grid grid-cols-2 gap-2">${ACTIONS.map(
+      (a) =>
+        `<label class="label" for="udact-${esc(g.kind)}-${esc(g.who)}-${a}">${ACTIONWORD[a]}</label><select class="select" id="udact-${esc(g.kind)}-${esc(g.who)}-${a}" name="${a}" data-action="${a}">${VALUES.filter((v) => g.kind !== "agents" || v[0] !== "allow")
+          .map((v) => `<option value="${v[0]}"${((g.actions || {})[a] || "") === v[0] ? " selected" : ""}>${v[1]}</option>`)
+          .join("")}</select>`,
+    ).join("")}</div>${g.kind === "group" ? `<label class="label"><input class="input" type="checkbox" name="subgroups"${g.subgroups === false ? "" : " checked"}> With subgroups</label>` : ""}<div><button class="btn" data-variant="outline" data-size="sm" type="submit">Save the actions</button></div></form>`;
   // whoSelect picks everyone, a group or a person in one combobox, grouped, an icon per kind (C22's rights block). Its
   // behaviour is Basecoat's core and combobox alone, which take over nothing but .combobox, so the menus the workspace
   // draws stay the app's. The choice is the hidden input named name; everyone is chosen until someone else is, as the
@@ -114,7 +131,7 @@ window.UDRights = (() => {
 
   // --- The tab Rights
 
-  const SECTIONS = [["groups", "Groups", "user"], ["users", "Users", "user"], ["links", "Share links", "link"], ["check", "Access check", "search"], ["log", "Log", "list"]];
+  const SECTIONS = [["groups", "Groups", "user"], ["users", "Users", "user"], ["links", "Share links", "link"], ["check", "Access check", "search"], ["agents", "My agents", "ai"], ["log", "Log", "list"]];
 
   function nav3(sec, user) {
     me = user || me;
@@ -124,26 +141,55 @@ window.UDRights = (() => {
     else if (sec === "users") body = usersHtml();
     else if (sec === "links") body = linksHtml();
     else if (sec === "log") body = logHtml();
+    else if (sec === "agents") body = agentsHtml();
     else body = checkHtml();
     return `<div><aside class="card gap-3 px-4 py-4" data-rights="${esc(sec)}">${problem()}${body}</aside></div>`;
   }
 
+  // groupsHtml lists the groups (ADR-36): local ones contain persons, groups and groups from the sign-in; whoever manages a
+  // group (administrators, its group admins and those of a group above it) changes its members, groups and admins and
+  // makes groups inside it.
   function groupsHtml() {
     load("groups", "/api/groups");
     if (st.groups === null) return hint("Loading…");
+    const names = Object.fromEntries((st.people ? st.people.groups : st.groups).map((g) => [g.id, g.name]));
     const rows = st.groups.map((g) => {
       const open = st.members[g.id];
       const local = g.source === "local";
-      const list = open ? open.map((m) => entry("", esc(m.name), esc(m.login), me.admin && local ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "")).join("") : "";
-      const add = open && me.admin && local ? `<form class="flex items-center gap-2" data-rform="member" data-g="${esc(g.id)}">${personSelect("account", "")}${submit("Add")}</form>` : "";
-      return entry(`data-group="${esc(g.name)}"`, esc(g.name), `${g.members} ${g.members === 1 ? "member" : "members"} · ${local ? "local" : "from the sign-in, read only"}${g.description ? " · " + esc(g.description) : ""}`,
-        small(`data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}"`, "Members") + (me.admin && local ? small(`data-ract="delgroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}"`, "Delete") : "")) +
-        (open ? `<div class="flex flex-col gap-2 ps-4">${list ? entries("", list) : hint("Nobody yet.")}${add}</div>` : "");
+      const may = g.admin && local;
+      let detail = "";
+      if (open) {
+        const people = open.members.map((m) => entry("", esc(m.name), esc(m.login), may ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "")).join("");
+        const inner = open.groups.map((x) => entry(`data-subgroup="${esc(x.name)}"`, `${KIND_ICON.group} ${esc(x.name)}`, x.source === "local" ? "group inside" : "from the sign-in, inside", may ? small(`data-ract="ungroup" data-g="${esc(g.id)}" data-id="${esc(x.id)}"`, "Take out") : "")).join("");
+        const admins = open.admins.map((m) => entry("", esc(m.name), "group admin", may ? small(`data-ract="unadmin" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take back") : "")).join("");
+        const others = (st.people ? st.people.groups : []).filter((x) => x.id !== g.id && !open.groups.some((y) => y.id === x.id));
+        const forms = may
+          ? `<form class="flex flex-wrap items-center gap-2" data-rform="member" data-g="${esc(g.id)}">${personSelect("account", "")}${submit("Add")}</form>
+            <form class="flex flex-wrap items-center gap-2" data-rform="subgroup" data-g="${esc(g.id)}"><select class="select" name="group" aria-label="Group to put inside">${others.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}${x.source === "local" ? "" : " (from the sign-in)"}</option>`).join("")}</select>${submit("Put inside")}</form>
+            <form class="flex flex-wrap items-center gap-2" data-rform="groupadmin" data-g="${esc(g.id)}">${personSelect("account", "")}${submit("Make group admin")}</form>
+            <form class="flex flex-wrap items-center gap-2" data-rform="group" data-parent="${esc(g.id)}"><input class="input" name="name" maxlength="200" required placeholder="New group inside" aria-label="Name of the new group inside"><input type="hidden" name="description" value="">${submit("Make")}</form>`
+          : "";
+        detail = `<div class="flex flex-col gap-2 ps-4" data-group-detail="${esc(g.name)}">${people ? entries("", people) : hint("No person directly.")}${inner ? entries("data-subgroups", inner) : ""}${admins ? entries("data-admins", admins) : hint("No group admin.")}${forms}</div>`;
+      }
+      const inside = (g.parents || []).map((id) => names[id] || id);
+      const sub = `${g.members} ${g.members === 1 ? "person" : "persons"}${g.groups ? ` · ${g.groups} ${g.groups === 1 ? "group" : "groups"} inside` : ""} · ${local ? "local" : "from the sign-in, read only"}${inside.length ? " · inside " + inside.map(esc).join(", ") : ""}${g.admin && local ? " · ✓ you manage it" : ""}${g.description ? " · " + esc(g.description) : ""}`;
+      return entry(`data-group="${esc(g.name)}"`, esc(g.name), sub,
+        small(`data-ract="members" data-g="${esc(g.id)}" aria-expanded="${!!open}"`, "Members") + (may ? small(`data-ract="delgroup" data-g="${esc(g.id)}" data-name="${esc(g.name)}"`, "Delete") : "")) + detail;
     });
     const make = me.admin
       ? `<form class="grid gap-2" data-rform="group">${head("New group")}<input class="input" name="name" maxlength="200" required placeholder="Name" aria-label="Name of the group"><input class="input" name="description" maxlength="1000" placeholder="What it is for (optional)" aria-label="Description"><div>${submit("Make the group")}</div></form>`
       : "";
-    return `${head("Groups")}${hint(me.admin ? "Every group of this workspace. Groups from the sign-in come with it and can only be read here." : "The groups you belong to.")}${rows.length ? entries("", rows.join("")) : hint("No group yet.")}${make}`;
+    return `${head("Groups")}${hint(me.admin ? "Every group of this workspace. A group holds persons and other groups, and what is granted to it holds for the groups inside it. Groups from the sign-in come with it and can only be read here." : "The groups you belong to, and those you manage as a group admin.")}${rows.length ? entries("", rows.join("")) : hint("No group yet.")}${make}`;
+  }
+
+  // agentsHtml says what one's own agents may do (ADR-36): every sign-in that is not a session, such as an assistant with
+  // a token. Agents never manage rights, share, delete for good or read passwords; here each person narrows the rest.
+  function agentsHtml() {
+    load("agents", "/api/me/agents");
+    if (st.agents === null) return hint("Loading…");
+    return `${head("My agents")}${hint("Agents act for you without a session of yours, such as an assistant signed in with a token. They never manage rights, share, delete for good or read passwords. Narrow here what else they may do.")}<form class="grid gap-2" data-rform="agents">${st.agents.possible
+      .map((a) => `<label class="label"><input class="input" type="checkbox" name="act" value="${esc(a)}"${st.agents.actions.includes(a) ? " checked" : ""}> ${esc(ACTIONWORD[a] || a)}</label>`)
+      .join("")}<div>${submit("Save")}</div></form>`;
   }
 
   function usersHtml() {
@@ -235,9 +281,9 @@ window.UDRights = (() => {
     const who = st.who
       ? `<div class="flex flex-col gap-2" data-who>${st.who.private ? hint(`Private: only ${esc(st.who.ownerName)} sees it.`) : `${hint(`Owner: ${esc(st.who.ownerName)}${st.who.inherit ? "" : " · takes no roles from above"}`)}${grantList(st.who.own, false)}${st.who.inherited.length ? `<h4 class="text-sm font-medium">From above</h4>${grantList(st.who.inherited, true)}` : ""}`}</div>`
       : "";
-    const check = st.check ? `<p class="text-muted-foreground text-xs" data-check>${st.check.role ? `Role: ${ROLEWORD[st.check.role] || esc(st.check.role)}` : "No role: sees nothing of it"}</p>${decisions(st.check.actions)}` : "";
+    const check = st.check ? `<p class="text-muted-foreground text-xs" data-check>${st.check.agent ? "As an agent · " : ""}${st.check.role ? `Role: ${ROLEWORD[st.check.role] || esc(st.check.role)}` : "No role: sees nothing of it"}</p>${decisions(st.check.actions)}` : "";
     return `${head("What may someone do")}${forWhom}${held}
-      ${head("Who sees something")}<form class="grid gap-2" data-rform="who"><input class="input" name="object" required placeholder="Address or ID, such as /o/7k2m9q4x1c" aria-label="Address of the object">${me.admin ? personSelect("account", me.id) : ""}<div>${submit("Check")}</div></form>${who}${check}`;
+      ${head("Who sees something")}<form class="grid gap-2" data-rform="who"><input class="input" name="object" required placeholder="Address or ID, such as /o/7k2m9q4x1c" aria-label="Address of the object">${me.admin ? personSelect("account", me.id) : ""}<label class="label"><input class="input" type="checkbox" name="agent"> As their agent</label><div>${submit("Check")}</div></form>${who}${check}`;
   }
 
   // decisions shows, for each action, whether it is allowed and what decided it, with where that comes from (ADR-36), so
@@ -251,18 +297,18 @@ window.UDRights = (() => {
       ? `<div class="table-container"><table class="table" data-decisions><thead><tr><th>Action</th><th></th><th>Decided by</th></tr></thead><tbody>${list.map((d) => `<tr data-decision="${esc(d.action)}"><td>${esc(ACTIONWORD[d.action] || d.action)}</td><td>${d.allowed ? "✅ allowed" : "❌ denied"}</td><td>${decided(d)}</td></tr>`).join("")}</tbody></table></div>`
       : "";
 
-  const grantName = (g) => (g.kind === "tenant" ? "Everyone" : g.kind === "group" ? `Group ${esc(g.name)}` : esc(g.name));
+  const grantName = (g) => (g.kind === "tenant" ? "Everyone" : g.kind === "group" ? `Group ${esc(g.name)}` : g.kind === "agents" ? "Agents" : esc(g.name));
   // grantList lists roles as entries; a role from above names where it comes from and the role as one split badge.
   const grantList = (list, from) =>
     list.length
-      ? entries("", list.map((g) => (from ? entry("", kindName(g), "", fromAbove(g)) : entry("", kindName(g), ROLEWORD[g.role] || esc(g.role), ""))).join(""))
+      ? entries("", list.map((g) => (from ? entry("", kindName(g), g.role === "custom" ? summary(g.actions) : "", fromAbove(g)) : entry("", kindName(g), g.role === "custom" ? summary(g.actions) : ROLEWORD[g.role] || esc(g.role), ""))).join(""))
       : hint("Nothing granted here.");
   const kindName = (g) => `<span class="inline-flex items-center gap-2">${KIND_ICON[g.kind] || ""}${g.name === undefined ? shareName(g) : grantName(g)}</span>`;
-  const fromAbove = (g) => `<span class="badge-split"><span>from above</span><span>${ROLEWORD[g.role] || esc(g.role)}</span></span>`;
+  const fromAbove = (g) => `<span class="badge-split"><span>from above</span><span>${ROLEWORD[g.role] || esc(g.role)}</span></span>${g.role === "custom" ? ` <span class="text-muted-foreground text-xs">${summary(g.actions)}</span>` : ""}`;
 
   // --- The rights dialog
 
-  const dlg = { mode: "rights", id: "", title: "", rights: null, links: null, shareables: null, made: "" };
+  const dlg = { mode: "rights", id: "", title: "", rights: null, links: null, shareables: null, made: "", actions: {} };
   // nw is the dialog that makes a collection at the top: its name, and with whom it is shared from the start. It is its
   // maker's alone unless they add someone here (ADR-29, 2026-11-19).
   const nw = { title: "", url: "", onMade: null, shares: [], busy: false, done: null };
@@ -288,6 +334,7 @@ window.UDRights = (() => {
     dlg.title = plain.value;
     dlg.rights = dlg.links = dlg.shareables = null;
     dlg.made = "";
+    dlg.actions = {};
     st.error = "";
     const d = dialogEl();
     drawDialog();
@@ -335,24 +382,35 @@ window.UDRights = (() => {
         ? `${perFolder ? '<p class="text-sm text-muted-foreground" data-samba-per-folder>Samba knows rights per folder only: roles granted on this file hold in the web only, and the share shows it as its folder does.</p>' : ""}${sm.path ? `<p class="text-sm" data-samba-path>On the share: <code>${esc(sm.path)}</code></p>` : ""}`
         : "";
       const sambaRoot = sm && sm.root !== undefined && sm.root !== null ? fact("data-samba-root", sm.root ? "Shared over Samba" : "Not shared over Samba", "", may ? small(`data-ract="samba" data-on="${sm.root ? "0" : "1"}"`, sm.root ? "Stop sharing over Samba" : "Share over Samba", true) : "") : "";
-      const own = r.own.length
-        ? `<div class="table-container"><table class="table" data-grants><tbody>${r.own
-            .map(
-              (g) =>
-                `<tr data-grant="${esc(g.kind)}:${esc(g.who)}"><td>${kindName(g)}</td><td class="w-40">${may ? `<form data-rform="role" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}">${roleSelect("role", g.role)}</form>` : ROLEWORD[g.role]}</td><td class="w-10 text-end">${may ? takeBack(`data-ract="ungrant" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}"`, grantName(g)) : ""}</td></tr>`,
-            )
+      // Each holder shows its preset; Actions opens its seven actions, each inherit, allow or deny (ADR-36).
+      const holders = r.own.filter((g) => g.kind !== "agents");
+      const own = holders.length
+        ? `<div class="table-container"><table class="table" data-grants><tbody>${holders
+            .map((g) => {
+              const key = `${g.kind}:${g.who}`;
+              const open = !!dlg.actions[key];
+              const row = `<tr data-grant="${esc(key)}"><td>${kindName(g)}${g.role === "custom" ? `<p class="text-muted-foreground text-xs" data-summary>${summary(g.actions)}</p>` : ""}${g.kind === "group" && g.subgroups === false ? '<p class="text-muted-foreground text-xs">without subgroups</p>' : ""}</td><td class="w-40">${may ? `<form data-rform="role" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}">${roleSelect("role", g.role)}</form>` : ROLEWORD[g.role] || esc(g.role)}</td><td class="w-28 text-end">${may ? small(`data-ract="actions" data-key="${esc(key)}" aria-expanded="${open}"`, "Actions", true) : ""}${may ? takeBack(`data-ract="ungrant" data-kind="${esc(g.kind)}" data-who="${esc(g.who)}"`, grantName(g)) : ""}</td></tr>`;
+              return row + (open && may ? `<tr data-actions-of="${esc(key)}"><td colspan="3">${actionsForm(g)}</td></tr>` : "");
+            })
             .join("")}</tbody></table></div>`
         : '<p class="text-sm text-muted-foreground">Nothing granted here.</p>';
+      // Agents (ADR-36): every sign-in that is not a session. No agents is a deny on read for them here; a deny above
+      // holds as a ceiling whatever breaks the inheritance.
+      const agentsHere = r.own.find((g) => g.kind === "agents");
+      const noAgents = !!(agentsHere && agentsHere.actions.read === "deny");
+      const agentsAbove = (r.agents || []).filter((g) => g.actions.read === "deny");
+      const agentsSub = agentsAbove.length ? "No agents from above" : agentsHere ? `Denied here: ${summary(agentsHere.actions)}` : "As their persons may, but never manage, share, delete for good or read passwords";
+      const agents = fact("data-agents", noAgents ? "No agents here" : "Agents", agentsSub, may ? small(`data-ract="noagents" data-on="${noAgents ? "0" : "1"}"`, noAgents ? "Let agents in" : "No agents here", true) : "");
       const add = may ? `<form class="flex flex-wrap items-center gap-2" data-rform="grant">${whoSelect("who", true)}${roleSelect("role", "read")}<button class="btn" data-size="sm" type="submit">Grant</button></form>` : "";
       const inherited = r.inherited.length
         ? `<div class="grid gap-2"><h3 class="text-sm font-medium">From above</h3><ul class="grid gap-2 text-sm" data-inherited>${r.inherited.map((g) => `<li class="flex flex-wrap items-center justify-between gap-2">${kindName(g)}${fromAbove(g)}</li>`).join("")}</ul></div>`
         : "";
       // The note after breaking stays out of the entry: an entry cuts its line short.
-      const broken = r.inherit ? "" : '<p class="text-muted-foreground text-sm">Breaking copied what held from above; take back here what shall not hold.</p>';
-      body = `<div class="item-group" role="list">${owner}${inherit}${sambaRoot}</div>${broken}${samba}<div class="grid gap-2"><h3 class="text-sm font-medium">Roles here</h3>${own}${add}</div>${inherited}${may ? linksPart() : ""}`;
+      const broken = r.inherit ? "" : '<p class="text-muted-foreground text-sm">Breaking copied what held from above, the nearest entry of each, allow or deny; take back here what shall not hold, and check the access check.</p>';
+      body = `<div class="item-group" role="list">${owner}${inherit}${agents}${sambaRoot}</div>${broken}${samba}<div class="grid gap-2"><h3 class="text-sm font-medium">Rights here</h3>${own}${add}</div>${inherited}${may ? linksPart() : ""}`;
     }
     // The section scrolls within the height C22 gives a dialog (the viewport less a margin), not one of its own.
-    d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Roles for people, groups and everyone, inherited by what lies below. Only allowing: narrower means breaking the inheritance.</p></header><section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
+    d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Presets for people, groups and everyone, single actions on request, inherited by what lies below. The nearest entry wins, and on one level deny beats allow.</p></header><section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
   }
 
   // --- A new collection, and with whom it is shared from the start
@@ -546,7 +604,7 @@ window.UDRights = (() => {
           redraw();
           return;
         }
-        api("GET", `/api/groups/${encodeURIComponent(a.g)}/members`).then(
+        api("GET", `/api/groups/${encodeURIComponent(a.g)}`).then(
           (m) => {
             st.members[a.g] = m;
             redraw();
@@ -606,12 +664,31 @@ window.UDRights = (() => {
       case "ungrant":
         act(() => api("PUT", objectPath("/grants"), { kind: a.kind, who: a.who, role: "" }));
         return;
+      case "actions":
+        if (dlg.actions[a.key]) delete dlg.actions[a.key];
+        else dlg.actions[a.key] = true;
+        drawDialog();
+        return;
+      case "noagents": {
+        const here = (dlg.rights.own.find((g) => g.kind === "agents") || { actions: {} }).actions;
+        const next = { ...here };
+        if (a.on === "1") next.read = "deny";
+        else delete next.read;
+        act(() => api("PUT", objectPath("/grants"), { kind: "agents", who: "", actions: next }));
+        return;
+      }
+      case "ungroup":
+        act(() => api("PUT", `/api/groups/${encodeURIComponent(a.g)}/groups/${encodeURIComponent(a.id)}`, { member: false }), "groups").then(() => refreshMembers(a.g));
+        return;
+      case "unadmin":
+        act(() => api("PUT", `/api/groups/${encodeURIComponent(a.g)}/admins/${encodeURIComponent(a.id)}`, { admin: false }), "groups").then(() => refreshMembers(a.g));
+        return;
     }
   });
 
   async function refreshMembers(groupID) {
     try {
-      st.members[groupID] = await api("GET", `/api/groups/${encodeURIComponent(groupID)}/members`);
+      st.members[groupID] = await api("GET", `/api/groups/${encodeURIComponent(groupID)}`);
     } catch (e) {
       st.error = e.message;
     }
@@ -676,8 +753,29 @@ window.UDRights = (() => {
         });
         return;
       case "group":
-        act(() => api("POST", "/api/groups", { name: v("name"), description: v("description") }), "groups", "people");
+        act(() => api("POST", "/api/groups", { name: v("name"), description: v("description"), parent: f.dataset.parent || "" }), "groups", "people").then(() => f.dataset.parent && refreshMembers(f.dataset.parent));
         return;
+      case "subgroup":
+        if (!v("group")) return;
+        act(() => api("PUT", `/api/groups/${encodeURIComponent(f.dataset.g)}/groups/${encodeURIComponent(v("group"))}`, { member: true }), "groups").then(() => refreshMembers(f.dataset.g));
+        return;
+      case "groupadmin":
+        act(() => api("PUT", `/api/groups/${encodeURIComponent(f.dataset.g)}/admins/${encodeURIComponent(v("account"))}`, { admin: true }), "groups").then(() => refreshMembers(f.dataset.g));
+        return;
+      case "agents": {
+        const actions = [...f.querySelectorAll("input[name=act]:checked")].map((x) => x.value);
+        act(() => api("PUT", "/api/me/agents", { actions }), "agents");
+        return;
+      }
+      case "actions": {
+        const actions = {};
+        f.querySelectorAll("select[data-action]").forEach((x) => {
+          if (x.value) actions[x.dataset.action] = x.value;
+        });
+        const subgroups = f.elements.subgroups ? f.elements.subgroups.checked : true;
+        act(() => api("PUT", objectPath("/grants"), { kind: f.dataset.kind, who: f.dataset.who, actions, subgroups }));
+        return;
+      }
       case "member":
         act(() => api("PUT", `/api/groups/${encodeURIComponent(f.dataset.g)}/members/${encodeURIComponent(v("account"))}`, { member: true }), "groups").then(() => refreshMembers(f.dataset.g));
         return;
@@ -691,7 +789,7 @@ window.UDRights = (() => {
         const objectId = idOf(v("object"));
         act(async () => {
           st.who = await api("GET", `/api/objects/${encodeURIComponent(objectId)}/rights`);
-          st.check = await api("GET", `/api/rights/check?object=${encodeURIComponent(objectId)}&account=${encodeURIComponent(v("account") || me.id)}`);
+          st.check = await api("GET", `/api/rights/check?object=${encodeURIComponent(objectId)}&account=${encodeURIComponent(v("account") || me.id)}${f.elements.agent && f.elements.agent.checked ? "&agent=1" : ""}`);
         });
         return;
       }
