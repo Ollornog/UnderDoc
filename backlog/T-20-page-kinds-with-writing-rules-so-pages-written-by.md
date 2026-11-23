@@ -26,4 +26,4 @@ Kinds share facts, they do not copy them:
 - **Small topics stay one page** with sections in this order: what it is for, the steps, the values, the background. Separate pages pay off only when several guides use one reference, or a guide grows long.
 - Write the reference first; a how-to only for tasks that come up often. Not every topic needs all four kinds.
 
-Starts with an ADR.
+Decided in ADR-33: the kind also sets the audience, agent documentation and reference or human documentation, and changes by agents to human documentation stay visible until a person checks them.

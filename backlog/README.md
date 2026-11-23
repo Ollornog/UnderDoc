@@ -36,6 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — noch keine Aufgaben
 
 ## Aufgaben
 
@@ -101,3 +102,4 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files
 * ☑ **[ADR-30](ADR-30-samba-share.md)** Samba: a working copy on disk, a watcher, and a companion that UnderDoc steers without root
 * ☑ **[ADR-31](ADR-31-spreadsheets-as-tables.md)** Spreadsheets as native tables: read by UnderDoc, embedded by a local ID, never quietly wrong
+* ☑ **[ADR-33](ADR-33-ai-documentation-and-human-documentation.md)** AI documentation and human documentation
