@@ -68,15 +68,32 @@ func TestOwnAdminsNeverArchiveThroughAParent(t *testing.T) {
 	if ok, err := db.MayArchiveGroup(ctx, Actor{ID: carl.ID}, g.ID); ok || err != nil {
 		t.Errorf("Support is offered to carl to archive: %v %v", ok, err)
 	}
-	// Dora administers only the group above: she may.
+	// Dora administers only the group above: since B-5 she does not archive either.
 	if err := db.SetGroupAdmin(ctx, admin, k.ID, dora.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, g.ID); err != nil {
+	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, g.ID); !errors.Is(err, ErrGroupArchiver) {
 		t.Errorf("the admin of the group above alone: %v", err)
 	}
+	// B-5, finding 2: carl takes himself out as the admin of Support, so he is only the admin of the group above; he
+	// still neither archives nor restores it, and an administrator's archive is not his to undo.
+	if err := db.SetGroupAdmin(ctx, Actor{ID: carl.ID}, g.ID, carl.ID, false); err != nil {
+		t.Fatalf("carl takes himself out: %v", err)
+	}
+	if err := db.ArchiveGroup(ctx, Actor{ID: carl.ID}, g.ID); !errors.Is(err, ErrGroupArchiver) {
+		t.Errorf("carl archives Support after taking himself out as its admin: %v", err)
+	}
+	if err := db.ArchiveGroup(ctx, admin, g.ID); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.RestoreGroup(ctx, Actor{ID: carl.ID}, g.ID); !errors.Is(err, ErrGroupArchiver) {
-		t.Errorf("carl restores his own Support: %v", err)
+		t.Errorf("carl restores Support: %v", err)
+	}
+	if err := db.RestoreGroup(asAgent(anna), admin, g.ID); !errors.Is(err, ErrAgent) {
+		t.Errorf("an agent of an administrator restores: %v", err)
+	}
+	if err := db.RestoreGroup(ctx, admin, g.ID); err != nil {
+		t.Errorf("an administrator restores: %v", err)
 	}
 }
 

@@ -77,15 +77,18 @@ func TestArchivingGroupsThroughTheAPI(t *testing.T) {
 		if g.ID == sales.ID && g.Archive {
 			t.Error("the list offers the admin of Sales to archive it")
 		}
-		if g.ID == inner.ID && !g.Archive {
-			t.Error("the admin of Sales may archive the group inside it")
+		if g.ID == inner.ID && g.Archive {
+			t.Error("the list offers the admin of Sales the group inside it (only administrators archive, B-5)")
 		}
 	}
 	if got := s.send(http.MethodDelete, "/api/groups/"+sales.ID, "", sameSite).Code; got != http.StatusConflict {
 		t.Errorf("Sales with Key accounts inside = %d", got)
 	}
-	if got := s.send(http.MethodDelete, "/api/groups/"+inner.ID, "", carl).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodDelete, "/api/groups/"+inner.ID, "", carl).Code; got != http.StatusForbidden {
 		t.Errorf("the admin of Sales archives the group inside it = %d", got)
+	}
+	if got := s.send(http.MethodDelete, "/api/groups/"+inner.ID, "", sameSite).Code; got != http.StatusNoContent {
+		t.Errorf("an administrator archives Key accounts = %d", got)
 	}
 	if got := s.send(http.MethodDelete, "/api/groups/"+sales.ID, "", sameSite).Code; got != http.StatusNoContent {
 		t.Errorf("an administrator archives Sales = %d", got)

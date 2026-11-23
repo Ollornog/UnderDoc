@@ -118,6 +118,17 @@ All notable changes to this project are documented in this file. The format foll
   bound. A link to comment or edit lends only the actions its maker still holds.
 - **Transferring the ownership** needs a browser session (T-34): never an agent, a service account, a key or an app
   password.
+- **Review of B-4 and the MCP core** (B-5, migration 038): the **rules page** for agents is named by an administrator
+  (`PUT /api/rules-page`, a button in the settings of a page of agent notes), no longer the oldest page tagged `rules`;
+  agents only read it and set or take away the tag nowhere. **Groups** are archived and restored by administrators only.
+  **Agents publish nothing**: no move or copy of a page, folder or block to where more people may read it, no space and
+  no space to the trash. The counts beside the hits come from the index again, from the checked hits only for a reader
+  whose tokens drop out; the check is one query; the MCP total says "100 or more" whenever the limit was reached. A
+  redirect names only a place the caller sees; `move` takes a bare block as `after`; the `curl` line of `upload_link`
+  quotes the link and names the local file by a placeholder; `create_page` with text is one transaction; an unchanged
+  write back with CRLF or blank lines changes nothing; a dry run finds its own new blocks; long texts without page
+  breaks come in pages of about 20 KB; the tree of `context` stops at 50 entries; purge checks before it asks the gate
+  for an approval, emptying the trash asks once.
 
 - **A word takes a typing error from four letters on** (T-24, [docs/search.md](docs/search.md)), in Meilisearch
   (`oneTypo: 4`) and OpenSearch (`AUTO:4,9`): measured with eight new questions of the kind `typo-short` in the German

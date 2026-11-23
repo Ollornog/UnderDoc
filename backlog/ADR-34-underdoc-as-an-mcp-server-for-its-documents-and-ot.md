@@ -146,3 +146,14 @@ Proposed by the team wiki and UnderDoc on 2026-11-23. Accepted by the maintainer
     holds its hash, and a program sends the file with one `PUT` below `/s/`, which the gate already leaves open for share
     links, so the gate needs no new rule. It is no share link: it reads nothing, works once and for one file.
   - Moving a block inside a page makes no version, so it carries no hint of AI (the rest of T-20 stays open).
+- **Review of the MCP core, 2026-11-23** (B-5, migration 038). Settled in the build:
+  - **The rules page is a setting of the administrators**, not the oldest page tagged `rules`: an agent could tag an
+    older page, or rewrite the page, and every agent would read its rules. Agents read the rules page only, the one
+    check refuses them everything else on it and below it, and no agent sets or takes away the tag `rules`.
+  - **No publishing by an agent:** a move or copy, of an object or a block, to where someone may read it who may not read
+    it now is refused; a person publishes. The check is conservative: every reader of the place it goes must read it
+    already.
+  - `create_page` with text is one transaction; a write back of an unchanged page with CRLF or blank lines around blocks
+    changes nothing; a dry run finds the blocks it would make; a redirect names only a place the caller sees; the total
+    of `search` says "100 or more" whenever the search reached its limit; the line for `curl` quotes the link and names
+    the local file by a placeholder; the tree of `context` stops at 50 entries; agents move no space to the trash.

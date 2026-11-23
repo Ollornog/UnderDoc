@@ -74,10 +74,10 @@ address is only ever looked up by its ID: nothing in it reaches a path on a disk
 
 | Tool | Does |
 |---|---|
-| `context` | Start here: who the agent acts for and what it may, the rules page, open hints, the tree to a depth (2 unless asked, at most 4, at most 200 entries; `under` for a part of it); archived spaces only with `archived` |
+| `context` | Start here: who the agent acts for and what it may, the rules page, open hints, the tree to a depth (2 unless asked, at most 4, at most 50 entries, then it points to `under` for a part of it, B-5); archived spaces only with `archived` |
 | `read` | One to five pages as Markdown with front matter, the marker before each block and the version to write against; or one block or section (`#b3`); a page of the folder source as its outline |
 | `used_in` | The pages that embed a page, block, section or part |
-| `search` | One search over the sections of pages and the pages of PDFs and other files: one line per hit with its address and section and an excerpt, at most 20 hits, the total at the end; error codes exactly; archived spaces only with `archived` or named with `in` |
+| `search` | One search over the sections of pages and the pages of PDFs and other files: one line per hit with its address and section and an excerpt, at most 20 hits, the total at the end ("100 or more" when the search reached its limit, also where the check left hits out, B-5); error codes exactly; archived spaces only with `archived` or named with `in` |
 | `write` | A page, or the section a block opens (`#b3`), as Markdown with the markers read gave, against the version read (`base`); `dry_run` answers the check and the diff without saving |
 | `replace` | One passage that stands once in the page, against `base`; `dry_run` as in `write` |
 | `set_front_matter` | The title, the tags or the kind of a page |
@@ -94,9 +94,18 @@ the agent reads: "Not found" never tells whether something exists that the perso
 
 ### The rules page
 
-The conventions of an instance are one page in the wiki (ADR-33, ADR-34): the oldest page of the kind `agent-notes`
-tagged `rules` that the person may read. `context` names it; the instructions of the server say to read it before
-writing. People write and change it in the browser like any page.
+The conventions of an instance are one page in the wiki (ADR-33, ADR-34): the page an **administrator names** in the
+browser, in the settings of a page of the kind `agent-notes` (*Make it the rules page for agents*, `PUT /api/rules-page`,
+B-5). `context` names it to whoever may read it; the instructions of the server say to read it before writing. Agents
+**only read** it: the one check refuses every other action of an agent on it and below it, whatever the entries say
+(deciding entry `rules page`), and no agent sets or takes away the tag `rules` anywhere. People change it in the browser
+like any page. Until B-5 it was the oldest page of that kind tagged `rules`, which an agent could take over by tagging an
+older page; migration 038 kept such a page as the rules page.
+
+```text
+GET /api/rules-page    {"page": "<id>", "title": "…"}   the rules page the viewer reads, empty for none
+PUT /api/rules-page    {"page": "<id>"}   administrators in the browser; "" for none
+```
 
 ### Instructions
 
@@ -118,7 +127,10 @@ the page, the newest change of its blocks. A write sends it back in the same for
 - Front matter in a write is not applied; `set_front_matter` sets title, tags and kind.
 - **Conflict:** a page changed since its version was read is refused, "page changed since you read it", with both
   versions. A write without `base` is refused too. Moving a block inside a page makes no version and is no conflict.
-- **Dry run:** the whole write runs in a transaction that is then undone; the answer is the same, with nothing saved.
+- **Dry run:** the whole write runs in a transaction that is then undone; the answer is the same, with nothing saved. The
+  check finds the blocks the write would make, so a link to one of them is no `LINK` (B-5).
+- **Unchanged is unchanged:** line ends become LF and blank lines at the start and end of a block go, so a page read and
+  written back as it was, by a client that sends CRLF or adds blank lines, changes nothing (B-5).
 
 Every answer has the diff of the blocks and the check of the page ([page-kinds.md](page-kinds.md)): errors block the
 write, warnings come with their fix. For agents these matter most: `LINK` (a link to nowhere), `UNLINKED-FILE` (a file
@@ -131,22 +143,30 @@ change of the person, once an hour per object as in the browser (ADR-11); the ve
 
 ## Structure
 
-- `create_page` makes a page inside a collection, folder or page; a space at the top is made by a person.
+- `create_page` makes a page inside a collection, folder or page, with its text in one transaction: a text the check
+  refuses makes no page (B-5). A space at the top is made by a person.
 - `move` keeps the address of an object, so every link still leads there. A block moved to another page leaves a
-  redirect: its old address leads to the new one, and what embedded it follows (ADR-22).
+  redirect: its old address leads to the new one, and what embedded it follows (ADR-22); `after` names a block of the
+  page it goes to alone (`b3`). A redirect names its new place only to whoever may read it.
+- **No publishing by an agent** (B-5): `move`, and copying, put nothing where someone may read it who may not read it
+  now, a page, a folder or a block (a private draft into a shared collection, say); a person does that in the browser.
+  Within the same readers, or to fewer, an agent moves freely.
 - `trash` moves an object with everything below it to the trash, from where a person restores it within 30 days.
-  Nothing is deleted for good by an agent.
+  Nothing is deleted for good by an agent, and no agent moves a whole space to the trash.
 
 ## Files
 
 A file reaches an agent as text, page by page, never as its bytes: `read_file_page` gives one page of the text of a PDF,
-or the text of another file as one page, the best text first (what the content says itself before what was recognised
-in pixels).
+the best text first (what the content says itself before what was recognised in pixels). The text of another file is
+one page while it is short, and pages of about 20 KB, cut at a paragraph or a line, when it is longer (B-5); the search
+names the same pages.
 
 A file reaches UnderDoc through a **one-time upload link**, never inside a message:
 
 1. `upload_link` starts an upload with the person's rights, for a name and an exact size, and answers a link
-   `https://<host>/s/u/<token>` with a `curl` line.
+   `https://<host>/s/u/<token>` with a `curl` line: `curl -fsS -T <local-file> '<link>'`, the path of the local file as a
+   placeholder and the link in single quotes, so nothing of the name runs in a shell (B-5). The link is a **bearer
+   address**: whoever holds it sends the file, so it is passed on to nobody.
 2. A program sends the file there as the body of one `PUT`, within 15 minutes. Its answer names what was made.
 
 The link works once: taking it removes it, also when the upload fails. It is kept only as the hash of its token. It lies
@@ -181,3 +201,5 @@ Agents never archive or restore a space.
 - Moving a block inside a page makes no version, so it carries no hint of AI (T-20).
 - Other sources (`source_search`, `source_read`) and the tools of connectors come with T-31.
 - Automatic sections (T-30) do not exist yet, so `read` has nothing to count.
+- **No rate limit** of its own on `/mcp`: the gate limits requests per token in front of UnderDoc (B-5); an operator
+  without such a gate puts a limit into the proxy.

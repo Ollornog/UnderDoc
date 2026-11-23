@@ -42,20 +42,15 @@ func (t *mcpTools) context(_ context.Context, _ *mcp.CallToolRequest, in context
 	if len(user.Groups) > 0 {
 		fmt.Fprintf(&b, ", groups of the gate: %s", strings.Join(user.Groups, ", "))
 	}
-	b.WriteString(".\nAs an agent you never manage rights, make share links, delete for good or read passwords")
-	if user.Admin || user.Spaces {
-		b.WriteString("; you may make spaces at the top")
-	} else {
-		b.WriteString(", and make no space at the top")
-	}
-	b.WriteString(".\n")
+	// No agent makes a space at the top (B-4, B-5), whatever roles its person holds.
+	b.WriteString(".\nAs an agent you never manage rights, make share links, delete for good, read passwords or make a space at the top.\n")
 	if limit, err := database.AgentLimit(ctx, user.ID); err == nil {
 		fmt.Fprintf(&b, "Your person lets agents: %s (and only where they may themselves).\n", strings.Join(limit, ", "))
 	}
 	if rules, err := database.RulesPage(ctx, user.ID); err == nil {
 		fmt.Fprintf(&b, "Rules page: %s %q. Read it before you write.\n", uri(db.Address{Object: rules.ID}), rules.Title)
 	} else {
-		fmt.Fprintf(&b, "Rules page: none yet. It is a page of the kind agent-notes tagged %q; ask a person to write one.\n", db.RulesTag)
+		b.WriteString("Rules page: none yet. An administrator names one in the browser, a page of the kind agent-notes; ask a person for it.\n")
 	}
 	if pages, err := database.PagesToCheck(ctx, user.ID); err == nil && len(pages) > 0 {
 		fmt.Fprintf(&b, "Open hints: %d pages of human documentation have changes by agents a person has not checked yet.\n", len(pages))
@@ -244,7 +239,7 @@ func (t *mcpTools) readPage(a db.Address, of int) (string, *mcp.CallToolResult) 
 	if a.Block != "" {
 		at := slices.IndexFunc(blocks, func(x db.Block) bool { return x.ID == a.Block })
 		if at < 0 {
-			if to, moved := database.Redirect(ctx, a); moved {
+			if to, moved := database.Redirect(ctx, a, user.ID); moved {
 				return "", refusal(fmt.Sprintf("%s moved to %s: read that.", uri(a), uri(to)))
 			}
 			return "", refusal(uri(a) + ": no such block in the page.")
@@ -432,8 +427,10 @@ func (t *mcpTools) search(_ context.Context, _ *mcp.CallToolRequest, in searchIn
 		}
 		b.WriteString(line + "\n")
 	}
+	// The limit counts the hits the search gave before the check: when it was reached there may be more, also where
+	// the check left some out (B-5).
 	total := fmt.Sprint(len(result.Hits))
-	if len(result.Hits) >= mcpSearchDepth {
+	if max(result.Found, len(result.Hits)) >= mcpSearchDepth {
 		total = fmt.Sprintf("%d or more", mcpSearchDepth)
 	}
 	shown := min(len(result.Hits), mcpMaxRows)

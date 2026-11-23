@@ -215,6 +215,9 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("PUT /api/groups/{id}/groups/{group}", h.apiSetSubgroup)
 	mux.HandleFunc("PUT /api/groups/{id}/admins/{account}", h.apiSetGroupAdmin)
 	mux.HandleFunc("GET /api/me/agents", h.apiAgentLimit)
+	// The rules page for agents (B-5): named by an administrator in the browser.
+	doc("GET /api/rules-page", h.apiRulesPage)
+	doc("PUT /api/rules-page", h.apiSetRulesPage)
 	mux.HandleFunc("PUT /api/me/agents", h.apiSetAgentLimit)
 	mux.HandleFunc("GET /api/rights/check", h.apiCheck)
 	mux.HandleFunc("GET /api/rights/held", h.apiHeld)

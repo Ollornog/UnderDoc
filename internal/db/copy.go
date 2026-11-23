@@ -64,6 +64,10 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 			return Object{}, err
 		}
+		// An agent publishes nothing by copying it either (B-5).
+		if err := db.agentNoWider(ctx, o.ID, parent); err != nil {
+			return Object{}, err
+		}
 		if IsDivider(p.Kind) || p.Area != o.Area || p.Kind == KindFile {
 			return Object{}, ErrPlace
 		}

@@ -122,7 +122,8 @@ func (t *mcpTools) readFilePage(_ context.Context, _ *mcp.CallToolRequest, in re
 	if len(texts) == 0 || strings.TrimSpace(texts[0].Text) == "" {
 		return refusal(fmt.Sprintf("%q has no text yet (%s): it may be a scan or of a type whose text is not read.", f.Title, f.ContentType)), nil, nil
 	}
-	pages := strings.Split(texts[0].Text, files.PageBreak)
+	// A PDF by its pages, a long text without them in pseudo pages of about 20 KB (B-5).
+	pages := files.Pages(texts[0].Text)
 	if n > len(pages) {
 		return refusal(fmt.Sprintf("%q has %d pages of text.", f.Title, len(pages))), nil, nil
 	}
@@ -177,9 +178,18 @@ func (t *mcpTools) uploadLink(_ context.Context, _ *mcp.CallToolRequest, in uplo
 		return t.failure(err, "make the link"), nil, nil
 	}
 	link := requestOrigin(t.r) + uploadLinkPath + token
-	return text(fmt.Sprintf("Send the file once, within %d minutes, as the body of a PUT of exactly %d bytes:\n\ncurl -fsS -T %q %s\n\n"+
-		"The link works once and only for %q into %s. It answers what was made.", int(db.UploadLinkTime.Minutes()), in.Size, u.Name, link, u.Name,
-		uri(db.Address{Object: o.ID}))), nil, nil
+	// The line for the shell names the local file by a placeholder and quotes the link in single quotes: the name of the
+	// file is the agent's, and may hold $( ) or backticks that double quotes would run (B-5). The link is a bearer
+	// address: whoever holds it sends the file.
+	return text(fmt.Sprintf("Send the file once, within %d minutes, as the body of a PUT of exactly %d bytes; put the path of the local file in place of <local-file>:\n\ncurl -fsS -T <local-file> %s\n\n"+
+		"The link works once and only for %q into %s, and whoever holds it may use it, so pass it on to nobody. It answers what was made.",
+		int(db.UploadLinkTime.Minutes()), in.Size, shellQuote(link), u.Name, uri(db.Address{Object: o.ID}))), nil, nil
+}
+
+// shellQuote quotes a word for a POSIX shell in single quotes, where nothing is expanded; a single quote inside ends the
+// quote, adds an escaped one and opens it again.
+func shellQuote(word string) string {
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }
 
 // uploadThroughOneTimeLink takes the file of a one-time upload link (PUT /s/u/<token>), in the name of the agent's person

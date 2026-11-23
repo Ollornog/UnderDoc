@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
 )
 
@@ -73,16 +74,18 @@ var paragraphBreak = regexp.MustCompile(`\n[ \t\r\f\v]*\n`)
 
 // PageBreak separates the pages in the text taken out of a document such as a PDF (files.PageBreak): each page becomes
 // sections of its own, so a hit names its page (ADR-34).
-const PageBreak = "\f"
+const PageBreak = files.PageBreak
 
 // PageAnchor is the anchor of a page of a document, the fragment PDF viewers open at.
 func PageAnchor(n int) string { return "page=" + strconv.Itoa(n) }
 
 // FileSections turns the text taken out of a file into sections. A text with page breaks gives each page its own
 // sections, headed with the page number after heading and opening at that page, or at anchor if one is given (the block
-// that shows an attachment); a text without them is one run of paragraphs under heading. Empty pages give none.
+// that shows an attachment); so does a long text without them, in the pseudo pages an agent reads (files.Pages, B-5). A
+// short text without them is one run of paragraphs under heading. Empty pages give none.
 func FileSections(text, anchor, heading string) []Section {
-	if !strings.Contains(text, PageBreak) {
+	pages := files.Pages(text)
+	if len(pages) == 1 {
 		sections := Sections(TextParts(text, anchor))
 		for i := range sections {
 			sections[i].Heading = heading
@@ -90,7 +93,7 @@ func FileSections(text, anchor, heading string) []Section {
 		return sections
 	}
 	var out []Section
-	for i, page := range strings.Split(text, PageBreak) {
+	for i, page := range pages {
 		at := anchor
 		if at == "" {
 			at = PageAnchor(i + 1)

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -172,28 +173,27 @@ func (t *mcpTools) createPage(_ context.Context, _ *mcp.CallToolRequest, in crea
 		return refusal("parent: the address of a collection, folder or page."), nil, nil
 	}
 	ctx, database, user := t.ctx(), t.h.options.DB, t.user()
-	made, err := database.CreatePageOf(ctx, user, in.Title, ref.Address.Object, "", in.Kind)
+	// The page and its text in one transaction (B-5): a text the checks refuse makes no page.
+	var blocks []db.Block
+	if strings.TrimSpace(in.Markdown) != "" {
+		_, blocks = transfer.ParseBlocks([]byte(in.Markdown))
+	}
+	made, written, err := database.CreatePageWithBlocks(ctx, user, in.Title, ref.Address.Object, in.Kind, blocks)
 	if err != nil {
-		return t.failure(err, "make the page"), nil, nil
+		return t.writeFailure(err), nil, nil
 	}
 	t.h.noteChange(t.r, made.ID, "made through mcp")
-	written := db.Written{}
-	if strings.TrimSpace(in.Markdown) != "" {
-		_, blocks := transfer.ParseBlocks([]byte(in.Markdown))
-		if written, err = database.WriteBlocks(ctx, made.ID, user.ID, 0, "", blocks, false); err != nil {
-			return t.writeFailure(err), nil, nil
-		}
-	} else if written.Findings, err = database.Findings(ctx, made.ID, user.ID); err != nil {
-		return t.failure(err, "check the page"), nil, nil
-	}
 	return text(fmt.Sprintf("Made %s %q in %s.\n", uri(db.Address{Object: made.ID}), made.Title, uri(db.Address{Object: ref.Address.Object})) +
 		t.writtenText(made.ID, written)), nil, nil
 }
 
+// bareBlock is a block named without its page, such as b3.
+var bareBlock = regexp.MustCompile(`^b[1-9][0-9]{0,8}$`)
+
 type moveIn struct {
 	Object string `json:"object" jsonschema:"what to move: an object, or a block (underdoc:<id>#b3) to move into another page"`
 	To     string `json:"to" jsonschema:"where it goes: a collection, folder or page; for a block the page"`
-	After  string `json:"after,omitempty" jsonschema:"the entry or block it comes after; first if empty"`
+	After  string `json:"after,omitempty" jsonschema:"the entry or block it comes after (for a block: b3 of the page it goes to); first if empty"`
 }
 
 // move puts an object somewhere else, or a block into another page. The address of an object never changes, and a moved
@@ -208,7 +208,12 @@ func (t *mcpTools) move(_ context.Context, _ *mcp.CallToolRequest, in moveIn) (*
 		return refusal("to: the address of a collection, folder or page; a space at the top is made in the browser."), nil, nil
 	}
 	after := ""
-	if in.After != "" {
+	switch bare := strings.TrimPrefix(in.After, "#"); {
+	case in.After == "":
+	case what.Address.Block != "" && bareBlock.MatchString(bare):
+		// A block of the page it goes to, named alone (b3 or #b3), as the tool says (B-5).
+		after = bare
+	default:
 		ref, err := parseRef(in.After)
 		if err != nil || ref.Folder != "" {
 			return refusal("after: the address of an entry, or a block such as b3."), nil, nil

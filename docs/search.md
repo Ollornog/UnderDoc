@@ -113,6 +113,10 @@ errors. **Similar meaning** comes with AI (M-13) as a hybrid search of the same 
   titles), so the counts beside the hits leave them out too. The filter *Also in the archive* (`archive=1`) takes them
   in; a search limited to an archived space by its collection finds it as well. Nothing is indexed anew when a space is
   archived or restored.
+- **The counts beside the hits** come from the index, so they count beyond the hits shown (B-5). Only for a reader whose
+  tokens drop out of the index, a service account (everyone and the roles of the gate) or someone in an archived group,
+  they come from the hits checked once more in the database, since the index could count what such a reader may not
+  find (B-4). That check is one query for all hits.
 
 ## Tests
 

@@ -788,9 +788,8 @@ var (
 	ErrGroupArchived = errors.New("this group is archived: restore it first, or the group it is inside")
 	// ErrGroupHasGroups is archiving a group with groups inside it that are not archived.
 	ErrGroupHasGroups = errors.New("this group has groups inside it: take them out or archive them first")
-	// ErrGroupArchiver is archiving or restoring a group by someone who is neither an administrator nor the admin of a
-	// group it is inside. The admin of a group never archives it themselves.
-	ErrGroupArchiver = fmt.Errorf("%w: only administrators and the admins of a group it is inside archive or restore a group", ErrNotAllowed)
+	// ErrGroupArchiver is archiving or restoring a group by someone who is no administrator (B-5).
+	ErrGroupArchiver = fmt.Errorf("%w: only administrators archive or restore a group", ErrNotAllowed)
 )
 
 // lockGroups takes the lock of the tenant's groups that the check of group_groups takes (migration 030), so a group
@@ -800,33 +799,15 @@ func lockGroups(ctx context.Context, tx pgx.Tx) error {
 	return err
 }
 
-// mayArchiveGroup refuses whoever may not archive or restore a group: administrators may, and the admins of a group it
-// is inside, at any depth, through groups that are not archived. Being the admin of the group itself is not enough, so
-// nobody archives their own group (B-3); an admin of the group never does, even one who is also the admin of a group it
-// was put inside, which would otherwise let them put it there, archive it and take it out again (B-4). Agents never do.
-func (db *DB) mayArchiveGroup(ctx context.Context, q execer, actor Actor, groupID string) error {
+// mayArchiveGroup refuses whoever may not archive or restore a group: administrators of the tenant only (B-5). Group
+// admins never do, also not those of a group it is inside: through nesting (put it inside, take oneself out as its admin,
+// archive, restore, take oneself in again) every such rule could be walked around. The delegated administrator of T-33
+// will join. Agents never do.
+func (db *DB) mayArchiveGroup(ctx context.Context, _ execer, actor Actor, _ string) error {
 	if err := noAgent(ctx); err != nil {
 		return err
 	}
-	if actor.Admin {
-		return nil
-	}
-	var own, above bool
-	if err := q.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM group_admins WHERE grp = $1 AND account = $2)", groupID, actor.ID).Scan(&own); err != nil {
-		return err
-	}
-	if own {
-		return ErrGroupArchiver
-	}
-	if err := q.QueryRow(ctx, `WITH RECURSIVE up(id) AS (
-			SELECT gg.grp FROM group_groups gg JOIN groups g ON g.id = gg.grp WHERE gg.member = $2 AND g.archived IS NULL
-			UNION SELECT gg.grp FROM group_groups gg JOIN up ON gg.member = up.id
-				JOIN groups g ON g.id = gg.grp WHERE g.archived IS NULL
-		) SELECT EXISTS (SELECT 1 FROM up JOIN group_admins a ON a.grp = up.id WHERE a.account = $1 AND up.id <> $2)`,
-		actor.ID, groupID).Scan(&above); err != nil {
-		return err
-	}
-	if !above {
+	if !actor.Admin {
 		return ErrGroupArchiver
 	}
 	return nil
@@ -844,8 +825,8 @@ func (db *DB) MayArchiveGroup(ctx context.Context, actor Actor, groupID string) 
 // ArchiveGroup archives a local group instead of deleting it (B-3): it keeps its members, the groups inside it, its
 // admins and every entry granted to it, so RestoreGroup brings everything back. While it is archived, its allow entries
 // hold for nobody and nothing passes up through it; its deny entries keep holding for whoever is in it, so archiving
-// never gives anyone more. Only administrators and the admins of a group it is inside archive it, and only while every
-// group inside it is archived already. Nothing deletes a group for good.
+// never gives anyone more. Only administrators archive it (B-5), and only while every group inside it is archived
+// already. Nothing deletes a group for good.
 func (db *DB) ArchiveGroup(ctx context.Context, actor Actor, groupID string) error {
 	g, err := db.GroupOf(ctx, groupID)
 	if err != nil {
@@ -878,7 +859,7 @@ func (db *DB) ArchiveGroup(ctx context.Context, actor Actor, groupID string) err
 	})
 }
 
-// RestoreGroup brings an archived group back with everything it kept. The same people may as for archiving it, and
+// RestoreGroup brings an archived group back with everything it kept. Only administrators do, as for archiving it, and
 // only while no group it is inside is archived.
 func (db *DB) RestoreGroup(ctx context.Context, actor Actor, groupID string) error {
 	g, err := db.GroupOf(ctx, groupID)

@@ -179,13 +179,10 @@ func (h *handler) apiRedirect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not an address"})
 		return
 	}
-	to, moved := h.options.DB.Redirect(r.Context(), a)
+	user, _ := account.From(r.Context())
+	to, moved := h.options.DB.Redirect(r.Context(), a, user.ID)
 	if !moved {
 		h.failed(w, db.ErrNotFound, "redirect")
-		return
-	}
-	user, _ := account.From(r.Context())
-	if _, err := h.options.DB.Object(r.Context(), to.Object, user.ID); h.failed(w, err, "redirect") {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ref": to.String(), "url": route.Object(to.Object) + "#" + to.Target()})

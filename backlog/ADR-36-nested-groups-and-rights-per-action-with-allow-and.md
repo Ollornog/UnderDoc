@@ -170,3 +170,7 @@ comes from.
     for.
   - **An archived space** is a ceiling of its own, for everyone and after everything else: comment, create, write,
     delete and share are refused inside it; read and manage decide as before.
+- **Built on 2026-11-23, part 4** (B-5). **A group is archived and restored by administrators only** (the delegated
+  administrator of T-33 will join). This replaces "or the admin of a group it is inside" of part 2: through nesting, a
+  group admin could put a group inside theirs, take themselves out as its admin, archive and restore it, and take
+  themselves in again, so every rule for group admins could be walked around.

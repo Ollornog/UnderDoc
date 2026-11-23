@@ -123,6 +123,12 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 	if err := db.mayDo(ctx, o, viewer, need); err != nil {
 		return Object{}, err
 	}
+	// An agent publishes nothing by moving it (B-5).
+	if parent != o.Parent {
+		if err := db.agentNoWider(ctx, o.ID, parent); err != nil {
+			return Object{}, err
+		}
+	}
 	widens := map[string]bool{}
 	if parent != o.Parent {
 		for _, a := range []string{ActShare, ActManage} {

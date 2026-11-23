@@ -92,9 +92,9 @@ it, only for the persons and groups taken over that are directly in the group.
 A local group is **archived, never deleted** (B-3). It keeps its members, the groups inside it, its admins and every
 entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc deletes a group for good.
 
-- **Who:** administrators of the tenant, and the admins of a group it is inside, at any depth, through groups that are
-  not archived. The admins of a group never archive or restore it themselves, also when they administer a group it was
-  put inside (B-4). Agents never do.
+- **Who:** administrators of the tenant only (B-5; the delegated administrator of T-33 will join). Group admins never
+  archive or restore a group, not even one inside theirs: through nesting (put a group inside, take oneself out as its
+  admin, archive, restore, take oneself in again) any rule for them could be walked around. Agents never do.
 - **When:** only while every group inside it is archived already (or taken out); otherwise `409`. A group comes back
   only while no group it is inside is archived.
 - **What holds while it is archived:**
@@ -150,8 +150,8 @@ GET /api/search?…&archive=1      the archived spaces too
 A **space** is a collection at the top, of the documents or of Files. Only **administrators** and the holders of the
 role of the app to create spaces in the gate (`UNDERDOC_SPACES_ROLE`, `underdoc-spaces` unless configured,
 [sign-in.md](sign-in.md#the-gate)) make one (ADR-35, B-3), also by copying a collection to the top or moving one up
-there; anyone else gets `403`, and the workspace offers it nowhere (`canSpaces` in `/api/state`). An agent of a holder
-of the role may as well. Inside a space, the rights decide as everywhere. The command line (`underdoc import`) makes
+there; anyone else gets `403`, and the workspace offers it nowhere (`canSpaces` in `/api/state`). No agent makes one,
+also not with a key, an app password or OAuth of a holder of the role (B-5). Inside a space, the rights decide as everywhere. The command line (`underdoc import`) makes
 collections at the top as whoever runs the instance.
 
 ## The group Agents
@@ -165,6 +165,10 @@ collections at the top as whoever runs the instance.
   above it is refused, for the owner too, and breaking the inheritance below it does not lift it.
 - **Agents never** manage rights or groups, share (links), delete for good (empty the trash) or read passwords
   (ADR-7). Read, create, write, comment and moving to the trash stay as their person may.
+- **Agents never publish** (B-5): they move or copy nothing, a page, a folder or a block, to where someone may read it
+  who may not read it where it is now (`403`); a person does that. They make no space and move no space to the trash,
+  and the **rules page** ([mcp.md](mcp.md#the-rules-page)) they only read, whatever its entries say (deciding entry
+  `rules page`).
 - **No agents** on a space is a deny on read for Agents there, set like any entry (kind `agents`).
 - **Every person limits their own agents** (`PUT /api/me/agents`), for example to read only; only the person in a
   session changes it, never an agent.

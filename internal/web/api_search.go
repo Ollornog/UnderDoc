@@ -117,22 +117,35 @@ func (h *handler) searchAs(ctx context.Context, request search.Request, archive 
 		}
 		request.Filters.NotCollections = slices.DeleteFunc(archived, func(id string) bool { return slices.Contains(request.Filters.Collections, id) })
 	}
+	// dropped tells that tokens drop out of the reader's for the index: everyone and the roles of the gate for a service
+	// account, archived groups and those reached through them for anyone in one (B-3). Their denies then do not reach the
+	// index, so its counts could tell of what the reader may not find (B-4); only then the counts come from the checked
+	// hits, otherwise from the index, which counts beyond the hits shown (B-5).
+	dropped := false
 	if h.options.DB != nil {
+		groups, err := h.options.DB.GroupsOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
+		}
+		direct, err := h.options.DB.DirectGroupsOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
+		}
+		allow, err := h.options.DB.AllowGroupsOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
+		}
+		allowDirect, err := h.options.DB.AllowDirectGroupsOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
+		}
+		dropped = request.Service || !slices.Equal(groups, allow) || !slices.Equal(direct, allowDirect)
 		// A service account finds through the groups whose allow holds for it only: never a role of the gate (B-3). The
 		// check of each hit below holds every deny.
-		groupsOf, directOf := h.options.DB.GroupsOf, h.options.DB.DirectGroupsOf
-		if request.Service {
-			groupsOf, directOf = h.options.DB.AllowGroupsOf, h.options.DB.AllowDirectGroupsOf
-		}
-		groups, err := groupsOf(ctx, user.ID)
-		if err != nil {
-			return search.Result{}, err
-		}
-		direct, err := directOf(ctx, user.ID)
-		if err != nil {
-			return search.Result{}, err
-		}
 		request.Groups, request.Direct = groups, direct
+		if request.Service {
+			request.Groups, request.Direct = allow, allowDirect
+		}
 	}
 	result, err := h.options.Search.Search(ctx, request)
 	if err != nil {
@@ -141,21 +154,26 @@ func (h *handler) searchAs(ctx context.Context, request search.Request, archive 
 	// The index may lag behind a change of rights for a moment: each hit is checked once more against the one check of
 	// the database, so a deny holds at once (ADR-36).
 	if h.options.DB != nil {
+		// One query for all hits, not one per hit (B-5).
+		result.Found = len(result.Hits)
+		ids := make([]string, 0, len(result.Hits))
+		for _, hit := range result.Hits {
+			ids = append(ids, hit.Object)
+		}
+		may, err := h.options.DB.MayFindAll(ctx, ids, user.ID)
+		if err != nil {
+			return search.Result{}, err
+		}
 		kept := result.Hits[:0]
 		for _, hit := range result.Hits {
-			ok, err := h.options.DB.MayFind(ctx, hit.Object, user.ID)
-			if err != nil {
-				return search.Result{}, err
-			}
-			if ok {
+			if may[hit.Object] {
 				kept = append(kept, hit)
 			}
 		}
 		result.Hits = kept
-		// The counts beside the hits come from them, after the check: the index counts by the reader's tokens, which
-		// leave out the denies of groups that drop out of them (archived ones, and for a service account everyone and
-		// the roles of the gate), so its counts could tell of what the reader may not find (B-4).
-		result.Facets = facetsOf(result.Hits)
+		if dropped {
+			result.Facets = facetsOf(result.Hits)
+		}
 	}
 	return result, nil
 }

@@ -8,18 +8,17 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 // What the MCP access needs of the database (ADR-34). Every function decides with the one check of rights, as the
 // browser does; the connection of a request through MCP carries that it is an agent's (account.User.MCP).
 
-// RulesTag marks the rules page: the page of the kind agent notes with this tag holds the conventions agents follow
-// (ADR-33, ADR-34). It is a page like any other, written in the browser and checked at every write.
+// RulesTag was what made the rules page until B-5. It stays reserved: no agent sets it or takes it away, so nothing an
+// agent does can look like a rules page to a person or a tool that still goes by the tag.
 const RulesTag = "rules"
 
 // PageVersion is the newest change of the blocks of a page the viewer sees, 0 for a page nobody wrote yet. A write names
@@ -34,16 +33,56 @@ func (db *DB) PageVersion(ctx context.Context, pageID, viewer string) (int64, er
 	return version, err
 }
 
-// RulesPage returns the rules page the viewer reads: the oldest page of the kind agent notes tagged RulesTag. ErrNotFound
-// when there is none, or none the viewer may read.
+// RulesPage returns the rules page the viewer reads: the page an administrator named (B-5; until then the oldest page of
+// the kind agent notes tagged rules, which an agent could take over). ErrNotFound when there is none, or the viewer may
+// not read it, or it lies in the trash.
 func (db *DB) RulesPage(ctx context.Context, viewer string) (Object, error) {
 	o, err := scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects o
-		WHERE o.kind = 'page' AND o.page_kind = $2 AND $3 = ANY(o.tags) AND `+alive+` AND `+visible+`
-		ORDER BY o.created, o.id LIMIT 1`, viewer, pagekind.AgentNotes, RulesTag))
+		WHERE o.id = (SELECT rules_page FROM agent_settings) AND `+alive+` AND `+visible, viewer))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Object{}, ErrNotFound
 	}
 	return o, err
+}
+
+// RulesPageID returns the rules page as it is set, whoever may read it; "" for none.
+func (db *DB) RulesPageID(ctx context.Context) (string, error) {
+	var id string
+	err := db.pool.QueryRow(ctx, "SELECT coalesce(rules_page, '') FROM agent_settings").Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
+}
+
+// ErrRulesPageAgents is a change of an agent to the rules page or below it: agents read it only (B-5).
+var ErrRulesPageAgents = fmt.Errorf("%w: agents only read the rules page; a person changes it in the browser", ErrNotAllowed)
+
+// ErrRulesPage is a rules page that is no page the administrator reads.
+var ErrRulesPage = errors.New("the rules page is a page you read")
+
+// SetRulesPage names the rules page of the tenant, or none with "" (B-5). Only an administrator does, in the browser:
+// agents read it and do nothing else with it or below it, the one check says so (object_decide, migration 038). The page
+// is one the administrator reads; any kind, agent notes is the one meant for it.
+func (db *DB) SetRulesPage(ctx context.Context, actor Actor, pageID string) error {
+	if err := browserSession(ctx, actor.ID); err != nil {
+		return err
+	}
+	if !actor.Admin {
+		return ErrNotAllowed
+	}
+	if pageID != "" {
+		o, err := db.Object(ctx, pageID, actor.ID)
+		if err != nil {
+			return err
+		}
+		if o.Kind != KindPage {
+			return ErrRulesPage
+		}
+	}
+	_, err := db.pool.Exec(ctx, `INSERT INTO agent_settings (rules_page, changed_by) VALUES (nullif($1, ''), $2)
+		ON CONFLICT (tenant) DO UPDATE SET rules_page = EXCLUDED.rules_page, changed_by = EXCLUDED.changed_by, changed = now()`, pageID, actor.ID)
+	return err
 }
 
 // UploadLinkTime is how long a one-time upload link holds (ADR-34).
@@ -79,4 +118,28 @@ func (db *DB) TakeUploadLink(ctx context.Context, token string) (Upload, error) 
 		return Upload{}, ErrNotFound
 	}
 	return u, err
+}
+
+// ErrPublish is a move or copy by an agent to where someone may read who may not read it where it is: publishing, which
+// a person does in the browser (B-5, ADR-36).
+var ErrPublish = fmt.Errorf("%w: an agent moves or copies nothing to where more people may read it than may read it now; a person does that in the browser", ErrNotAllowed)
+
+// agentNoWider refuses, for a request of an agent, to put what source holds below target when some account may read
+// target but may not read source now (B-5): moving a private page into a shared collection publishes it. What lies
+// below target inherits from it, and what the object decides itself it decides there as here, so nobody reads more than
+// before when every reader of target reads source already. A person may; the check counts persons, not agents.
+func (db *DB) agentNoWider(ctx context.Context, source, target string) error {
+	if !requestAgent(ctx) || target == "" {
+		return nil
+	}
+	var wider bool
+	if err := db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accounts a
+		WHERE (object_decide($2, a.id, 'read', false, true)).allowed AND NOT (object_decide($1, a.id, 'read', false, true)).allowed)`,
+		source, target).Scan(&wider); err != nil {
+		return err
+	}
+	if wider {
+		return ErrPublish
+	}
+	return nil
 }
