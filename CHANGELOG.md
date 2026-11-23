@@ -502,6 +502,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- **Review of B-3** (B-4, found by the team wiki): an allowed service account no longer takes the administrator's role
+  or the role to create spaces from the gate, and the checks of the administration and of spaces refuse it on their own
+  as well (`administers`, `maySpace`); the admin of a group no longer archives it by putting it inside a group they
+  administer too; the counts beside the hits of a search come from the checked hits, so they never tell of a page the
+  reader may not find; "what may X do" leaves out an allow through an archived group, and for a service account one of
+  the tenant or a role of the gate; an archived group becomes no new reader of a password. Documented: in the way back
+  (`UNDERDOC_GATE_KIND=legacy`) a service account nobody allowed is refused only where the proxy sends its kind, with a
+  warning at the start; a service account gets the allow of the local groups its group is inside (ADR-36). Tests of the
+  attack round, also deleting for good with a wrong name (400) and without or with another origin (403).
+
 - Spreadsheets as tables, attack round (ADR-31, [docs/tables.md](docs/tables.md#limits)): small files could exhaust
   memory or CPU after reading, in the reader, the table view, embeddings, CSV downloads and the search indexer. The text
   of the cells of a workbook now counts as often as it stands (100 MiB; a shared string or a repeated cell of a few

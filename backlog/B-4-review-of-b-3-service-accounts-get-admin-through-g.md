@@ -1,7 +1,7 @@
 ---
 type: Bug
 title: 'Review of B-3: service accounts get admin through gate roles, archive bypass, facet leaks'
-status: offen
+status: erledigt
 id: B-4
 milestone: M-30
 created: '2026-11-23'

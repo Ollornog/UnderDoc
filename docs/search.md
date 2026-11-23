@@ -69,7 +69,10 @@ levels of entries on read from it up, each with the tokens allowed and denied th
 Every query carries the tokens of the person asking, of their groups at any depth and of the groups they are in
 directly, and whether they are an agent; the first level that names one of their tokens decides, deny before allow
 ([rights.md](rights.md#one-check)). A change of entries queues the object and everything below it, and each hit is
-checked once more in the database before it shows. A query without readers is refused. The tenant is separated by its
+checked once more in the database before it shows. The counts beside the hits (type, collection, author, tags) are made
+from the checked hits, not taken from the engine: the tokens of a reader leave out those of groups whose allow does not
+hold for them (archived groups; for a service account everyone and the roles of the gate), so their denies cannot hold
+in the index, and its counts could tell of what the reader may not find (B-4). A query without readers is refused. The tenant is separated by its
 own index.
 
 **Sections:** a page is indexed in sections, one per heading and what follows it up to the next heading (ADR-22). A hit

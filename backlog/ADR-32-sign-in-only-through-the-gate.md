@@ -130,7 +130,8 @@ security, the hoster) stays. ADR-9 is right again in what it decided: the gate i
   - Service accounts no longer hang on the switch: one comes in only with a lasting ID in `UNDERDOC_SERVICE_ACCOUNTS`,
     and an allowed ID is a service account whatever kind a request names, so a proxy that passed on a wrong kind cannot
     turn it into a person. Refusing a service account nobody allowed only makes a request weaker, so it holds in the way
-    back as well. The list is a setting rather than a table: whoever runs the instance (the fleet's inventory) sets it
+    back as well, as far as the proxy sends the kind: without it, the way back takes the request as a person's, which
+    the warning at the start says (B-4). The list is a setting rather than a table: whoever runs the instance (the fleet's inventory) sets it
     once, idempotently, and it needs no command of its own; the start marks the accounts of those IDs
     (`accounts.service`), so every decision about them, also on the share, knows them.
   - The role to create spaces is read like the administrator's: `UNDERDOC_SPACES_ROLE`, `underdoc-spaces` unless

@@ -64,7 +64,7 @@ func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
 	case "required":
 	case "legacy":
 		cfg.KindLegacy = true
-		log.Warn("UNDERDOC_GATE_KIND=legacy: a request without Remote-Kind is let through as a person's; only for a proxy of the gate that does not set Remote-Kind yet, remove it once it does")
+		log.Warn("UNDERDOC_GATE_KIND=legacy: a request without Remote-Kind is let through as a person's, so a service account nobody allowed comes in as a person where the proxy leaves the kind out; only for a proxy of the gate that does not set Remote-Kind yet, remove it once it does")
 	default:
 		return cfg, fmt.Errorf("UNDERDOC_GATE_KIND: %q is neither empty, required nor legacy", kind)
 	}

@@ -201,9 +201,12 @@ func (g *Gate) Identify(r *http.Request) (User, error) {
 		user.Kind = KindService
 	}
 	// The roles of the app make an administrator and one who creates spaces, compared exactly; the gate's own
-	// administrator is no right here.
-	user.Admin = id.HasRole(g.adminRole)
-	user.Spaces = id.HasRole(g.spacesRole)
+	// administrator is no right here. A service account holds neither, whatever roles the gate gives it (B-4): it gets
+	// only what is granted to it.
+	if user.Kind != KindService {
+		user.Admin = id.HasRole(g.adminRole)
+		user.Spaces = id.HasRole(g.spacesRole)
+	}
 	return user, nil
 }
 

@@ -314,7 +314,10 @@ func (db *DB) SetPageSecretReaders(ctx context.Context, secretID, viewer string,
 			case "person":
 				err = tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", r.Who).Scan(&known)
 			case "group":
-				err = tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM groups WHERE id = $1)", r.Who).Scan(&known)
+				// An archived group becomes no new reader, as it gets no new entries (B-4); one that reads already may
+				// stay while the list is written anew.
+				err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM groups g WHERE g.id = $1 AND (g.archived IS NULL
+					OR EXISTS (SELECT 1 FROM page_secret_readers x WHERE x.secret = $2 AND x.kind = 'group' AND x.who = $1)))`, r.Who, secretID).Scan(&known)
 			}
 			if err != nil {
 				return err
