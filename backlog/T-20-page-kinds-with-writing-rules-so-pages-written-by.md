@@ -1,7 +1,7 @@
 ---
 type: Task
 title: Page kinds with writing rules, so pages written by AI read well for people
-status: offen
+status: erledigt
 id: T-20
 milestone: M-1
 created: '2026-11-22'
@@ -27,3 +27,7 @@ Kinds share facts, they do not copy them:
 - Write the reference first; a how-to only for tasks that come up often. Not every topic needs all four kinds.
 
 Decided in ADR-33: the kind also sets the audience, agent documentation and reference or human documentation, and changes by agents to human documentation stay visible until a person checks them.
+
+**Done 2026-11-23** ([docs/page-kinds.md](../docs/page-kinds.md)): kinds with their rules checked at every write (part
+1), and the hints of changes by agents with the diff, Checked and taking back (part 2); ADR-33 "Built on" says what was
+settled. Follow-ups: T-35 (folder mode reviewed), T-36 (inbox list).

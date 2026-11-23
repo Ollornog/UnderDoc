@@ -1,7 +1,8 @@
 # Page kinds and writing rules
 
 Every page names its kind, and the kind decides who the page is written for (T-20,
-[ADR-33](../backlog/ADR-33-ai-documentation-and-human-documentation.md)). Agents may write every kind. The rules of each
+[ADR-33](../backlog/ADR-33-ai-documentation-and-human-documentation.md)). Agents may write every kind; their changes to
+human documentation stay visible until a person checks them ([Changes by agents](#changes-by-agents)). The rules of each
 kind are checked at every write, through every door: the web editor, the API, and later the MCP access (T-21) and the
 import (T-28). The rules live once, in `internal/pagekind`; the database runs them at write time.
 
@@ -117,6 +118,48 @@ stands inside a part, the source is the part, ready to embed. Links to other pag
 - **Agents** read the raw page: `GET /api/pages/<id>/raw` answers the page as its Markdown file, with its front matter
   (`id`, `kind`, `title`, `description`, `tags` …) and the marker `<!-- block bN -->` before each block, as an export
   writes it. It needs the right to read the page.
+
+## Changes by agents
+
+Every version of a block records whether an agent wrote it (`block_versions.agent`, migration 034). It is taken from
+the sign-in of the request as the gate's client checked it (`account.User.Agent`, ADR-32, ADR-36), by a trigger in the
+database, never from anything a client sends. The list of versions marks such a change with `(AI)`.
+
+**On human documentation** (how-to, explanation, tutorial, or no kind):
+
+- Every block an agent changed and nobody checked carries the hint **"Written by AI, not checked"** under its text, for
+  everyone who reads the page, with whom the agent works for and when. A block an agent made says "Added by AI", and a
+  block an agent took out or moved to another page is listed under the page.
+- Further changes of an agent extend the hint: what a person sees in the diff is everything since a person last saw
+  the block. A block an agent made and took out again before anyone checked it leaves nothing to check.
+- Whoever may change the page opens the change as a **diff** (Review) and either sets **Checked** or **takes it back**:
+  the text before comes back, a block an agent made goes, a deleted block comes back where it stood with its ID. A block
+  an agent moved away is moved back from where it went, so only Checked is offered for it.
+- A check names the change it saw (`{"version": n}`); an older change, the change of another block or one an agent
+  followed up meanwhile is refused (409), so a click is never blind. Changes are checked one at a time: there is no
+  "check all".
+- The page shows **"Checked by … on …"** for its last check, and the log keeps each check and each taking back.
+- **When a person edits a block themselves, its hint goes**, since they have just read it.
+- **An agent never checks**, not even on behalf of its person: checking and taking back refuse every request that is
+  not a session (the ceiling of the group Agents, ADR-36). An agent also may not change the kind of a page that people
+  wrote to a kind of the agent side, which would hide its hints; a page only agents wrote it may class freely.
+
+**On the agent side** (reference, agent notes) the page says once **"Maintained by AI"** and carries no hint per change.
+People may still edit it. Structure pages carry neither.
+
+| Door | What |
+|---|---|
+| `GET /api/doc/<id>` | `blocks[].ai` (`version`, `by`, `at`, `added`), `removed`, `checked`, `maintainedByAI` |
+| `GET /api/pages/<id>/blocks/<block>/change` | the diff: `before`, `now`, `version`; for whoever may change the page |
+| `POST /api/pages/<id>/blocks/<block>/check` | `{"version": n}`: Checked |
+| `POST /api/pages/<id>/blocks/<block>/takeback` | `{"version": n}`: take back; a block in use needs a way, as a deletion does |
+| `GET /api/search?check=ai` | the filter **AI changes to check**: pages with open hints the reader may read, with or without words |
+
+**For the import (T-28):** a team wiki keeps its check as `geprüft: <KÜRZEL> <JJJJ-MM-TT>` in the front matter of a
+page. `pagekind.ParseChecked` reads it, and `db.MarkPageChecked` gives the mark to every block of the page and ends its
+hints. It has no door in the API, and agents may not call it.
+
+Not yet: a folder that makes changes of agents wait as a proposal (T-35, M-20), and the inbox list (T-36, M-16).
 
 ## The list of problems
 

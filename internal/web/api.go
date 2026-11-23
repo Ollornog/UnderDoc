@@ -111,6 +111,11 @@ type apiDocument struct {
 	PageKind string             `json:"kind,omitempty"`
 	Audience string             `json:"audience,omitempty"`
 	Findings []pagekind.Finding `json:"findings,omitempty"`
+	// Removed are the blocks agents took out of human documentation that nobody checked, Checked the last check of the
+	// page, MaintainedByAI that the page is agent documentation, said once for the whole page (ADR-33).
+	Removed        []apiRemoved `json:"removed,omitempty"`
+	Checked        *apiChecked  `json:"checked,omitempty"`
+	MaintainedByAI bool         `json:"maintainedByAI,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.

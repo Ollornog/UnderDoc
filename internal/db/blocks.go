@@ -38,6 +38,8 @@ type Version struct {
 	At      time.Time
 	// Origin says where a copy came from or where moved text went (ADR-22).
 	Origin string
+	// Agent tells that an agent wrote it (ADR-33): the sign-in of its request was no session.
+	Agent bool
 }
 
 // CreatePage makes an empty page inside parent, which the owner must see and may change.
@@ -146,8 +148,10 @@ func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) 
 		if err := syncRefs(ctx, tx, pageID, b.ID, body); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, b.ID, body, viewer)
-		return err
+		if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, b.ID, body, viewer); err != nil {
+			return err
+		}
+		return noteChange(ctx, tx, pageID, b.ID, [2]string{})
 	})
 	return b, err
 }
@@ -198,36 +202,43 @@ func (db *DB) EditBlockWays(ctx context.Context, pageID, blockID, viewer, body s
 		return Block{}, err
 	}
 	err := db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
-		var old string
-		if err := tx.QueryRow(ctx, "SELECT body FROM blocks WHERE page = $1 AND id = $2", pageID, blockID).Scan(&old); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrNotFound
-			}
-			return err
-		}
-		if old == body {
-			return nil
-		}
-		if err := roomForBytes(ctx, tx, int64(len(body)-len(old))); err != nil {
-			return err
-		}
-		gone, err := lostByEdit(ctx, tx, pageID, blockID, old, body)
-		if err != nil {
-			return err
-		}
-		if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, "UPDATE blocks SET body = $3 WHERE page = $1 AND id = $2", pageID, blockID, body); err != nil {
-			return err
-		}
-		if err := syncRefs(ctx, tx, pageID, blockID, body); err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer)
-		return err
+		return db.editBlock(ctx, tx, pageID, blockID, viewer, body, ways)
 	})
 	return Block{ID: blockID, Body: body}, err
+}
+
+// editBlock is the change of EditBlockWays inside the transaction of a change of the page.
+func (db *DB) editBlock(ctx context.Context, tx pgx.Tx, pageID, blockID, viewer, body string, ways map[string]Way) error {
+	var old string
+	if err := tx.QueryRow(ctx, "SELECT body FROM blocks WHERE page = $1 AND id = $2", pageID, blockID).Scan(&old); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if old == body {
+		return nil
+	}
+	if err := roomForBytes(ctx, tx, int64(len(body)-len(old))); err != nil {
+		return err
+	}
+	gone, err := lostByEdit(ctx, tx, pageID, blockID, old, body)
+	if err != nil {
+		return err
+	}
+	if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, "UPDATE blocks SET body = $3 WHERE page = $1 AND id = $2", pageID, blockID, body); err != nil {
+		return err
+	}
+	if err := syncRefs(ctx, tx, pageID, blockID, body); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer); err != nil {
+		return err
+	}
+	return noteChange(ctx, tx, pageID, blockID, [2]string{})
 }
 
 // DeleteBlock takes a block out of its page. Its versions stay, and its ID is not given out again. A block that something
@@ -239,23 +250,47 @@ func (db *DB) DeleteBlock(ctx context.Context, pageID, blockID, viewer string) e
 // DeleteBlockWays is DeleteBlock with the way chosen for the block in use, its parts and its section ("*").
 func (db *DB) DeleteBlockWays(ctx context.Context, pageID, blockID, viewer string, ways map[string]Way) error {
 	return db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
-		gone, err := lostByDelete(ctx, tx, pageID, blockID)
-		if err != nil {
-			return err
-		}
-		if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
-			return err
-		}
-		tag, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", pageID, blockID)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-		_, err = tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, NULL, $3)", pageID, blockID, viewer)
-		return err
+		return db.deleteBlock(ctx, tx, pageID, blockID, viewer, ways)
 	})
+}
+
+// deleteBlock is the change of DeleteBlockWays inside the transaction of a change of the page.
+func (db *DB) deleteBlock(ctx context.Context, tx pgx.Tx, pageID, blockID, viewer string, ways map[string]Way) error {
+	gone, err := lostByDelete(ctx, tx, pageID, blockID)
+	if err != nil {
+		return err
+	}
+	if err := db.settle(ctx, tx, pageID, viewer, gone, ways); err != nil {
+		return err
+	}
+	near, err := neighbours(ctx, tx, pageID, blockID)
+	if err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", pageID, blockID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, NULL, $3)", pageID, blockID, viewer); err != nil {
+		return err
+	}
+	return noteChange(ctx, tx, pageID, blockID, near)
+}
+
+// neighbours are the blocks that stand before and after a block of a page, empty at the start and the end.
+func neighbours(ctx context.Context, tx pgx.Tx, pageID, blockID string) ([2]string, error) {
+	var near [2]string
+	err := tx.QueryRow(ctx, `SELECT
+		coalesce((SELECT b.id FROM blocks b WHERE b.page = $1 AND b.position < x.position ORDER BY b.position DESC LIMIT 1), ''),
+		coalesce((SELECT b.id FROM blocks b WHERE b.page = $1 AND b.position > x.position ORDER BY b.position LIMIT 1), '')
+		FROM blocks x WHERE x.page = $1 AND x.id = $2`, pageID, blockID).Scan(&near[0], &near[1])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return near, nil
+	}
+	return near, err
 }
 
 // Versions returns the latest changes of a page, newest first. They hold what was taken out, so only whoever may edit
@@ -269,7 +304,7 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `
-		SELECT v.version, v.block, coalesce(v.body, ''), v.body IS NULL, coalesce(a.name, v.author), v.at, v.origin
+		SELECT v.version, v.block, coalesce(v.body, ''), v.body IS NULL, coalesce(a.name, v.author), v.at, v.origin, v.agent
 		FROM block_versions v LEFT JOIN accounts a ON a.id = v.author
 		WHERE v.page = $1 ORDER BY v.version DESC LIMIT $2`, pageID, limit)
 	if err != nil {
@@ -277,7 +312,7 @@ func (db *DB) Versions(ctx context.Context, pageID, viewer string, limit int) ([
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Version, error) {
 		var v Version
-		err := row.Scan(&v.Number, &v.Block, &v.Body, &v.Deleted, &v.Author, &v.At, &v.Origin)
+		err := row.Scan(&v.Number, &v.Block, &v.Body, &v.Deleted, &v.Author, &v.At, &v.Origin, &v.Agent)
 		return v, err
 	})
 }

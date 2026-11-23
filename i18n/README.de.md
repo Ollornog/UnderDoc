@@ -80,7 +80,8 @@ das arbeitet, steht (englisch) in [docs/files.md](../docs/files.md).
 **Seitenarten** sagen, für wen eine Seite ist: Struktur und Datensätze, Doku und Referenz für Agenten oder Doku für
 Menschen (Anleitung, Erklärung, Tutorial). Jedes Schreiben wird gegen die Regeln der Art geprüft; Fehler blockieren,
 Warnungen kommen mit einem Hinweis zur Behebung zurück, etwa „embed instead of copying“. Agenten lesen die Rohseite mit
-ihrem Kopfbereich (englisch): [docs/page-kinds.md](../docs/page-kinds.md).
+ihrem Kopfbereich. Was ein Agent an Doku für Menschen ändert, trägt „written by AI, not checked“, bis ein Mensch den
+Diff prüft oder die Änderung zurücknimmt (englisch): [docs/page-kinds.md](../docs/page-kinds.md).
 
 **Der Web-Editor** schreibt eine Seite der Datenbank in einem Editor mit Live-Vorschau: Markdown, das abseits des Cursors
 gerendert aussieht, eine Leiste über der Seite, `/` für die Arten von Blöcken und Speichern beim Tippen. Er wird mit

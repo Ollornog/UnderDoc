@@ -176,7 +176,11 @@ func (s *Service) titles(ctx context.Context, r Request, limit int, notice strin
 	if err != nil {
 		return Result{}, err
 	}
-	result.Hits = append(result.Hits, hits...)
+	for _, hit := range hits {
+		if r.Filters.Objects == nil || slices.Contains(r.Filters.Objects, hit.Object) {
+			result.Hits = append(result.Hits, hit)
+		}
+	}
 	return result, nil
 }
 

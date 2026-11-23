@@ -231,6 +231,9 @@ type Filters struct {
 	Collections []string
 	Authors     []string
 	Tags        []string
+	// Objects limits the search to these objects, as a filter that the database decides gives them, such as the pages
+	// with changes by agents to check (ADR-33). Nil does not limit; a filter that found none is answered before.
+	Objects []string
 	// From and To bound the time of the last change, zero means open.
 	From, To time.Time
 }

@@ -945,10 +945,18 @@ func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, 
 		for _, p := range markdown.Parts(b.Body) {
 			moved[blockID+"."+p.ID] = Address{Object: toPage, Block: id, Sub: p.ID}
 		}
+		near, err := neighbours(ctx, tx, pageID, blockID)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, "DELETE FROM blocks WHERE page = $1 AND id = $2", pageID, blockID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author, origin) VALUES ($1, $2, NULL, $3, $4)", pageID, blockID, viewer, "moved to "+moved[blockID].String()); err != nil {
+			return err
+		}
+		// What an agent takes out of human documentation stays visible there until a person checks it (ADR-33).
+		if err := noteChange(ctx, tx, pageID, blockID, near); err != nil {
 			return err
 		}
 		return redirectAll(ctx, tx, pageID, viewer, moved)

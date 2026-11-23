@@ -33,6 +33,9 @@ const (
 	LogRefused = "refused"
 	// LogAgents is a change of what a person lets their agents do.
 	LogAgents = "agents"
+	// LogChecked and LogTakenBack are a check of a change by agents and its taking back (ADR-33), each kept.
+	LogChecked   = "checked"
+	LogTakenBack = "taken back"
 )
 
 // hourly are the actions kept at most once per account, object and hour.

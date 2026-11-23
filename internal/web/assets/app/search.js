@@ -8,19 +8,20 @@ const udSearch=(()=>{
   const real=()=>!document.getElementById('root').hasAttribute('data-demo');
   const TYPES={page:'Page',folder:'Folder',collection:'Collection',notes:'Quick notes',table:'Table',list:'List',file:'File',database:'Database'};
   /* What the results page asks: its query, strategy and filters, and what came back. */
-  const F={type:'',collection:'',author:'',from:'',to:'',tags:[]};
+  /* check is the filter "AI changes to check" (ADR-33): pages of human documentation with hints nobody checked. */
+  const F={type:'',collection:'',author:'',from:'',to:'',tags:[],check:false};
   let result=null,asked='',timer=null,seq=0;
   /* The palette: its query, what the server found for it, and which entry is chosen. */
   let pal=null;
 
   const url=(q,limit,filters)=>{const p=new URLSearchParams({q,limit:String(limit)});
-    if(filters){['type','collection','author','from','to'].forEach(k=>{if(filters[k])p.set(k,filters[k]);});filters.tags.forEach(t=>p.append('tag',t));}
+    if(filters){['type','collection','author','from','to'].forEach(k=>{if(filters[k])p.set(k,filters[k]);});filters.tags.forEach(t=>p.append('tag',t));if(filters.check)p.set('check','ai');}
     if(S.strat==='exact')p.set('exact','1');return '/api/search?'+p;};
   async function ask(q,limit,filters){
     const r=await fetch(url(q,limit,filters),{credentials:'same-origin',headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error(String(r.status));return r.json();
   }
-  const filtered=()=>F.type||F.collection||F.author||F.from||F.to||F.tags.length;
+  const filtered=()=>F.type||F.collection||F.author||F.from||F.to||F.tags.length||F.check;
   const key=()=>JSON.stringify([S.sq.trim(),S.strat,F]);
 
   /* The results page runs its query a moment after the last key, and only the newest answer counts. */
@@ -64,11 +65,12 @@ const udSearch=(()=>{
     const day=(k,name)=>prow(name,`<input class="input w-40" data-size="sm" type="date" data-sf="${k}" value="${esc(F[k])}" aria-label="${name}">`);
     return `<div class="flex flex-col gap-2" data-filters>${opts('type',types,'All types','Type')}${opts('collection',fc.collection||[],'All collections','Collection')}${opts('author',fc.author||[],'Everyone','Author')}
       ${day('from','Changed from')}${day('to','Changed until')}
+      <div><button type="button" class="btn" data-variant="outline" data-size="xs" data-sact="aicheck" aria-pressed="${!!F.check}">✦ AI changes to check</button></div>
       ${tags.length?`<div class="flex flex-wrap gap-1">${tags.map(t=>tagToggle(`data-sact="tag" data-tag="${esc(t)}"`,esc(t),F.tags.includes(t))).join('')}</div>`:''}</div>`;
   }
   function pageHtml(){
     if(asked!==key())results();
-    const n=['type','collection','author','from','to'].filter(k=>F[k]).length+F.tags.length;
+    const n=['type','collection','author','from','to','check'].filter(k=>F[k]).length+F.tags.length;
     return `<div class="flex flex-col gap-2"><div>${pbtn(`data-act="filters" aria-expanded="${S.filters}"`,'Filter'+(n?' ('+n+')':''),'view')}</div>
       ${S.filters?filtersHtml():''}<div id="sres" class="flex flex-col gap-2">${resultsHtml()}</div></div>`;
   }
@@ -180,6 +182,7 @@ const udSearch=(()=>{
       case 'open':pal=null;openDoc(a.dataset.key);render();return;
       case 'all':{const q=pal?pal.q.trim():'';pal=null;if(S.view!=='search')S.prev=S.view;S.view='search';S.rail=true;S.sq=q;results();render();const f=document.getElementById('search');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}return;}
       case 'tag':{const t=a.dataset.tag;F.tags=F.tags.includes(t)?F.tags.filter(x=>x!==t):[...F.tags,t];results();render();return;}
+      case 'aicheck':F.check=!F.check;results();render();return;
     }
   },true);
 
