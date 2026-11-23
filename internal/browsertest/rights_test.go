@@ -259,12 +259,18 @@ func TestTheTabRights(t *testing.T) {
 	}
 	// Archived instead of deleted (B-3): the group stays with its member, marked, and comes back with Restore.
 	b.eval(`window.confirm = () => true`)
+	b.settled()
+	if !b.waitFor(`!!document.querySelector('[data-group="Board"] [data-ract="archivegroup"]')`) {
+		t.Fatalf("Archive is offered: %s", b.eval(`document.querySelector('[data-rights="groups"]')?.innerText`))
+	}
 	b.clickOn(`[data-group="Board"] [data-ract="archivegroup"]`, 1)
+	b.settled()
 	if !b.waitFor(`(document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText || '').includes('archived') && !!document.querySelector('[data-group="Board"] [data-ract="restoregroup"]')`) {
-		t.Fatalf("the group is archived: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
+		t.Fatalf("the group is archived: %s / %s", b.eval(`document.querySelector('[data-rights="groups"]')?.innerText`), b.eval(`String(window.confirm)`))
 	}
 	b.shot("group-archived")
 	b.clickOn(`[data-group="Board"] [data-ract="restoregroup"]`, 1)
+	b.settled()
 	if !b.waitFor(`!(document.querySelector('[data-rights="groups"] [data-group="Board"]')?.innerText || 'archived').includes('archived') && !!document.querySelector('[data-group="Board"] [data-ract="archivegroup"]')`) {
 		t.Fatalf("the group is restored: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
