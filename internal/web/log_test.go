@@ -21,11 +21,11 @@ func TestAccessAndChangesAreLogged(t *testing.T) {
 	for range 3 {
 		s.send(http.MethodGet, "/api/doc/"+page.ID, "", plain)
 	}
-	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"u-bob","role":"manage"}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"1002","role":"manage"}`, sameSite)
 	if got := s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"tenant","role":"read"}`, plain).Code; got != http.StatusNoContent {
 		t.Fatalf("bob, who manages Team, grants = %d", got)
 	}
-	s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"u-bob","role":"comment"}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"1002","role":"comment"}`, sameSite)
 	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/comments", `{"body":"Looks good"}`, plain).Code; got != http.StatusCreated {
 		t.Fatalf("bob comments = %d", got)
 	}
@@ -51,26 +51,26 @@ func TestAccessAndChangesAreLogged(t *testing.T) {
 	if count["change"] != 2 || count["open"] != 1 || count["grant"] != 1 || count["link made"] != 1 || count["link wrong password"] != 1 {
 		t.Errorf("the log of the page: %v\n%+v", count, entries)
 	}
-	if !slices.ContainsFunc(entries, func(e apiEntry) bool { return e.Action == "change" && e.Actor == "u-bob" && e.Object == page.ID }) {
+	if !slices.ContainsFunc(entries, func(e apiEntry) bool { return e.Action == "change" && e.Actor == "1002" && e.Object == page.ID }) {
 		t.Errorf("bob's comment is a change of the page: %+v", entries)
 	}
-	if slices.ContainsFunc(entries, func(e apiEntry) bool { return e.Action == "change" && e.Object == team.ID && e.Actor == "u-bob" }) {
+	if slices.ContainsFunc(entries, func(e apiEntry) bool { return e.Action == "change" && e.Object == team.ID && e.Actor == "1002" }) {
 		t.Errorf("a role is logged as what it is, not as a change: %+v", entries)
 	}
 	if i := slices.IndexFunc(entries, func(e apiEntry) bool { return e.Action == "link wrong password" }); i < 0 || entries[i].Actor != "" {
 		t.Errorf("the visitor has no account: %+v", entries)
 	}
-	if i := slices.IndexFunc(entries, func(e apiEntry) bool { return e.Action == "grant" }); i < 0 || !strings.Contains(entries[i].Detail, "u-bob comment") {
+	if i := slices.IndexFunc(entries, func(e apiEntry) bool { return e.Action == "grant" }); i < 0 || !strings.Contains(entries[i].Detail, "1002 comment") {
 		t.Errorf("the grant says what: %+v", entries)
 	}
 	// Bob manages Team now, so he reads what happened there; carl, who manages nothing, reads what he did alone.
 	bobs := decode[[]apiEntry](t, s.send(http.MethodGet, "/api/log", "", plain))
-	if len(bobs) != len(entries) || !slices.ContainsFunc(bobs, func(e apiEntry) bool { return e.Action == "open" && e.Actor == "u-bob" }) {
+	if len(bobs) != len(entries) || !slices.ContainsFunc(bobs, func(e apiEntry) bool { return e.Action == "open" && e.Actor == "1002" }) {
 		t.Errorf("bob reads what happened to what he manages: %d of %d", len(bobs), len(entries))
 	}
 	s.send(http.MethodGet, "/api/doc/"+page.ID, "", carlOf)
 	carls := decode[[]apiEntry](t, s.send(http.MethodGet, "/api/log", "", carlOf))
-	if len(carls) != 1 || carls[0].Actor != "u-carl" || carls[0].ObjectTitle != "Plan" {
+	if len(carls) != 1 || carls[0].Actor != "1003" || carls[0].ObjectTitle != "Plan" {
 		t.Errorf("carl reads what he did: %+v", carls)
 	}
 }

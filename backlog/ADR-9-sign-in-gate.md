@@ -28,3 +28,6 @@ TinySesam as a gate in front of the app, passing user and groups through trusted
 - File access cannot use this sign-in, see ADR-10.
 
 **Replaced on 2026-11-16 by ADR-23:** the gate stays one way to sign in, next to local accounts with passkey, password and TOTP, and OIDC, chosen per tenant.
+
+**Replaced by ADR-32 on 2026-11-23:** the gate is the only way in again, checked by its Go client, with the persons bound by
+`Remote-Id`.

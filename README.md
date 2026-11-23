@@ -44,8 +44,9 @@ UnderDoc binds to loopback by default. Each tenant chooses how people sign in ([
 local accounts with a passkey (the default), with a password and a code, or with a password alone, single sign-on with
 any OIDC provider, or a sign-in gate in front. A gate checks who someone is and passes that on in the headers
 `Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email`, `Remote-Groups`, `Remote-Auth` and `Remote-Kind`, which it
-must remove from every incoming request first (a request whose `Remote-Auth` is not `session` counts as an agent); [TinySesam](https://github.com/Ollornog/TinySesam) is one, and any other gate that sets these headers works
-too. An instance that ran behind a gate keeps it. The first administrator of a new instance comes from
+must remove from every incoming request first (a request whose `Remote-Auth` is not `session` counts as an agent). The
+Go client of [TinySesam](https://github.com/Ollornog/TinySesam) checks them, or TinySesam's signed gate token, and a
+person is bound by `Remote-Id` ([ADR-32](backlog/ADR-32-sign-in-only-through-the-gate.md)). An instance that ran behind a gate keeps it. The first administrator of a new instance comes from
 `underdoc invite --admin <login> <name>`. To try it on your own machine, let a made-up user stand in for the gate:
 
 ```bash
@@ -63,7 +64,8 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_HEALTH_ADDR` | Address of `GET /healthz` | `127.0.0.1:8081` |
 | `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
-| `UNDERDOC_ADMIN_GROUP` | Group of the gate or of OIDC whose members administer a tenant, unless the tenant names another | `underdoc-admins` |
+| `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer a tenant, unless the tenant names another group ([docs/sign-in.md](docs/sign-in.md#the-gate)) | `underdoc-admin` |
+| `UNDERDOC_GATE_MODE`, `UNDERDOC_GATE_PROXIES`, `UNDERDOC_GATE_*` | How the sign-in gate reaches UnderDoc: its headers from the addresses of its proxy, or its token; the gate's Go client checks either ([docs/sign-in.md](docs/sign-in.md#the-gate)) | header mode, any address |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
 | `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |

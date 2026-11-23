@@ -42,7 +42,7 @@ func setupWithFiles(t *testing.T) (*browser, string, *db.DB, *store.Store) {
 	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
 		t.Fatal(err)
 	}
-	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, AdminGroup: "ops", TextWays: db.Ways{Browser: true}}, nil)
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, GateClient: gateWithRole(t, "ops"), TextWays: db.Ways{Browser: true}}, nil)
 	return b, base, database, s
 }
 
@@ -229,8 +229,8 @@ func TestUploadResumesAfterABreak(t *testing.T) {
 	if patches != 4 {
 		t.Errorf("%d chunks sent for three, one of them broken", patches)
 	}
-	roots, _ := database.FileRoots(tenant.With(context.Background(), tenant.Main), "anna")
-	list, _ := database.FilesIn(tenant.With(context.Background(), tenant.Main), roots[1].ID, "anna")
+	roots, _ := database.FileRoots(tenant.With(context.Background(), tenant.Main), "1007")
+	list, _ := database.FilesIn(tenant.With(context.Background(), tenant.Main), roots[1].ID, "1007")
 	if len(list) != 1 || list[0].Blob != hex.EncodeToString(sum[:]) {
 		t.Fatalf("the stored file is not the chosen one: %+v", list)
 	}

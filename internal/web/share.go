@@ -401,16 +401,14 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 	if l.Mode == db.LinkComment || l.Mode == db.LinkEdit {
 		// An agent never takes a link for its person: that is sharing, which agents never do (ADR-36).
 		if user, ok := h.signedInUser(r); ok && user.ID != "" && !user.Agent() {
-			if err := h.seeAccount(r.Context(), user); err == nil {
-				if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
-					h.log.Error("link not used", slog.String("error", err.Error()))
-				} else {
-					if err := h.options.DB.Log(r.Context(), user.ID, db.LogLinkUsed, l.Object, l.ID+" "+l.Mode); err != nil {
-						h.log.Error("log not written", slog.String("error", err.Error()))
-					}
-					http.Redirect(w, r, "/o/"+l.Object, http.StatusSeeOther)
-					return
+			if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
+				h.log.Error("link not used", slog.String("error", err.Error()))
+			} else {
+				if err := h.options.DB.Log(r.Context(), user.ID, db.LogLinkUsed, l.Object, l.ID+" "+l.Mode); err != nil {
+					h.log.Error("log not written", slog.String("error", err.Error()))
 				}
+				http.Redirect(w, r, "/o/"+l.Object, http.StatusSeeOther)
+				return
 			}
 		}
 		v.SignIn = "/sign-in?next=" + sharePath(token)

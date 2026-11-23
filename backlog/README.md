@@ -66,7 +66,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-24](T-24-typo-tolerance-from-four-letters-checked-against-t.md)** Typo tolerance from four letters, checked against the question catalogue · M-12
 * ☐ **[T-25](T-25-search-learns-synonyms-and-related-searches-from-u.md)** Search learns synonyms and related searches from use · M-12
 * ☑ **[T-26](T-26-rights-per-action-with-allow-and-deny-nested-group.md)** Rights per action with allow and deny, nested groups and the group Agents · M-30
-* ☐ **[T-27](T-27-sign-in-only-through-the-gate.md)** Sign-in only through the gate · M-30
+* ◐ **[T-27](T-27-sign-in-only-through-the-gate.md)** Sign-in only through the gate · M-30
 * ☐ **[T-28](T-28-import-and-export-of-a-git-markdown-wiki-with-a-ro.md)** Import and export of a Git Markdown wiki, with a round trip that loses nothing · M-30
 * ☐ **[T-29](T-29-navigation-for-people-tree-breadcrumbs-folder-over.md)** Navigation for people: tree, breadcrumbs, folder overview, used in, table of contents · M-30
 * ☐ **[T-30](T-30-data-pages-from-csv-files-and-automatic-sections.md)** Data pages from CSV files and automatic sections · M-30
@@ -111,6 +111,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files
 * ☑ **[ADR-30](ADR-30-samba-share.md)** Samba: a working copy on disk, a watcher, and a companion that UnderDoc steers without root
 * ☑ **[ADR-31](ADR-31-spreadsheets-as-tables.md)** Spreadsheets as native tables: read by UnderDoc, embedded by a local ID, never quietly wrong
+* ☑ **[ADR-32](ADR-32-sign-in-only-through-the-gate.md)** Sign-in only through the gate
 * ☑ **[ADR-33](ADR-33-ai-documentation-and-human-documentation.md)** AI documentation and human documentation
 * ☑ **[ADR-34](ADR-34-underdoc-as-an-mcp-server-for-its-documents-and-ot.md)** UnderDoc as an MCP server for its documents and other sources
 * ☑ **[ADR-35](ADR-35-what-the-gate-decides-and-what-the-app-decides.md)** What the gate decides and what the app decides

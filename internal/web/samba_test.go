@@ -81,7 +81,7 @@ func withSamba(t *testing.T) *sambaSite {
 		t.Fatal(err)
 	}
 	behindGate(t, database, tenant.Main)
-	s := newSite(t, Options{DB: database, Store: st, Vault: v, Share: m, AdminGroup: "underdoc-admins"}, sample)
+	s := newSite(t, Options{DB: database, Store: st, Vault: v, Share: m}, sample)
 	return &sambaSite{site: s, db: database, share: m, companion: companion, shareDir: dir}
 }
 
@@ -113,7 +113,7 @@ func TestAppPassword(t *testing.T) {
 		t.Fatalf("the companion has %+v", s.companion.state.Users)
 	}
 	// The database keeps the NT hash sealed only.
-	kept, err := s.db.SambaAccountOf(tenant.With(context.Background(), tenant.Main), "u-bob")
+	kept, err := s.db.SambaAccountOf(tenant.With(context.Background(), tenant.Main), "1002")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,10 +136,10 @@ func TestAppPassword(t *testing.T) {
 	if got := s.send(http.MethodPost, "/api/samba/password", `{}`, sameSite); got.Code != http.StatusOK {
 		t.Fatalf("Anna makes hers: %d", got.Code)
 	}
-	if got := s.send(http.MethodDelete, "/api/samba/accounts/u-7", ``, merged2(bobOnly, sameSite)); got.Code != http.StatusForbidden {
+	if got := s.send(http.MethodDelete, "/api/samba/accounts/1007", ``, merged2(bobOnly, sameSite)); got.Code != http.StatusForbidden {
 		t.Errorf("Bob removes Anna's: %d", got.Code)
 	}
-	if _, err := s.db.SambaAccountOf(tenant.With(context.Background(), tenant.Main), "u-7"); err != nil {
+	if _, err := s.db.SambaAccountOf(tenant.With(context.Background(), tenant.Main), "1007"); err != nil {
 		t.Errorf("Anna's Samba user after Bob's try: %v", err)
 	}
 	if got := s.send(http.MethodDelete, "/api/samba/password", ``, sameSite); got.Code != http.StatusNoContent {
@@ -152,7 +152,7 @@ func TestAppPassword(t *testing.T) {
 	if len(list["accounts"]) != 1 || list["accounts"][0]["name"] != "bob" {
 		t.Fatalf("the administrator's list: %+v", list)
 	}
-	if got := s.send(http.MethodDelete, "/api/samba/accounts/u-bob", ``, sameSite); got.Code != http.StatusNoContent {
+	if got := s.send(http.MethodDelete, "/api/samba/accounts/1002", ``, sameSite); got.Code != http.StatusNoContent {
 		t.Fatalf("the administrator removes Bob's: %d %s", got.Code, got.Body)
 	}
 	s.sync()

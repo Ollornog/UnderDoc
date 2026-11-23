@@ -54,6 +54,10 @@ off signs out everyone who came in with one.
 
 ## The gate
 
+Whatever comes through the gate is checked by the gate's Go client ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md),
+TinySesam `clients/go`, pinned by commit). UnderDoc never reads who someone is, how they signed in or what kind of account
+they have from a header on its own.
+
 The headers of a gate can be forged by anyone who reaches UnderDoc without it. Only whoever runs the instance knows the
 network, so `UNDERDOC_GATE` decides, not the administrator of a tenant:
 
@@ -63,15 +67,45 @@ network, so `UNDERDOC_GATE` decides, not the administrator of a tenant:
 | `on` | Administrators may switch the gate on for their tenant. |
 | `off` | The headers never count, whatever a tenant says. |
 
-Besides who someone is, the gate says how the request signed in (`Remote-Auth`: `session`, `oauth`, `apikey`,
-`app-password`) and whether the account is a service account (`Remote-Kind: service`). Every request that did not sign in
-as a session belongs to the built-in group Agents, a missing or unknown `Remote-Auth` included ([rights.md](rights.md#the-group-agents)):
-it may never manage rights, share, delete for good or read passwords. A session of the sign-in pages (passkey, password,
-single sign-on) is always a session. A gate that does not send `Remote-Auth` therefore signs everyone in as an agent.
+How the gate reaches UnderDoc:
 
-Where the gate is the only way in, nothing changes from before: the headers sign in, a request without them gets the
-page "Not signed in", and none of the pages of signing in answers. `UNDERDOC_DEV_USER` still stands in for the gate on
-one machine.
+| Setting | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_GATE_MODE` | `header`: the Remote headers the gate's proxy sets (forward auth, or the claims of a gate token the proxy checked). `token`: UnderDoc checks the gate token itself and ignores every Remote header | `header` |
+| `UNDERDOC_GATE_PROXIES` | Header mode: the addresses or networks the proxy connects from, separated by commas. A request from any other address is refused | none: any address, and a warning at the start |
+| `UNDERDOC_GATE_HEADER_USER`, `_NAME`, `_EMAIL`, `_GROUPS`, `_ID`, `_AUTH`, `_KIND` | Header mode: the names of the headers where the gate's `forward_headers` renames them | `Remote-User`, … |
+| `UNDERDOC_GATE_ISSUER`, `UNDERDOC_GATE_AUDIENCE` | Token mode: the gate's base address and the audience the proxy names | none |
+| `UNDERDOC_GATE_KEYS` or `UNDERDOC_GATE_JWKS_URL` | Token mode: the gate's public keys (`tinysesam gate-key`, comma separated), or the address of its key set | none |
+| `UNDERDOC_GATE_COOKIE` or `UNDERDOC_GATE_TOKEN_HEADER` | Token mode: where the token comes from | the gate cookie |
+| `UNDERDOC_GATE_KIND` | `required`: a request without `Remote-Kind` is refused, and a service account is one. Only once the gate says that its proxy sets `Remote-Kind` on every request | off |
+| `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer a tenant, unless the tenant names another group (`UNDERDOC_ADMIN_GROUP` is still read as its old name). The gate's own `admin` is never one | `underdoc-admin` |
+
+**The duties of the proxy** in header mode, as the gate states them: it removes every Remote header the browser sent, on
+every path, and sets them only from the gate's answer; UnderDoc is reachable through the proxy alone. Name the proxy's
+addresses in `UNDERDOC_GATE_PROXIES`, so that headers from anywhere else count for nothing.
+
+**Who someone is.** A person is bound by the lasting ID of their account in the gate (`Remote-Id`, the token's `ts_id`),
+never by their login, name or mail. A request without it is not signed in. At the first request the account of
+UnderDoc is made, keyed by that ID; a new login in the gate keeps the account. An account of the gate that UnderDoc keyed
+by its ID before is bound to it by migration 031; an account keyed by its login waits for its binding (until then, its
+person comes in as a new account). The roles in `Remote-Groups` become groups that can only be read; a request that did
+not sign in as a session carries a part of the roles only, so only a session changes the groups of an account.
+
+**How someone signed in.** The client reads `Remote-Auth` (`session`, `oauth`, `apikey`, `app-password`). Every request
+that did not sign in as a session belongs to the built-in group Agents, a missing or unknown value included
+([rights.md](rights.md#the-group-agents)): it may never manage rights, share, delete for good or read passwords, and an
+administrator's agent administers nothing. A gate token from before TinySesam 0.26.3 has no `ts_auth`, so it is an agent
+until it expires. A session of the sign-in pages (passkey, password, single sign-on) is always a session.
+
+**What kind of account.** `Remote-Kind` says person (`user`) or service account (`service`). A proxy older than the
+gate's spec version 2 passes on what the browser sent there, so it is not yet the only barrier: by default it is read and
+kept with the account, a request without it comes in as of unknown kind, and a service account counts as a person signed
+in with a token, an agent. `UNDERDOC_GATE_KIND=required` makes it decide. In token mode the kind is signed, so it always
+decides.
+
+Where the gate is the only way in, a request without it gets the page "Not signed in", and none of the pages of signing
+in answers. `UNDERDOC_DEV_USER` still stands in for the gate on one machine, as the account with the lasting ID 1 and the
+role of the app.
 
 ## Secrets of other systems
 
@@ -93,6 +127,7 @@ seals the passwords in the text and the NT hashes of Samba. **Changing the key**
 | [coreos/go-oidc](https://github.com/coreos/go-oidc) | 3.21.0 | Apache-2.0 | OIDC discovery and ID tokens |
 | [golang.org/x/oauth2](https://github.com/golang/oauth2) | 0.38.0 | BSD-3-Clause | the code flow with PKCE |
 | [golang.org/x/crypto](https://github.com/golang/crypto) | 0.59.0 | BSD-3-Clause | Argon2id |
+| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | commit `4bb607f` (0.29.0) | MIT | the gate: headers and gate token |
 
 Through them come go-webauthn/x (BSD-3-Clause), go-jose (Apache-2.0), golang-jwt (MIT), fxamacker/cbor (MIT), google/go-tpm (Apache-2.0),
 google/uuid (BSD-3-Clause), go-viper/mapstructure (MIT), tinylib/msgp (MIT), philhofer/fwd (MIT), x448/float16 (MIT)

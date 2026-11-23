@@ -66,35 +66,50 @@ func (h *handler) gateTrusted(s db.SignIn) bool {
 	return h.options.Gate != GateOff && s.Has(db.MethodGate)
 }
 
-// adminGroup is the group whose members administer the tenant.
+// adminGroup is the group whose members administer the tenant: the role of the app in the gate (ADR-35), unless the
+// tenant names another. The gate's own administrator is never one here.
 func (h *handler) adminGroup(s db.SignIn) string {
-	if s.AdminGroup != "" {
-		return s.AdminGroup
+	group := s.AdminGroup
+	if group == "" {
+		group = h.options.GateClient.AdminRole()
 	}
-	return h.options.AdminGroup
+	if group == "admin" {
+		return ""
+	}
+	return group
 }
+
+// errNotSignedIn is a request without anyone signed in.
+var errNotSignedIn = errors.New("not signed in")
 
 // identify finds who sent a request: the gate where the tenant trusts it, else the session cookie, else the user that
 // stands in for development.
 func (h *handler) identify(r *http.Request, s db.SignIn) (account.User, bool) {
-	user, ok := h.identifyAny(r, s)
-	// An agent administers nothing, also for an administrator (ADR-36): agents never manage rights.
-	if ok && user.Agent() {
-		user.Admin = false
-	}
-	return user, ok
+	user, err := h.who(r, s)
+	return user, err == nil
 }
 
-func (h *handler) identifyAny(r *http.Request, s db.SignIn) (account.User, bool) {
+// who is identify with the reason why nobody is signed in: errNotSignedIn, or db.ErrQuota for a person of the gate who
+// is new to a tenant that has as many accounts as its hoster allows.
+func (h *handler) who(r *http.Request, s db.SignIn) (account.User, error) {
+	user, err := h.whoAny(r, s)
+	// An agent administers nothing, also for an administrator (ADR-36): agents never manage rights.
+	if err == nil && user.Agent() {
+		user.Admin = false
+	}
+	return user, err
+}
+
+func (h *handler) whoAny(r *http.Request, s db.SignIn) (account.User, error) {
 	ctx := r.Context()
 	group := h.adminGroup(s)
 	if h.gateTrusted(s) {
-		if user, ok := account.FromRequest(r); ok {
+		// Who someone is, how they signed in and what kind of account they have come only from what the gate's client
+		// checked (ADR-32), never raw from a header.
+		if user, err := h.options.GateClient.Identify(r); err == nil {
 			user.Admin = group != "" && slices.Contains(user.Groups, group)
 			user.Method = db.MethodGate
-			// AuthKind and Kind come from Remote-Auth and Remote-Kind, trusted as Remote-User is: the proxy of the gate
-			// sets them on every request. T-27 takes them from the result the gate's Go client checked instead.
-			return user, true
+			return h.bindGate(ctx, user)
 		}
 	}
 	if h.options.DB != nil {
@@ -107,7 +122,7 @@ func (h *handler) identifyAny(r *http.Request, s db.SignIn) (account.User, bool)
 					user.Method = method
 					// A session cookie is an interactive sign-in in the browser (ADR-36).
 					user.AuthKind = account.AuthSession
-					return user, true
+					return user, nil
 				}
 			} else if err != nil && !errors.Is(err, db.ErrNotFound) {
 				h.log.Error("session failed", slog.String("error", err.Error()))
@@ -119,9 +134,49 @@ func (h *handler) identifyAny(r *http.Request, s db.SignIn) (account.User, bool)
 		user.Admin = group != "" && slices.Contains(user.Groups, group)
 		user.Method = db.MethodGate
 		user.AuthKind = account.AuthSession
-		return user, true
+		if user.RemoteID == "" {
+			return user, nil
+		}
+		return h.bindGate(ctx, user)
 	}
-	return account.User{}, false
+	return account.User{}, errNotSignedIn
+}
+
+// bindGate turns a person of the gate into the account of the tenant bound to their lasting ID (ADR-35), made at first
+// contact. The account is written at most every few minutes; in between, what was bound is kept in memory. An account
+// marked as an administrator (the emergency access) administers like one with the role.
+func (h *handler) bindGate(ctx context.Context, user account.User) (account.User, error) {
+	if h.options.DB == nil {
+		return user, nil
+	}
+	t, _ := tenant.From(ctx)
+	key := t + "\x00" + user.RemoteID
+	h.boundMu.Lock()
+	b, ok := h.bound[key]
+	h.boundMu.Unlock()
+	if !ok || time.Since(b.at) >= 5*time.Minute {
+		a, err := h.options.DB.BindGate(ctx, user)
+		if err != nil {
+			if !errors.Is(err, db.ErrQuota) {
+				h.log.Error("account not bound", slog.String("error", err.Error()))
+			}
+			return account.User{}, err
+		}
+		b = boundAccount{id: a.ID, admin: a.Admin, at: time.Now()}
+		h.boundMu.Lock()
+		h.bound[key] = b
+		h.boundMu.Unlock()
+	}
+	user.ID = b.id
+	user.Admin = user.Admin || b.admin
+	return user, nil
+}
+
+// boundAccount is the account a lasting ID of the gate was bound to, and when that was read.
+type boundAccount struct {
+	id    string
+	admin bool
+	at    time.Time
 }
 
 // public tells the paths that answer without a sign-in: the pages to sign in, to accept an invitation and to register.

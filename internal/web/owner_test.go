@@ -25,7 +25,7 @@ func TestAnAdministratorTransfersWhatIsLeftBehind(t *testing.T) {
 	t.Cleanup(database.Close)
 	behindGate(t, database, tenant.Main)
 	// Anna administers through the group of her gate headers; bob and carl do not.
-	s := newSite(t, Options{DB: database, AdminGroup: "underdoc-admins"}, sample)
+	s := newSite(t, Options{DB: database}, sample)
 	for _, who := range []map[string]string{plain, carlOf} {
 		s.send(http.MethodGet, "/api/state", "", who)
 	}
@@ -44,18 +44,18 @@ func TestAnAdministratorTransfersWhatIsLeftBehind(t *testing.T) {
 		}
 	}
 	// The administrator asks what bob holds: the collection is there by its title.
-	held := decode[[]apiHeld](t, s.send(http.MethodGet, "/api/rights/held?account=u-bob", "", sameSite))
+	held := decode[[]apiHeld](t, s.send(http.MethodGet, "/api/rights/held?account=1002", "", sameSite))
 	if !slices.ContainsFunc(held, func(h apiHeld) bool { return h.Object == drafts.ID && h.Via == "owner" && h.Title == "Drafts" }) {
 		t.Fatalf("bob owns Drafts: %+v", held)
 	}
 	rights := decode[apiRights](t, s.send(http.MethodGet, "/api/objects/"+drafts.ID+"/rights", "", sameSite))
-	if rights.Owner != "u-bob" || len(rights.Own) != 0 || !rights.Manage || rights.Role != "" {
+	if rights.Owner != "1002" || len(rights.Own) != 0 || !rights.Manage || rights.Role != "" {
 		t.Errorf("the administrator manages its rights, holding no role: %+v", rights)
 	}
-	if got := s.send(http.MethodPut, "/api/objects/"+drafts.ID+"/owner", `{"to":"u-carl"}`, carlOf).Code; got != http.StatusNotFound {
+	if got := s.send(http.MethodPut, "/api/objects/"+drafts.ID+"/owner", `{"to":"1003"}`, carlOf).Code; got != http.StatusNotFound {
 		t.Errorf("carl takes it = %d", got)
 	}
-	if got := s.send(http.MethodPut, "/api/objects/"+drafts.ID+"/owner", `{"to":"u-carl"}`, sameSite).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+drafts.ID+"/owner", `{"to":"1003"}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("the administrator transfers it = %d", got)
 	}
 	if got := s.send(http.MethodGet, "/api/doc/"+page.ID, "", sameSite).Code; got != http.StatusNotFound {
@@ -66,7 +66,7 @@ func TestAnAdministratorTransfersWhatIsLeftBehind(t *testing.T) {
 	}
 	entries := decode[[]apiEntry](t, s.send(http.MethodGet, "/api/log?object="+drafts.ID, "", sameSite))
 	if !slices.ContainsFunc(entries, func(e apiEntry) bool {
-		return e.Action == db.LogOwner && e.Actor == "u-7" && e.Detail == "to u-carl" && e.ObjectTitle == "Drafts"
+		return e.Action == db.LogOwner && e.Actor == "1007" && e.Detail == "to 1003" && e.ObjectTitle == "Drafts"
 	}) {
 		t.Errorf("the log names the transfer: %+v", entries)
 	}
@@ -81,7 +81,7 @@ func TestTheRetentionOfTheLog(t *testing.T) {
 	}
 	t.Cleanup(database.Close)
 	behindGate(t, database, tenant.Main)
-	s := newSite(t, Options{DB: database, AdminGroup: "underdoc-admins"}, sample)
+	s := newSite(t, Options{DB: database}, sample)
 	s.send(http.MethodGet, "/api/state", "", plain)
 	if got := decode[apiKeep](t, s.send(http.MethodGet, "/api/log/keep", "", plain)); got.Days != 365 || got.Min != 30 || got.Max != 3650 {
 		t.Errorf("a year by default: %+v", got)

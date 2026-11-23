@@ -63,7 +63,7 @@ func book(t *testing.T, c *client, name string) string {
 // TestTimeTrackingIsAModule (ADR-25): off by default, every address of it is gone; the administrator switches it on and
 // it runs below /time inside the workspace with UnderDoc's sign-in; off again, nothing is lost.
 func TestTimeTrackingIsAModule(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	if m := timeModule(stateOf(t, admin).Modules); !m.Allowed || m.On {
 		t.Fatalf("allowed and off by default: %+v", m)
@@ -101,7 +101,7 @@ func TestTimeTrackingIsAModule(t *testing.T) {
 		}
 	}
 	employer := book(t, admin, "Own work")
-	entries, err := database.TimeStore().Entries(inMain(), core.EntryFilter{Owner: db.Person("u-7"), EmployerID: employer})
+	entries, err := database.TimeStore().Entries(inMain(), core.EntryFilter{Owner: db.Person("1007"), EmployerID: employer})
 	if err != nil || len(entries) != 1 || entries[0].Minutes != 38*60+30 {
 		t.Fatalf("the week is Anna's: %+v %v", entries, err)
 	}
@@ -130,7 +130,7 @@ func TestTimeTrackingIsAModule(t *testing.T) {
 // administrators are UnderDoc's, and what a member tracks for it its reviewers see by EightPerDay's rules, never the
 // private part.
 func TestTimeTrackingPrivateAndManaged(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)
@@ -149,12 +149,12 @@ func TestTimeTrackingPrivateAndManaged(t *testing.T) {
 		t.Errorf("Bob opens the organization: %d", got.Code)
 	}
 	// Anna takes Bob in; his managed employer belongs to the organization.
-	if got := admin.form("/time/orgs/"+tenant.Main+"/member", url.Values{"person": {"u-bob"}, "role": {"member"}, "records": {"on"},
+	if got := admin.form("/time/orgs/"+tenant.Main+"/member", url.Values{"person": {"1002"}, "role": {"member"}, "records": {"on"},
 		"back": {"/orgs/" + tenant.Main}}); got.Code != http.StatusSeeOther {
 		t.Fatalf("take Bob in: %d %s", got.Code, got.Body.String())
 	}
 	managed, err := database.TimeStore().Managed(inMain(), tenant.Main, core.MustDate("2026-01-01"), core.MustDate("2026-12-31"))
-	if err != nil || len(managed.Catalog.Employers) != 1 || managed.Catalog.Employers[0].Owner != "u-bob" {
+	if err != nil || len(managed.Catalog.Employers) != 1 || managed.Catalog.Employers[0].Owner != "1002" {
 		t.Fatalf("the organization's employers: %+v %v", managed.Catalog.Employers, err)
 	}
 	org := admin.get("/time/orgs/" + tenant.Main).Body.String()
@@ -162,7 +162,7 @@ func TestTimeTrackingPrivateAndManaged(t *testing.T) {
 		t.Error("the organization's page names its member and nothing private of him")
 	}
 	// Bob has both, his own and the organization's employer, and books on each.
-	cat, err := database.TimeStore().Catalog(inMain(), "u-bob")
+	cat, err := database.TimeStore().Catalog(inMain(), "1002")
 	if err != nil || len(cat.Employers) != 2 {
 		t.Fatalf("Bob's employers: %+v %v", cat.Employers, err)
 	}
@@ -177,7 +177,7 @@ func TestTimeTrackingPrivateAndManaged(t *testing.T) {
 // TestTimeTrackingAbsencesForTheCalendar: the absences of the user over their employers, as JSON for a calendar, only
 // their own.
 func TestTimeTrackingAbsencesForTheCalendar(t *testing.T) {
-	s, _ := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, _ := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)
@@ -213,7 +213,7 @@ func TestTimeTrackingAbsencesForTheCalendar(t *testing.T) {
 // in UnderDoc's store too; the interface tells the member so (a sentence, never an error of the server), and the store
 // refuses the record itself with core.ErrLocked.
 func TestTimeTrackingLockedDayIsTold(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)
@@ -228,7 +228,7 @@ func TestTimeTrackingLockedDayIsTold(t *testing.T) {
 		"back": {"/"}}); got.Code != http.StatusSeeOther {
 		t.Fatalf("the approval: %d %s", got.Code, got.Body.String())
 	}
-	if got := admin.form(org+"/member", url.Values{"person": {"u-bob"}, "role": {"member"}, "template": {"Full time"},
+	if got := admin.form(org+"/member", url.Values{"person": {"1002"}, "role": {"member"}, "template": {"Full time"},
 		"from": {"2026-11-01"}, "records": {"on"}, "back": {"/"}}); got.Code != http.StatusSeeOther {
 		t.Fatalf("take Bob in: %d %s", got.Code, got.Body.String())
 	}
@@ -253,7 +253,7 @@ func TestTimeTrackingLockedDayIsTold(t *testing.T) {
 	if got.Code != http.StatusBadRequest || !strings.Contains(got.Body.String(), "cannot be changed") {
 		t.Errorf("a locked day: %d %s", got.Code, got.Body.String())
 	}
-	cat, err := database.TimeStore().Catalog(inMain(), "u-bob")
+	cat, err := database.TimeStore().Catalog(inMain(), "1002")
 	if err != nil {
 		t.Fatal(err)
 	}

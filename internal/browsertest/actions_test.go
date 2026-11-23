@@ -31,12 +31,12 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-rform="grant"]')`) {
 		t.Fatalf("the dialog opens: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
-	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:bob", "role": "edit"})
-	if !b.waitFor(`!!document.querySelector('#udrights [data-grant="person:bob"] [data-ract="actions"]')`) {
+	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:1002", "role": "edit"})
+	if !b.waitFor(`!!document.querySelector('#udrights [data-grant="person:1002"] [data-ract="actions"]')`) {
 		t.Fatalf("bob is granted, with Actions: %s", b.eval(`document.getElementById('udrights').innerText`))
 	}
-	b.clickOn(`#udrights [data-grant="person:bob"] [data-ract="actions"]`, 1)
-	form := `#udrights [data-actions-of="person:bob"] form[data-rform="actions"]`
+	b.clickOn(`#udrights [data-grant="person:1002"] [data-ract="actions"]`, 1)
+	form := `#udrights [data-actions-of="person:1002"] form[data-rform="actions"]`
 	if !b.waitFor(`!!document.querySelector('` + form + `')`) {
 		t.Fatalf("the actions open: %s", b.eval(`document.getElementById('udrights').innerText`))
 	}
@@ -44,13 +44,13 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 		t.Errorf("the preset edit as actions: %q", got)
 	}
 	b.submit(form, map[string]string{"write": "deny"})
-	if !b.waitFor(`(document.querySelector('#udrights [data-grant="person:bob"] [data-summary]')?.textContent || '').includes('❌ Write')`) {
+	if !b.waitFor(`(document.querySelector('#udrights [data-grant="person:1002"] [data-summary]')?.textContent || '').includes('❌ Write')`) {
 		t.Fatalf("bob's row names the deny: %s", b.eval(`document.querySelector('#udrights [data-grants]')?.innerText`))
 	}
-	if got := b.eval(`document.querySelector('#udrights [data-grant="person:bob"] select[data-rsel]').value`); got != "custom" {
+	if got := b.eval(`document.querySelector('#udrights [data-grant="person:1002"] select[data-rsel]').value`); got != "custom" {
 		t.Errorf("a changed preset shows as custom: %q", got)
 	}
-	b.eval(`window.r = null; fetch('/api/objects/` + page + `/rights').then(r => r.json()).then(j => { window.r = JSON.stringify(j.own.filter(g => g.who === 'bob').map(g => g.role + ':' + g.actions.write)); }); ''`)
+	b.eval(`window.r = null; fetch('/api/objects/` + page + `/rights').then(r => r.json()).then(j => { window.r = JSON.stringify(j.own.filter(g => g.who === '1002').map(g => g.role + ':' + g.actions.write)); }); ''`)
 	if !b.waitFor(`window.r !== null`) || b.eval(`window.r`) != `["custom:deny"]` {
 		t.Errorf("the server keeps the deny: %s", b.eval(`String(window.r)`))
 	}
@@ -64,14 +64,14 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 	// The access check, for bob and for an agent of anna.
 	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
 	b.clickOn(`[data-act="sec"][data-id="check"]`, 1)
-	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + page, "account": "bob"})
+	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + page, "account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-decisions] tr[data-decision="write"]')?.innerText || '').includes('❌ denied')`) {
 		t.Fatalf("bob may not write: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	if got := b.eval(`document.querySelector('[data-decisions] tr[data-decision="write"]').innerText.replace(/\s+/g, ' ').trim()`); got != "Write ❌ denied deny for Bob Kern · on A" {
 		t.Errorf("the deciding entry and where it is: %q", got)
 	}
-	b.eval(`(() => { const f = document.querySelector('[data-rights="check"] [data-rform="who"]'); f.elements.agent.checked = true; f.elements.account.value = 'anna'; })()`)
+	b.eval(`(() => { const f = document.querySelector('[data-rights="check"] [data-rform="who"]'); f.elements.agent.checked = true; f.elements.account.value = '1007'; })()`)
 	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + page})
 	if !b.waitFor(`(document.querySelector('[data-check]')?.innerText || '').includes('As an agent') && (document.querySelector('[data-decisions] tr[data-decision="read"]')?.innerText || '').includes('denied to agents')`) {
 		t.Errorf("anna's agent may not read where no agents are: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
@@ -120,7 +120,7 @@ func TestNestedGroupsInTheTabRights(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('[data-group-detail="Company"] [data-subgroup="ops"]')`) {
 		t.Errorf("ops from the sign-in is inside Company: %s", b.eval(`document.querySelector('[data-group-detail="Company"]')?.innerText`))
 	}
-	b.submit(`[data-group-detail="Company"] form[data-rform="groupadmin"]`, map[string]string{"account": "bob"})
+	b.submit(`[data-group-detail="Company"] form[data-rform="groupadmin"]`, map[string]string{"account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-group-detail="Company"] [data-admins]')?.innerText || '').includes('Bob Kern')`) {
 		t.Errorf("bob is a group admin of Company: %s", b.eval(`document.querySelector('[data-group-detail="Company"]')?.innerText`))
 	}

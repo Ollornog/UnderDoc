@@ -1,7 +1,7 @@
 ---
 type: Task
 title: Sign-in only through the gate
-status: offen
+status: in-arbeit
 id: T-27
 milestone: M-30
 created: '2026-11-23'

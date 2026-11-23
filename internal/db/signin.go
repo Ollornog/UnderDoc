@@ -132,11 +132,11 @@ type Account struct {
 	TOTPSealed   []byte
 }
 
-const accountColumns = `id, login, name, email, groups, source, admin, coalesce(password_hash, ''), totp_sealed`
+const accountColumns = `id, login, name, email, groups, source, admin, coalesce(password_hash, ''), totp_sealed, coalesce(remote_id, ''), gate_kind`
 
 func scanAccount(row pgx.Row) (Account, error) {
 	var a Account
-	err := row.Scan(&a.ID, &a.Login, &a.Name, &a.Email, &a.Groups, &a.Source, &a.Admin, &a.PasswordHash, &a.TOTPSealed)
+	err := row.Scan(&a.ID, &a.Login, &a.Name, &a.Email, &a.Groups, &a.Source, &a.Admin, &a.PasswordHash, &a.TOTPSealed, &a.RemoteID, &a.GateKind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}

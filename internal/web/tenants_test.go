@@ -107,7 +107,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := database.SetGrant(tenant.With(context.Background(), tid), plan.ID, db.Actor{ID: "u-7"}, db.ToGroup, board.ID, db.RoleRead); err != nil {
+		if err := database.SetGrant(tenant.With(context.Background(), tid), plan.ID, db.Actor{ID: "1007"}, db.ToGroup, board.ID, db.RoleRead); err != nil {
 			t.Fatal(err)
 		}
 		m.group = board.ID
@@ -181,7 +181,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 				{"/time/book/absence", url.Values{"employer": {c.other.employer}, "type": {"sick"}, "from": {"2026-11-17"}, "back": {"/"}}},
 				{"/time/employers/" + c.other.employer + "/archive", url.Values{"back": {"/"}}},
 				{"/time/employers/" + c.other.employer + "/name", url.Values{"name": {"taken"}, "back": {"/"}}},
-				{"/time/orgs/" + otherTenant + "/member", url.Values{"person": {"u-7"}, "role": {"admin"}, "back": {"/"}}},
+				{"/time/orgs/" + otherTenant + "/member", url.Values{"person": {"1007"}, "role": {"admin"}, "back": {"/"}}},
 			} {
 				if got := sendForm(s, change.target, change.values, h); got.Code < 400 || got.Code == http.StatusInternalServerError {
 					t.Errorf("POST %s = %d", change.target, got.Code)
@@ -210,7 +210,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 					{http.MethodPost, "/api/pages/" + id + "/comments", `{"body":"in"}`},
 					{http.MethodPut, "/api/objects/" + id + "/grants", `{"kind":"tenant","role":"edit"}`},
 					{http.MethodPut, "/api/objects/" + id + "/inherit", `{"inherit":false}`},
-					{http.MethodPut, "/api/objects/" + id + "/owner", `{"to":"u-7"}`},
+					{http.MethodPut, "/api/objects/" + id + "/owner", `{"to":"1007"}`},
 				} {
 					got := s.send(change.method, change.target, change.body, h)
 					if got.Code < 400 || got.Code == http.StatusInternalServerError {
@@ -248,7 +248,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 			hctx := tenant.With(context.Background(), here)
 			for name, err := range map[string]error{
-				"member": database.SetMember(hctx, db.Actor{Admin: true}, c.other.group, "u-7", true),
+				"member": database.SetMember(hctx, db.Actor{Admin: true}, c.other.group, "1007", true),
 				"rename": database.RenameGroup(hctx, db.Actor{Admin: true}, c.other.group, "taken", ""),
 				"delete": database.DeleteGroup(hctx, db.Actor{Admin: true}, c.other.group),
 			} {
@@ -290,11 +290,11 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		m            made
 	}{{mainHost, tenant.Main, inMain}, {acmeHost, "acme", inAcme}} {
 		ctx := tenant.With(context.Background(), c.tenant)
-		entries, err := database.TimeStore().Entries(ctx, core.EntryFilter{Owner: db.Person("u-7"), IncludeDeleted: true})
+		entries, err := database.TimeStore().Entries(ctx, core.EntryFilter{Owner: db.Person("1007"), IncludeDeleted: true})
 		if err != nil || len(entries) != 1 || entries[0].EmployerID != c.m.employer || entries[0].Minutes != 38*60+30 || entries[0].Version != 1 {
 			t.Errorf("%s: its time tracking changed: %+v %v", c.tenant, entries, err)
 		}
-		cat, err := database.TimeStore().Catalog(ctx, db.Person("u-7"))
+		cat, err := database.TimeStore().Catalog(ctx, db.Person("1007"))
 		if err != nil || len(cat.Employers) != 1 || cat.Employers[0].Archived {
 			t.Errorf("%s: its employers changed: %+v %v", c.tenant, cat.Employers, err)
 		}

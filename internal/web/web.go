@@ -19,7 +19,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Ollornog/UnderDoc/docs"
 	"github.com/Ollornog/UnderDoc/internal/account"
@@ -67,9 +66,10 @@ type Options struct {
 	DevUI bool
 	// DevUser stands in for the gate when the application runs on its own, for development only.
 	DevUser *account.User
-	// AdminGroup is the group of the gate or of OIDC whose members administer a tenant, unless the tenant names another.
-	AdminGroup string
-	// Gate says whether the headers of a sign-in gate may count: GateKeep, GateOn or GateOff.
+	// GateClient checks what the sign-in gate passes on (ADR-32); its role of the app makes an administrator unless the
+	// tenant names another group. Nil is the gate in header mode with its default names.
+	GateClient *account.Gate
+	// Gate says whether the sign-in gate may count: GateKeep, GateOn or GateOff.
 	Gate string
 	// Vault seals secrets such as TOTP secrets and the client secret of OIDC. Without a key, these are not offered.
 	Vault *vault.Vault
@@ -108,9 +108,9 @@ type handler struct {
 	pages        *template.Template
 	assetVersion string
 	options      Options
-	// seen keeps when an account was last written, so not every request writes it.
-	seenMu sync.Mutex
-	seen   map[string]time.Time
+	// bound keeps the account each lasting ID of the gate was bound to, so not every request writes it.
+	boundMu sync.Mutex
+	bound   map[string]boundAccount
 	// noFolder is the empty library that tenants other than Main see in place of the folder source.
 	noFolder *library.Library
 	// uploads are the uploads a request is writing right now.
@@ -127,13 +127,20 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	if options.DB != nil && options.Search == nil {
 		options.Search = search.NewService(nil, TitleFallback(options.DB, store), tenant.Main, log)
 	}
-	h := &handler{store: store, log: log, options: options, seen: map[string]time.Time{}, noFolder: library.Build(library.Input{}),
+	h := &handler{store: store, log: log, options: options, bound: map[string]boundAccount{}, noFolder: library.Build(library.Input{}),
 		throttle: auth.NewThrottle(), reveals: auth.NewRate(db.RevealsPerWindow, db.RevealWindow)}
 	if h.options.Modules.IsZero() {
 		h.options.Modules, _ = module.ParsePolicy("")
 	}
 	if h.options.Sheets == nil && h.options.Store != nil {
 		h.options.Sheets = sheet.NewCache(h.options.Store, log)
+	}
+	if h.options.GateClient == nil {
+		gate, err := account.NewGate(account.GateConfig{})
+		if err != nil {
+			return nil, err
+		}
+		h.options.GateClient = gate
 	}
 	switch options.Gate {
 	case GateKeep, GateOn, GateOff:
@@ -445,46 +452,20 @@ func (h *handler) signedIn(next http.Handler) http.Handler {
 			return
 		}
 		s := h.signInSettings(r.Context())
-		user, ok := h.identify(r, s)
-		if !ok {
+		user, err := h.who(r, s)
+		switch {
+		case errors.Is(err, db.ErrQuota):
+			h.message(w, http.StatusForbidden, message{Title: "Workspace full", Text: quotaText, Link: "Try again"})
+			return
+		case errors.Is(err, errNotSignedIn):
 			h.notSignedIn(w, r, s)
 			return
-		}
-		if user.Method == db.MethodGate && errors.Is(h.seeAccount(r.Context(), user), db.ErrQuota) {
-			h.message(w, http.StatusForbidden, message{Title: "Workspace full", Text: quotaText, Link: "Try again"})
+		case err != nil:
+			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(account.With(r.Context(), user)))
 	})
-}
-
-// seeAccount writes the account at its first request and then at most every few minutes (ADR-20: the owner of what
-// someone makes must exist). A database that does not answer is logged and reading goes on; a tenant that has as many
-// accounts as its hoster allows lets no new one in (ErrQuota).
-func (h *handler) seeAccount(ctx context.Context, user account.User) error {
-	if h.options.DB == nil {
-		return nil
-	}
-	t, _ := tenant.From(ctx)
-	key := t + "\x00" + user.ID
-	h.seenMu.Lock()
-	last, ok := h.seen[key]
-	if ok && time.Since(last) < 5*time.Minute {
-		h.seenMu.Unlock()
-		return nil
-	}
-	h.seen[key] = time.Now()
-	h.seenMu.Unlock()
-	err := h.options.DB.SeeAccount(ctx, user)
-	if err != nil {
-		if !errors.Is(err, db.ErrQuota) {
-			h.log.Error("account not written", slog.String("error", err.Error()))
-		}
-		h.seenMu.Lock()
-		delete(h.seen, key)
-		h.seenMu.Unlock()
-	}
-	return err
 }
 
 // sameOrigin lets a change through only from a page of this application. The gate signs in with a cookie, so a page on

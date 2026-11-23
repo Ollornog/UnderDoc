@@ -263,7 +263,7 @@ func TestALinkShowsOnlyWhatItsMakerSees(t *testing.T) {
 	if got := s.send(http.MethodPut, "/api/objects/"+hr.ID+"/inherit", `{"inherit":false}`, carlOf).Code; got != http.StatusNoContent {
 		t.Fatalf("break = %d", got)
 	}
-	for _, take := range []string{`{"kind":"person","who":"u-bob","role":""}`, `{"kind":"tenant","role":""}`} {
+	for _, take := range []string{`{"kind":"person","who":"1002","role":""}`, `{"kind":"tenant","role":""}`} {
 		if got := s.send(http.MethodPut, "/api/objects/"+hr.ID+"/grants", take, carlOf); got.Code != http.StatusNoContent {
 			t.Fatalf("take back %s = %d %s", take, got.Code, got.Body.String())
 		}

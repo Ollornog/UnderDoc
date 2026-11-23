@@ -39,7 +39,7 @@ func hosterSite(t *testing.T) (*site, *db.DB, *client) {
 		t.Fatal(err)
 	}
 	s := newSite(t, Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: tenantDomain, HosterHost: hosterHost,
-		Vault: testVault(t), AdminGroup: "underdoc-admins"}, sample)
+		Vault: testVault(t)}, sample)
 	const password = "a long enough password"
 	h := newClient(t, s, hosterHost)
 	token := invite(t, database, hosterCtx, "host", "Hoster Admin", true)

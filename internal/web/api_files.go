@@ -138,7 +138,7 @@ func (h *handler) apiFileRoots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := account.From(ctx)
 	admin := h.isAdmin(r)
-	if err := h.options.DB.EnsureRoots(ctx, user, admin, h.options.AdminGroup); h.failed(w, err, "roots") {
+	if err := h.options.DB.EnsureRoots(ctx, user, admin, h.options.GateClient.AdminRole()); h.failed(w, err, "roots") {
 		return
 	}
 	roots, err := h.options.DB.FileRoots(ctx, user.ID)

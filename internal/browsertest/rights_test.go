@@ -19,7 +19,7 @@ import (
 // signInWith sets the headers of the gate for another person with groups.
 func (b *browser) signInWith(login, name, groups string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Name": name, "Remote-Groups": groups}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name, "Remote-Groups": groups}}, nil)
 }
 
 // TestTheRoleDecidesWhatIsGreyed: what the viewer may do comes from their role (ADR-29), not from the level for all
@@ -122,7 +122,7 @@ func setupAsAdmin(t *testing.T) (*browser, string) {
 	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
 		t.Fatal(err)
 	}
-	return setupWith(t, web.Options{DevUI: true, DB: database, AdminGroup: "ops"}, nil)
+	return setupWith(t, web.Options{DevUI: true, DB: database, GateClient: gateWithRole(t, "ops")}, nil)
 }
 
 // submit fills a form of the rights by script, as a person would by hand, and sends it.
@@ -200,11 +200,11 @@ func TestTheRightsDialog(t *testing.T) {
 		[...document.querySelectorAll('#udrights [data-inherited] li')].map(n => n.querySelector('svg')?.dataset.iconLu + ' ' + n.innerText.replace(/\s+/g, ' ').trim() + ' ' + [...n.querySelectorAll('.badge-split > span')].map(x => x.textContent).join('|')).join(', ')`); got != "Owner | Takes the roles from above | Agents / user Anna Berg from above manage from above|manage, globe Everyone from above read from above|read" {
 		t.Errorf("the parts of the rights dialog: %q", got)
 	}
-	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:bob", "role": "comment"})
-	if !b.waitFor(`!!document.querySelector('#udrights [data-grant="person:bob"]')`) {
+	b.submit(`#udrights [data-rform="grant"]`, map[string]string{"who": "person:1002", "role": "comment"})
+	if !b.waitFor(`!!document.querySelector('#udrights [data-grant="person:1002"]')`) {
 		t.Fatalf("bob is granted: %s", b.eval(`document.getElementById('udrights').innerText`))
 	}
-	if got := b.eval(`(() => { const r = document.querySelector('#udrights [data-grant="person:bob"]'); return r.querySelector('td svg')?.dataset.iconLu + ' ' + r.querySelector('[data-ract="ungrant"]')?.getAttribute('aria-label'); })()`); got != "user Take back: Bob Kern" {
+	if got := b.eval(`(() => { const r = document.querySelector('#udrights [data-grant="person:1002"]'); return r.querySelector('td svg')?.dataset.iconLu + ' ' + r.querySelector('[data-ract="ungrant"]')?.getAttribute('aria-label'); })()`); got != "user Take back: Bob Kern" {
 		t.Errorf("a grant has the icon of its kind and a named take-back: %q", got)
 	}
 	b.clickOn(`#udrights [data-ract="inherit"]`, 1)
@@ -257,7 +257,7 @@ func TestTheTabRights(t *testing.T) {
 		t.Fatalf("the group is made: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-group="Board"] [data-ract="members"]`, 1)
-	b.submit(`[data-rights="groups"] [data-rform="member"]`, map[string]string{"account": "bob"})
+	b.submit(`[data-rights="groups"] [data-rform="member"]`, map[string]string{"account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-rights="groups"]')?.innerText || '').includes('Bob Kern')`) {
 		t.Errorf("bob is a member: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
@@ -266,7 +266,7 @@ func TestTheTabRights(t *testing.T) {
 		t.Errorf("the users: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-act="sec"][data-id="check"]`, 1)
-	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + team, "account": "bob"})
+	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + team, "account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-who]')?.innerText || '').includes('Everyone') && (document.querySelector('[data-check]')?.innerText || '').includes('Role: edit')`) {
 		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
@@ -292,15 +292,15 @@ func TestTheTabRights(t *testing.T) {
 	// Nobody is chosen before the administrator chooses, and bob, whose things these are, is not offered: sent as it is,
 	// the form gives nothing away.
 	transfer := `[data-held-row="` + left + `"] [data-rform="transfer"]`
-	if got := b.eval(`(() => { const s = document.querySelector('` + transfer + ` select'); return s.value + '|' + [...s.options].filter(o => !o.disabled).map(o => o.value).join(','); })()`); got != "|anna" {
+	if got := b.eval(`(() => { const s = document.querySelector('` + transfer + ` select'); return s.value + '|' + [...s.options].filter(o => !o.disabled).map(o => o.value).join(','); })()`); got != "|1007" {
 		t.Errorf("the transfer chooses nobody and offers everyone but bob: %q", got)
 	}
 	b.eval(`window.confirm = () => true; window.asked = 0; document.querySelector('` + transfer + `').requestSubmit(); document.querySelector('` + transfer + `').dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))`)
-	b.eval(`window.r = null; fetch('/api/rights/held?account=bob').then(r => r.json()).then(j => { window.r = JSON.stringify(j.filter(x => x.object === '` + left + `').map(x => x.via)); }); ''`)
+	b.eval(`window.r = null; fetch('/api/rights/held?account=1002').then(r => r.json()).then(j => { window.r = JSON.stringify(j.filter(x => x.object === '` + left + `').map(x => x.via)); }); ''`)
 	if !b.waitFor(`window.r !== null`) || b.eval(`window.r`) != `["owner"]` {
 		t.Errorf("sent without a choice, bob still owns it: %s", b.eval(`String(window.r)`))
 	}
-	b.submit(transfer, map[string]string{"to": "anna"})
+	b.submit(transfer, map[string]string{"to": "1007"})
 	// Bob keeps edit, as a former owner does.
 	if !b.waitFor(`!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]') && (document.querySelector('[data-held-row="` + left + `"]')?.innerText || '').includes('edit')`) {
 		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
@@ -328,7 +328,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	b.ready("Network plan")
 	b.clickOn(`[aria-label=Nav2] [data-act="addmenu"][data-id="n2"]`, 1)
 	b.clickOn(probe(b, `[data-menu="new"] [role="menuitem"]`, "Collection"), 1)
-	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] [role=option][data-value="person:bob"]')`) {
+	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-share-step] [role=option][data-value="person:1002"]')`) {
 		t.Fatalf("the step Share with lists the people: %s", b.eval(`document.getElementById('udrights')?.innerText`))
 	}
 	// C22's form in steps: the name first, Next leads to Share with; adding someone draws the list again and keeps the step.
@@ -342,10 +342,10 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 		t.Errorf("Next leads to Share with: %q", got)
 	}
 	// Whom is C22's grouped combobox (Basecoat's core and combobox alone): typing filters across the groups, a click picks.
-	b.pick(`#udrights [data-share-step] .combobox`, "Kern", "person:bob")
+	b.pick(`#udrights [data-share-step] .combobox`, "Kern", "person:1002")
 	b.eval(`document.querySelector('#udrights [data-share-step] select[name="role"]').value = 'comment'`)
 	b.clickOn(`#udrights [data-ract="newshare"]`, 1)
-	if !b.waitFor(`!!document.querySelector('#udrights [data-new-share="person:bob"]') && !document.querySelector('#udrights [data-only-me]')`) {
+	if !b.waitFor(`!!document.querySelector('#udrights [data-new-share="person:1002"]') && !document.querySelector('#udrights [data-only-me]')`) {
 		t.Fatalf("bob is in the list: %s", b.eval(`document.getElementById('udrights').innerText`))
 	}
 	if got := b.eval(step); got != "-+ Share with +-+" {
@@ -369,7 +369,7 @@ func TestANewCollectionAsksWithWhomToShare(t *testing.T) {
 	}
 	board := b.eval(`(() => { const n = [...document.querySelectorAll('[aria-label=Nav2] [data-act="coll"]')].find(n => n.textContent.includes('Board')); return D[n.dataset.id].sid; })()`)
 	b.eval(`window.r = null; fetch('/api/objects/` + board + `/rights').then(r => r.json()).then(j => { window.r = JSON.stringify(j.own.map(g => g.kind + ':' + g.who + ':' + g.role)); }); ''`)
-	if !b.waitFor(`window.r === '["person:bob:comment"]'`) {
+	if !b.waitFor(`window.r === '["person:1002:comment"]'`) {
 		t.Errorf("only bob is granted, to comment: %s", b.eval(`String(window.r)`))
 	}
 	// Its overview: nobody else, that is, nobody in the workspace without a role of their own.

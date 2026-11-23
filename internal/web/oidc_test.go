@@ -225,7 +225,7 @@ func TestTheClientSecretIsWrittenOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := New(store, slog.New(slog.NewJSONHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})),
-		Options{DB: database, Vault: testVault(t), HTTPClient: p.server.Client(), AdminGroup: "underdoc-admins"})
+		Options{DB: database, Vault: testVault(t), HTTPClient: p.server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}

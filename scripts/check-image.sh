@@ -31,7 +31,7 @@ url="$base/o/first"
 # Without the headers of the sign-in gate nothing answers (M-28), with them the workspace and its data show.
 code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
 [ "$code" = 401 ] || fail "without the gate the page answered $code, not 401"
-gate=(-H 'Remote-User: image-check')
+gate=(-H 'Remote-User: image-check' -H 'Remote-Id: 1')
 # The answers go into variables first: with pipefail, grep -q could end curl early and fail the pipe at random.
 page="$(curl -fsS "${gate[@]}" "$url")" || fail "the workspace does not answer"
 [[ "$page" == *'<div id="root"'* ]] || fail "the workspace does not show"

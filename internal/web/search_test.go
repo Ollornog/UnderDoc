@@ -282,7 +282,7 @@ func TestFilesAreFoundThroughTheService(t *testing.T) {
 	f := withFiles(t)
 	engine := meiliEngine(t)
 	log := slog.New(slog.DiscardHandler)
-	options := Options{DB: f.db, Store: f.store, AdminGroup: "underdoc-admins", TextWays: db.Ways{Browser: true}}
+	options := Options{DB: f.db, Store: f.store, TextWays: db.Ways{Browser: true}}
 	f.site = newSite(t, options, sample)
 	options.Search = search.NewService(engine, TitleFallback(f.db, f.site.store), tenant.Main, log)
 	handler, err := New(f.site.store, log, options)
@@ -339,7 +339,7 @@ func TestSpreadsheetsAreFoundByTheirCells(t *testing.T) {
 			f := withFiles(t)
 			engine := make()
 			log := slog.New(slog.DiscardHandler)
-			options := Options{DB: f.db, Store: f.store, AdminGroup: "underdoc-admins"}
+			options := Options{DB: f.db, Store: f.store}
 			options.Sheets = sheet.NewCache(f.store, log)
 			f.db.SetSheets(options.Sheets)
 			f.site = newSite(t, options, sample)
