@@ -68,7 +68,10 @@ type apiState struct {
 	User        apiUser   `json:"user"`
 	Collections []apiNode `json:"collections"`
 	CanCreate   bool      `json:"canCreate"`
-	Problems    int       `json:"problems"`
+	// CanSpaces tells that the user may make collections at the top: an administrator or a holder of the role to create
+	// spaces (B-3).
+	CanSpaces bool `json:"canSpaces"`
+	Problems  int  `json:"problems"`
 	// Modules are all modules with their state for this user (ADR-25).
 	Modules []apiModule `json:"modules"`
 	// Settings are the account's settings of the workspace, as the browser saved them; absent without the database.
@@ -153,6 +156,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
 			Admin: user.Admin, Agent: user.Agent()},
 		CanCreate: h.options.DB != nil && documents,
+		CanSpaces: h.options.DB != nil && documents && (user.Admin || user.Spaces),
 		Problems:  len(lib.Problems()),
 		Files: h.options.DB != nil && h.options.Store != nil &&
 			slices.ContainsFunc(modules, func(m module.State) bool { return m.ID == module.Files && m.On && !m.Hidden }),

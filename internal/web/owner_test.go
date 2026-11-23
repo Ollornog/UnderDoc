@@ -27,7 +27,7 @@ func TestAnAdministratorTransfersWhatIsLeftBehind(t *testing.T) {
 	for _, who := range []map[string]string{plain, carlOf} {
 		s.send(http.MethodGet, "/api/state", "", who)
 	}
-	drafts := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Drafts"}`, plain))
+	drafts := decode[apiNode](t, s.send(http.MethodPost, "/api/collections", `{"title":"Drafts"}`, bobSpaces))
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Offer","parent":"`+drafts.ID+`"}`, plain))
 	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"The price: 4711."}`, plain).Code; got != http.StatusCreated {
 		t.Fatalf("block = %d", got)

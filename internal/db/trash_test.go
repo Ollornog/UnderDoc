@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/Ollornog/UnderDoc/internal/account"
 )
 
 func TestDeleteHidesTheTree(t *testing.T) {
@@ -225,7 +227,7 @@ func TestPurge(t *testing.T) {
 	if _, err := db.AddBlock(ctx, kid.ID, anna.ID, "", "Below."); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, a.ID, anna.ID); !errors.Is(err, ErrNotFound) {
+	if err := purgeAs(ctx, db, anna.ID, a.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("purged without being in the trash: %v", err)
 	}
 	if err := db.Delete(ctx, early.ID, anna.ID); err != nil {
@@ -234,10 +236,10 @@ func TestPurge(t *testing.T) {
 	if err := db.Delete(ctx, a.ID, anna.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, a.ID, bob.ID); !errors.Is(err, ErrNotFound) {
+	if err := purgeAs(ctx, db, bob.ID, a.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("bob purges what he neither owns nor deleted: %v", err)
 	}
-	if err := db.Purge(ctx, a.ID, anna.ID); err != nil {
+	if err := purgeAs(ctx, db, anna.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []string{"objects WHERE id = ANY($1)", "blocks WHERE page = ANY($1)", "block_versions WHERE page = ANY($1)"} {
@@ -252,15 +254,76 @@ func TestPurge(t *testing.T) {
 	if got := order(t, db, team.ID); len(got) != 0 {
 		t.Errorf("the collection stays, empty: %q", got)
 	}
-	// Whoever deleted it may purge it, also when it is not theirs.
+	// Whoever deleted it but does not own it may not purge it (B-3): it waits for its owner, or for 30 days.
 	b, _ := db.CreatePage(ctx, anna, "B", team.ID)
 	if err := db.Delete(ctx, b.ID, bob.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, b.ID, bob.ID); err != nil {
-		t.Errorf("bob purges what he deleted: %v", err)
+	if err := purgeAs(ctx, db, bob.ID, b.ID); !errors.Is(err, ErrPurger) {
+		t.Errorf("bob, an editor with delete, purges what he deleted: %v", err)
+	}
+	// An administrator may purge what lies in their trash, also when it is not theirs.
+	if err := db.Purge(account.With(ctx, account.User{ID: bob.ID, AuthKind: account.AuthSession}), b.ID, Actor{ID: bob.ID, Admin: true}, "B"); err != nil {
+		t.Errorf("bob as an administrator purges what he deleted: %v", err)
 	}
 }
+
+// TestPurgeOnlyInTheBrowserWithTheName: deleting for good needs the owner or an administrator, a browser session and
+// the name typed in, checked by the server, and the approval of the gate once there is one (ADR-35, B-3).
+func TestPurgeOnlyInTheBrowserWithTheName(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	page, _ := db.CreateCollection(ctx, anna, "Minutes 2026", "")
+	if err := db.Delete(ctx, page.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	me := Actor{ID: anna.ID}
+	session := func(u account.User, auth string) context.Context {
+		u.AuthKind = auth
+		return account.With(ctx, u)
+	}
+	for name, try := range map[string]struct {
+		ctx     context.Context
+		confirm string
+		want    error
+	}{
+		"no request":         {ctx, "Minutes 2026", ErrSession},
+		"another account":    {session(bob, account.AuthSession), "Minutes 2026", ErrSession},
+		"agent (oauth)":      {session(anna, account.AuthOAuth), "Minutes 2026", ErrAgent},
+		"api key":            {session(anna, account.AuthAPIKey), "Minutes 2026", ErrAgent},
+		"app password":       {session(anna, account.AuthAppPassword), "Minutes 2026", ErrAgent},
+		"unknown sign-in":    {session(anna, ""), "Minutes 2026", ErrAgent},
+		"service account":    {account.With(ctx, account.User{ID: anna.ID, AuthKind: account.AuthSession, Kind: account.KindService}), "Minutes 2026", ErrAgent},
+		"no name":            {session(anna, account.AuthSession), "", ErrConfirmName},
+		"wrong name":         {session(anna, account.AuthSession), "Minutes 2025", ErrConfirmName},
+		"name in other case": {session(anna, account.AuthSession), "minutes 2026", ErrConfirmName},
+	} {
+		if err := db.Purge(try.ctx, page.ID, me, try.confirm); !errors.Is(err, try.want) {
+			t.Errorf("%s: %v, want %v", name, err, try.want)
+		}
+	}
+	if list, _ := db.Trash(ctx, anna.ID); len(list) != 1 {
+		t.Fatalf("nothing went: %+v", list)
+	}
+	// The hook for the gate's approval (T-33): once set, nothing goes without it.
+	db.SetApprover(refuseAll{})
+	if err := db.Purge(session(anna, account.AuthSession), page.ID, me, "Minutes 2026"); !errors.Is(err, errNoApproval) {
+		t.Errorf("without the gate's approval: %v", err)
+	}
+	if _, err := db.EmptyTrash(session(anna, account.AuthSession), me, TrashName); !errors.Is(err, errNoApproval) {
+		t.Errorf("emptying without the gate's approval: %v", err)
+	}
+	db.SetApprover(nil)
+	if err := db.Purge(session(anna, account.AuthSession), page.ID, me, " Minutes 2026 "); err != nil {
+		t.Errorf("the owner in the browser with the name: %v", err)
+	}
+}
+
+var errNoApproval = errors.New("no approval")
+
+type refuseAll struct{}
+
+func (refuseAll) Approve(context.Context, string, string) error { return errNoApproval }
 
 func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 	db := open(t)
@@ -278,7 +341,14 @@ func TestEmptyingAndExpiringTheTrash(t *testing.T) {
 	if err := db.Delete(ctx, c.ID, bob.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := db.EmptyTrash(ctx, anna.ID); err != nil || n != 2 {
+	asAnna := account.With(ctx, account.User{ID: anna.ID, AuthKind: account.AuthSession})
+	if _, err := db.EmptyTrash(asAnna, Actor{ID: anna.ID}, "trash"); !errors.Is(err, ErrConfirmName) {
+		t.Errorf("emptying without typing Trash: %v", err)
+	}
+	if _, err := db.EmptyTrash(account.With(ctx, account.User{ID: anna.ID, AuthKind: account.AuthAPIKey}), Actor{ID: anna.ID}, TrashName); !errors.Is(err, ErrAgent) {
+		t.Errorf("emptying with a key: %v", err)
+	}
+	if n, err := db.EmptyTrash(asAnna, Actor{ID: anna.ID}, TrashName); err != nil || n != 2 {
 		t.Fatalf("Anna empties her trash: %d %v", n, err)
 	}
 	var left []string
@@ -362,10 +432,10 @@ func TestDeletingStopsAtWhatShutsOneOut(t *testing.T) {
 	if _, err := db.pool.Exec(ctx, "UPDATE objects SET deleted_at = now(), deleted_by = $2 WHERE id IN ($1, $3)", folder.ID, bob.ID, secret.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Purge(ctx, folder.ID, bob.ID); !errors.Is(err, ErrHeldBelow) {
+	if err := purgeAs(ctx, db, bob.ID, folder.ID); !errors.Is(err, ErrHeldBelow) {
 		t.Errorf("bob purged carl's page with his folder: %v", err)
 	}
-	if n, err := db.EmptyTrash(ctx, bob.ID); err != nil || n != 0 {
+	if n, err := db.EmptyTrash(account.With(ctx, account.User{ID: bob.ID, AuthKind: account.AuthSession}), Actor{ID: bob.ID}, TrashName); err != nil || n != 0 {
 		t.Errorf("empty the trash: %d %v", n, err)
 	}
 	var left bool

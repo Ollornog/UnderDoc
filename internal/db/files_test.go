@@ -403,13 +403,13 @@ func TestBlobsGoWhenNothingRefersToThem(t *testing.T) {
 	if got := collect(); len(got) != 0 {
 		t.Fatalf("blobs in the trash went: %v", got)
 	}
-	if err := db.Purge(ctx, a.ID, anna.ID); err != nil {
+	if err := purgeAs(ctx, db, anna.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := collect(); len(got) != 0 {
 		t.Fatalf("a blob still used by b went: %v", got)
 	}
-	if err := db.Purge(ctx, b.ID, anna.ID); err != nil {
+	if err := purgeAs(ctx, db, anna.ID, b.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := collect(); !slices.Equal(got, []string{sha(1)}) {
@@ -419,7 +419,7 @@ func TestBlobsGoWhenNothingRefersToThem(t *testing.T) {
 	upload(t, db, anna.ID, UploadTarget{Parent: mine.ID}, "c.txt", 5, sha(2))
 	c, _ := db.FilesIn(ctx, mine.ID, anna.ID)
 	_ = db.Delete(ctx, c[0].ID, anna.ID)
-	_ = db.Purge(ctx, c[0].ID, anna.ID)
+	_ = purgeAs(ctx, db, anna.ID, c[0].ID)
 	if _, err := db.CollectBlobs(ctx, func(string) error { return errors.New("disk") }); err == nil {
 		t.Fatal("a failed removal passed")
 	}

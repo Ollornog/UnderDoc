@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html"
 	"log/slog"
 	"net/http"
@@ -113,7 +114,8 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 	case errors.As(err, &rule):
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "findings": rule.Findings})
 	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName),
-		errors.Is(err, db.ErrLogKeep), errors.Is(err, db.ErrFileName), errors.Is(err, db.ErrSambaName), errors.Is(err, db.ErrNoSamba):
+		errors.Is(err, db.ErrLogKeep), errors.Is(err, db.ErrFileName), errors.Is(err, db.ErrSambaName), errors.Is(err, db.ErrNoSamba),
+		errors.Is(err, db.ErrConfirmName):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.As(err, new(*db.OpenError)), errors.Is(err, db.ErrPerFolder):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -121,7 +123,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrWay), errors.Is(err, db.ErrEntry):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-	case errors.Is(err, db.ErrGroupCycle):
+	case errors.Is(err, db.ErrGroupCycle), errors.Is(err, db.ErrGroupArchived), errors.Is(err, db.ErrGroupHasGroups):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrPart):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": strings.TrimPrefix(err.Error(), db.ErrPart.Error()+"\n")})
@@ -824,6 +826,8 @@ type apiTrashed struct {
 	PlaceDeleted bool   `json:"placeDeleted,omitempty"`
 	At           string `json:"at"`
 	Who          string `json:"who"`
+	// Purge tells that the viewer may delete it for good: its owner or an administrator, in the browser (B-3).
+	Purge bool `json:"purge,omitempty"`
 }
 
 // apiTrash lists what the viewer deleted or owns and was deleted, newest first.
@@ -838,9 +842,10 @@ func (h *handler) apiTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := []apiTrashed{}
+	purger := !user.Agent() && user.AuthKind == account.AuthSession
 	for _, t := range trash {
 		out = append(out, apiTrashed{ID: t.ID, Title: t.Title, Kind: t.Kind, Place: t.Place, PlaceDeleted: t.PlaceDeleted,
-			At: stamp(t.DeletedAt), Who: t.DeletedBy})
+			At: stamp(t.DeletedAt), Who: t.DeletedBy, Purge: purger && (t.Owner == user.ID || user.Admin)})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -862,15 +867,19 @@ func (h *handler) apiRestore(w http.ResponseWriter, r *http.Request) {
 	}{back.Parent, h.databaseNode(r, back, 0)})
 }
 
-// apiPurge takes an object of the trash away for good.
+// apiPurge takes an object of the trash away for good: its owner or an administrator, in the browser, with its name
+// typed as confirm (B-3).
 func (h *handler) apiPurge(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.change(w, r, 0, nil)
-	if !ok {
+	var in struct {
+		Confirm string `json:"confirm"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.Purge(r.Context(), r.PathValue("id"), user.ID), "purge") {
+	if h.failed(w, h.options.DB.Purge(r.Context(), r.PathValue("id"), h.actor(r), in.Confirm), "purge") {
 		return
 	}
+	h.note(r, db.LogPurge, "", "deleted for good "+r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -973,15 +982,20 @@ func (h *handler) apiAccess(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Access: o.Access, Kids: []apiNode{}})
 }
 
-// apiEmptyTrash takes away for good everything in the trash the account may purge.
+// apiEmptyTrash takes away for good everything in the trash the account may purge, with db.TrashName typed as
+// confirm (B-3).
 func (h *handler) apiEmptyTrash(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.change(w, r, 0, nil)
-	if !ok {
+	var in struct {
+		Confirm string `json:"confirm"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok {
 		return
 	}
-	if _, err := h.options.DB.EmptyTrash(r.Context(), user.ID); h.failed(w, err, "empty trash") {
+	n, err := h.options.DB.EmptyTrash(r.Context(), h.actor(r), in.Confirm)
+	if h.failed(w, err, "empty trash") {
 		return
 	}
+	h.note(r, db.LogPurge, "", fmt.Sprintf("emptied the trash: %d deleted for good", n))
 	w.WriteHeader(http.StatusNoContent)
 }
 

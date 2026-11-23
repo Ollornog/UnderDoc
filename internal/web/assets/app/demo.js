@@ -1085,7 +1085,8 @@ document.addEventListener('click',e=>{
     case 'secup':case 'secdown':{const L=SORT[S.view],k=L.findIndex(x=>x.id===a.id),j=k+(act==='secup'?-1:1);if(k>=0&&j>=0&&j<L.length)[L[k],L[j]]=[L[j],L[k]];break;}
     case 'copen':onlyThis(a.id);break;
     case 'cpin':togglePin(a.id);break;
-    case 'newcoll':{if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){const par=a.id&&D[a.id]?a.id:'';
+    case 'newcoll':{if(S.canCreate&&!a.id&&!S.canSpaces){toast('Only administrators and whoever holds the role to create spaces make a collection at the top.');break;}
+      if(S.canCreate&&(!a.id||(D[a.id]&&D[a.id].real&&D[a.id].t==='coll'))){const par=a.id&&D[a.id]?a.id:'';
       /* At the top it is its maker's alone until shared: the dialog asks with whom (ADR-29, 2026-11-19). */
       if(!par&&window.UDRights){UDRights.create({title:freeName('New collection'),url:'/api/collections',onMade:node=>placeCollection(node,'',false)});return;}
       createCollection(par,freeName('New collection'));return;}const id='c'+(++S.newN),par=a.id&&D[a.id]?a.id:null;collDoc(id,freeName('New collection'),[],'grid');
@@ -2162,9 +2163,9 @@ D['trash:']=fill({t:'trash',n:'Trash',w:'wide',tool:true,path:'not a file, what 
   get stat(){return S.trash?S.trash.length+(S.trash.length===1?' entry':' entries'):'Loading…';},
   get html(){const L=S.trash;if(!L)return '<p class="text-muted-foreground text-sm">Loading…</p>';if(!L.length)return '<p class="text-muted-foreground text-sm">The trash is empty.</p>';
     return `<p class="text-muted-foreground text-sm">What you deleted, and what was yours. Restore puts it back where it lay, at the end. What lay in something that is in the trash too comes back after that. After 30 days it goes for good by itself.</p>
-      <p><button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trempty" aria-pressed="${S.trashAsk==='all'}">${icon('trash')}${S.trashAsk==='all'?'Empty the trash? Yes':'Empty the trash'}</button></p>
+      <p class="flex flex-wrap items-center gap-2">${S.trashAsk==='all'?`<input class="input" data-keep="trconfirm-all" data-trconfirm="all" aria-label="Type Trash to empty it" placeholder="Type Trash to empty it">`:''}<button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trempty" aria-pressed="${S.trashAsk==='all'}">${icon('trash')}${S.trashAsk==='all'?'Empty it for good':'Empty the trash'}</button></p>
       <div class="table-container"><table class="table"><tr><th>Name</th><th>Where it lay</th><th>Deleted</th><th>By</th><th></th></tr>${L.map(x=>`<tr data-trash="${x.id}"><td>${x.n}</td><td>${x.place||'Workspace'}${x.placeGone?' (in the trash)':''}</td><td>${x.at}</td><td>${x.who}</td>
-        <td><button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trrestore" data-id="${x.id}"${x.placeGone?' title="First restore what it lay in"':''}>${icon('back')}Restore</button> <button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trpurge" data-id="${x.id}" aria-pressed="${S.trashAsk===x.id}">${icon('trash')}${S.trashAsk===x.id?'Delete for good? Yes':'Delete for good'}</button></td></tr>`).join('')}</table></div>`;}});
+        <td><button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trrestore" data-id="${x.id}"${x.placeGone?' title="First restore what it lay in"':''}>${icon('back')}Restore</button> ${x.purge?`<button type="button" class="btn" data-variant="outline" data-size="xs" data-act="trpurge" data-id="${x.id}" aria-pressed="${S.trashAsk===x.id}">${icon('trash')}${S.trashAsk===x.id?'Delete it for good':'Delete for good'}</button>`:''}</td></tr>${x.purge&&S.trashAsk===x.id?`<tr data-trask="${x.id}"><td colspan="5"><input class="input" data-keep="trconfirm-${x.id}" data-trconfirm="${x.id}" aria-label="Type its name to delete it for good" placeholder="Type “${x.n}” to delete it for good"></td></tr>`:''}`).join('')}</table></div>`;}});
 /* The list of problems is a page of the window as well: what does not resolve in the pages one sees, and what the folder
    source ran into (M-3). A broken reference is a visible error, never a silent gap. */
 TYPE.problems=['info','Problems'];
@@ -2188,7 +2189,7 @@ async function loadProblems(){
 }
 async function loadTrash(){
   try{const r=await fetch('/api/trash',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:when(x.at),who:esc(x.who)}));}
+    S.trash=(await r.json()).map(x=>({id:esc(x.id),n:esc(x.n),t:x.t,place:esc(x.place),placeGone:!!x.placeDeleted,at:when(x.at),who:esc(x.who),purge:!!x.purge}));}
   catch(e){S.trash=[];toast('The trash could not be read.');return;}
   render();
 }
@@ -2204,16 +2205,20 @@ async function restoreTrash(sid){
     toast(plain(D[id].n)+' is back.');loadTrash();}
   catch(e){toast(e.message==='403'?'Others may not add there.':'It could not be restored.');}
 }
-async function emptyTrash(){
-  try{const r=await fetch('/api/trash',{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));toast('The trash is empty.');}
-  catch(e){toast('The trash could not be emptied.');}
+/* Deleting for good asks for the name typed in, which the server checks (B-3): the trash's own name to empty it. A
+   wrong name keeps the field open. */
+function trashConfirm(key){const n=document.querySelector(`[data-trconfirm="${key}"]`);return n?n.value:'';}
+async function trashGone(url,key,done){
+  const confirm=trashConfirm(key);
+  try{const r=await fetch(url,{...same,method:'DELETE',body:JSON.stringify({confirm})});
+    if(r.status===400){S.trashAsk=key;render();const n=document.querySelector(`[data-trconfirm="${key}"]`);if(n){n.value=confirm;n.focus();}toast(key==='all'?'Type Trash to empty it.':'Type its name exactly to delete it for good.');return;}
+    if(r.status===403){toast('Only its owner or an administrator deletes it for good, in the browser.');return;}
+    if(!r.ok)throw new Error(String(r.status));toast(done);}
+  catch(e){toast(key==='all'?'The trash could not be emptied.':'It could not be deleted.');}
   loadTrash();
 }
-async function purgeTrash(sid){
-  try{const r=await fetch('/api/trash/'+encodeURIComponent(sid),{...same,method:'DELETE'});if(!r.ok)throw new Error(String(r.status));toast('Deleted for good.');}
-  catch(e){toast('It could not be deleted.');}
-  loadTrash();
-}
+function emptyTrash(){return trashGone('/api/trash','all','The trash is empty of what was yours.');}
+function purgeTrash(sid){return trashGone('/api/trash/'+encodeURIComponent(sid),sid,'Deleted for good.');}
 /* Sorting the children by name keeps lines and spaces where they are: each group between them is sorted on its own. */
 function sortKids(id,dir){
   const L=D[id].kids,old=L.slice(),groups=[[]];
@@ -2447,7 +2452,7 @@ async function boot(){
   /* /dev/ui shows only the made-up content of the mockup: every component in use, nothing from the server. */
   if(!document.getElementById('root').hasAttribute('data-demo'))try{const r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});if(r.ok)st=await r.json();}catch(e){}
   if(st){
-    S.user=st.user;S.modules=st.modules||[];S.real=true;if(window.UDRights)UDRights.setup(render,S.user);S.timeOn=S.modules.some(m=>m.id==='time'&&m.on&&!m.hidden);if(S.timeOn)timePseudos();S.canCreate=st.canCreate;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
+    S.user=st.user;S.modules=st.modules||[];S.real=true;if(window.UDRights)UDRights.setup(render,S.user);S.timeOn=S.modules.some(m=>m.id==='time'&&m.on&&!m.hidden);if(S.timeOn)timePseudos();S.canCreate=st.canCreate;S.canSpaces=!!st.canSpaces;S.files=!!st.files;loadTemplates();if(st.canCreate)loadResources();
     const tops=st.collections.map(addNode);
     tops.slice().reverse().forEach(id=>{C.unshift(asTop({id,i:D[id].i}));S.fav[id]=true;});
     if(!st.user.admin){PROFADM.length=0;}

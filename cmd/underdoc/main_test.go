@@ -92,6 +92,7 @@ func TestServeEndToEnd(t *testing.T) {
 			return ""
 		}
 		request.Header.Set("Remote-User", "anna") // what the gate in front sets
+		request.Header.Set("Remote-Kind", "user")
 		request.Header.Set("Remote-Id", "7")
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {

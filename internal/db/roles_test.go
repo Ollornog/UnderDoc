@@ -102,15 +102,24 @@ func TestRolesForPersonsGroupsAndTheTenant(t *testing.T) {
 	if mine, _ := db.GroupsOf(ctx, carl.ID); len(mine) != 1 || mine[0] != editors.ID {
 		t.Errorf("carl's groups: %v", mine)
 	}
-	if err := db.DeleteGroup(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID); err != nil {
+	if err := db.ArchiveGroup(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := role(t, db, page.ID, carl.ID); got != RoleComment {
-		t.Errorf("a deleted group takes its roles along: %q", got)
+		t.Errorf("an archived group's roles hold for nobody: %q", got)
 	}
 	var left int
-	if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM grants WHERE kind = 'group' AND who = $1", editors.ID).Scan(&left); err != nil || left != 0 {
-		t.Errorf("grants of the deleted group: %d %v", left, err)
+	if err := db.pool.QueryRow(ctx, "SELECT count(*) FROM grants WHERE kind = 'group' AND who = $1", editors.ID).Scan(&left); err != nil || left == 0 {
+		t.Errorf("an archived group keeps its grants: %d %v", left, err)
+	}
+	if err := db.RestoreGroup(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := role(t, db, page.ID, carl.ID); got != RoleEdit {
+		t.Errorf("restored, the group's roles hold again: %q", got)
+	}
+	if err := db.ArchiveGroup(ctx, Actor{ID: anna.ID, Admin: true}, editors.ID); err != nil {
+		t.Fatal(err)
 	}
 	if err := db.SetGrant(ctx, page.ID, admin, ToPerson, carl.ID, RoleOwner); !errors.Is(err, ErrRole) {
 		t.Errorf("nobody grants owner: %v", err)

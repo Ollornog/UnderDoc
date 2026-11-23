@@ -337,7 +337,8 @@ func (db *DB) SetEntries(ctx context.Context, objectID string, actor Actor, kind
 	case ToPerson:
 		err = db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", who).Scan(&known)
 	case ToGroup:
-		err = db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM groups WHERE id = $1)", who).Scan(&known)
+		// An archived group gets no new entries; what it holds can still be taken away.
+		err = db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM groups WHERE id = $1 AND archived IS NULL)", who).Scan(&known)
 	default:
 		known = true
 	}
@@ -526,16 +527,19 @@ type Group struct {
 	Members int
 	Groups  int
 	Created time.Time
+	// Archived tells that the group is archived (B-3): kept with its members and entries, its allow entries holding for
+	// nobody until it is restored, its deny entries still holding.
+	Archived bool
 }
 
 const groupColumns = `g.id, g.name, g.source, g.description,
 	CASE g.source WHEN 'local' THEN (SELECT count(*) FROM group_members m WHERE m.grp = g.id)
 		ELSE (SELECT count(*) FROM accounts a WHERE g.name = ANY (a.groups)) END,
-	(SELECT count(*) FROM group_groups gg WHERE gg.grp = g.id), g.created`
+	(SELECT count(*) FROM group_groups gg WHERE gg.grp = g.id), g.created, g.archived IS NOT NULL`
 
 func scanGroup(row pgx.Row) (Group, error) {
 	var g Group
-	err := row.Scan(&g.ID, &g.Name, &g.Source, &g.Description, &g.Members, &g.Groups, &g.Created)
+	err := row.Scan(&g.ID, &g.Name, &g.Source, &g.Description, &g.Members, &g.Groups, &g.Created, &g.Archived)
 	return g, err
 }
 
@@ -575,6 +579,21 @@ func (db *DB) DirectGroupsOf(ctx context.Context, accountID string) ([]string, e
 	return nonNil(groups), err
 }
 
+// AllowGroupsOf returns the IDs of the groups whose allow entries hold for an account: those of GroupsOf that are not
+// archived and not reached through an archived one, and for a service account no group taken over (B-3).
+func (db *DB) AllowGroupsOf(ctx context.Context, accountID string) ([]string, error) {
+	var groups []string
+	err := db.pool.QueryRow(ctx, "SELECT account_allow_groups($1)", accountID).Scan(&groups)
+	return nonNil(groups), err
+}
+
+// AllowDirectGroupsOf is AllowGroupsOf for the groups an account is in directly.
+func (db *DB) AllowDirectGroupsOf(ctx context.Context, accountID string) ([]string, error) {
+	var groups []string
+	err := db.pool.QueryRow(ctx, "SELECT account_allow_direct_groups($1)", accountID).Scan(&groups)
+	return nonNil(groups), err
+}
+
 // SubGroups returns the groups directly inside a group, by name.
 func (db *DB) SubGroups(ctx context.Context, groupID string) ([]Group, error) {
 	return collectGroups(db.pool.Query(ctx, `SELECT `+groupColumns+` FROM group_groups x JOIN groups g ON g.id = x.member WHERE x.grp = $1
@@ -604,12 +623,14 @@ func scanMember(row pgx.CollectableRow) (Member, error) {
 }
 
 // AdministeredGroups returns the IDs of the groups an account administers as a group admin: those it is an admin of,
-// and every group inside them at any depth (ADR-36).
+// and every group inside them at any depth (ADR-36), as far as they are not archived.
 func (db *DB) AdministeredGroups(ctx context.Context, accountID string) ([]string, error) {
 	var groups []string
+	// An archived group gives its admins nothing, and nothing passes down through it (B-3).
 	err := db.pool.QueryRow(ctx, `WITH RECURSIVE down(id) AS (
-			SELECT grp FROM group_admins WHERE account = $1
+			SELECT a.grp FROM group_admins a JOIN groups g ON g.id = a.grp WHERE a.account = $1 AND g.archived IS NULL
 			UNION SELECT gg.member FROM group_groups gg JOIN down ON gg.grp = down.id
+				JOIN groups g ON g.id = down.id WHERE g.archived IS NULL
 		) SELECT coalesce(array_agg(id ORDER BY id), '{}') FROM down`, accountID).Scan(&groups)
 	return nonNil(groups), err
 }
@@ -670,6 +691,9 @@ func (db *DB) CreateGroup(ctx context.Context, actor Actor, name, description, p
 		if p.Source != GroupLocal {
 			return Group{}, ErrGroup
 		}
+		if p.Archived {
+			return Group{}, ErrGroupArchived
+		}
 		if err := db.mayAdministerGroup(ctx, actor, parent); err != nil {
 			return Group{}, err
 		}
@@ -699,7 +723,7 @@ func (db *DB) CreateGroup(ctx context.Context, actor Actor, name, description, p
 	}
 }
 
-// localGroup returns a local group the actor manages.
+// localGroup returns a local group the actor manages. An archived group stays as it was until it is restored.
 func (db *DB) localGroup(ctx context.Context, actor Actor, groupID string) (Group, error) {
 	g, err := db.GroupOf(ctx, groupID)
 	if err != nil {
@@ -708,7 +732,13 @@ func (db *DB) localGroup(ctx context.Context, actor Actor, groupID string) (Grou
 	if g.Source != GroupLocal {
 		return Group{}, ErrGroup
 	}
-	return g, db.mayAdministerGroup(ctx, actor, groupID)
+	if err := db.mayAdministerGroup(ctx, actor, groupID); err != nil {
+		return Group{}, err
+	}
+	if g.Archived {
+		return Group{}, ErrGroupArchived
+	}
+	return g, nil
 }
 
 // RenameGroup gives a local group a new name and description.
@@ -727,21 +757,126 @@ func (db *DB) RenameGroup(ctx context.Context, actor Actor, groupID, name, descr
 	return err
 }
 
-// DeleteGroup deletes a local group with its members and every entry granted to it. The groups inside it stay, and are
-// no longer inside it.
-func (db *DB) DeleteGroup(ctx context.Context, actor Actor, groupID string) error {
-	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
+// Errors of archiving groups (B-3).
+var (
+	// ErrGroupArchived is a change of an archived group, or of a group inside or around one, that has to wait until it is
+	// restored.
+	ErrGroupArchived = errors.New("this group is archived: restore it first, or the group it is inside")
+	// ErrGroupHasGroups is archiving a group with groups inside it that are not archived.
+	ErrGroupHasGroups = errors.New("this group has groups inside it: take them out or archive them first")
+	// ErrGroupArchiver is archiving or restoring a group by someone who is neither an administrator nor the admin of a
+	// group it is inside. The admin of a group never archives it themselves.
+	ErrGroupArchiver = fmt.Errorf("%w: only administrators and the admins of a group it is inside archive or restore a group", ErrNotAllowed)
+)
+
+// lockGroups takes the lock of the tenant's groups that the check of group_groups takes (migration 030), so a group
+// put inside another and an archiving cannot pass each other.
+func lockGroups(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext('underdoc groups ' || current_setting('underdoc.tenant', true)))")
+	return err
+}
+
+// mayArchiveGroup refuses whoever may not archive or restore a group: administrators may, and the admins of a group it
+// is inside, at any depth, through groups that are not archived. Being the admin of the group itself is not enough, so
+// nobody archives their own group (B-3). Agents never do.
+func (db *DB) mayArchiveGroup(ctx context.Context, q execer, actor Actor, groupID string) error {
+	if err := noAgent(ctx); err != nil {
 		return err
 	}
+	if actor.Admin {
+		return nil
+	}
+	var above bool
+	if err := q.QueryRow(ctx, `WITH RECURSIVE up(id) AS (
+			SELECT gg.grp FROM group_groups gg JOIN groups g ON g.id = gg.grp WHERE gg.member = $2 AND g.archived IS NULL
+			UNION SELECT gg.grp FROM group_groups gg JOIN up ON gg.member = up.id
+				JOIN groups g ON g.id = gg.grp WHERE g.archived IS NULL
+		) SELECT EXISTS (SELECT 1 FROM up JOIN group_admins a ON a.grp = up.id WHERE a.account = $1 AND up.id <> $2)`,
+		actor.ID, groupID).Scan(&above); err != nil {
+		return err
+	}
+	if !above {
+		return ErrGroupArchiver
+	}
+	return nil
+}
+
+// MayArchiveGroup tells whether the actor may archive or restore a group.
+func (db *DB) MayArchiveGroup(ctx context.Context, actor Actor, groupID string) (bool, error) {
+	err := db.mayArchiveGroup(ctx, db.pool, actor, groupID)
+	if isNotAllowed(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// ArchiveGroup archives a local group instead of deleting it (B-3): it keeps its members, the groups inside it, its
+// admins and every entry granted to it, so RestoreGroup brings everything back. While it is archived, its allow entries
+// hold for nobody and nothing passes up through it; its deny entries keep holding for whoever is in it, so archiving
+// never gives anyone more. Only administrators and the admins of a group it is inside archive it, and only while every
+// group inside it is archived already. Nothing deletes a group for good.
+func (db *DB) ArchiveGroup(ctx context.Context, actor Actor, groupID string) error {
+	g, err := db.GroupOf(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if g.Source != GroupLocal {
+		return ErrGroup
+	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE kind = 'group' AND who = $1", groupID); err != nil {
+		if err := lockGroups(ctx, tx); err != nil {
 			return err
 		}
-		// A restricted password loses the group as a reader (ADR-7); nobody else gains anything.
-		if _, err := tx.Exec(ctx, "DELETE FROM page_secret_readers WHERE kind = 'group' AND who = $1", groupID); err != nil {
+		if err := db.mayArchiveGroup(ctx, tx, actor, groupID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, "DELETE FROM groups WHERE id = $1", groupID)
+		var archived, inner bool
+		if err := tx.QueryRow(ctx, `SELECT archived IS NOT NULL,
+				EXISTS (SELECT 1 FROM group_groups gg JOIN groups m ON m.id = gg.member WHERE gg.grp = $1 AND m.archived IS NULL)
+			FROM groups WHERE id = $1`, groupID).Scan(&archived, &inner); err != nil {
+			return err
+		}
+		if archived {
+			return ErrGroupArchived
+		}
+		if inner {
+			return ErrGroupHasGroups
+		}
+		_, err := tx.Exec(ctx, "UPDATE groups SET archived = now(), archived_by = $2 WHERE id = $1", groupID, actor.ID)
+		return err
+	})
+}
+
+// RestoreGroup brings an archived group back with everything it kept. The same people may as for archiving it, and
+// only while no group it is inside is archived.
+func (db *DB) RestoreGroup(ctx context.Context, actor Actor, groupID string) error {
+	g, err := db.GroupOf(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if g.Source != GroupLocal {
+		return ErrGroup
+	}
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if err := lockGroups(ctx, tx); err != nil {
+			return err
+		}
+		if err := db.mayArchiveGroup(ctx, tx, actor, groupID); err != nil {
+			return err
+		}
+		var archived, outer bool
+		if err := tx.QueryRow(ctx, `SELECT archived IS NOT NULL,
+				EXISTS (SELECT 1 FROM group_groups gg JOIN groups p ON p.id = gg.grp WHERE gg.member = $1 AND p.archived IS NOT NULL)
+			FROM groups WHERE id = $1`, groupID).Scan(&archived, &outer); err != nil {
+			return err
+		}
+		if !archived {
+			return ErrNotFound
+		}
+		if outer {
+			return ErrGroupArchived
+		}
+		_, err := tx.Exec(ctx, "UPDATE groups SET archived = NULL, archived_by = '' WHERE id = $1", groupID)
 		return err
 	})
 }
@@ -810,6 +945,9 @@ func (db *DB) SetSubgroup(ctx context.Context, actor Actor, groupID, memberID st
 	if groupID == memberID {
 		return ErrGroupCycle
 	}
+	if inner.Archived {
+		return ErrGroupArchived
+	}
 	// A group admin puts only a local group inside theirs that they manage already: inside it, they would manage it.
 	if inner.Source == GroupLocal {
 		if err := db.mayAdministerGroup(ctx, actor, memberID); err != nil {
@@ -823,6 +961,9 @@ func (db *DB) SetSubgroup(ctx context.Context, actor Actor, groupID, memberID st
 	}
 	if errors.As(err, &pg) && pg.Code == "23514" && pg.ConstraintName == "group_groups_local" {
 		return ErrGroup
+	}
+	if errors.As(err, &pg) && pg.Code == "23514" && pg.ConstraintName == "group_groups_archived" {
+		return ErrGroupArchived
 	}
 	return err
 }

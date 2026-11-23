@@ -140,3 +140,21 @@ comes from.
   - Samba: each account is decided on its own, so a deny on a folder holds on the share without a deny entry in an ACL;
     a deny on a single file of a shared library is refused, as breaking its inheritance is (T-1 proves no rights per
     file).
+- **Built on 2026-11-23, part 2** ([docs/rights.md](../docs/rights.md#archived-groups), migration 035, B-3). Settled in
+  the build:
+  - **A group is archived, never deleted.** Only an administrator or the admin of a group it is inside archives or
+    restores it, never its own admins, and only while every group inside it is archived; it comes back only while no
+    group it is inside is archived. It keeps its members, groups, admins and entries.
+  - **Archived, its allow entries hold for nobody and its deny entries keep holding.** The check matches a deny against
+    every group of the account, archived ones and those reached through them included (`account_groups`), and an allow
+    only against the groups that are not archived and not reached through one (`account_allow_groups`). Dropping the
+    deny would let the next entry above allow what it denied; dropping an allow only lets the decision go on up, which
+    never allows more than the allow did. So archiving never gives anyone more, and restoring brings back exactly what
+    was there.
+  - **A service account is always an agent**, also where a caller asks as if it were none: the one check
+    (`object_decide`) takes it for an agent from the account (`accounts.service`). This replaces "service accounts are
+    a case of their own" above (B-3).
+  - **A service account never belongs to everyone signed in:** an allow for the tenant never holds for it, nor an allow
+    for a group taken over from the gate, since a role of the gate (the one that lets people use the app, say) can mean
+    everyone as well; only local groups it is put in directly count for it. Its denies hold as for anyone. The search
+    leaves out its token for everyone and checks each hit once more, and the folder source is empty for it.

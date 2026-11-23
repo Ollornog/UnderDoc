@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/folder"
@@ -405,6 +406,14 @@ func setupWith(t *testing.T, options web.Options, extra map[string]string) (*bro
 			t.Fatal(err)
 		}
 	}
+	// The persons of these tests are in ops, which may create spaces (B-3), unless a test brings a gate of its own.
+	if options.GateClient == nil {
+		gate, err := account.NewGate(account.GateConfig{SpacesRole: "ops"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		options.GateClient = gate
+	}
 	log := slog.New(slog.DiscardHandler)
 	store := library.NewStore(folder.New(dir), log)
 	if err := store.Refresh(); err != nil {
@@ -467,7 +476,7 @@ func (b *browser) signIn(on bool) {
 	b.t.Helper()
 	headers := map[string]string{}
 	if on {
-		headers = map[string]string{"Remote-Auth": "session", "Remote-User": "anna", "Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}
+		headers = map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": "anna", "Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}
 	}
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": headers}, nil)
 }

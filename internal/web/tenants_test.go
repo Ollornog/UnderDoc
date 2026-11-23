@@ -60,11 +60,13 @@ var (
 func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 	s, database := withTenants(t)
 	type made struct {
-		ids      []string
-		comment  string
-		trashed  string
-		secret   string
-		embedded string
+		ids     []string
+		comment string
+		trashed string
+		// trashedTitle is the name of what lies in the trash, typed to delete it for good.
+		trashedTitle string
+		secret       string
+		embedded     string
 		// employer is the private employer booked in the time tracking, its name the word of the tenant.
 		employer string
 		// group is a local group of the tenant, link the address of a link to the plan.
@@ -118,7 +120,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 		m.link = u.Path
 		m.ids = []string{team.ID, plan.ID, uses.ID, gone.ID}
 		m.comment = strconv.FormatInt(c.ID, 10)
-		m.trashed = gone.ID
+		m.trashed, m.trashedTitle = gone.ID, gone.Title
 		m.embedded = plan.ID + "#" + block.ID
 		return m
 	}
@@ -222,7 +224,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 				{http.MethodPatch, "/api/comments/" + c.other.comment, `{"resolved":true}`},
 				{http.MethodDelete, "/api/comments/" + c.other.comment, ""},
 				{http.MethodPost, "/api/trash/" + c.other.trashed + "/restore", ""},
-				{http.MethodDelete, "/api/trash/" + c.other.trashed, ""},
+				{http.MethodDelete, "/api/trash/" + c.other.trashed, `{"confirm":"` + c.other.trashedTitle + `"}`},
 			} {
 				if got := s.send(change.method, change.target, change.body, h); got.Code != http.StatusNotFound {
 					t.Errorf("%s %s = %d", change.method, change.target, got.Code)
@@ -247,9 +249,10 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 			hctx := tenant.With(context.Background(), here)
 			for name, err := range map[string]error{
-				"member": database.SetMember(hctx, db.Actor{Admin: true}, c.other.group, "1007", true),
-				"rename": database.RenameGroup(hctx, db.Actor{Admin: true}, c.other.group, "taken", ""),
-				"delete": database.DeleteGroup(hctx, db.Actor{Admin: true}, c.other.group),
+				"member":  database.SetMember(hctx, db.Actor{Admin: true}, c.other.group, "1007", true),
+				"rename":  database.RenameGroup(hctx, db.Actor{Admin: true}, c.other.group, "taken", ""),
+				"archive": database.ArchiveGroup(hctx, db.Actor{Admin: true}, c.other.group),
+				"restore": database.RestoreGroup(hctx, db.Actor{Admin: true}, c.other.group),
 			} {
 				if !errors.Is(err, db.ErrNotFound) {
 					t.Errorf("%s of the other tenant's group: %v", name, err)
@@ -272,7 +275,7 @@ func TestTenantsSeeNothingOfEachOther(t *testing.T) {
 			}
 			// Emptying the trash empties this tenant's, and what the other tenant has in its trash stays.
 			before := s.getWith("/api/trash", at(c.otherHost)).Body.String()
-			if got := s.send(http.MethodDelete, "/api/trash", "", h).Code; got >= 400 {
+			if got := s.send(http.MethodDelete, "/api/trash", `{"confirm":"Trash"}`, h).Code; got >= 400 {
 				t.Errorf("empty the trash = %d", got)
 			}
 			if mine := decode[[]apiTrashed](t, s.getWith("/api/trash", h)); len(mine) != 0 {

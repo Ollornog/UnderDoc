@@ -24,9 +24,13 @@ import (
 //	UNDERDOC_GATE_ISSUER, UNDERDOC_GATE_AUDIENCE, UNDERDOC_GATE_KEYS (comma separated) or UNDERDOC_GATE_JWKS_URL,
 //	UNDERDOC_GATE_COOKIE or UNDERDOC_GATE_TOKEN_HEADER
 //	                            token mode: what the token is checked against, and where it comes from
-//	UNDERDOC_GATE_KIND          "required" refuses a request without Remote-Kind and lets service accounts be ones;
-//	                            only once the gate says its proxy sets Remote-Kind on every request (none: off)
+//	UNDERDOC_GATE_KIND          a request without Remote-Kind, or with one the gate's client does not know, is refused
+//	                            (none or "required"); "legacy" is the way back for a proxy that does not set it yet:
+//	                            a missing one is filled in as user, with a warning at the start (header mode only)
 //	UNDERDOC_ADMIN_ROLE         the role of the app in the gate that makes an administrator ("underdoc-admin")
+//	UNDERDOC_SPACES_ROLE        the role of the app in the gate that lets a person create spaces ("underdoc-spaces")
+//	UNDERDOC_SERVICE_ACCOUNTS   the lasting IDs (Remote-Id) of the service accounts allowed in, separated by commas;
+//	                            any other service account is refused (none)
 func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
 	cfg := account.GateConfig{
 		Mode:        os.Getenv("UNDERDOC_GATE_MODE"),
@@ -37,6 +41,9 @@ func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
 		Cookie:      os.Getenv("UNDERDOC_GATE_COOKIE"),
 		TokenHeader: os.Getenv("UNDERDOC_GATE_TOKEN_HEADER"),
 		AdminRole:   os.Getenv("UNDERDOC_ADMIN_ROLE"),
+		SpacesRole:  os.Getenv("UNDERDOC_SPACES_ROLE"),
+		// account.NewGate checks that each is a lasting ID.
+		ServiceAccounts: list(os.Getenv("UNDERDOC_SERVICE_ACCOUNTS")),
 		Headers: tinysesam.HeaderNames{
 			User: os.Getenv("UNDERDOC_GATE_HEADER_USER"), Name: os.Getenv("UNDERDOC_GATE_HEADER_NAME"),
 			Email: os.Getenv("UNDERDOC_GATE_HEADER_EMAIL"), Groups: os.Getenv("UNDERDOC_GATE_HEADER_GROUPS"),
@@ -55,9 +62,11 @@ func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
 	switch kind := os.Getenv("UNDERDOC_GATE_KIND"); kind {
 	case "":
 	case "required":
-		cfg.KindRequired = true
+	case "legacy":
+		cfg.KindLegacy = true
+		log.Warn("UNDERDOC_GATE_KIND=legacy: a request without Remote-Kind is let through as a person's; only for a proxy of the gate that does not set Remote-Kind yet, remove it once it does")
 	default:
-		return cfg, fmt.Errorf("UNDERDOC_GATE_KIND: %q is neither empty nor required", kind)
+		return cfg, fmt.Errorf("UNDERDOC_GATE_KIND: %q is neither empty, required nor legacy", kind)
 	}
 	for _, item := range list(os.Getenv("UNDERDOC_GATE_PROXIES")) {
 		prefix, err := netip.ParsePrefix(item)

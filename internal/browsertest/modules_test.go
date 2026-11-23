@@ -97,6 +97,7 @@ func TestTheHosterWithTheMouse(t *testing.T) {
 	}
 	request.Host = "beta.localhost"
 	request.Header.Set("Remote-User", "anna")
+	request.Header.Set("Remote-Kind", "user")
 	request.Header.Set("Remote-Id", "1007")
 	request.Header.Set("Remote-Auth", "session")
 	response, err := http.DefaultClient.Do(request)

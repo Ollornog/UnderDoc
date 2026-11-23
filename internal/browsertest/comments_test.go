@@ -14,7 +14,7 @@ import (
 // signInAs sets the headers of the gate for another person, on every request of the browser.
 func (b *browser) signInAs(login, name string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-Kind": "user", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name}}, nil)
 }
 
 // gateWithRole is the gate in header mode whose role of the app is role.

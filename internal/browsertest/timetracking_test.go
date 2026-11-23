@@ -167,6 +167,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 		request.Host = "acme.localhost"
 		request.Header.Set("Remote-Auth", "session")
 		request.Header.Set("Remote-User", "anna")
+		request.Header.Set("Remote-Kind", "user")
 		request.Header.Set("Remote-Id", "1007")
 		request.Header.Set("Remote-Groups", "ops")
 		response, err := http.DefaultClient.Do(request)

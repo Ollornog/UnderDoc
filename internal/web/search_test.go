@@ -29,7 +29,8 @@ type searchSite struct {
 }
 
 // withSearch is a site with a database and the search service set up as serve does it, over the given engine (nil: none).
-func withSearch(t *testing.T, engine search.Engine) *searchSite {
+// A gate may be given, for a site whose gate is configured otherwise (B-3).
+func withSearch(t *testing.T, engine search.Engine, gate ...*account.Gate) *searchSite {
 	t.Helper()
 	ctx := tenant.With(context.Background(), tenant.Main)
 	database, err := db.Open(ctx, pgtest.URL(t))
@@ -39,6 +40,9 @@ func withSearch(t *testing.T, engine search.Engine) *searchSite {
 	t.Cleanup(database.Close)
 	s := &searchSite{db: database}
 	options := Options{DB: database}
+	if len(gate) > 0 {
+		options.GateClient = gate[0]
+	}
 	s.site = newSite(t, options, sample)
 	log := slog.New(slog.DiscardHandler)
 	service := search.NewService(engine, TitleFallback(database, s.store), tenant.Main, log)

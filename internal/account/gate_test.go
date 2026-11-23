@@ -99,35 +99,88 @@ func TestGateAuthKind(t *testing.T) {
 	}
 }
 
-// Remote-Kind is not yet the only barrier (ADR-32): a proxy of the gate may still pass on what the browser sent. So by
-// default a missing kind is let through as unknown, and "service" makes no service account; only the switch does.
+// Remote-Kind is required (ADR-32, B-3): the gate's proxies set it on every request and remove what the browser sent.
+// A missing, empty or unknown kind is refused. KindLegacy (UNDERDOC_GATE_KIND=legacy) is the explicit way back for a
+// proxy that does not set it yet: a missing kind is filled in as user and kept as unknown; an unknown one stays refused.
 func TestGateKind(t *testing.T) {
 	g := newGate(t, GateConfig{})
-	user, err := g.Identify(request(person(map[string]string{"Remote-Kind": "-", "Remote-Auth": "oauth"})))
-	if err != nil || user.GateKind != "" || user.Kind != KindPerson || !user.Agent() {
-		t.Fatalf("without Remote-Kind: %+v %v", user, err)
+	if !g.KindRequired() {
+		t.Error("required by default")
 	}
-	if user, err := g.Identify(request(person(map[string]string{"Remote-Kind": ""}))); err != nil || user.GateKind != "" || user.Agent() {
-		t.Errorf("an empty Remote-Kind is none: %+v %v", user, err)
+	for name, kind := range map[string]string{"missing": "-", "empty": "", "unknown": "robot", "in capitals": "USER", "with a space": "user "} {
+		if _, err := g.Identify(request(person(map[string]string{"Remote-Kind": kind}))); !errors.Is(err, tinysesam.ErrHeader) {
+			t.Errorf("a %s Remote-Kind is refused: %v", name, err)
+		}
 	}
-	user, err = g.Identify(request(person(map[string]string{"Remote-Kind": "service", "Remote-Auth": "apikey"})))
-	if err != nil || user.GateKind != "service" || user.Kind != KindPerson || !user.Agent() {
-		t.Errorf("a service account the gate cannot vouch for yet is an agent: %+v %v", user, err)
+	if user, err := g.Identify(request(person(nil))); err != nil || user.GateKind != "user" || user.Kind != KindPerson || user.Agent() {
+		t.Errorf("a person in a session is one: %+v %v", user, err)
 	}
-	if _, err := g.Identify(request(person(map[string]string{"Remote-Kind": "robot"}))); !errors.Is(err, tinysesam.ErrHeader) {
-		t.Errorf("an unknown kind: %v", err)
+	if _, err := g.Identify(request(person(map[string]string{"Remote-Kind": "service", "Remote-Auth": "session"}))); err == nil {
+		t.Error("a service account has no session")
 	}
 
-	strict := newGate(t, GateConfig{KindRequired: true})
-	if _, err := strict.Identify(request(person(map[string]string{"Remote-Kind": "-"}))); !errors.Is(err, tinysesam.ErrHeader) {
-		t.Errorf("switched on, a request without Remote-Kind is refused: %v", err)
+	legacy := newGate(t, GateConfig{KindLegacy: true})
+	if legacy.KindRequired() {
+		t.Error("the way back is the setting")
 	}
-	user, err = strict.Identify(request(person(map[string]string{"Remote-Kind": "service", "Remote-Auth": "apikey"})))
-	if err != nil || user.Kind != KindService || user.Agent() {
-		t.Errorf("switched on, a service account is one: %+v %v", user, err)
+	user, err := legacy.Identify(request(person(map[string]string{"Remote-Kind": "-", "Remote-Auth": "oauth"})))
+	if err != nil || user.GateKind != "" || user.Kind != KindPerson || !user.Agent() {
+		t.Fatalf("the way back, without Remote-Kind: %+v %v", user, err)
 	}
-	if _, err := strict.Identify(request(person(map[string]string{"Remote-Kind": "service", "Remote-Auth": "session"}))); err == nil {
-		t.Error("a service account has no session")
+	if user, err := legacy.Identify(request(person(map[string]string{"Remote-Kind": ""}))); err != nil || user.GateKind != "" || user.Agent() {
+		t.Errorf("the way back, an empty Remote-Kind is none: %+v %v", user, err)
+	}
+	if _, err := legacy.Identify(request(person(map[string]string{"Remote-Kind": "robot"}))); !errors.Is(err, tinysesam.ErrHeader) {
+		t.Errorf("the way back, an unknown kind: %v", err)
+	}
+	if _, err := NewGate(GateConfig{Mode: GateToken, KindLegacy: true, Issuer: gatetest.Issuer, Audience: gatetest.Audience,
+		Keys: []string{gatetest.PublicKey()}}); err == nil {
+		t.Error("the way back in token mode")
+	}
+}
+
+// A service account comes in only with a lasting ID an administrator allowed, and is then always one: an agent (B-3).
+// With the way back or without, refusing one can only make a request weaker; an allowed ID is a service account whatever
+// kind a proxy passes on.
+func TestGateServiceAccounts(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		required := !legacy
+		g := newGate(t, GateConfig{KindLegacy: legacy, ServiceAccounts: []string{"42"}})
+		if _, err := g.Identify(request(person(map[string]string{"Remote-Kind": "service", "Remote-Auth": "apikey"}))); !errors.Is(err, ErrService) {
+			t.Errorf("required=%v: a service account nobody allowed: %v", required, err)
+		}
+		user, err := g.Identify(request(person(map[string]string{"Remote-Id": "42", "Remote-Kind": "service", "Remote-Auth": "apikey"})))
+		if err != nil || user.Kind != KindService || !user.Agent() || user.GateKind != "service" {
+			t.Errorf("required=%v: an allowed service account is one, and an agent: %+v %v", required, user, err)
+		}
+		user, err = g.Identify(request(person(map[string]string{"Remote-Id": "42", "Remote-Kind": "user", "Remote-Auth": "session",
+			"Remote-Groups": "underdoc-admin,underdoc-spaces"})))
+		if err != nil || user.Kind != KindService || !user.Agent() {
+			t.Errorf("required=%v: an allowed ID passed on as a person in a session is still a service account: %+v %v", required, user, err)
+		}
+	}
+	for _, bad := range []string{"svc", "4 2", "-1"} {
+		if _, err := NewGate(GateConfig{ServiceAccounts: []string{bad}}); err == nil {
+			t.Errorf("a service account named %q", bad)
+		}
+	}
+}
+
+// The role of the app to create spaces is read like the administrator's, compared exactly (ADR-35, B-3).
+func TestGateSpacesRole(t *testing.T) {
+	g := newGate(t, GateConfig{})
+	if user, _ := g.Identify(request(person(map[string]string{"Remote-Groups": "underdoc-spaces"}))); !user.Spaces || user.Admin {
+		t.Errorf("the default role: %+v", user)
+	}
+	if user, _ := g.Identify(request(person(map[string]string{"Remote-Groups": "Underdoc-Spaces, underdoc-spaces-x"}))); user.Spaces {
+		t.Errorf("compared exactly: %+v", user)
+	}
+	own := newGate(t, GateConfig{SpacesRole: "wiki-spaces"})
+	if user, _ := own.Identify(request(person(map[string]string{"Remote-Groups": "wiki-spaces"}))); !user.Spaces || own.SpacesRole() != "wiki-spaces" {
+		t.Errorf("a role of its own: %+v", user)
+	}
+	if _, err := NewGate(GateConfig{SpacesRole: "admin"}); err == nil {
+		t.Error("the gate's own administrator creates spaces")
 	}
 }
 
@@ -169,7 +222,7 @@ func TestGateTrustsTheProxyAlone(t *testing.T) {
 // The gate may rename its headers; then the default names count for nothing.
 func TestGateRenamedHeaders(t *testing.T) {
 	g := newGate(t, GateConfig{Headers: tinysesam.HeaderNames{User: "X-Gate-User", ID: "X-Gate-Id", Auth: "X-Gate-Auth", Kind: "X-Gate-Kind"}})
-	r := request(map[string]string{"X-Gate-User": "anna", "X-Gate-Id": "7", "X-Gate-Auth": "session"})
+	r := request(map[string]string{"X-Gate-User": "anna", "X-Gate-Id": "7", "X-Gate-Auth": "session", "X-Gate-Kind": "user"})
 	user, err := g.Identify(r)
 	if err != nil || user.RemoteID != "7" || user.Agent() {
 		t.Fatalf("%+v %v", user, err)
@@ -204,9 +257,14 @@ func TestGateToken(t *testing.T) {
 	if user, err := g.Identify(withToken(gatetest.Token("7", map[string]any{"ts_auth": nil}), nil)); err != nil || !user.Agent() {
 		t.Errorf("without ts_auth: %+v %v", user, err)
 	}
-	if user, err := g.Identify(withToken(gatetest.Token("8", map[string]any{"ts_kind": "service", "ts_auth": "apikey"}), nil)); err != nil ||
-		user.Kind != KindService || user.Agent() {
-		t.Errorf("a signed service account is one: %+v %v", user, err)
+	if _, err := g.Identify(withToken(gatetest.Token("8", map[string]any{"ts_kind": "service", "ts_auth": "apikey"}), nil)); !errors.Is(err, ErrService) {
+		t.Errorf("a signed service account nobody allowed: %v", err)
+	}
+	allowed := newGate(t, GateConfig{Mode: GateToken, Issuer: gatetest.Issuer, Audience: gatetest.Audience, Keys: []string{gatetest.PublicKey()},
+		ServiceAccounts: []string{"8"}})
+	if user, err := allowed.Identify(withToken(gatetest.Token("8", map[string]any{"ts_kind": "service", "ts_auth": "apikey"}), nil)); err != nil ||
+		user.Kind != KindService || !user.Agent() {
+		t.Errorf("an allowed signed service account is one, an agent: %+v %v", user, err)
 	}
 	if _, err := g.Identify(withToken(gatetest.Token("7", map[string]any{"ts_kind": nil}), nil)); err == nil {
 		t.Error("a token without ts_kind")

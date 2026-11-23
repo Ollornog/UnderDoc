@@ -51,6 +51,16 @@ func asPerson(user account.User) context.Context {
 	return account.With(inMain(), user)
 }
 
+// purgeAs deletes an object of the trash for good as the account in a browser session, with its name typed in (B-3),
+// in the tenant of ctx.
+func purgeAs(ctx context.Context, db *DB, accountID, objectID string) error {
+	var title string
+	if err := db.pool.QueryRow(ctx, "SELECT title FROM objects WHERE id = $1", objectID).Scan(&title); err != nil {
+		return err
+	}
+	return db.Purge(account.With(ctx, account.User{ID: accountID, AuthKind: account.AuthSession}), objectID, Actor{ID: accountID}, title)
+}
+
 func setup(t *testing.T) (*DB, context.Context) {
 	t.Helper()
 	db := open(t)
@@ -286,7 +296,7 @@ func TestAgentsAreACeiling(t *testing.T) {
 	if err := db.SetEntries(ctx, team.ID, admin, ToAgents, "", entries(ActRead, Allow), true); !errors.Is(err, ErrEntry) {
 		t.Errorf("an allow for Agents: %v", err)
 	}
-	// A service account is not an agent: it gets what is granted to it.
+	// A service account is an agent (B-3) and gets what is granted to it, within what agents may.
 	svc := account.User{ID: carl.ID, AuthKind: account.AuthAPIKey, Kind: account.KindService}
 	if err := db.SetGrant(ctx, team.ID, admin, ToPerson, carl.ID, RoleEdit); err != nil {
 		t.Fatal(err)
@@ -329,13 +339,13 @@ func TestAgentsNeverDeleteForGood(t *testing.T) {
 	if err := db.Delete(agent, page.ID, anna.ID); err != nil {
 		t.Fatalf("an agent moves to the trash: %v", err)
 	}
-	if err := db.Purge(agent, page.ID, anna.ID); !errors.Is(err, ErrAgent) {
+	if err := db.Purge(agent, page.ID, Actor{ID: anna.ID}, "Old"); !errors.Is(err, ErrAgent) {
 		t.Errorf("an agent deletes for good: %v", err)
 	}
 	if _, _, err := db.RevealPageSecret(agent, "nothing", anna.ID, 0, false); !errors.Is(err, ErrAgent) {
 		t.Errorf("an agent reveals a password: %v", err)
 	}
-	if err := db.Purge(asPerson(anna), page.ID, anna.ID); err != nil {
+	if err := db.Purge(asPerson(anna), page.ID, Actor{ID: anna.ID}, "Old"); err != nil {
 		t.Errorf("anna empties it herself: %v", err)
 	}
 }
