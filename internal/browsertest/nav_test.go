@@ -1318,7 +1318,8 @@ func TestTheListOfProblemsInTheWorkspace(t *testing.T) {
 	if !b.waitFor(`document.querySelectorAll('tr[data-problem]').length === 1`) {
 		t.Fatalf("the problem of Rack: %s", b.eval(`document.querySelector('article.typeset')?.innerText.slice(0, 300)`))
 	}
-	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.workspace-main > header > h1').textContent + ' | ' + [...document.querySelectorAll('article.typeset table')].length + ':' + (document.querySelector('article.typeset h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 2:Folder source" {
+	if got := b.eval(`[...document.querySelector('tr[data-problem]').cells].map(c => c.textContent.trim()).join(' / ') + ' | ' + document.querySelector('.workspace-main > header > h1').textContent + ' | ' + [...document.querySelectorAll('article.typeset table')].length + ':' + (document.querySelector('article.typeset h2:last-of-type')?.textContent || '')`); got != "Rack / #b1 / zzzzzzzzzz / embeds something that is not to be found | Problems | 3:Folder source" {
+		// Three tables: what does not resolve, the writing rules (Rack has no kind, T-20) and the folder source.
 		t.Errorf("the list: %q", got)
 	}
 	b.shot("problems")

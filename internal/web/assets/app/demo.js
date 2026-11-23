@@ -500,11 +500,11 @@ function gearHtml(t,i,hasSecs){
     ${prow('Width',seg('setw',['slim','wide','full'],d.w,'Width'))}
     ${prow('Page view',pbtn('disabled title="Comes later"','DIN A4, later'))}
     ${d.db&&d.blocks?prow('Template',seg('settpl',['off','offered'],d.tpl?'offered':'off','Template')):''}
-    ${window.UDKinds?UDKinds.kindRow(t.d,d,mayTag(t.d)):''}
     <h3>Others can</h3>${prow(d.acc?'Set here':'Inherited: '+ACC[othersOf(t.d)].toLowerCase(),seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit','Others can'))}
     ${hint(d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.')}
     ${d.db?prow('People, groups and links',pbtn(`data-act="rights" data-id="${t.d}"`,'Rights and sharing')):''}
     ${d.db&&d.blocks?prow('Passwords in the text',pbtn(`data-act="secrets" data-id="${t.d}"`,'Passwords')):''}
+    ${window.UDKinds?UDKinds.kindRow(t.d,d,mayTag(t.d)):''}
     ${tagsHtml(t.d,i)}
     ${factsHtml(d)}`,'gear',i);
 }
