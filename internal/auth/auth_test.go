@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/pquerna/otp/totp"
 )
 
 func TestPasswords(t *testing.T) {
@@ -42,42 +40,6 @@ func TestPasswords(t *testing.T) {
 	for _, short := range []string{"", "eleven char", strings.Repeat("ä", 201)} {
 		if _, err := HashPassword(short); err != ErrPasswordLength {
 			t.Errorf("%q: %v", short, err)
-		}
-	}
-}
-
-func TestTOTP(t *testing.T) {
-	setup, err := GenerateTOTP("Acme", "anna")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(setup.URL, "otpauth://totp/Acme:anna?") || !strings.HasPrefix(setup.QR, "data:image/png;base64,") || len(setup.Secret) < 32 {
-		t.Errorf("%+v", setup)
-	}
-	now := time.Unix(1_800_000_000, 0)
-	code, err := totp.GenerateCode(setup.Secret, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	step, ok := CheckTOTP(setup.Secret, code, now, 0)
-	if !ok || step != now.Unix()/30 {
-		t.Fatalf("the code of now: %d %v", step, ok)
-	}
-	if _, ok := CheckTOTP(setup.Secret, code, now, step); ok {
-		t.Error("a code used once works again")
-	}
-	if _, ok := CheckTOTP(setup.Secret, code, now.Add(25*time.Second), 0); !ok {
-		t.Error("a code from the step before")
-	}
-	if _, ok := CheckTOTP(setup.Secret, code, now.Add(90*time.Second), 0); ok {
-		t.Error("a code from three steps before")
-	}
-	if _, ok := CheckTOTP(setup.Secret, " "+code[:3]+" "+code[3:], now, 0); !ok {
-		t.Error("spaces in the code")
-	}
-	for _, bad := range []string{"", "12345", "1234567", "abcdef"} {
-		if _, ok := CheckTOTP(setup.Secret, bad, now, 0); ok {
-			t.Errorf("%q passes", bad)
 		}
 	}
 }

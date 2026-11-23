@@ -375,10 +375,29 @@ func (h *handler) sharePage(w http.ResponseWriter, status int, v shareView) {
 	_, _ = w.Write(out.Bytes())
 }
 
-// signedInUser tells who opens a link, if anyone is signed in: the address of a link needs no sign-in, so it is asked
-// here.
-func (h *handler) signedInUser(r *http.Request) (account.User, bool) {
-	return h.identify(r, h.signInSettings(r.Context()))
+// takeLink is where an account of the tenant takes the role of a link to comment or edit: behind the gate, so the person
+// is signed in. It holds that role on the shared object from now on, as long as the link lives, and goes on to it. A link
+// to read, or a password not given yet, goes back to the address of the link.
+func (h *handler) takeLink(w http.ResponseWriter, r *http.Request) {
+	l, ok := h.sharedLink(w, r)
+	if !ok {
+		return
+	}
+	user := h.me(r)
+	// An agent never takes a link for its person: that is sharing, which agents never do (ADR-36).
+	if (l.Mode != db.LinkComment && l.Mode != db.LinkEdit) || !h.passed(r, l) || user.Agent() {
+		http.Redirect(w, r, sharePath(r.PathValue("token")), http.StatusSeeOther)
+		return
+	}
+	if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
+		h.log.Error("link not used", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if err := h.options.DB.Log(r.Context(), user.ID, db.LogLinkUsed, l.Object, l.ID+" "+l.Mode); err != nil {
+		h.log.Error("log not written", slog.String("error", err.Error()))
+	}
+	http.Redirect(w, r, "/o/"+l.Object, http.StatusSeeOther)
 }
 
 // share answers the address of a link.
@@ -397,21 +416,10 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 		h.sharePage(w, http.StatusOK, v)
 		return
 	}
-	// To comment or edit, an account of the tenant holds the role from now on, and works in the workspace.
+	// To comment or edit, an account of the tenant takes the role through the gate: the address of a link is open at the
+	// gate, so nobody is signed in here, and /link/<token> is not.
 	if l.Mode == db.LinkComment || l.Mode == db.LinkEdit {
-		// An agent never takes a link for its person: that is sharing, which agents never do (ADR-36).
-		if user, ok := h.signedInUser(r); ok && user.ID != "" && !user.Agent() {
-			if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
-				h.log.Error("link not used", slog.String("error", err.Error()))
-			} else {
-				if err := h.options.DB.Log(r.Context(), user.ID, db.LogLinkUsed, l.Object, l.ID+" "+l.Mode); err != nil {
-					h.log.Error("log not written", slog.String("error", err.Error()))
-				}
-				http.Redirect(w, r, "/o/"+l.Object, http.StatusSeeOther)
-				return
-			}
-		}
-		v.SignIn = "/sign-in?next=" + sharePath(token)
+		v.SignIn = "/link/" + token
 	}
 	h.note(r, db.LogLinkOpened, l.Object, l.ID)
 	switch {
@@ -504,8 +512,11 @@ func (h *handler) sharePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: shareCookie, Value: value, Path: sharePath(token), HttpOnly: true, Secure: r.TLS != nil || !isLocal(r),
-		SameSite: http.SameSiteStrictMode, MaxAge: 24 * 60 * 60})
+	// The pass holds on the address of the link, and where an account takes its role behind the gate.
+	for _, path := range []string{sharePath(token), "/link/" + token} {
+		http.SetCookie(w, &http.Cookie{Name: shareCookie, Value: value, Path: path, HttpOnly: true, Secure: r.TLS != nil || !isLocal(r),
+			SameSite: http.SameSiteStrictMode, MaxAge: 24 * 60 * 60})
+	}
 	http.Redirect(w, r, sharePath(token), http.StatusSeeOther)
 }
 

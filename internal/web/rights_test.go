@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
@@ -32,7 +31,6 @@ func TestRightsThroughTheAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	// Anna administers through the group of her gate headers.
 	s := newSite(t, Options{DB: database}, sample)
 	// Everyone signs in once, so their accounts and groups are there.
@@ -152,7 +150,6 @@ func adminSite(t *testing.T) (*site, *db.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	return newSite(t, Options{DB: database}, sample), database
 }
 
@@ -226,19 +223,15 @@ func TestTheAccessCheck(t *testing.T) {
 	}
 }
 
-// TestTakingBackAnAdministratorThroughTheAPI: taken back, a local administrator stops administering the organization of
-// the time tracking at once (ADR-29).
+// TestTakingBackAnAdministratorThroughTheAPI: an administrator marked on the command line (ADR-32), taken back in the web,
+// stops administering the organization of the time tracking at once (ADR-29). The web marks nobody.
 func TestTakingBackAnAdministratorThroughTheAPI(t *testing.T) {
 	s, database := adminSite(t)
 	ctx := tenant.With(context.Background(), tenant.Main)
 	if err := database.SetTenantModules(ctx, []string{module.Documents, module.Time}); err != nil {
 		t.Fatal(err)
 	}
-	hash := []byte(strings.Repeat("d", 32))
-	if err := database.CreateInvite(ctx, hash, db.Invite{Login: "dora", Name: "Dora", Admin: true, Expires: time.Now().Add(time.Hour)}); err != nil {
-		t.Fatal(err)
-	}
-	dora, err := database.AcceptInvite(ctx, hash, db.NewLocal{PasswordHash: "x"})
+	dora, err := database.MarkAdmin(ctx, "1050", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,14 +254,21 @@ func TestTakingBackAnAdministratorThroughTheAPI(t *testing.T) {
 		t.Fatal("dora administers the organization")
 	}
 	users := decode[[]apiAccount](t, s.get("/api/users"))
-	if len(users) != 2 {
+	if len(users) != 2 || users[0].Login != "1050" && users[1].Login != "1050" {
 		t.Errorf("the users: %+v", users)
 	}
 	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, plain).Code; got != http.StatusForbidden {
 		t.Errorf("bob takes it back = %d", got)
 	}
 	if got := s.send(http.MethodPut, "/api/users/1007/admin", `{"admin":false}`, sameSite).Code; got != http.StatusConflict {
-		t.Errorf("anna is an administrator through her group = %d", got)
+		t.Errorf("anna takes her own away = %d", got)
+	}
+	s.send(http.MethodGet, "/api/state", "", plain)
+	if got := s.send(http.MethodPut, "/api/users/1002/admin", `{"admin":true}`, sameSite); got.Code != http.StatusConflict || !strings.Contains(got.Body.String(), "underdoc admin grant") {
+		t.Errorf("the web makes bob an administrator = %d %s", got.Code, got.Body.String())
+	}
+	if got := s.send(http.MethodPut, "/api/users/1002/admin", `{"admin":false}`, sameSite).Code; got != http.StatusConflict {
+		t.Errorf("bob has no mark to take = %d", got)
 	}
 	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("take back = %d", got)

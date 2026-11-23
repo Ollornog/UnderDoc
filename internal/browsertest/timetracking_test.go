@@ -80,11 +80,6 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 	if err := database.AddTenantHost(main, "main", "127.0.0.1"); err != nil {
 		t.Fatal(err)
 	}
-	for _, ctx := range []context.Context{main, acme} {
-		if err := database.SetSignIn(ctx, db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-			t.Fatal(err)
-		}
-	}
 	b, base := setupWith(t, web.Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: "localhost", GateClient: gateWithRole(t, "ops")}, nil)
 
 	// Off by default: no entry in the workspace, no address.

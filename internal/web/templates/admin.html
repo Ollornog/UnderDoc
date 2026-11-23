@@ -80,12 +80,10 @@
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="field"><label for="new-id">ID{{if .Domain}}, the subdomain of {{.Domain}}{{end}}</label><input class="input" id="new-id" name="id" required maxlength="40" autocapitalize="none"></div>
             <div class="field"><label for="new-name">Name</label><input class="input" id="new-name" name="name" required maxlength="200"></div>
-            <div class="field"><label for="new-admin-login">Login of its first administrator</label><input class="input" id="new-admin-login" name="admin_login" required maxlength="63" autocapitalize="none"></div>
-            <div class="field"><label for="new-admin-name">Name of its first administrator</label><input class="input" id="new-admin-name" name="admin_name" required maxlength="200"></div>
           </div>
+          <p class="text-sm text-muted-foreground">Its administrators are those the sign-in gate gives the role of the app at its address.</p>
           <button class="btn" type="submit">Make the tenant</button>
         </form>
-        <p class="text-sm"><a class="underline" href="/account/security">Your sign-in</a> · <a class="underline" href="/admin/sign-in">Sign-in of the hoster</a></p>
       </section>
     </div>
   </main>
@@ -106,7 +104,6 @@
       {{end}}
       <section class="grid gap-6">
         {{template "auth-alerts" .}}
-        {{template "invite-link" .Link}}
         {{with .Edit}}
         <dl class="grid gap-3 sm:grid-cols-2" data-test="usage">
           <div class="grid gap-1"><dt class="text-sm text-muted-foreground">Users, used / limit</dt><dd class="tabular-nums">{{.Users}} / {{.MaxUsers}}{{template "meter" (meterOf .UsersMeter "Users of the limit")}}</dd></div>
@@ -163,15 +160,6 @@
             <input class="input" id="host" name="host" placeholder="wiki.example.com" aria-label="A domain of its own" maxlength="253" autocapitalize="none">
             <button class="btn" data-variant="outline" type="submit">Add the domain</button></form>
         </div>
-        <form class="grid gap-4" method="post" action="/hoster/tenants/{{.ID}}">
-          <input type="hidden" name="do" value="invite">
-          <h2 class="font-semibold">Invite an administrator</h2>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="field"><label for="admin_login">Login</label><input class="input" id="admin_login" name="admin_login" required maxlength="63" autocapitalize="none"></div>
-            <div class="field"><label for="admin_name">Name</label><input class="input" id="admin_name" name="admin_name" required maxlength="200"></div>
-          </div>
-          <button class="btn" data-variant="outline" type="submit">Make an invitation link</button>
-        </form>
         {{end}}
         <p class="text-sm"><a class="underline" href="/hoster">All tenants</a></p>
       </section>

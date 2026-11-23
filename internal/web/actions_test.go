@@ -118,8 +118,8 @@ func TestAgentsThroughTheGate(t *testing.T) {
 	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
 	link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+team.ID+"/links", `{"mode":"edit"}`, sameSite))
 	bobsAgent := map[string]string{"Remote-Auth": "apikey", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
-	if got := s.send(http.MethodGet, pathOf(t, link.URL), "", bobsAgent).Code; got == http.StatusSeeOther {
-		t.Errorf("bob's agent took the link to edit")
+	if got := s.send(http.MethodGet, "/link/"+strings.TrimPrefix(pathOf(t, link.URL), "/s/"), "", bobsAgent); got.Header().Get("Location") != pathOf(t, link.URL) {
+		t.Errorf("bob's agent took the link to edit: %d %v", got.Code, got.Header())
 	}
 	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"bob was here"}`, plain).Code; got != http.StatusForbidden {
 		t.Errorf("bob edits through a link his agent opened = %d", got)

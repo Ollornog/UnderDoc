@@ -38,8 +38,8 @@ type User struct {
 	Groups   []string
 	// Admin tells that the user administers the tenant: the gate gives the role of the app, or the account is marked so.
 	Admin bool
-	// Method is the way the user signed in (db.Method*), set by the web.
-	Method string
+	// AdminRole tells that the gate gives the role of the app, not only the mark of the command line.
+	AdminRole bool
 	// AuthKind is how this request signed in (AuthSession, AuthOAuth, …), as the gate's client checked it. Empty or
 	// unknown counts as an agent.
 	AuthKind string

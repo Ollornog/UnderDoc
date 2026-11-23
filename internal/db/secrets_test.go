@@ -420,7 +420,7 @@ func TestSecretsKeepTenantsApart(t *testing.T) {
 }
 
 // TestRekey: every sealed value of a tenant opens with the new key after a rotation, the passwords of pages with every
-// version, TOTP and the secrets of other systems; a second run changes nothing, and a value no key opens stops it with
+// version and the secrets of other systems; a second run changes nothing, and a value no key opens stops it with
 // nothing changed.
 func TestRekey(t *testing.T) {
 	db := open(t)
@@ -438,7 +438,7 @@ func TestRekey(t *testing.T) {
 		return func(name string) ([]byte, error) { return before.Seal(tenant.Main, name, vault.Secret(value)) }
 	}
 	_, page := secretPage(t, db)
-	first, second, totp, oidc := randomValue(t), randomValue(t), randomValue(t), randomValue(t)
+	first, second, other := randomValue(t), randomValue(t), randomValue(t)
 	secretID, err := db.CreatePageSecret(ctx, page.ID, anna.ID, seal(first))
 	if err != nil {
 		t.Fatal(err)
@@ -446,12 +446,8 @@ func TestRekey(t *testing.T) {
 	if err := db.ChangePageSecret(ctx, secretID, anna.ID, seal(second)); err != nil {
 		t.Fatal(err)
 	}
-	sealedTOTP, _ := before.Seal(tenant.Main, TOTPSecretName(bob.ID), vault.Secret(totp))
-	if _, err := db.pool.Exec(ctx, "UPDATE accounts SET totp_sealed = $2 WHERE id = $1", bob.ID, sealedTOTP); err != nil {
-		t.Fatal(err)
-	}
-	sealedOIDC, _ := before.Seal(tenant.Main, "oidc", vault.Secret(oidc))
-	if err := db.PutSealedSecret(ctx, "oidc", sealedOIDC); err != nil {
+	sealedOther, _ := before.Seal(tenant.Main, "source.token", vault.Secret(other))
+	if err := db.PutSealedSecret(ctx, "source.token", sealedOther); err != nil {
 		t.Fatal(err)
 	}
 	both, err := vault.NewRotating(newKey, oldKey)
@@ -459,7 +455,7 @@ func TestRekey(t *testing.T) {
 		t.Fatal(err)
 	}
 	reseal := func(name string, sealed []byte) ([]byte, error) { return both.Reseal(tenant.Main, name, sealed) }
-	if n, err := db.Rekey(ctx, tenant.Main, reseal); err != nil || n != 4 {
+	if n, err := db.Rekey(ctx, tenant.Main, reseal); err != nil || n != 3 {
 		t.Fatalf("rekey: %d %v", n, err)
 	}
 	if n, err := db.Rekey(ctx, tenant.Main, reseal); err != nil || n != 0 {
@@ -475,16 +471,9 @@ func TestRekey(t *testing.T) {
 			t.Errorf("version %d does not open with the new key: %v", number, err)
 		}
 	}
-	var gotTOTP []byte
-	if err := db.pool.QueryRow(ctx, "SELECT totp_sealed FROM accounts WHERE id = $1", bob.ID).Scan(&gotTOTP); err != nil {
-		t.Fatal(err)
-	}
-	if got, err := after.Open(tenant.Main, TOTPSecretName(bob.ID), gotTOTP); err != nil || string(got) != totp {
-		t.Errorf("TOTP does not open with the new key: %v", err)
-	}
-	gotOIDC, _ := db.SealedSecret(ctx, "oidc")
-	if got, err := after.Open(tenant.Main, "oidc", gotOIDC); err != nil || string(got) != oidc {
-		t.Errorf("the client secret does not open with the new key: %v", err)
+	gotOther, _ := db.SealedSecret(ctx, "source.token")
+	if got, err := after.Open(tenant.Main, "source.token", gotOther); err != nil || string(got) != other {
+		t.Errorf("the secret of another system does not open with the new key: %v", err)
 	}
 	// A value sealed by a third key opens with neither: nothing changes.
 	stranger, _ := vault.New(key())

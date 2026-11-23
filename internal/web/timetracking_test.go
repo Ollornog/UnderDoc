@@ -63,7 +63,7 @@ func book(t *testing.T, c *client, name string) string {
 // TestTimeTrackingIsAModule (ADR-25): off by default, every address of it is gone; the administrator switches it on and
 // it runs below /time inside the workspace with UnderDoc's sign-in; off again, nothing is lost.
 func TestTimeTrackingIsAModule(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	if m := timeModule(stateOf(t, admin).Modules); !m.Allowed || m.On {
 		t.Fatalf("allowed and off by default: %+v", m)
@@ -130,7 +130,7 @@ func TestTimeTrackingIsAModule(t *testing.T) {
 // administrators are UnderDoc's, and what a member tracks for it its reviewers see by EightPerDay's rules, never the
 // private part.
 func TestTimeTrackingPrivateAndManaged(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)
@@ -177,7 +177,7 @@ func TestTimeTrackingPrivateAndManaged(t *testing.T) {
 // TestTimeTrackingAbsencesForTheCalendar: the absences of the user over their employers, as JSON for a calendar, only
 // their own.
 func TestTimeTrackingAbsencesForTheCalendar(t *testing.T) {
-	s, _ := signInSite(t, gateOnly, Options{})
+	s, _ := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)
@@ -213,7 +213,7 @@ func TestTimeTrackingAbsencesForTheCalendar(t *testing.T) {
 // in UnderDoc's store too; the interface tells the member so (a sentence, never an error of the server), and the store
 // refuses the record itself with core.ErrLocked.
 func TestTimeTrackingLockedDayIsTold(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	switchTime(t, admin, true)

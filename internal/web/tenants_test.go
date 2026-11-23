@@ -32,7 +32,6 @@ func withTenants(t *testing.T) (*site, *db.DB) {
 	if _, err := database.CreateTenant(context.Background(), "acme", "Acme Ltd"); err != nil {
 		t.Fatal(err)
 	}
-	behindGate(t, database, tenant.Main, "acme")
 	return newSite(t, Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: tenantDomain}, sample), database
 }
 

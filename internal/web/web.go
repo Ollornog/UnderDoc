@@ -66,15 +66,12 @@ type Options struct {
 	DevUI bool
 	// DevUser stands in for the gate when the application runs on its own, for development only.
 	DevUser *account.User
-	// GateClient checks what the sign-in gate passes on (ADR-32); its role of the app makes an administrator unless the
-	// tenant names another group. Nil is the gate in header mode with its default names.
+	// GateClient checks what the sign-in gate passes on (ADR-32), the only way in; its role of the app makes an
+	// administrator. Nil is the gate in header mode with its default names.
 	GateClient *account.Gate
-	// Gate says whether the sign-in gate may count: GateKeep, GateOn or GateOff.
-	Gate string
-	// Vault seals secrets such as TOTP secrets and the client secret of OIDC. Without a key, these are not offered.
+	// Vault seals secrets such as the passwords in the text and the app passwords of Samba. Without a key, these are not
+	// offered.
 	Vault *vault.Vault
-	// HTTPClient talks to identity providers; nil is a client with a timeout.
-	HTTPClient *http.Client
 	// Modules is what the instance allows of the modules and has on by default (UNDERDOC_MODULES); the zero value
 	// allows every module with its own default.
 	Modules module.Policy
@@ -115,11 +112,10 @@ type handler struct {
 	noFolder *library.Library
 	// uploads are the uploads a request is writing right now.
 	uploads uploadBusy
-	// throttle is the limit against guessing passwords.
+	// throttle is the limit against guessing the passwords of share links.
 	throttle *auth.Throttle
 	// reveals is the limit on revealing passwords of the text (ADR-7).
 	reveals *auth.Rate
-	oidc    oidcProviders
 }
 
 // New returns the complete handler with logging and security headers.
@@ -141,11 +137,6 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 			return nil, err
 		}
 		h.options.GateClient = gate
-	}
-	switch options.Gate {
-	case GateKeep, GateOn, GateOff:
-	default:
-		return nil, fmt.Errorf("unknown setting of the gate %q: on, off or empty", options.Gate)
 	}
 	switch options.Tenants {
 	case "":
@@ -231,6 +222,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("DELETE /api/links/{id}", h.apiRevokeLink)
 	mux.HandleFunc("POST /api/links/{id}/renew", h.apiRenewLink)
 	mux.HandleFunc("GET /s/{token}", h.share)
+	mux.HandleFunc("GET /link/{token}", h.takeLink)
 	mux.HandleFunc("POST /s/{token}/password", h.sharePassword)
 	mux.HandleFunc("GET /s/{token}/f/{file}", h.shareFile)
 	mux.HandleFunc("GET /s/{token}/p/{page}/attachments/{attachment}", h.shareAttachment)
@@ -318,31 +310,6 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		http.Redirect(w, r, route.Object(r.PathValue("id")), http.StatusMovedPermanently)
 	})
 	doc("GET /files/{path...}", h.file)
-	// Sign-in (ADR-23).
-	mux.HandleFunc("GET /sign-in", h.signIn)
-	mux.HandleFunc("POST /sign-in/password", h.signInPassword)
-	mux.HandleFunc("POST /sign-in/passkey/options", h.passkeyOptions)
-	mux.HandleFunc("POST /sign-in/passkey", h.passkeySignIn)
-	mux.HandleFunc("GET /sign-in/oidc", h.oidcStart)
-	mux.HandleFunc("GET /sign-in/oidc/callback", h.oidcCallback)
-	mux.HandleFunc("POST /sign-out", h.signOut)
-	mux.HandleFunc("GET /invite/{token}", h.invite)
-	mux.HandleFunc("POST /invite/{token}/password", h.invitePassword)
-	mux.HandleFunc("POST /invite/{token}/passkey/options", h.invitePasskeyOptions)
-	mux.HandleFunc("POST /invite/{token}/passkey", h.invitePasskey)
-	mux.HandleFunc("GET /register", h.register)
-	mux.HandleFunc("POST /register", h.register)
-	mux.HandleFunc("GET /account/security", h.security)
-	mux.HandleFunc("POST /account/password", h.changePassword)
-	mux.HandleFunc("POST /account/totp", h.setTOTP)
-	mux.HandleFunc("POST /account/totp/remove", h.removeTOTP)
-	mux.HandleFunc("POST /account/passkeys/options", h.addPasskeyOptions)
-	mux.HandleFunc("POST /account/passkeys", h.addPasskey)
-	mux.HandleFunc("POST /account/passkeys/{id}/remove", h.removePasskey)
-	mux.HandleFunc("POST /account/sessions/end", h.endOtherSessions)
-	mux.HandleFunc("GET /admin/sign-in", h.adminSignIn)
-	mux.HandleFunc("POST /admin/sign-in", h.saveSignIn)
-	mux.HandleFunc("POST /admin/invites", h.createInvite)
 	// Modules (ADR-25) and the hoster administration (ADR-23).
 	mux.HandleFunc("GET /admin/modules", h.adminModules)
 	mux.HandleFunc("POST /admin/modules", h.saveModules)
@@ -438,27 +405,21 @@ func (h *handler) library(ctx context.Context) *library.Library {
 	return h.noFolder
 }
 
-// signedIn lets a request through only with a signed-in user: from the gate where the tenant trusts it, or with a
-// session (ADR-23). Assets and the pages to sign in stay open. Where the gate is the only way in, a request without it
-// gets the page that says so, as before.
+// signedIn lets a request through only with someone the gate signed in (ADR-32). Assets and share links stay open; a
+// request without the gate gets the page that says so.
 func (h *handler) signedIn(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if open(r) {
+		if open(r) || public(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if public(r) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		s := h.signInSettings(r.Context())
-		user, err := h.who(r, s)
+		user, err := h.who(r)
 		switch {
 		case errors.Is(err, db.ErrQuota):
 			h.message(w, http.StatusForbidden, message{Title: "Workspace full", Text: quotaText, Link: "Try again"})
 			return
 		case errors.Is(err, errNotSignedIn):
-			h.notSignedIn(w, r, s)
+			h.notSignedIn(w)
 			return
 		case err != nil:
 			http.Error(w, "internal error", http.StatusInternalServerError)

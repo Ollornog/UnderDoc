@@ -200,11 +200,10 @@ window.UDRights = (() => {
     }
     load("users", "/api/users");
     if (st.users === null) return hint("Loading…");
-    return `${head("Users")}${hint("Administrators manage rights, not content. Accounts of the gate or of single sign-on are administrators through their group at the sign-in.")}${entries("", st.users
+    return `${head("Users")}${hint("Administrators manage rights, not content. They hold the role of the app at the sign-in gate; an account marked on the command line in an emergency shows ✓ marked, and the mark can be taken back here.")}${entries("", st.users
       .map((u) => {
-        const local = u.source === "local";
-        const act = local ? small(`data-ract="admin" data-id="${esc(u.id)}" data-on="${u.admin ? "0" : "1"}"`, u.admin ? "Take back administrator" : "Make administrator") : "";
-        return entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)} · ${esc(u.source)}${u.admin ? " · ✓ administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}`, act + small(`data-ract="heldby" data-id="${esc(u.id)}"`, "What may they do")) + (st.heldFor === u.id ? heldHtml() : "");
+        const act = u.admin ? small(`data-ract="admin" data-id="${esc(u.id)}" data-on="0"`, "Take back the mark") : "";
+        return entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)}${u.bound ? "" : " · not bound to the gate yet"}${u.admin ? " · ✓ marked administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}`, act + small(`data-ract="heldby" data-id="${esc(u.id)}"`, "What may they do")) + (st.heldFor === u.id ? heldHtml() : "");
       })
       .join(""))}`;
   }

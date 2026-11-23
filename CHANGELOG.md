@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **The emergency access and the binding of accounts made before** on the command line (ADR-32, T-27 part 2):
+  `underdoc admin grant|revoke <remote-id>` marks the account of a lasting ID of the gate as an administrator, also before
+  its first sign-in; `underdoc account list` shows every account with its lasting ID, source and mark; `underdoc account
+  bind <key|login> <remote-id>` binds an account made before ADR-32 to its person in the gate. The web only takes a mark
+  back. A link to comment or edit is taken behind the gate at `/link/<token>`. Attack round of part 2 with tests: no
+  page of the old sign-in answers, an old session cookie signs nobody in, the Samba app password is no web sign-in, the
+  mark belongs to its lasting ID alone and makes no agent an administrator.
 - **Sign-in through the gate, checked by its Go client** (ADR-32, T-27 part 1, [docs/sign-in.md](docs/sign-in.md#the-gate),
   migration 031): TinySesam's Go client (`clients/go`, pinned by commit `4bb607f`, 0.29.0) checks every request of the
   gate, in header mode (the Remote headers of its proxy, from the addresses in `UNDERDOC_GATE_PROXIES`) or in token mode
@@ -652,6 +659,15 @@ All notable changes to this project are documented in this file. The format foll
   flat, and stays in place while the page scrolls.
 
 ### Removed
+
+- **The sign-in of UnderDoc's own** (ADR-32, T-27 part 2, [docs/sign-in.md](docs/sign-in.md), migration 032): passkeys,
+  passwords with or without TOTP, OIDC, registration, invitations, sessions and their pages (`/sign-in`, `/register`,
+  `/invite/…`, `/account/security`, `/admin/sign-in`), the choice of the ways in per tenant and `UNDERDOC_GATE`
+  (`off` now stops the start). Everyone signs in through the gate; a request without it gets "Not signed in". The
+  profile signs out at the gate. `underdoc invite` is gone. The app passwords of Samba and share links stay.
+- Many tenants do not start for now (`UNDERDOC_TENANTS=many`): the gate does not name a tenant yet (TinySesam's T-73).
+  The code and its tests stay; `UNDERDOC_TENANT_DOMAIN` and `UNDERDOC_HOSTER_HOST` are no longer read until then. The
+  hoster makes tenants without an invitation of their first administrator.
 
 - The editor trial of M-8 (`/dev/editor-trial`, `web/editor-trial`: Milkdown, TipTap and CodeMirror side by side): ADR-21
   kept it until M-8 closes. Its packages leave the build, the image and the licences with it, among them the KaTeX of

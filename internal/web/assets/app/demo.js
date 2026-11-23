@@ -758,7 +758,7 @@ function adminHtml(sec){
   /* Users and groups are the tab Rights (rights.js), shown here too for the administration in the profile (ADR-16, ADR-29). */
   if(sec==='users'&&S.real&&window.UDRights) return UDRights.nav3('users',S.user)+UDRights.nav3('groups',S.user);
   if(sec==='audit'&&S.real&&window.UDRights) return UDRights.nav3('log',S.user);
-  if(sec==='signin') return panel(`${ptitle('Sign-in')}${hint('How people sign in, who is invited, and who signed in.')}${S.user.admin?`<div>${plink('/admin/sign-in','Open the sign-in settings')}</div>`:''}`);
+  if(sec==='signin') return panel(`${ptitle('Sign-in')}${hint('Everyone signs in through the sign-in gate in front of UnderDoc. Who may come in, the ways in and the accounts are managed there; administrators hold the role of the app there.')}`);
   if(sec==='mods'&&!document.getElementById('root').hasAttribute('data-demo')) return panel(`${ptitle('Modules')}<div class="item-group" role="list">${(S.modules||[]).map(m=>pitem('article','',esc(m.name),esc(m.description),m.on?onOff(true):'<span class="badge" data-variant="outline">✗ Off</span>')).join('')}</div>${hint('Off means gone for everyone, and no data is touched.')}<div class="flex flex-wrap gap-1.5">${S.user.admin?plink('/admin/modules','Switch modules'):''}${plink('/account/modules','Hide modules for me')}</div>`);
   if(sec!=='mods') return panel(`${ptitle(ADMINTXT[sec][0])}${hint(ADMINTXT[sec][1])}`);
   return panel(`${ptitle('Modules')}<div class="item-group" role="list">${MODS.map(m=>pitem('button',`type="button" data-act="mod" data-id="${m[0]}" aria-pressed="${S.mods[m[0]]}"`,m[1],m[2],onOff(S.mods[m[0]]))).join('')}</div>${hint('Off means gone for everyone, and no data is touched. Only administrators see this part of the profile.')}`);
@@ -840,7 +840,7 @@ function sambaAct(act){
 function accountHtml(){
   const u=S.user;
   return panel(`<div class="item" data-size="sm" data-who><figure><span class="avatar"><span>${esc(u.initials)}</span></span></figure><section><h4>${esc(u.name)}</h4><p class="text-muted-foreground text-xs break-words">${esc(u.email||u.login)}</p></section></div><div class="flex flex-wrap gap-1">${u.groups.map(g=>`<span class="badge" data-variant="outline">${esc(g)}</span>`).join('')}</div>
-    ${hint('Name, mail and groups come from the sign-in. Favorites, settings and the private area belong to this account.')}<div class="flex flex-wrap gap-1.5">${u.method&&u.method!=='gate'?`${plink('/account/security','Sign-in and security')}<form method="post" action="/sign-out"><button class="btn" data-variant="outline" data-size="xs" type="submit">Sign out</button></form>`:plink('/.tinysesam/logout','Sign out')}</div>`)+sambaHtml();
+    ${hint(`Name, mail and groups come from the sign-in gate, which also keeps the ways in and the sessions. Favorites, settings and the private area belong to this account.${u.agent?' This request comes from an agent, not from a session: it may not manage rights, share or delete for good.':''}`)}<div class="flex flex-wrap gap-1.5">${plink('/.tinysesam/logout','Sign out')}</div>`)+sambaHtml();
 }
 /* Mail and news in nav3: C22's entries, the sender and the date over the subject; unread is bold (data-state), the open
    one aria-current. */

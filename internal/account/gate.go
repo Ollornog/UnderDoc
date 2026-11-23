@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 
 	tinysesam "github.com/Ollornog/TinySesam/clients/go"
@@ -115,6 +116,9 @@ func (g *Gate) KindTrusted() bool { return g.kindRequired }
 
 // AdminRole is the role of the app that makes an administrator.
 func (g *Gate) AdminRole() string { return g.adminRole }
+
+// HasAdminRole tells whether groups hold the role of the app, compared exactly.
+func (g *Gate) HasAdminRole(groups []string) bool { return slices.Contains(groups, g.adminRole) }
 
 // Identify returns the person behind a request as the gate's client checked it, or an error that means "not signed
 // in". ID and RemoteID are the lasting ID of the account in the gate; the web binds the account of UnderDoc to it.

@@ -39,7 +39,6 @@ func gateSite(t *testing.T, cfg account.GateConfig) (*site, *db.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	return newSite(t, Options{DB: database, GateClient: gateOf(t, cfg)}, sample), database
 }
 
@@ -206,5 +205,81 @@ func TestAccountKeepsWhatTheGateSays(t *testing.T) {
 	fresh.raw(http.MethodGet, "/api/state", "", "", "", merged2(gateHeaders, map[string]string{"Remote-Auth": "oauth", "Remote-Groups": ""}))
 	if a, _ := database.AccountByID(ctx, "1007"); len(a.Groups) != 2 || a.GateKind != "" {
 		t.Errorf("an agent changed the groups, or the kind was not kept as sent: %+v", a)
+	}
+}
+
+// The sign-in of UnderDoc's own is gone (ADR-32): none of its pages answers, through the gate or past it, and a cookie
+// of a session from before signs nobody in.
+func TestNoSignInOfItsOwn(t *testing.T) {
+	s, _ := gateSite(t, account.GateConfig{})
+	for _, target := range []string{"GET /sign-in", "POST /sign-in/password", "POST /sign-in/passkey/options", "GET /sign-in/oidc",
+		"GET /invite/abc", "GET /register", "POST /register", "GET /account/security", "POST /account/password", "GET /admin/sign-in",
+		"POST /admin/invites", "POST /sign-out"} {
+		method, path, _ := strings.Cut(target, " ")
+		if got := s.raw(method, path, "login=anna&password=x", "", "", nil).Code; got != http.StatusUnauthorized {
+			t.Errorf("%s without the gate = %d", target, got)
+		}
+		if got := s.raw(method, path, "", "", "", gateHeaders).Code; got != http.StatusNotFound && got != http.StatusMethodNotAllowed {
+			t.Errorf("%s through the gate = %d", target, got)
+		}
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	request.AddCookie(&http.Cookie{Name: "__Host-underdoc", Value: "a-session-from-before"})
+	s.http.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("a session cookie from before = %d", recorder.Code)
+	}
+}
+
+// Attack: the app password of Samba as a sign-in to the web. It is made for the share alone (ADR-30): neither as Basic
+// authentication nor as a form does it sign anyone in.
+func TestSambaPasswordIsNoWebSignIn(t *testing.T) {
+	s := withSamba(t)
+	made := decode[map[string]string](t, s.send(http.MethodPost, "/api/samba/password", `{}`, merged2(bobOnly, sameSite)))
+	if made["password"] == "" {
+		t.Fatalf("no app password: %+v", made)
+	}
+	basic := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	basic.SetBasicAuth(made["name"], made["password"])
+	recorder := httptest.NewRecorder()
+	s.http.ServeHTTP(recorder, basic)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("the app password as Basic authentication = %d", recorder.Code)
+	}
+	form := "login=" + made["name"] + "&password=" + made["password"]
+	for _, path := range []string{"/sign-in/password", "/sign-in"} {
+		if got := s.raw(http.MethodPost, path, form, "", "", map[string]string{"Content-Type": "application/x-www-form-urlencoded"}); got.Code != http.StatusUnauthorized ||
+			len(got.Result().Cookies()) != 0 {
+			t.Errorf("the app password as a form to %s = %d %v", path, got.Code, got.Result().Cookies())
+		}
+	}
+}
+
+// Attack on the emergency access: the mark of the command line belongs to the lasting ID it names. Someone of the gate
+// with the same login and another ID is no administrator, the agent of the marked person administers nothing, and the
+// web gives the mark to nobody.
+func TestEmergencyAccessThroughTheWeb(t *testing.T) {
+	s, database := gateSite(t, account.GateConfig{})
+	if _, err := database.MarkAdmin(inMain(), "1300", true); err != nil {
+		t.Fatal(err)
+	}
+	marked := map[string]string{"Remote-Auth": "session", "Remote-User": "rescue", "Remote-Id": "1300", "Remote-Name": "Rescue"}
+	if state := decode[apiState](t, s.raw(http.MethodGet, "/api/state", "", "", "", marked)); !state.User.Admin || state.User.ID != "1300" {
+		t.Errorf("the marked account without the role: %+v", state.User)
+	}
+	namesake := merged2(marked, map[string]string{"Remote-Id": "1301"})
+	if state := decode[apiState](t, s.raw(http.MethodGet, "/api/state", "", "", "", namesake)); state.User.Admin {
+		t.Errorf("the same login with another ID administers: %+v", state.User)
+	}
+	agent := merged2(marked, map[string]string{"Remote-Auth": "apikey"})
+	if got := s.raw(http.MethodGet, "/api/users", "", "", "", agent).Code; got != http.StatusForbidden {
+		t.Errorf("the agent of the marked account lists the users = %d", got)
+	}
+	if got := s.raw(http.MethodPut, "/api/users/1301/admin", `{"admin":true}`, "", "", marked).Code; got != http.StatusConflict {
+		t.Errorf("the marked account marks another = %d", got)
+	}
+	if a, _ := database.AccountByID(inMain(), "1301"); a.Admin {
+		t.Error("the namesake was marked")
 	}
 }

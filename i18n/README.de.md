@@ -25,7 +25,7 @@ Angabe hat genau eine Quelle.**
 - **Native Listen** mit Verknüpfungen untereinander, für Kunden, Kontakte und Ähnliches.
 - **Externe Quellen** mit Zwischenspeicher, dazu Exporte, geplante Berichte und eine API für andere Systeme.
 - **Mermaid-Diagramme**, auch mit Werten und Snippets.
-- **Firmenrechte:** Nutzer, Gruppen, OIDC und SAML, dazu öffentliches Teilen.
+- **Firmenrechte:** Nutzer, Gruppen und Rollen aus der Anmeldeschranke (die OIDC, SAML und LDAP spricht), dazu öffentliches Teilen.
 - **Später:** Dokumente nebeneinander, ein Posteingang, ein Kalender, Formulare, Reviews über Git, ein Website-Baukasten, gute
   Suche und optionale KI über die eigenen Dokumente.
 
@@ -40,7 +40,7 @@ Quelltext mit Go oder Docker bauen, wie unten gezeigt.
 
 ## Ausprobieren
 
-UnderDoc hat keine eigene Anmeldung und lauscht deshalb standardmäßig nur auf Loopback. Bevor andere darauf zugreifen können, gehört eine Anmeldeschranke davor.
+UnderDoc hat keine eigene Anmeldung und lauscht deshalb standardmäßig nur auf Loopback. Angemeldet wird nur über die Anmeldeschranke davor, [TinySesam](https://github.com/Ollornog/TinySesam), deren Go-Client jede Anfrage prüft; eine Person wird über `Remote-Id` erkannt, Administratoren tragen die Rolle der App (`underdoc-admin`) ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md)).
 
 ```bash
 go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080

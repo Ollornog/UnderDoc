@@ -25,7 +25,7 @@ fact has exactly one source.**
 - **Native lists** with links between them, for customers, contacts and the like.
 - **External sources** with caching, plus exports, scheduled reports and an API for other systems.
 - **Mermaid diagrams**, also fed by values and snippets.
-- **Company permissions:** users, groups, OIDC and SAML, plus public sharing.
+- **Company permissions:** users, groups and roles from the sign-in gate (which speaks OIDC, SAML and LDAP), plus public sharing.
 - **Later:** documents side by side, an inbox, a calendar, forms, reviews through Git, a site builder, proper search and
   optional AI over your own documents.
 
@@ -40,14 +40,14 @@ or Docker, as shown below.
 
 ## Try it
 
-UnderDoc binds to loopback by default. Each tenant chooses how people sign in ([docs/sign-in.md](docs/sign-in.md)):
-local accounts with a passkey (the default), with a password and a code, or with a password alone, single sign-on with
-any OIDC provider, or a sign-in gate in front. A gate checks who someone is and passes that on in the headers
-`Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email`, `Remote-Groups`, `Remote-Auth` and `Remote-Kind`, which it
-must remove from every incoming request first (a request whose `Remote-Auth` is not `session` counts as an agent). The
-Go client of [TinySesam](https://github.com/Ollornog/TinySesam) checks them, or TinySesam's signed gate token, and a
-person is bound by `Remote-Id` ([ADR-32](backlog/ADR-32-sign-in-only-through-the-gate.md)). An instance that ran behind a gate keeps it. The first administrator of a new instance comes from
-`underdoc invite --admin <login> <name>`. To try it on your own machine, let a made-up user stand in for the gate:
+UnderDoc binds to loopback by default and has no sign-in of its own: people sign in only through the gate in front of
+it, [TinySesam](https://github.com/Ollornog/TinySesam) ([ADR-32](backlog/ADR-32-sign-in-only-through-the-gate.md),
+[docs/sign-in.md](docs/sign-in.md)). The gate checks who someone is and passes that on in the headers `Remote-User`,
+`Remote-Id`, `Remote-Name`, `Remote-Email`, `Remote-Groups`, `Remote-Auth` and `Remote-Kind`, which its proxy removes
+from every incoming request first, or in its signed gate token; TinySesam's Go client checks either. A person is bound
+by `Remote-Id`, administrators hold the role of the app (`underdoc-admin`), and a request whose `Remote-Auth` is not
+`session` counts as an agent. In an emergency `underdoc admin grant <remote-id>` marks an administrator. To try it on
+your own machine, let a made-up user stand in for the gate:
 
 ```bash
 UNDERDOC_DEV_USER=me go run ./cmd/underdoc serve ~/notes     # http://127.0.0.1:8080
@@ -64,17 +64,14 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
 | `UNDERDOC_HEALTH_ADDR` | Address of `GET /healthz` | `127.0.0.1:8081` |
 | `UNDERDOC_SCAN_INTERVAL` | How often the folder is checked | `2s` |
 | `UNDERDOC_DEV_UI` | `1` shows all components at `/dev/ui` | off |
-| `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer a tenant, unless the tenant names another group ([docs/sign-in.md](docs/sign-in.md#the-gate)) | `underdoc-admin` |
+| `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer UnderDoc ([docs/sign-in.md](docs/sign-in.md#the-gate)) | `underdoc-admin` |
 | `UNDERDOC_GATE_MODE`, `UNDERDOC_GATE_PROXIES`, `UNDERDOC_GATE_*` | How the sign-in gate reaches UnderDoc: its headers from the addresses of its proxy, or its token; the gate's Go client checks either ([docs/sign-in.md](docs/sign-in.md#the-gate)) | header mode, any address |
 | `UNDERDOC_DEV_USER` | A login that stands in for the gate. Never behind a real gate | off |
 | `UNDERDOC_DATABASE_URL` | PostgreSQL for accounts and what is made in the web, for example `postgres://underdoc@db/underdoc` | none: the folder is all there is |
-| `UNDERDOC_TENANTS` | `one` tenant, or `many` found by their host name ([docs/tenants.md](docs/tenants.md)) | `one` |
-| `UNDERDOC_GATE` | `on` lets tenants trust the headers of a sign-in gate, `off` never; empty keeps it where a tenant has it | empty |
-| `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (TOTP, the client secret of OIDC, passwords in the text, app passwords of Samba); without it, these are not offered | none |
+| `UNDERDOC_TENANTS` | `one` tenant; `many` waits for the gate to name the tenant and does not start yet ([docs/tenants.md](docs/tenants.md)) | `one` |
+| `UNDERDOC_SECRET_KEY` | 32 random bytes in base64 that seal secrets (passwords in the text, app passwords of Samba, secrets of other systems); without it, these are not offered | none |
 | `UNDERDOC_SECRET_KEY_OLD` | The key before a rotation, until `underdoc rekey` sealed everything again ([docs/secrets.md](docs/secrets.md)) | none |
 | `UNDERDOC_MODULES` | Modules allowed, each on by default or with `:off` off by default ([docs/modules.md](docs/modules.md)) | every module |
-| `UNDERDOC_HOSTER_HOST` | With many tenants, the host name of the hoster administration | none |
-| `UNDERDOC_TENANT_DOMAIN` | With many tenants, the domain of the hoster: `acme.<domain>` leads to the tenant `acme` | none |
 | `UNDERDOC_STORE_DIR` | The content store of the files, with the database; limits and versions in [docs/files.md](docs/files.md) | none: no files |
 | `UNDERDOC_SEARCH_URL` | The search service, Meilisearch by default or OpenSearch (`UNDERDOC_SEARCH_ENGINE`), with its key in `UNDERDOC_SEARCH_KEY_FILE` or `UNDERDOC_SEARCH_KEY` | none: titles only |
 
@@ -103,7 +100,7 @@ makes an app password in its profile, and saving in Office or LibreOffice become
 [docs/samba.md](docs/samba.md).
 
 **Rights** hold for documents and files alike: an owner, and the actions read, comment, create, write, delete, share and
-manage, each inherit, allow or deny, for persons, groups (local and nested, or taken over from OIDC and the gate) and the
+manage, each inherit, allow or deny, for persons, groups (local and nested, or taken over from the gate) and the
 whole tenant, with the roles read, comment, edit and manage as presets. The nearest entry wins, deny beats allow on the
 same level, and the built-in group Agents (every sign-in that is not a session) can be denied as a ceiling. Private notes
 stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).

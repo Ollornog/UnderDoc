@@ -11,17 +11,14 @@
 //	UNDERDOC_DEV_UI         "1" turns on the component gallery at /dev/ui
 //	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
 //	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
-//	UNDERDOC_TENANTS        "one" tenant, or "many" found by their host name, which needs the database ("one")
-//	UNDERDOC_TENANT_DOMAIN  with many tenants, the domain of the hoster: <tenant>.<domain> leads to a tenant
+//	UNDERDOC_TENANTS        "one" tenant; "many" waits for the gate to name the tenant (ADR-32)
 //	UNDERDOC_STORE_DIR      the content store of the files, with the database (none: no files; docs/files.md)
 //	UNDERDOC_FILES_MAX_SIZE, _QUOTA, _USER_QUOTA, _COLLECTION_QUOTA, _KEEP_ALL_DAYS, _KEEP_DAILY_DAYS, _KEEP_WEEKLY_DAYS
 //	                        limits and how long versions are kept (docs/files.md)
-//	UNDERDOC_GATE           "on" lets tenants trust the headers of a sign-in gate, "off" never; empty keeps it where it is
-//	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: TOTP, the client secret of OIDC, passwords in the
-//	                        text, app passwords of Samba (none: not offered)
+//	UNDERDOC_SECRET_KEY     32 random bytes in base64 that seal secrets: passwords in the text, app passwords of Samba
+//	                        (none: not offered)
 //	UNDERDOC_SECRET_KEY_OLD the key before a rotation, until underdoc rekey ran (docs/secrets.md)
 //	UNDERDOC_MODULES        the modules allowed, each on by default or with ":off" off by default (none: every module)
-//	UNDERDOC_HOSTER_HOST    with many tenants, the host name of the hoster administration (none: no such page)
 //	UNDERDOC_OFFICE_URL     the optional Office module for previews, a Gotenberg service (none: no Office previews)
 //	UNDERDOC_TEXT_WAYS, _TEXT_MAX_SIZE, UNDERDOC_TESSERACT, UNDERDOC_AI_OCR_PAGES_USER, _TENANT
 //	                        how the text of files is read for the search (docs/files.md)
@@ -36,14 +33,16 @@
 //	underdoc import [--tenant <id>] --owner <login> <dir> <title>  a folder of Markdown files as a new collection of that account
 //	underdoc import [--tenant <id>] --files --owner <login> <dir>  the files/ of an export, with UNDERDOC_STORE_DIR (docs/files.md)
 //	underdoc tenant add <id> <name>                                a new, empty tenant, reached at <id>.<domain>
-//	underdoc invite [--tenant <id>] [--admin] <login> <name>       an invitation to a local account, as a link path
+//	underdoc account [--tenant <id>] list                         every account, with the lasting ID of the gate it is bound to
+//	underdoc account [--tenant <id>] bind <key|login> <remote-id> an account made before ADR-32 bound to its person in the gate
+//	underdoc admin [--tenant <id>] grant|revoke <remote-id>        the emergency access: marks the account of that lasting ID as an
+//	                                                               administrator, or takes the mark back
 //	underdoc reindex [--tenant <id>]                               everything of a tenant queued for the search service again
 //	underdoc rekey                                                 every sealed value of every tenant sealed again under
 //	                                                               UNDERDOC_SECRET_KEY, opened with UNDERDOC_SECRET_KEY_OLD
 //
-// Each tenant chooses how people sign in (docs/sign-in.md): passkeys, password and code, password, OIDC, or a sign-in gate
-// in front that passes the user on in request headers. An instance that ran behind a gate keeps it. It binds to loopback
-// unless told otherwise.
+// People sign in only through the gate in front, TinySesam, whose Go client checks what it passes on (ADR-32,
+// docs/sign-in.md). UnderDoc binds to loopback unless told otherwise.
 package main
 
 import (
@@ -58,7 +57,6 @@ import (
 	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
-	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	filetype "github.com/Ollornog/UnderDoc/internal/files"
 	"github.com/Ollornog/UnderDoc/internal/folder"
@@ -74,7 +72,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc invite [--tenant <id>] [--admin] <login> <name> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -137,17 +135,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = rekey(context.Background(), stdout)
 	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":
 		err = addTenant(context.Background(), args[2], args[3], stdout)
-	case args[0] == "invite":
+	case args[0] == "account" || args[0] == "admin":
 		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
-		admin := false
-		if i := slices.Index(rest, "--admin"); i >= 0 {
-			admin, rest = true, slices.Delete(rest, i, i+1)
-		}
-		if terr != nil || len(rest) != 2 {
+		if terr != nil || !accountCommand(args[0], rest) {
 			fmt.Fprintln(stderr, usage)
 			return 2
 		}
-		err = inviteAccount(ctx, rest[0], rest[1], admin, stdout)
+		err = accountsCommand(ctx, args[0], rest, stdout)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -173,11 +167,17 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		return err
 	}
 	options := web.Options{
-		DevUI:        os.Getenv("UNDERDOC_DEV_UI") == "1",
-		Tenants:      env("UNDERDOC_TENANTS", tenant.ModeOne),
-		TenantDomain: os.Getenv("UNDERDOC_TENANT_DOMAIN"),
-		Gate:         os.Getenv("UNDERDOC_GATE"),
-		HosterHost:   os.Getenv("UNDERDOC_HOSTER_HOST"),
+		DevUI:   os.Getenv("UNDERDOC_DEV_UI") == "1",
+		Tenants: env("UNDERDOC_TENANTS", tenant.ModeOne),
+	}
+	if options.Tenants == tenant.ModeMany {
+		// The gate does not name the tenant yet (its T-73): every person of the gate would come into every tenant.
+		return fmt.Errorf("UNDERDOC_TENANTS=many waits for the sign-in gate to name the tenant (ADR-32); run one tenant")
+	}
+	if gate := os.Getenv("UNDERDOC_GATE"); gate == "off" {
+		return fmt.Errorf("UNDERDOC_GATE=off: the gate is the only way in since ADR-32, so nobody could sign in; remove the setting")
+	} else if gate != "" {
+		log.Warn("UNDERDOC_GATE is gone with ADR-32: the gate is the only way in; remove the setting")
 	}
 	if options.Modules, err = module.ParsePolicy(os.Getenv("UNDERDOC_MODULES")); err != nil {
 		return err
@@ -195,13 +195,10 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	}
 	options.Vault = keys
 	if !keys.Ready() {
-		log.Info(vault.KeyEnv + " is not set: password and code, the client secret of OIDC, passwords in the text and Samba are not offered")
+		log.Info(vault.KeyEnv + " is not set: passwords in the text and Samba are not offered")
 	}
 	if keys.Rotating() {
 		log.Warn(vault.OldKeyEnv + " is set: run underdoc rekey, then remove it")
-	}
-	if options.Tenants == tenant.ModeMany && options.TenantDomain == "" {
-		log.Warn("UNDERDOC_TENANT_DOMAIN is not set: tenants are found by a domain of their own only")
 	}
 	searching, err := readSearchConfig()
 	if err != nil {
@@ -302,24 +299,5 @@ func addTenant(ctx context.Context, tenantID, name string, stdout io.Writer) err
 		return err
 	}
 	fmt.Fprintf(stdout, "tenant %s (%s) is there\n", t.ID, t.Name)
-	return nil
-}
-
-// inviteAccount makes an invitation to a local account and prints its path, valid for a week: the way to the first
-// administrator of a tenant that has no way in yet.
-func inviteAccount(ctx context.Context, login, name string, admin bool, stdout io.Writer) error {
-	database, err := openDatabase(ctx)
-	if err != nil {
-		return err
-	}
-	defer database.Close()
-	token, hash, err := auth.NewToken()
-	if err != nil {
-		return err
-	}
-	if err := database.CreateInvite(ctx, hash, db.Invite{Login: login, Name: name, Admin: admin, Expires: time.Now().Add(7 * 24 * time.Hour)}); err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "open /invite/%s on the host of the tenant within a week; it works once\n", token)
 	return nil
 }

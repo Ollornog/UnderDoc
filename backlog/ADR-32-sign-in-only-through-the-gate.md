@@ -98,3 +98,21 @@ security, the hoster) stays. ADR-9 is right again in what it decided: the gate i
     installation knows. Without it, UnderDoc warns at the start.
   - `UNDERDOC_ADMIN_GROUP` is still read as the old name of `UNDERDOC_ADMIN_ROLE`, so an instance keeps its
     administrators until it is renamed.
+- **Built on 2026-11-23, part 2** ([docs/sign-in.md](../docs/sign-in.md), migration 032, T-27). Settled in the build:
+  - Migration 032 drops the ways in chosen per tenant, passkeys, sessions, ceremonies, invitations, the log of sign-ins,
+    the passwords and TOTP secrets of local accounts, and the sealed client secret of OIDC. The libraries for passkeys,
+    TOTP and OIDC leave UnderDoc's own code; the time tracking (EightPerDay) still brings two of them along.
+  - The emergency access is a mark on the account, the column `admin` that local administrators had: `underdoc admin
+    grant|revoke <remote-id>` sets it by the lasting ID, and makes the account bound to that ID where there is none yet,
+    so it works before the first sign-in. The web only takes a mark back, never gives one, and nobody takes their own.
+    The lock that kept two administrators from taking each other's administration at once (ADR-29) now guards the marks:
+    an administrator without the role must still be marked.
+  - Accounts made before are bound with `underdoc account bind <key|login> <remote-id>`, never by name on their own;
+    an ID bound elsewhere and an account bound to another ID are refused. A local administrator keeps the mark.
+  - The address of a share link is open at the gate, so nobody is signed in there. A link to comment or edit now leads
+    to `/link/<token>`, behind the gate, where the person takes its role; the password of a link holds there as well.
+  - Many tenants do not start (`UNDERDOC_TENANTS=many`): without a tenant from the gate, every person of the gate would
+    come into every tenant. The code of many tenants and the hoster stays, tested, without invitations: the
+    administrators of a tenant and of the hoster are those the gate gives the role of the app on its host.
+  - `UNDERDOC_GATE=off` stops the start, since nobody could sign in; any other value of it only warns.
+  - A request without the gate gets the page "Not signed in" for the API too, as an instance behind the gate did before.

@@ -10,24 +10,22 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // The hoster administration (ADR-23): on a host of its own, the administrators of the hoster make tenants, lock them,
-// archive them, set their limits and the modules they may use. They sign in as accounts of the reserved tenant hoster,
-// and they see counts, never content: the hoster host has no route into a workspace, and a session of the hoster is a
-// session of its own tenant, which row-level security keeps from every other.
+// archive them, set their limits and the modules they may use. They come through the gate as accounts of the reserved
+// tenant hoster with the role of the app, and they see counts, never content: the hoster host has no route into a
+// workspace, and their accounts belong to its own tenant, which row-level security keeps from every other. Many tenants
+// wait for the gate to name the tenant (ADR-32), so an instance does not start with them yet.
 
-// hosterPath tells the paths that answer on the hoster host: its pages, and signing in.
+// hosterPath tells the paths that answer on the hoster host: its pages.
 func hosterPath(r *http.Request) bool {
 	p := r.URL.Path
-	return p == "/hoster" || strings.HasPrefix(p, "/hoster/") || public(r) || p == "/sign-out" ||
-		strings.HasPrefix(p, "/account/") || p == "/admin/sign-in" || p == "/admin/invites"
+	return p == "/hoster" || strings.HasPrefix(p, "/hoster/")
 }
 
 func (h *handler) hosterOnly(w http.ResponseWriter, r *http.Request) bool {
@@ -44,7 +42,6 @@ type hosterView struct {
 	Tenant  string
 	Error   string
 	Notice  string
-	Link    string
 	Domain  string
 	Tenants []hosterRow
 	Edit    *hosterRow
@@ -110,13 +107,13 @@ func (h *handler) hosterRow(ctx context.Context, t db.Tenant) hosterRow {
 	return row
 }
 
-func (h *handler) hosterPage(w http.ResponseWriter, r *http.Request, status int, problem, notice, link, edit string) {
+func (h *handler) hosterPage(w http.ResponseWriter, r *http.Request, status int, problem, notice, edit string) {
 	ctx := r.Context()
-	v := hosterView{Version: h.assetVersion, Title: "Tenants", Tenant: "Hoster", Error: problem, Notice: notice, Link: link,
+	v := hosterView{Version: h.assetVersion, Title: "Tenants", Tenant: "Hoster", Error: problem, Notice: notice,
 		Domain: h.options.TenantDomain, Modules: module.All}
 	list, err := h.options.DB.Tenants(ctx)
 	if err != nil {
-		h.passkeyFailed(w, err, "tenants")
+		h.failedPage(w, err, "tenants")
 		return
 	}
 	for _, t := range list {
@@ -142,7 +139,7 @@ func (h *handler) hoster(w http.ResponseWriter, r *http.Request) {
 	if !h.hosterOnly(w, r) {
 		return
 	}
-	h.hosterPage(w, r, http.StatusOK, "", "", "", "")
+	h.hosterPage(w, r, http.StatusOK, "", "", "")
 }
 
 // hosterTenant shows one tenant to change.
@@ -150,7 +147,7 @@ func (h *handler) hosterTenant(w http.ResponseWriter, r *http.Request) {
 	if !h.hosterOnly(w, r) {
 		return
 	}
-	h.hosterPage(w, r, http.StatusOK, "", "", "", r.PathValue("id"))
+	h.hosterPage(w, r, http.StatusOK, "", "", r.PathValue("id"))
 }
 
 // tenantAddress is where a tenant is reached: its subdomain, or its first own domain.
@@ -165,37 +162,19 @@ func (h *handler) tenantAddress(r *http.Request, t db.Tenant) string {
 	return ""
 }
 
-// inviteAdmin makes an invitation to the first administrator of a tenant and returns its link.
-func (h *handler) inviteAdmin(r *http.Request, t db.Tenant, login, name string) (string, error) {
-	token, hash, err := auth.NewToken()
-	if err != nil {
-		return "", err
-	}
-	if err := h.options.DB.CreateInvite(tenant.With(r.Context(), t.ID), hash, db.Invite{Login: login, Name: name, Admin: true,
-		MadeBy: "", Expires: time.Now().Add(inviteLife)}); err != nil {
-		return "", err
-	}
-	return h.tenantAddress(r, t) + "/invite/" + token, nil
-}
-
-// createTenant makes a tenant and the invitation of its first administrator.
+// createTenant makes a tenant. Its administrators are those the gate gives the role of the app on its host (ADR-32).
 func (h *handler) createTenant(w http.ResponseWriter, r *http.Request) {
 	if !h.hosterOnly(w, r) || !h.formOK(w, r) {
 		return
 	}
-	ctx := r.Context()
-	t, err := h.options.DB.CreateTenant(ctx, strings.TrimSpace(r.PostFormValue("id")), r.PostFormValue("name"))
+	t, err := h.options.DB.CreateTenant(r.Context(), strings.TrimSpace(r.PostFormValue("id")), r.PostFormValue("name"))
 	if err != nil {
-		h.hosterPage(w, r, http.StatusBadRequest, hosterProblem(err), "", "", "")
-		return
-	}
-	link, err := h.inviteAdmin(r, t, r.PostFormValue("admin_login"), r.PostFormValue("admin_name"))
-	if err != nil {
-		h.hosterPage(w, r, http.StatusBadRequest, "The tenant is there, the invitation is not: "+registerProblem(err), "", "", t.ID)
+		h.hosterPage(w, r, http.StatusBadRequest, hosterProblem(err), "", "")
 		return
 	}
 	h.log.Info("tenant made", slog.String("tenant", t.ID), slog.String("by", h.me(r).Login))
-	h.hosterPage(w, r, http.StatusOK, "", "Send this link to the first administrator of "+t.Name+". It works once, for seven days.", link, t.ID)
+	notice := t.Name + " is there. Its administrators are those the gate gives the role of the app at " + h.tenantAddress(r, t) + "."
+	h.hosterPage(w, r, http.StatusOK, "", notice, t.ID)
 }
 
 func hosterProblem(err error) string {
@@ -212,7 +191,7 @@ func hosterProblem(err error) string {
 }
 
 // changeTenant locks, opens, archives or restores a tenant, renames it, sets its limits and modules, adds or removes a
-// domain, or invites another administrator. Archiving is the delete of the hoster: nothing goes, and restoring brings
+// domain. Archiving is the delete of the hoster: nothing goes, and restoring brings
 // all back. Only an archived tenant can then be deleted for good, with its ID typed as the confirmation.
 func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 	if !h.hosterOnly(w, r) || !h.formOK(w, r) {
@@ -220,12 +199,12 @@ func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	id := r.PathValue("id")
-	t, err := h.options.DB.Tenant(ctx, id)
+	_, err := h.options.DB.Tenant(ctx, id)
 	if err != nil || id == tenant.Hoster {
 		h.notFound(w, r)
 		return
 	}
-	notice, link := "Saved.", ""
+	notice := "Saved."
 	switch r.PostFormValue("do") {
 	case "lock":
 		_, err = h.options.DB.SetTenantState(ctx, id, db.TenantLocked)
@@ -240,7 +219,7 @@ func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 		if err = h.options.DB.PurgeTenant(ctx, id, strings.TrimSpace(r.PostFormValue("confirm"))); err == nil {
 			h.purgeOutside(ctx, id)
 			h.log.Info("tenant deleted for good", slog.String("tenant", id), slog.String("by", h.me(r).Login))
-			h.hosterPage(w, r, http.StatusOK, "", "Deleted for good: "+id+". Its ID is free again.", "", "")
+			h.hosterPage(w, r, http.StatusOK, "", "Deleted for good: "+id+". Its ID is free again.", "")
 			return
 		}
 	case "limits":
@@ -249,26 +228,20 @@ func (h *handler) changeTenant(w http.ResponseWriter, r *http.Request) {
 		err = h.options.DB.AddTenantHost(ctx, id, r.PostFormValue("host"))
 	case "remove-host":
 		err = h.options.DB.RemoveTenantHost(ctx, id, r.PostFormValue("host"))
-	case "invite":
-		link, err = h.inviteAdmin(r, t, r.PostFormValue("admin_login"), r.PostFormValue("admin_name"))
-		notice = "Send this link to the new administrator. It works once, for seven days."
 	default:
 		h.notFound(w, r)
 		return
 	}
 	if err != nil {
 		problem := hosterProblem(err)
-		if errors.Is(err, db.ErrLogin) || errors.Is(err, db.ErrLoginTaken) {
-			problem = registerProblem(err)
-		}
 		if errors.Is(err, errLimit) {
 			problem = capital(err.Error()) + "."
 		}
-		h.hosterPage(w, r, http.StatusBadRequest, problem, "", "", id)
+		h.hosterPage(w, r, http.StatusBadRequest, problem, "", id)
 		return
 	}
 	h.log.Info("tenant changed", slog.String("tenant", id), slog.String("do", r.PostFormValue("do")), slog.String("by", h.me(r).Login))
-	h.hosterPage(w, r, http.StatusOK, "", notice, link, id)
+	h.hosterPage(w, r, http.StatusOK, "", notice, id)
 }
 
 var errLimit = errors.New("a limit is a whole number of at least 0, or empty for none")

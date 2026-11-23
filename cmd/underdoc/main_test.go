@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -143,5 +144,29 @@ func TestDefaultAddressesAreLoopback(t *testing.T) {
 		if ip := net.ParseIP(host); err != nil || ip == nil || !ip.IsLoopback() {
 			t.Errorf("default address %q", addr)
 		}
+	}
+}
+
+// Many tenants wait for the gate to name the tenant, and a gate switched off would let nobody in (ADR-32): an instance
+// set so does not start.
+func TestStartRefusesWhatTheGateCannotCarry(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UNDERDOC_ADDR", freeAddr(t))
+	t.Setenv("UNDERDOC_HEALTH_ADDR", freeAddr(t))
+	for name, value := range map[string][3]string{
+		"many tenants": {"UNDERDOC_TENANTS", "many", "waits for the sign-in gate to name the tenant"},
+		"gate off":     {"UNDERDOC_GATE", "off", "nobody could sign in"},
+		"bad kind":     {"UNDERDOC_GATE_KIND", "sometimes", "UNDERDOC_GATE_KIND"},
+		"bad proxy":    {"UNDERDOC_GATE_PROXIES", "the proxy", "no address or network"},
+		"admin role":   {"UNDERDOC_ADMIN_ROLE", "admin", "the gate's own administrator"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(value[0], value[1])
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := serve(ctx, dir, io.Discard); err == nil || !strings.Contains(err.Error(), value[2]) {
+				t.Errorf("%s=%s: %v", value[0], value[1], err)
+			}
+		})
 	}
 }

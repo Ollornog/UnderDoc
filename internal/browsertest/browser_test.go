@@ -35,7 +35,6 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
@@ -377,9 +376,6 @@ func setupWithDatabase(t *testing.T) (*browser, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-		t.Fatal(err)
-	}
 	return setupWith(t, web.Options{DevUI: true, DB: database}, nil)
 }
 

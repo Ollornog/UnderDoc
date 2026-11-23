@@ -114,8 +114,9 @@ func TestAPageSharedByLink(t *testing.T) {
 	}
 	right := form("correct horse battery")
 	cookies := right.Result().Cookies()
-	if right.Code != http.StatusSeeOther || len(cookies) != 1 || cookies[0].Path != secretPath || !cookies[0].HttpOnly {
-		t.Fatalf("the right password lets the browser in for this link: %d %+v", right.Code, cookies)
+	if right.Code != http.StatusSeeOther || len(cookies) != 2 || cookies[0].Path != secretPath || !cookies[0].HttpOnly ||
+		cookies[1].Path != "/link/"+strings.TrimPrefix(secretPath, "/s/") || cookies[1].Value != cookies[0].Value {
+		t.Fatalf("the right password lets the browser in for this link, and where an account takes it: %d %+v", right.Code, cookies)
 	}
 	with := map[string]string{"Cookie": cookies[0].Name + "=" + cookies[0].Value}
 	if body := s.anonymous(http.MethodGet, secretPath, nil, with).Body.String(); !strings.Contains(body, "Our menu") || !strings.Contains(body, "until 2099-12-31") {
@@ -143,8 +144,9 @@ func TestAPageSharedByLink(t *testing.T) {
 	}
 }
 
-// TestALinkToEdit: an account of the tenant that opens it while signed in edits from then on; without an account, the
-// link asks to sign in.
+// TestALinkToEdit: the address of a link is open at the gate, so nobody is signed in there: it leads to /link/<token>,
+// behind the gate, where an account of the tenant takes the role and edits from then on. An agent never takes it, and a
+// link to read gives nothing there (ADR-32, ADR-36).
 func TestALinkToEdit(t *testing.T) {
 	s := withDatabase(t)
 	s.send(http.MethodGet, "/api/state", "", plain)
@@ -153,13 +155,28 @@ func TestALinkToEdit(t *testing.T) {
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`, sameSite))
 	link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+team.ID+"/links", `{"mode":"edit"}`, sameSite))
 	path := pathOf(t, link.URL)
+	take := "/link/" + strings.TrimPrefix(path, "/s/")
 	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"bob was here"}`, plain).Code; got != http.StatusForbidden {
 		t.Fatalf("before the link bob only reads: %d", got)
 	}
-	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Sign in to edit") {
+	if got := s.anonymous(http.MethodGet, path, nil, nil); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Sign in to edit") ||
+		!strings.Contains(got.Body.String(), `href="`+take+`"`) {
 		t.Errorf("without an account: %d %s", got.Code, got.Body.String())
 	}
-	opened := s.send(http.MethodGet, path, "", plain)
+	if got := s.anonymous(http.MethodGet, take, nil, nil).Code; got != http.StatusUnauthorized {
+		t.Errorf("taking it without the gate = %d", got)
+	}
+	if opened := s.send(http.MethodGet, path, "", plain); opened.Code != http.StatusOK {
+		t.Errorf("the address of the link itself takes nothing: %d", opened.Code)
+	}
+	agent := merged2(plain, map[string]string{"Remote-Auth": "oauth"})
+	if got := s.send(http.MethodGet, take, "", agent); got.Code != http.StatusSeeOther || got.Header().Get("Location") != path {
+		t.Errorf("bob's agent takes the link: %d %v", got.Code, got.Header())
+	}
+	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/blocks", `{"md":"bob was here"}`, plain).Code; got != http.StatusForbidden {
+		t.Fatalf("after his agent, bob still reads: %d", got)
+	}
+	opened := s.send(http.MethodGet, take, "", plain)
 	if opened.Code != http.StatusSeeOther || opened.Header().Get("Location") != "/o/"+team.ID {
 		t.Fatalf("signed in, the link opens the workspace: %d %v", opened.Code, opened.Header())
 	}

@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
-	"github.com/Ollornog/UnderDoc/internal/auth"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -311,26 +310,48 @@ func TestTransferPerTenant(t *testing.T) {
 	}
 }
 
-// TestInvite: the command line invites the first administrator of a tenant, as a link that works once.
-func TestInvite(t *testing.T) {
+// TestEmergencyAccess: whoever runs the instance marks the account of a lasting ID of the gate as an administrator, also
+// before its first sign-in, takes the mark back, and binds an account made before ADR-32 to its person (ADR-32). The web
+// marks nobody.
+func TestEmergencyAccess(t *testing.T) {
 	first, url := database(t)
 	t.Setenv("UNDERDOC_DATABASE_URL", url)
-	code, stdout, errOut := runCommand(t, "invite", "--admin", "kim", "Kim Lee")
-	if code != 0 || !strings.HasPrefix(stdout, "open /invite/") {
+	code, stdout, errOut := runCommand(t, "admin", "grant", "77")
+	if code != 0 || !strings.Contains(stdout, "lasting ID 77, is marked as an administrator") {
 		t.Fatalf("%d %q %q", code, stdout, errOut)
 	}
-	token := strings.Fields(strings.TrimPrefix(stdout, "open /invite/"))[0]
-	inv, err := first.OpenInvite(inMain(), auth.HashToken(token))
-	if err != nil || inv.Login != "kim" || inv.Name != "Kim Lee" || !inv.Admin {
-		t.Errorf("%+v %v", inv, err)
+	a, err := first.AccountByID(inMain(), "77")
+	if err != nil || !a.Admin || a.RemoteID != "77" {
+		t.Errorf("the marked account: %+v %v", a, err)
 	}
-	if code, _, errOut := runCommand(t, "invite", "kim", "Again"); code != 1 || !strings.Contains(errOut, "taken") {
-		t.Errorf("the same login again: %d %q", code, errOut)
+	if code, stdout, _ := runCommand(t, "account", "list"); code != 0 || !strings.Contains(stdout, "77") || !strings.Contains(stdout, "✓") ||
+		!strings.Contains(stdout, "– not bound") {
+		t.Errorf("the list shows the mark and anna, not bound: %d %q", code, stdout)
 	}
-	if code, _, _ := runCommand(t, "invite", "--tenant", "nobody", "x", "X"); code != 1 {
+	if code, _, _ := runCommand(t, "admin", "revoke", "77"); code != 0 {
+		t.Errorf("revoke: %d", code)
+	}
+	if a, _ := first.AccountByID(inMain(), "77"); a.Admin {
+		t.Error("the mark stays after revoke")
+	}
+	if code, _, errOut := runCommand(t, "admin", "grant", "anna"); code != 1 || !strings.Contains(errOut, "number") {
+		t.Errorf("a login instead of the lasting ID: %d %q", code, errOut)
+	}
+	if code, stdout, errOut := runCommand(t, "account", "bind", "anna", "78"); code != 0 || !strings.Contains(stdout, "bound to the lasting ID 78") {
+		t.Errorf("bind anna: %d %q %q", code, stdout, errOut)
+	}
+	if code, _, errOut := runCommand(t, "account", "bind", "anna", "79"); code != 1 || !strings.Contains(errOut, "bound already") {
+		t.Errorf("anna bound to another ID: %d %q", code, errOut)
+	}
+	if code, _, errOut := runCommand(t, "account", "bind", "77", "78"); code != 1 || !strings.Contains(errOut, "bound already") {
+		t.Errorf("an ID bound to another account: %d %q", code, errOut)
+	}
+	if code, _, _ := runCommand(t, "admin", "grant", "--tenant", "nobody", "80"); code == 0 {
 		t.Errorf("an unknown tenant: %d", code)
 	}
-	if code, _, _ := runCommand(t, "invite", "only-login"); code != 2 {
-		t.Errorf("usage: %d", code)
+	for _, args := range [][]string{{"admin", "grant"}, {"admin", "make", "77"}, {"account", "bind", "anna"}, {"invite", "kim", "Kim"}} {
+		if code, _, _ := runCommand(t, args...); code != 2 {
+			t.Errorf("usage of %v: %d", args, code)
+		}
 	}
 }

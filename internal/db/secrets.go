@@ -485,11 +485,8 @@ func moveSecrets(ctx context.Context, tx pgx.Tx, from, to, body, viewer string) 
 	return nil
 }
 
-// TOTPSecretName is the name the TOTP secret of an account is sealed under.
-func TOTPSecretName(accountID string) string { return "totp:" + accountID }
-
-// Rekey seals again every sealed value of a tenant (ADR-7): the secrets of pages with every version, the TOTP secrets,
-// the secrets of other systems such as the client secret of OIDC, and the NT hashes of Samba. reseal gets the name a
+// Rekey seals again every sealed value of a tenant (ADR-7): the secrets of pages with every version, the secrets of other
+// systems, and the NT hashes of Samba. reseal gets the name a
 // value is bound to and what is sealed, and returns it sealed under the new key, or nil to leave it as it is. All in one
 // transaction per tenant; it returns how many values changed.
 func (db *DB) Rekey(ctx context.Context, tenantID string, reseal func(name string, sealed []byte) ([]byte, error)) (int, error) {
@@ -524,17 +521,6 @@ func (db *DB) Rekey(ctx context.Context, tenantID string, reseal func(name strin
 			err := rows.Scan(&secretID, &n, &sealed)
 			return sealedRow{SecretSealName(secretID, n), sealed, func(s []byte) error {
 				_, err := tx.Exec(ctx, "UPDATE page_secret_versions SET sealed = $3 WHERE secret = $1 AND number = $2", secretID, n, s)
-				return err
-			}}, err
-		}); err != nil {
-			return err
-		}
-		if err := collect("SELECT id, totp_sealed FROM accounts WHERE totp_sealed IS NOT NULL FOR UPDATE", func(rows pgx.Rows) (sealedRow, error) {
-			var accountID string
-			var sealed []byte
-			err := rows.Scan(&accountID, &sealed)
-			return sealedRow{TOTPSecretName(accountID), sealed, func(s []byte) error {
-				_, err := tx.Exec(ctx, "UPDATE accounts SET totp_sealed = $2 WHERE id = $1", accountID, s)
 				return err
 			}}, err
 		}); err != nil {

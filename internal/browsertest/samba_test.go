@@ -53,9 +53,6 @@ func TestSambaInTheWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := database.SetSignIn(ctx, db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-		t.Fatal(err)
-	}
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 	v, err := vault.New(base64.StdEncoding.EncodeToString(key))
