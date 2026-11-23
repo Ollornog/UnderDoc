@@ -8,6 +8,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Repokit 0.63.0 (with 0.61.0 and 0.62.0): the fast pre-push vets Go packages with the build tags of
+  `scripts/check.sh` (`GO_PRUEF_TAGS`), so a change of a browser test no longer stops a push; hygiene and the affected
+  tests choose the same Python; test scripts without a guard run in the hook; the nightly repeat run has English names.
+
 - **Rights per action with allow and deny, nested groups and the group Agents** (ADR-36, T-26,
   [docs/rights.md](docs/rights.md), migration 030). A right is now one of the actions read, comment, create, write,
   delete, share and manage, each inherit, allow or deny per person, group, the tenant or Agents; the roles of ADR-29 stay
