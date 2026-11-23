@@ -36,7 +36,9 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 6/15 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 7/9 erledigt
+* ☐ **[M-31](M-31-import-navigation-data-pages-and-connectors-the-te.md)** Import, navigation, data pages and connectors: the team wiki moves in — 0/5 erledigt
+* ☐ **[M-32](M-32-tinysesam-built-in-underdoc-brings-its-own-gate-wi.md)** TinySesam built in: UnderDoc brings its own gate with local accounts and OIDC — 0/1 erledigt
 
 ## Aufgaben
 
@@ -67,18 +69,18 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-25](T-25-search-learns-synonyms-and-related-searches-from-u.md)** Search learns synonyms and related searches from use · M-12
 * ☑ **[T-26](T-26-rights-per-action-with-allow-and-deny-nested-group.md)** Rights per action with allow and deny, nested groups and the group Agents · M-30
 * ☑ **[T-27](T-27-sign-in-only-through-the-gate.md)** Sign-in only through the gate · M-30
-* ☐ **[T-28](T-28-import-and-export-of-a-git-markdown-wiki-with-a-ro.md)** Import and export of a Git Markdown wiki, with a round trip that loses nothing · M-30
-* ☐ **[T-29](T-29-navigation-for-people-tree-breadcrumbs-folder-over.md)** Navigation for people: tree, breadcrumbs, folder overview, used in, table of contents · M-30
-* ☐ **[T-30](T-30-data-pages-from-csv-files-and-automatic-sections.md)** Data pages from CSV files and automatic sections · M-30
-* ☐ **[T-31](T-31-connectors-to-outside-systems-through-an-extension.md)** Connectors to outside systems through an extension point · M-30
+* ☐ **[T-28](T-28-import-and-export-of-a-git-markdown-wiki-with-a-ro.md)** Import and export of a Git Markdown wiki, with a round trip that loses nothing · M-31
+* ☐ **[T-29](T-29-navigation-for-people-tree-breadcrumbs-folder-over.md)** Navigation for people: tree, breadcrumbs, folder overview, used in, table of contents · M-31
+* ☐ **[T-30](T-30-data-pages-from-csv-files-and-automatic-sections.md)** Data pages from CSV files and automatic sections · M-31
+* ☐ **[T-31](T-31-connectors-to-outside-systems-through-an-extension.md)** Connectors to outside systems through an extension point · M-31
 * ☐ **[T-32](T-32-german-translation-of-the-interface.md)** German translation of the interface · M-14
 * ☐ **[T-33](T-33-accounts-through-the-gate-s-account-api-invite-loc.md)** Accounts through the gate''s account API: invite, lock, new link, delegated admin · M-30
 * ☑ **[T-34](T-34-archive-for-groups-and-spaces-and-a-members-preset.md)** Archive for groups and spaces, and a Members preset · M-30
 * ☐ **[T-35](T-35-folder-mode-reviewed-agent-changes-to-human-docume.md)** Folder mode "reviewed": changes by agents to human documentation wait as a proposal · M-20
 * ☐ **[T-36](T-36-inbox-list-ai-changes-to-check.md)** Inbox list "AI changes to check" · M-16
-* ☐ **[T-37](T-37-mcp-tools-second-round-conflict-diff-move-a-sectio.md)** MCP tools, second round: conflict diff, move a section, search filters, attachment text · M-30
+* ☐ **[T-37](T-37-mcp-tools-second-round-conflict-diff-move-a-sectio.md)** MCP tools, second round: conflict diff, move a section, search filters, attachment text · M-31
 * ☐ **[T-38](T-38-attack-round-an-agent-makes-something-readable-to.md)** Attack round: an agent makes something readable to more people · M-30
-* ☐ **[T-39](T-39-tinysesam-built-in-its-own-gate-in-underdoc-s-comp.md)** TinySesam built in: its own gate in UnderDoc''s compose, local accounts and OIDC mixed · M-30
+* ☐ **[T-39](T-39-tinysesam-built-in-its-own-gate-in-underdoc-s-comp.md)** TinySesam built in: its own gate in UnderDoc''s compose, local accounts and OIDC mixed · M-32
 
 ## Fehler
 
@@ -87,7 +89,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
 * ☑ **[B-4](B-4-review-of-b-3-service-accounts-get-admin-through-g.md)** Review of B-3: service accounts get admin through gate roles, archive bypass, facet leaks · M-30
 * ☑ **[B-5](B-5-review-of-b-4-and-the-mcp-core-rules-page-archive.md)** Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves · M-30
-* ☐ **[B-6](B-6-review-of-t-34-and-b-5-agent-copies-of-restricted.md)** Review of T-34 and B-5: agent copies of restricted trees, public links, link rights on the object · M-30
+* ☑ **[B-6](B-6-review-of-t-34-and-b-5-agent-copies-of-restricted.md)** Review of T-34 and B-5: agent copies of restricted trees, public links, link rights on the object · M-30
 
 ## Entscheidungen (ADR)
 

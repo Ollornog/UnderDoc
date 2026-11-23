@@ -3,7 +3,7 @@ type: Task
 title: Import and export of a Git Markdown wiki, with a round trip that loses nothing
 status: offen
 id: T-28
-milestone: M-30
+milestone: M-31
 created: '2026-11-23'
 ---
 # T-28 — Import and export of a Git Markdown wiki, with a round trip that loses nothing

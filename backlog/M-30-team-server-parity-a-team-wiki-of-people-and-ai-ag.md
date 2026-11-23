@@ -68,3 +68,5 @@ Until then, both keep the same syntax and concepts: page kinds, embedding, `id:`
   - a backup that has been restored once
 
   These replace what "Git is the truth" gave the team wiki.
+
+**Split on 2026-11-24 (maintainer):** import and export, navigation, data pages, connectors and the second round of MCP tools moved to M-31; TinySesam built in moved to M-32. M-30 ends with rights, sign-in, page kinds, the MCP core, the archive, accounts and the attack round T-38.
