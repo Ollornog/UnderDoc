@@ -14,6 +14,7 @@ Each review since B-3 found new gaps in the agent limit of the previous fix. One
 
    **Refined by the maintainer (2026-11-23):** marking cannot see content a person hands the agent directly in the chat. The main defence is that the agent knows the readers of a target before it writes, and understands the rights concept:
    - **Readers in the answer, compact:** write, replace, create, move and the dry run end with one short line about the target's readers, for example `readers: Sales (14), 1 public link`, at most about 60 characters. Reads do not repeat it per page; `context` gives it once per space. A private target says `readers: only you`. No lists of names.
+     The line is left out when it says nothing new: when there are no restrictions (everyone may read everything), or when the target has the same readers as what the agent read in the same token context. It stays when the readers differ, and when the agent read nothing before and the target is restricted, because then the content may come from the chat.
    - **Rules page and instructions** explain the rights concept: confidential content only where the readers fit; ask the person when in doubt. The client skill carries the same rule.
    - **The mark \"read narrower content before\" is optional:** a setting, off by default on an instance with one person, on by default otherwise, and switchable per space.
    - Safety net stays: AI hint until a person checks, versions, one-click revert.
