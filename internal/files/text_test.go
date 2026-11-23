@@ -30,15 +30,24 @@ func zipOf(t *testing.T, parts map[string]string) []byte {
 }
 
 // textPDF is a PDF of one page with one line of text.
-func textPDF(text string) []byte {
-	stream := "BT /F1 24 Tf 20 60 Td (" + text + ") Tj ET"
-	objects := []string{
-		"<< /Type /Catalog /Pages 2 0 R >>",
-		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream),
-		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+func textPDF(text string) []byte { return pagedPDF(text) }
+
+// pagedPDF is a PDF with a page for each text, one line on each; an empty text is a page without text.
+func pagedPDF(texts ...string) []byte {
+	objects := []string{"<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"}
+	var kids []string
+	for _, text := range texts {
+		stream := ""
+		if text != "" {
+			stream = "BT /F1 24 Tf 20 60 Td (" + text + ") Tj ET"
+		}
+		page := len(objects) + 1
+		kids = append(kids, fmt.Sprintf("%d 0 R", page))
+		objects = append(objects,
+			fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents %d 0 R /Resources << /Font << /F1 3 0 R >> >> >>", page+1),
+			fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream))
 	}
+	objects[1] = fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(texts))
 	var b strings.Builder
 	b.WriteString("%PDF-1.4\n")
 	var offsets []int
@@ -53,6 +62,22 @@ func textPDF(text string) []byte {
 	}
 	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
 	return []byte(b.String())
+}
+
+// TestPDFPages: the text of a PDF keeps its pages apart with PageBreak, an empty page included, so the n-th part is the
+// n-th page (ADR-34).
+func TestPDFPages(t *testing.T) {
+	got, err := read(t, pagedPDF("first page", "", "third page"), "application/pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := strings.Split(got, PageBreak)
+	if len(pages) != 3 || strings.TrimSpace(pages[0]) != "first page" || strings.TrimSpace(pages[1]) != "" || strings.TrimSpace(pages[2]) != "third page" {
+		t.Errorf("the pages of the text: %q", pages)
+	}
+	if _, err := read(t, pagedPDF("", ""), "application/pdf"); !errors.Is(err, ErrNoText) {
+		t.Errorf("a PDF of empty pages has no text: %v", err)
+	}
 }
 
 func read(t *testing.T, content []byte, contentType string) (string, error) {

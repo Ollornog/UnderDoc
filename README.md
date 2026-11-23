@@ -120,6 +120,12 @@ with how to fix them, such as "embed instead of copying". Agents read the raw pa
 changes in human documentation says "written by AI, not checked" until a person checks the diff or takes it back:
 [docs/page-kinds.md](docs/page-kinds.md).
 
+**Agents over MCP** reach the pages at `/mcp` (ADR-34): signed in through the gate with OAuth, always as an agent of
+their person, so a space with "no agents" stays closed and rights, share links, deleting for good and passwords stay out
+of reach. A small core of tools: `context` to start, `read` for pages and sections with the version to write against,
+`used_in`, and one `search` over sections of pages and pages of PDFs. The conventions are a rules page in the wiki:
+[docs/mcp.md](docs/mcp.md).
+
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
 `web/editor` by `scripts/build-js.sh` before `go build` (the built bundle is not in the repository). How it works and how to

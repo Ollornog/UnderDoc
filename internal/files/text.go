@@ -44,6 +44,10 @@ const (
 	MaxPages = 2000
 )
 
+// PageBreak separates the pages of a PDF in its text, as the reader on the server and pdf.js in the browser write it: the
+// search keeps each page as records of its own, and an agent reads one page of it (ADR-34).
+const PageBreak = "\f"
+
 // ErrNoText is content whose text cannot be read on the server: an image, a scan without text, an unknown type.
 var ErrNoText = errors.New("no text to read in this content")
 
@@ -108,6 +112,10 @@ func pdfText(ctx context.Context, r io.ReaderAt, size int64) (text string, err e
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		// Every page counts, an empty one too, so that the n-th part is the n-th page.
+		if n > 1 {
+			b.WriteString(PageBreak)
+		}
 		page := doc.Page(n)
 		if page.V.IsNull() {
 			continue
@@ -116,11 +124,11 @@ func pdfText(ctx context.Context, r io.ReaderAt, size int64) (text string, err e
 		if err != nil {
 			continue
 		}
-		b.WriteString(t)
-		b.WriteString("\n")
+		b.WriteString(strings.Trim(t, " \t\r\n"))
 	}
-	text = clip(strings.TrimSpace(b.String()))
-	if text == "" {
+	// Only the ends of lines and spaces are trimmed: a page break at the start keeps the pages counted.
+	text = clip(strings.Trim(b.String(), " \t\r\n"))
+	if strings.Trim(text, " \t\r\n"+PageBreak) == "" {
 		return "", fmt.Errorf("%w: the PDF has no text, perhaps a scan", ErrNoText)
 	}
 	return text, nil

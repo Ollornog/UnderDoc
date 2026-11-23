@@ -4,6 +4,7 @@ package search
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/markdown"
@@ -69,6 +70,42 @@ func TextParts(text, anchor string) []Part {
 }
 
 var paragraphBreak = regexp.MustCompile(`\n[ \t\r\f\v]*\n`)
+
+// PageBreak separates the pages in the text taken out of a document such as a PDF (files.PageBreak): each page becomes
+// sections of its own, so a hit names its page (ADR-34).
+const PageBreak = "\f"
+
+// PageAnchor is the anchor of a page of a document, the fragment PDF viewers open at.
+func PageAnchor(n int) string { return "page=" + strconv.Itoa(n) }
+
+// FileSections turns the text taken out of a file into sections. A text with page breaks gives each page its own
+// sections, headed with the page number after heading and opening at that page, or at anchor if one is given (the block
+// that shows an attachment); a text without them is one run of paragraphs under heading. Empty pages give none.
+func FileSections(text, anchor, heading string) []Section {
+	if !strings.Contains(text, PageBreak) {
+		sections := Sections(TextParts(text, anchor))
+		for i := range sections {
+			sections[i].Heading = heading
+		}
+		return sections
+	}
+	var out []Section
+	for i, page := range strings.Split(text, PageBreak) {
+		at := anchor
+		if at == "" {
+			at = PageAnchor(i + 1)
+		}
+		label := "Page " + strconv.Itoa(i+1)
+		if heading != "" {
+			label = heading + " · page " + strconv.Itoa(i+1)
+		}
+		for _, section := range Sections(TextParts(page, at)) {
+			section.Heading = label
+			out = append(out, section)
+		}
+	}
+	return out
+}
 
 // Block is a block of a page of the database: its ID and its Markdown.
 type Block struct {

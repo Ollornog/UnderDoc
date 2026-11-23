@@ -178,6 +178,11 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/state", h.apiState)
 	doc("GET /api/doc/{id...}", h.apiDocument)
 	doc("GET /api/search", h.apiSearch)
+	// The MCP server for agents (ADR-34). Its transport takes POST; it answers GET and DELETE itself, that it does not.
+	mcpServer := h.mcpHandler().ServeHTTP
+	for _, method := range []string{"POST ", "GET ", "DELETE "} {
+		doc(method+MCPPath, mcpServer)
+	}
 	doc("POST /api/collections", h.apiCreateCollection)
 	doc("PATCH /api/objects/{id}", h.apiRename)
 	doc("PUT /api/objects/{id}/tags", h.apiTags)

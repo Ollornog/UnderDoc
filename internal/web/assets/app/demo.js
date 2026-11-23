@@ -2392,12 +2392,13 @@ async function uploadOne(f,target,up){
   up.state='finishing';render();
   const done=await fsend('/api/uploads/'+encodeURIComponent(u.id)+'/finish','POST');keep.del(k);return done;
 }
-/* The way of the browser (ADR-24): the uploader's browser reads the text of a PDF with pdf.js and gives it to the search;
+/* The way of the browser (ADR-24): the uploader's browser reads the text of a PDF with pdf.js and gives it to the search,
+   its pages apart by a form feed as on the server (ADR-34);
    the server reads it as well where its way is on, and the search knows which text came from where. */
 async function browserText(id){
   try{const v=(document.querySelector('script[src*="/assets/app/demo.js"]')?.src.split('?v=')[1])||'';
     const m=await import('/assets/app/pdfjs/viewer.mjs?v='+v),pages=await m.text('/api/files/'+encodeURIComponent(id)+'/pdf');
-    const text=pages.join('\n').trim();if(text)await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
+    const text=pages.join('\f');if(text.trim())await fsend('/api/files/'+encodeURIComponent(id)+'/text','PUT',{text:text.slice(0,250000)});}
   catch(e){/* the server reads it too, where its way is on */}
 }
 /* The text of an image, read with Tesseract.js (deu+eng) in the same browser; its worker is the one script whose policy

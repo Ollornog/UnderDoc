@@ -105,8 +105,9 @@ func (objectSource) Name() string { return SourceObjects }
 // Version is raised whenever the records find more than before, so an index built before is filled again: 2 adds the text
 // of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29), 4 paths without
 // the names of levels not every reader sees (ADR-29), 5 the cells of spreadsheets by sheet and range (ADR-31), 6 the
-// levels of entries on read with their denies and the denies on Agents (ADR-36).
-func (objectSource) Version() string { return "6" }
+// levels of entries on read with their denies and the denies on Agents (ADR-36), 7 the pages of a PDF as records of their
+// own (ADR-34).
+func (objectSource) Version() string { return "7" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {
@@ -206,7 +207,7 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 			return nil, err
 		}
 		base.Origin = origin
-		return search.SectionDocs(base, search.Sections(search.TextParts(text, ""))), nil
+		return search.SectionDocs(base, search.FileSections(text, "", "")), nil
 	}
 	// A page, and the board of quick notes, whose cards are its blocks (M-8), are found by their text.
 	if self.kind != KindPage && self.kind != KindNotes {
@@ -260,8 +261,8 @@ func (s objectSource) Docs(ctx context.Context, objectID string) ([]search.Doc, 
 		}
 		file := base
 		file.Type, file.Origin = search.TypeFile, origin
-		for _, section := range search.Sections(search.TextParts(text, anchor)) {
-			file.Heading, file.Anchor, file.Body, file.Rank = a.name, section.Anchor, section.Text, len(docs)
+		for _, section := range search.FileSections(text, anchor, a.name) {
+			file.Heading, file.Anchor, file.Body, file.Rank = section.Heading, section.Anchor, section.Text, len(docs)
 			docs = append(docs, file)
 		}
 	}

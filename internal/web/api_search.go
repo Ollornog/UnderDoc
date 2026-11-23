@@ -76,8 +76,6 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 	if to, err := time.Parse(time.DateOnly, query.Get("to")); err == nil {
 		request.Filters.To = to.Add(24*time.Hour - time.Second)
 	}
-	request.Agent = user.Agent()
-	request.Service = user.Kind == account.KindService
 	// The filter "AI changes to check" (ADR-33): the pages the database names, of what the reader sees.
 	if query.Get("check") == "ai" && h.options.DB != nil {
 		pages, err := h.options.DB.PagesToCheck(r.Context(), user.ID)
@@ -90,6 +88,27 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		request.Filters.Objects = pages
 	}
+	result, err := h.searchAs(r.Context(), request)
+	if h.failed(w, err, "search") {
+		return
+	}
+	answer := apiSearchResult{Engine: result.Engine, Notice: result.Notice, Hits: []apiHit{}, Facets: h.facets(r.Context(), result.Facets, user.ID)}
+	for _, hit := range result.Hits {
+		answer.Hits = append(answer.Hits, apiHit{ID: hit.Object, Anchor: hit.Anchor, Title: hit.Title, Kind: hit.Type,
+			Heading: hit.Heading, Place: placeOf(hit), Snippet: markHTML(hit.Snippet), By: hit.AuthorName,
+			Changed: changedOf(hit.Changed), Tags: nonEmpty(hit.Tags), Code: hit.Code})
+	}
+	writeJSON(w, http.StatusOK, answer)
+}
+
+// searchAs runs a search as the user of ctx, through the search service: with their groups, as an agent or a service
+// account where they are one, and each hit checked once more against the one check of the database. The browser and the
+// MCP access search through it alike (ADR-34).
+func (h *handler) searchAs(ctx context.Context, request search.Request) (search.Result, error) {
+	user, _ := account.From(ctx)
+	request.Account = user.ID
+	request.Agent = user.Agent()
+	request.Service = user.Kind == account.KindService
 	if h.options.DB != nil {
 		// A service account finds through the groups whose allow holds for it only: never a role of the gate (B-3). The
 		// check of each hit below holds every deny.
@@ -97,28 +116,28 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		if request.Service {
 			groupsOf, directOf = h.options.DB.AllowGroupsOf, h.options.DB.AllowDirectGroupsOf
 		}
-		groups, err := groupsOf(r.Context(), user.ID)
-		if h.failed(w, err, "search") {
-			return
+		groups, err := groupsOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
 		}
-		direct, err := directOf(r.Context(), user.ID)
-		if h.failed(w, err, "search") {
-			return
+		direct, err := directOf(ctx, user.ID)
+		if err != nil {
+			return search.Result{}, err
 		}
 		request.Groups, request.Direct = groups, direct
 	}
-	result, err := h.options.Search.Search(r.Context(), request)
-	if h.failed(w, err, "search") {
-		return
+	result, err := h.options.Search.Search(ctx, request)
+	if err != nil {
+		return search.Result{}, err
 	}
 	// The index may lag behind a change of rights for a moment: each hit is checked once more against the one check of
 	// the database, so a deny holds at once (ADR-36).
 	if h.options.DB != nil {
 		kept := result.Hits[:0]
 		for _, hit := range result.Hits {
-			ok, err := h.options.DB.MayFind(r.Context(), hit.Object, user.ID)
-			if h.failed(w, err, "search") {
-				return
+			ok, err := h.options.DB.MayFind(ctx, hit.Object, user.ID)
+			if err != nil {
+				return search.Result{}, err
 			}
 			if ok {
 				kept = append(kept, hit)
@@ -130,13 +149,7 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		// the roles of the gate), so its counts could tell of what the reader may not find (B-4).
 		result.Facets = facetsOf(result.Hits)
 	}
-	answer := apiSearchResult{Engine: result.Engine, Notice: result.Notice, Hits: []apiHit{}, Facets: h.facets(r.Context(), result.Facets, user.ID)}
-	for _, hit := range result.Hits {
-		answer.Hits = append(answer.Hits, apiHit{ID: hit.Object, Anchor: hit.Anchor, Title: hit.Title, Kind: hit.Type,
-			Heading: hit.Heading, Place: placeOf(hit), Snippet: markHTML(hit.Snippet), By: hit.AuthorName,
-			Changed: changedOf(hit.Changed), Tags: nonEmpty(hit.Tags), Code: hit.Code})
-	}
-	writeJSON(w, http.StatusOK, answer)
+	return result, nil
 }
 
 // facetsOf counts hits by type, collection, author and tag, as the engine counts records.
