@@ -373,6 +373,8 @@ All notable changes to this project are documented in this file. The format foll
   the page's clock, and the test checked "not yet onto it" after a fixed pause, which a stall of 300 ms or more outran.
   The test now holds the page's clock (`freezeClock`) and lets the wait pass on demand (`advanceClock`).
   `UNDERDOC_BROWSERTEST_STALL_MS` stalls the test between pointer events to try this (400 fails the old test).
+  `TestActionsInTheRightsDialog` read `/api/me/agents` once right after sending the form, before a loaded host had
+  answered; it now asks until the server keeps the change (fails with `UNDERDOC_BROWSERTEST_LATENCY_MS=400` before).
 
 - Browser tests that failed on a loaded host and passed alone: `TestEveryPageIsClean` read `document.fonts.check` once
   after the page was drawn, but a font loads when the first text needs it, so it now waits for it; the drag tests waited

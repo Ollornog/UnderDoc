@@ -84,8 +84,9 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 	}
 	b.eval(`document.querySelectorAll('[data-rform="agents"] input[name=act]').forEach(x => { x.checked = x.value === 'read'; })`)
 	b.submit(`[data-rights="agents"] [data-rform="agents"]`, map[string]string{})
-	b.eval(`window.l = null; fetch('/api/me/agents').then(r => r.json()).then(j => { window.l = j.actions.join(','); }); ''`)
-	if !b.waitFor(`window.l !== null`) || b.eval(`window.l`) != "read" {
+	// The form is sent a moment after the click, and a loaded host answers late: ask until the server keeps it.
+	b.eval(`window.l = null; (async () => { for (let i = 0; i < 100; i++) { window.l = (await (await fetch('/api/me/agents')).json()).actions.join(','); if (window.l === 'read') break; await new Promise(r => setTimeout(r, 100)); } })(); ''`)
+	if !b.waitFor(`window.l === 'read'`) {
 		t.Errorf("anna's agents only read: %s", b.eval(`String(window.l)`))
 	}
 }
