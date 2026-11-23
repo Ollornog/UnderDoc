@@ -34,6 +34,23 @@ func TestSectionsFollowHeadings(t *testing.T) {
 	}
 }
 
+// TestFileSectionsByPage: the text of a PDF gives each page its own sections, opening at that page and headed with its
+// number; an attachment keeps the block that shows it. Text without pages stays one run (ADR-34).
+func TestFileSectionsByPage(t *testing.T) {
+	got := FileSections("Alpha one.\fBeta two.\n\nGamma.\f\fDelta.", "", "")
+	want := []Section{{Anchor: "page=1", Heading: "Page 1", Text: "Alpha one."}, {Anchor: "page=2", Heading: "Page 2", Text: "Beta two. Gamma."},
+		{Anchor: "page=4", Heading: "Page 4", Text: "Delta."}}
+	if !slices.Equal(got, want) {
+		t.Errorf("the sections of a file by page:\n%+v\nwant %+v", got, want)
+	}
+	if got := FileSections("One.\fTwo.", "b3", "scan.pdf"); len(got) != 2 || got[1].Anchor != "b3" || got[1].Heading != "scan.pdf · page 2" {
+		t.Errorf("an attachment keeps its block: %+v", got)
+	}
+	if got := FileSections("Only text.", "", "notes.txt"); len(got) != 1 || got[0].Anchor != "" || got[0].Heading != "notes.txt" {
+		t.Errorf("a text without pages: %+v", got)
+	}
+}
+
 func TestSectionsOfAWholePage(t *testing.T) {
 	page := []byte("# Kasse\n\nIntro.\n\n## Storno\n\nBon verwerfen.\n")
 	sections := Sections(PageParts(page, "Kasse"))

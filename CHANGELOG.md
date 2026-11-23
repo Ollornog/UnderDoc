@@ -8,6 +8,23 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **UnderDoc as an MCP server, part 1** (T-21, ADR-34, [docs/mcp.md](docs/mcp.md)): agents reach `/mcp` over streamable
+  HTTP, stateless, built on the official Go SDK (`github.com/modelcontextprotocol/go-sdk` v1.8.0). Signed in through the
+  gate with OAuth (the gate serves the metadata of the protected resource and checks the token), so UnderDoc carries no
+  OAuth code; the operator lists `https://<host>/mcp` as an OAuth resource of the gate. Every call is an agent's
+  (`account.User.MCP`), also a browser session sent there: no managing rights, share links, deleting for good or
+  passwords, no administration, no space at the top, closed spaces with "no agents"; a cross-site browser request is
+  refused. Tools: `context` (tree to a depth, the rules page, the person and open hints), `read` (one to five pages with
+  front matter, markers and the version to write against, or one section; a page above 100 KB as its outline),
+  `used_in`, and `search` (sections of pages and pages of PDFs ranked together, one line per hit, at most 20, the total
+  at the end). Addresses `underdoc:<id>[#b3[.t2]]`, `underdoc:<id>#page=2`, `underdoc:folder/<id>`. The rules page is
+  the page of the kind agent-notes tagged `rules`. Short instructions (below 4 KB). Attack round with tests: a session
+  through MCP, a space with no agents, another person's space and private notes, a missing `Remote-Kind`, cross-site
+  requests, path and scheme tricks in addresses, oversized answers.
+- **The pages of a PDF are records of their own in the search** (ADR-34): the text of a PDF keeps its pages apart with a
+  form feed, on the server and in the browser, so a hit names its page (`#page=3`); version 7 of the source fills the
+  index again.
+
 - **Changes by agents stay visible until a person checks them** (T-20 part 2, ADR-33,
   [docs/page-kinds.md](docs/page-kinds.md#changes-by-agents), migration 034): every version records whether an agent
   wrote it, taken by a trigger from the checked sign-in of the request, never from the client. On human documentation
@@ -63,6 +80,11 @@ All notable changes to this project are documented in this file. The format foll
   agent, each action with ✅ or ❌, the deciding entry and the object it is on. Browser tests for both.
 
 ### Changed
+
+- **A word takes a typing error from four letters on** (T-24, [docs/search.md](docs/search.md)), in Meilisearch
+  (`oneTypo: 4`) and OpenSearch (`AUTO:4,9`): measured with eight new questions of the kind `typo-short` in the German
+  corpus (MRR 0.000 → 1.000 in Meilisearch, 0.823 → 1.000 in OpenSearch), with the first hits of short words as written
+  unchanged and every code exact; the floor 0.95 holds it.
 
 - **Review of rights and sign-in: deleting for good and service accounts** (B-3, migration 035, ADR-32 part 3, ADR-36
   part 2, [docs/rights.md](docs/rights.md#archived-groups), [docs/sign-in.md](docs/sign-in.md#the-gate)):

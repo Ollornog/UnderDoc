@@ -50,12 +50,15 @@ type User struct {
 	Kind string
 	// GateKind is the kind of account the gate passed on ("user" or "service"), kept as it came; empty when it sent none.
 	GateKind string
+	// MCP tells that the request came through the MCP endpoint (ADR-34): it is an agent whatever way it signed in.
+	MCP bool
 }
 
 // Agent tells whether the request belongs to the built-in group Agents (ADR-36): every sign-in that is not an
-// interactive session, and a missing or unknown one too (fail closed). A service account is always an agent (B-3).
+// interactive session, and a missing or unknown one too (fail closed). A service account is always an agent (B-3), and
+// so is every request through the MCP endpoint (ADR-34), also one a browser session sent there.
 func (u User) Agent() bool {
-	if u.Kind == KindService {
+	if u.Kind == KindService || u.MCP {
 		return true
 	}
 	return u.AuthKind != AuthSession

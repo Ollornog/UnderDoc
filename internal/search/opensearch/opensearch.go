@@ -260,10 +260,10 @@ func (e *Engine) Search(ctx context.Context, tenant string, q search.Query) (sea
 			map[string]any{"multi_match": map[string]any{"query": text, "type": "best_fields", "fields": fields, "operator": "and", "boost": 4}},
 			// Some of the words.
 			map[string]any{"multi_match": map[string]any{"query": text, "type": "best_fields", "fields": fields, "boost": 2}},
-			// With a typing error: one in five letters and more, two in nine and more, as Meilisearch does.
+			// With a typing error: one in four letters and more, two in nine and more, as Meilisearch does.
 			// On the words as written, since a stem can be too short for one ("Wafen" for "Wagen").
 			map[string]any{"multi_match": map[string]any{"query": text, "type": "best_fields", "fields": []string{"title.plain^8", "heading.plain^4", "body.plain"},
-				"fuzziness": "AUTO:5,9", "prefix_length": 1, "boost": 0.5}},
+				"fuzziness": "AUTO:4,9", "prefix_length": 1, "boost": 0.5}},
 			// The last word as the start of a word, while typing.
 			map[string]any{"multi_match": map[string]any{"query": text, "type": "bool_prefix", "fields": []string{"title^8", "heading^4", "body"}}},
 			// Parts of words, for compounds.

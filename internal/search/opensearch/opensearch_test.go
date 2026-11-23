@@ -22,5 +22,5 @@ func TestEngine(t *testing.T) { searchtest.Run(t, newEngine(t)) }
 // down; docs/search.md has the full table.
 func TestCorpus(t *testing.T) {
 	searchtest.RunCorpus(t, newEngine(t), map[string]float64{
-		"title": 0.95, "heading": 0.9, "compound": 0.8, "wordform": 0.9, "typo": 0.85, "phrase": 0.6, "all": 0.94})
+		"title": 0.95, "heading": 0.9, "compound": 0.8, "wordform": 0.9, "typo": 0.85, "typo-short": 0.95, "phrase": 0.6, "all": 0.94})
 }

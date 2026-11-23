@@ -153,7 +153,7 @@ check("required files present", hygiene.pruefe_pflichtdateien(str(ROOT), [
 check("CHANGELOG follows Keep a Changelog", hygiene.pruefe_changelog_kategorien(str(ROOT), POLICY))
 check("translations keep the shape of the original", hygiene.pruefe_uebersetzungs_struktur(str(ROOT), [
     ("README.md", "i18n/README.de.md"), ("SECURITY.md", "i18n/SECURITY.de.md"),
-    ("CONTRIBUTING.md", "i18n/CONTRIBUTING.de.md")]))
+    ("CONTRIBUTING.md", "i18n/CONTRIBUTING.de.md"), ("docs/mcp.md", "i18n/docs/mcp.de.md")]))
 
 # GitHub's community detector compares the file with the template and tolerates no foreign content.
 coc = (ROOT / "CODE_OF_CONDUCT.md").read_text(encoding="utf-8")
