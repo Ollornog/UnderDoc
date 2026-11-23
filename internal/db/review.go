@@ -40,6 +40,12 @@ func noteChange(ctx context.Context, tx pgx.Tx, pageID, blockID string, near [2]
 		WHERE EXISTS (SELECT 1 FROM objects WHERE id = $1 AND kind = 'page' AND page_kind = ANY($5))
 		ON CONFLICT (tenant, page, block) DO UPDATE SET head = EXCLUDED.head, follows = EXCLUDED.follows, precedes = EXCLUDED.precedes, at = now()`,
 		pageID, blockID, near[0], near[1], pagekind.PeopleKinds)
+	if err != nil {
+		return err
+	}
+	// A block an agent made and took out again before anyone checked it changed nothing people wrote.
+	_, err = tx.Exec(ctx, `DELETE FROM ai_changes c WHERE c.page = $1 AND c.block = $2 AND c.base IS NULL
+		AND EXISTS (SELECT 1 FROM block_versions v WHERE v.version = c.head AND v.body IS NULL)`, pageID, blockID)
 	return err
 }
 

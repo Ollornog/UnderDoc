@@ -132,7 +132,15 @@ func TestDeletedAndMovedByAnAgent(t *testing.T) {
 	if _, err := db.MoveBlockTo(agent, guide.ID, third.ID, anna.ID, other.ID, ""); err != nil {
 		t.Fatal(err)
 	}
+	// A block the agent made and took out again leaves nothing to check.
+	own, _ := db.AddBlock(agent, guide.ID, anna.ID, "", "A draft of the agent.")
+	if err := db.DeleteBlock(agent, guide.ID, own.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
 	changes, _ := db.AIChanges(ctx, guide.ID, anna.ID)
+	if changeOf(t, changes, own.ID) != nil || len(changes) != 2 {
+		t.Errorf("the agent's own draft, made and taken out: %+v", changes)
+	}
 	deleted, moved := changeOf(t, changes, second.ID), changeOf(t, changes, third.ID)
 	if deleted == nil || !deleted.Deleted || deleted.Near != [2]string{first.ID, third.ID} || deleted.Moved != "" || moved == nil || !moved.Deleted ||
 		moved.Moved != other.ID+"#b1" {

@@ -67,6 +67,7 @@ window.UDKinds = (() => {
     stale: 'The block changed meanwhile. Open it again to see what changed since.',
     movedAway: 'An agent moved this block to another page. Move it back from there.',
     reviewNoRight: 'Only who may change this page checks changes.',
+    inUse: 'Taking it back would take away something other pages embed. Change the block in the editor, where you choose what happens to it.',
     doneFailed: 'This did not work.',
   };
 
@@ -203,17 +204,25 @@ window.UDKinds = (() => {
         body: JSON.stringify({ version: rv.change.version }),
       });
       if (!r.ok) {
-        let detail = '';
+        let answer = {};
         try {
-          detail = (await r.json()).error || '';
+          answer = (await r.json()) || {};
         } catch (x) {
-          detail = '';
+          answer = {};
         }
-        throw Object.assign(new Error(String(r.status)), { detail });
+        throw Object.assign(new Error(String(r.status)), { detail: answer.error || '', inUse: !!answer.inUse });
       }
       el.close();
     } catch (e) {
-      rv.error = e.message === '409' ? (e.detail && e.detail.startsWith('an agent moved') ? T.movedAway : T.stale) : e.message === '403' ? T.reviewNoRight : e.detail || T.doneFailed;
+      rv.error = e.inUse
+        ? T.inUse
+        : e.message === '409'
+          ? e.detail && e.detail.startsWith('an agent moved')
+            ? T.movedAway
+            : T.stale
+          : e.message === '403'
+            ? T.reviewNoRight
+            : e.detail || T.doneFailed;
       drawReview();
       return;
     }

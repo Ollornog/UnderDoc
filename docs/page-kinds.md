@@ -131,7 +131,7 @@ database, never from anything a client sends. The list of versions marks such a 
   everyone who reads the page, with whom the agent works for and when. A block an agent made says "Added by AI", and a
   block an agent took out or moved to another page is listed under the page.
 - Further changes of an agent extend the hint: what a person sees in the diff is everything since a person last saw
-  the block.
+  the block. A block an agent made and took out again before anyone checked it leaves nothing to check.
 - Whoever may change the page opens the change as a **diff** (Review) and either sets **Checked** or **takes it back**:
   the text before comes back, a block an agent made goes, a deleted block comes back where it stood with its ID. A block
   an agent moved away is moved back from where it went, so only Checked is offered for it.
