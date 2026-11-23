@@ -48,7 +48,7 @@ func (f *fakeOffice) ToPDF(_ context.Context, in io.Reader, _ string, out io.Wri
 func TestPreviews(t *testing.T) {
 	s := withFiles(t)
 	office := &fakeOffice{answer: "%PDF-1.7 from the office module"}
-	s.site = newSite(t, Options{DB: s.db, Store: s.store, AdminGroup: "underdoc-admins", Office: office}, sample)
+	s.site = newSite(t, Options{DB: s.db, Store: s.store, Office: office}, sample)
 	mine := s.root(nil, db.RootUser)
 	parent := fmt.Sprintf(`"parent":%q`, mine.ID)
 
@@ -66,7 +66,7 @@ func TestPreviews(t *testing.T) {
 		}
 	}
 	// The preview is kept beside its blob.
-	f, _ := s.db.File(tenant.With(context.Background(), tenant.Main), picture.ID, "u-7")
+	f, _ := s.db.File(tenant.With(context.Background(), tenant.Main), picture.ID, "1007")
 	kept, _ := s.store.DerivedPath(store.DefaultTenant, f.Blob+"-thumb-256.jpg")
 	if _, err := os.Stat(kept); err != nil {
 		t.Errorf("the preview is not kept: %v", err)

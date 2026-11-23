@@ -501,7 +501,7 @@ func (h *handler) adminSignInPage(w http.ResponseWriter, r *http.Request, status
 	s := h.signInSettings(ctx)
 	v := adminSignInView{Version: h.assetVersion, Title: "Sign-in", Tenant: h.tenantName(ctx), Error: problem, Notice: notice, Link: link,
 		Settings: s, SecretSet: h.options.Vault.Ready() && h.secrets().Has(ctx, oidcSecret), VaultReady: h.options.Vault.Ready(),
-		DefaultTeam: h.options.AdminGroup}
+		DefaultTeam: h.options.GateClient.AdminRole()}
 	for _, m := range db.Methods {
 		row := methodRow{ID: m, Label: methodLabels[m][0], Hint: methodLabels[m][1], On: s.Has(m)}
 		switch {

@@ -229,9 +229,76 @@ func migrate(ctx context.Context, conn *pgx.Conn, upTo int) error {
 // MyNotes is the title of the private collection every account starts with (ADR-20).
 const MyNotes = "My notes"
 
-// SeeAccount records a user from the gate: new on the first sign-in, with a private collection, and up to date after.
+// SeeAccount records a user under the ID it carries, as the gate did before ADR-32: new with a private collection, and
+// up to date after. Imports and tests make accounts with it; a sign-in goes through BindGate.
 func (db *DB) SeeAccount(ctx context.Context, user account.User) error {
 	return db.SeeExternal(ctx, user, SourceGate)
+}
+
+// BindGate returns the account bound to the lasting ID the gate gave a person (ADR-32, ADR-35), and records what the
+// gate says of them. At first contact it makes the account, keyed by that ID where no account has that key, with its
+// private collection. A request that is no interactive session brings a part of the roles only (the gate's tokens carry
+// fewer), so only a session changes the groups of an account that exists.
+func (db *DB) BindGate(ctx context.Context, user account.User) (Account, error) {
+	if user.RemoteID == "" {
+		return Account{}, ErrNotFound
+	}
+	var a Account
+	var err error
+	// Two first requests of a person at the same moment both find no account; the second one finds the first's.
+	for range 2 {
+		if a, err = db.bindGate(ctx, user); !isUnique(err, "accounts_pkey") && !isUnique(err, "accounts_remote_id") {
+			break
+		}
+	}
+	return a, err
+}
+
+func (db *DB) bindGate(ctx context.Context, user account.User) (Account, error) {
+	var a Account
+	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var accountID string
+		err := tx.QueryRow(ctx, "SELECT id FROM accounts WHERE remote_id = $1", user.RemoteID).Scan(&accountID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			if err := roomForUser(ctx, tx); err != nil {
+				return err
+			}
+			// The key is the ID of the gate, as it was for accounts of the gate before; where an account has that key
+			// already (an account under its login, made before), the new one gets a key of its own.
+			accountID = user.RemoteID
+			var taken bool
+			if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", accountID).Scan(&taken); err != nil {
+				return err
+			}
+			if taken {
+				accountID = id.New()
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, remote_id, login, name, email, groups, source, gate_kind)
+				VALUES ($1, $2, $3, $4, $5, $6, 'gate', $7)`, accountID, user.RemoteID, user.Login, user.Name, user.Email,
+				nonNil(user.Groups), user.GateKind); err != nil {
+				return err
+			}
+			if _, err := insertObject(ctx, tx, Object{Kind: KindCollection, Title: MyNotes, Owner: accountID, Private: true}); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		default:
+			if _, err := tx.Exec(ctx, `UPDATE accounts SET login = $2, name = $3, email = $4, gate_kind = $5, last_seen = now(),
+				groups = CASE WHEN $6 THEN $7 ELSE groups END WHERE id = $1`, accountID, user.Login, user.Name, user.Email,
+				user.GateKind, user.AuthKind == account.AuthSession, nonNil(user.Groups)); err != nil {
+				return err
+			}
+		}
+		// The groups the sign-in names are groups taken over (ADR-29).
+		if err := syncGroups(ctx, tx, user.Groups); err != nil {
+			return err
+		}
+		a, err = scanAccount(tx.QueryRow(ctx, `SELECT `+accountColumns+` FROM accounts WHERE id = $1`, accountID))
+		return err
+	})
+	return a, err
 }
 
 func nonNil(list []string) []string {

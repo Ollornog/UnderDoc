@@ -19,7 +19,7 @@ import (
 // signInWith sets the headers of the gate for another person with groups.
 func (b *browser) signInWith(login, name, groups string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Name": name, "Remote-Groups": groups}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name, "Remote-Groups": groups}}, nil)
 }
 
 // TestTheRoleDecidesWhatIsGreyed: what the viewer may do comes from their role (ADR-29), not from the level for all
@@ -122,7 +122,7 @@ func setupAsAdmin(t *testing.T) (*browser, string) {
 	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
 		t.Fatal(err)
 	}
-	return setupWith(t, web.Options{DevUI: true, DB: database, AdminGroup: "ops"}, nil)
+	return setupWith(t, web.Options{DevUI: true, DB: database, GateClient: gateWithRole(t, "ops")}, nil)
 }
 
 // submit fills a form of the rights by script, as a person would by hand, and sends it.
@@ -257,16 +257,16 @@ func TestTheTabRights(t *testing.T) {
 		t.Fatalf("the group is made: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-group="Board"] [data-ract="members"]`, 1)
-	b.submit(`[data-rights="groups"] [data-rform="member"]`, map[string]string{"account": "bob"})
+	b.submit(`[data-rights="groups"] [data-rform="member"]`, map[string]string{"account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-rights="groups"]')?.innerText || '').includes('Bob Kern')`) {
 		t.Errorf("bob is a member: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
-	if !b.waitFor(`!!document.querySelector('[data-rights="users"] [data-user="bob"]')`) {
+	if !b.waitFor(`!!document.querySelector('[data-rights="users"] [data-user="1002"]')`) {
 		t.Errorf("the users: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
 	b.clickOn(`[data-act="sec"][data-id="check"]`, 1)
-	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + team, "account": "bob"})
+	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + team, "account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-who]')?.innerText || '').includes('Everyone') && (document.querySelector('[data-check]')?.innerText || '').includes('Role: edit')`) {
 		t.Errorf("who sees Team, and what bob may do: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
@@ -285,7 +285,7 @@ func TestTheTabRights(t *testing.T) {
 	b.ready("Network plan")
 	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
 	b.clickOn(`[data-act="sec"][data-id="users"]`, 1)
-	b.clickOn(`[data-rights="users"] [data-user="bob"] [data-ract="heldby"]`, 1)
+	b.clickOn(`[data-rights="users"] [data-user="1002"] [data-ract="heldby"]`, 1)
 	if !b.waitFor(`!!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]')`) {
 		t.Fatalf("what bob owns, with Transfer: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
@@ -300,7 +300,7 @@ func TestTheTabRights(t *testing.T) {
 	if !b.waitFor(`window.r !== null`) || b.eval(`window.r`) != `["owner"]` {
 		t.Errorf("sent without a choice, bob still owns it: %s", b.eval(`String(window.r)`))
 	}
-	b.submit(transfer, map[string]string{"to": "anna"})
+	b.submit(transfer, map[string]string{"to": "1007"})
 	// Bob keeps edit, as a former owner does.
 	if !b.waitFor(`!document.querySelector('[data-held-row="` + left + `"] [data-rform="transfer"]') && (document.querySelector('[data-held-row="` + left + `"]')?.innerText || '').includes('edit')`) {
 		t.Errorf("transferred, bob only edits it: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))

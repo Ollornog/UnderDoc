@@ -142,7 +142,7 @@ var gateOnly = &db.SignIn{Methods: []string{db.MethodGate}}
 // of the new pages answers. A session cookie does not count there, and an instance that turns the gate off trusts no
 // header.
 func TestGateModeIsUnchanged(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	c := newClient(t, s, "wiki.example")
 	c.headers = gateHeaders
 	state := decode[apiState](t, c.get("/api/state"))
@@ -554,7 +554,7 @@ func TestPasskeysStayWithTheirTenant(t *testing.T) {
 // TestAdministratorsChooseTheWaysIn: only an administrator sees and changes the sign-in of the tenant; the gate can only
 // be switched on where the instance allows it; an invitation link shows once; registration is off until switched on.
 func TestAdministratorsChooseTheWaysIn(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	plain := newClientWith(t, s, bob)
 	for _, c := range []*client{plain, newClient(t, s, signInHost)} {

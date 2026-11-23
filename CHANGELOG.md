@@ -8,6 +8,19 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Sign-in through the gate, checked by its Go client** (ADR-32, T-27 part 1, [docs/sign-in.md](docs/sign-in.md#the-gate),
+  migration 031): TinySesam's Go client (`clients/go`, pinned by commit `4bb607f`, 0.29.0) checks every request of the
+  gate, in header mode (the Remote headers of its proxy, from the addresses in `UNDERDOC_GATE_PROXIES`) or in token mode
+  (the signed gate token; `UNDERDOC_GATE_MODE=token`). A person is bound by `Remote-Id`, never by the login: a request
+  without it is not signed in, a new login keeps the account, and accounts of the gate keyed by their ID before are bound
+  to it. `Remote-Auth` and `Remote-Kind` come only from the checked result; a gate token without `ts_auth` is an agent.
+  `Remote-Kind` is kept with the account but decides only with `UNDERDOC_GATE_KIND=required`, since a proxy of the gate
+  may still pass on what a browser sent. Administrators hold the role of the app, `UNDERDOC_ADMIN_ROLE`
+  (`underdoc-admin`; `UNDERDOC_ADMIN_GROUP` is still read), never the gate's own `admin`. A request that is no session no
+  longer changes the groups of its account. The attack round of ADR-32 (forged headers without a token, headers past the
+  gate, `Remote-Auth: session` with an agent's token, an agent with the role of the app) with tests that fail without
+  their barrier.
+
 - **The rights of ADR-36 in the workspace** (T-26, [docs/rights.md](docs/rights.md#in-the-workspace)): the rights dialog
   shows the presets first and, under **Actions**, the seven actions of a holder, each inherit, allow or deny, with the
   box **with subgroups** for a group; a changed preset shows as Custom with what it allows and denies; **No agents here**

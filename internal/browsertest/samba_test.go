@@ -67,7 +67,7 @@ func TestSambaInTheWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: st, Vault: v, Share: m, AdminGroup: "ops"}, nil)
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: st, Vault: v, Share: m, GateClient: gateWithRole(t, "ops")}, nil)
 	b.open(base + "/")
 	b.ready("")
 

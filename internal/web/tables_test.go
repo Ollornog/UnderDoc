@@ -222,7 +222,7 @@ func TestTablesFollowNewVersions(t *testing.T) {
 		table: [2]string{"Costs", "A1:B2"}, names: map[string]string{"Total": "Data!$B$2"}}
 	file := decode[finished](t, s.put(plain, fmt.Sprintf(`"parent":%q`, bobs), "data.xlsx", first.xlsx(t), 4096)).ID
 	// Bob lets Anna read his workbook.
-	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"u-7","role":"read"}`, plain); got.Code != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"1007","role":"read"}`, plain); got.Code != http.StatusNoContent {
 		t.Fatalf("grant: %d %s", got.Code, got.Body.String())
 	}
 	for _, body := range []string{`{"kind":"range","sheet":"Data","range":"A1:B2","head":true}`, `{"kind":"table","name":"Costs"}`,
@@ -317,7 +317,7 @@ func TestTablesInReadLinks(t *testing.T) {
 	bobs := bobsCollection(t, s)
 	b := workbookSpec{sheet: "Data", number: 1, cells: map[string]string{"A1": "Item", "A2": "Salary 4711"}, names: map[string]string{"Pay": "Data!$A$2"}}
 	file := decode[finished](t, s.put(plain, fmt.Sprintf(`"parent":%q`, bobs), "pay.xlsx", b.xlsx(t), 4096)).ID
-	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"u-7","role":"read"}`, plain); got.Code != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"1007","role":"read"}`, plain); got.Code != http.StatusNoContent {
 		t.Fatalf("grant: %d", got.Code)
 	}
 	chooseTable(t, s, file, `{"kind":"sheet","sheet":"Data"}`, nil, http.StatusCreated)
@@ -338,7 +338,7 @@ func TestTablesInReadLinks(t *testing.T) {
 		t.Errorf("a link that released the file: %s", got)
 	}
 	// Bob takes Anna's role away: the frozen tables of her link go.
-	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"u-7","role":""}`, plain); got.Code != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+file+"/grants", `{"kind":"person","who":"1007","role":""}`, plain); got.Code != http.StatusNoContent {
 		t.Fatalf("take: %d", got.Code)
 	}
 	if got := s.anonymous(http.MethodGet, with, nil, nil).Body.String(); strings.Contains(got, "4711") || strings.Count(got, "Not shared") != 2 {

@@ -15,7 +15,7 @@ import (
 
 func TestTextOfFiles(t *testing.T) {
 	s := withFiles(t)
-	s.site = newSite(t, Options{DB: s.db, Store: s.store, AdminGroup: "underdoc-admins", TextWays: db.Ways{Browser: true, Server: true}}, sample)
+	s.site = newSite(t, Options{DB: s.db, Store: s.store, TextWays: db.Ways{Browser: true, Server: true}}, sample)
 	mine := s.root(nil, db.RootUser)
 	done := decode[finished](t, s.put(nil, fmt.Sprintf(`"parent":%q`, mine.ID), "notes.md", []byte("# Card payment"), 10))
 	// The upload put the reading on the queue of the server.

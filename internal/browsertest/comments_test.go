@@ -7,12 +7,29 @@ package browsertest
 import (
 	"strings"
 	"testing"
+
+	"github.com/Ollornog/UnderDoc/internal/account"
 )
 
 // signInAs sets the headers of the gate for another person, on every request of the browser.
 func (b *browser) signInAs(login, name string) {
 	b.t.Helper()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Name": name}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": login, "Remote-Id": remoteID(login), "Remote-Name": name}}, nil)
+}
+
+// gateWithRole is the gate in header mode whose role of the app is role.
+func gateWithRole(t *testing.T, role string) *account.Gate {
+	t.Helper()
+	g, err := account.NewGate(account.GateConfig{AdminRole: role})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// remoteID is the lasting ID the gate gives the account of a login in these tests, which is the key of its account.
+func remoteID(login string) string {
+	return map[string]string{"anna": "1007", "bob": "1002", "carl": "1003"}[login]
 }
 
 // drawer returns the text of the comments drawer in one line, or "none".

@@ -69,7 +69,7 @@ func (s *site) get(target string) *httptest.ResponseRecorder {
 	return s.getWith(target, gateHeaders)
 }
 
-var gateHeaders = map[string]string{"Remote-Auth": "session", "Remote-User": "anna", "Remote-Id": "u-7", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops,underdoc-admins"}
+var gateHeaders = map[string]string{"Remote-Auth": "session", "Remote-User": "anna", "Remote-Id": "1007", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops,underdoc-admin"}
 
 func (s *site) getWith(target string, headers map[string]string) *httptest.ResponseRecorder {
 	s.t.Helper()
@@ -254,6 +254,7 @@ func TestReadOnlyMethods(t *testing.T) {
 			request := httptest.NewRequest(method, target, strings.NewReader("x"))
 			request.Header.Set("Remote-Auth", "session")
 			request.Header.Set("Remote-User", "anna")
+			request.Header.Set("Remote-Id", "1007")
 			s.http.ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusMethodNotAllowed {
 				t.Errorf("%s %s = %d", method, target, recorder.Code)
@@ -386,8 +387,8 @@ func TestGalleryIsOffByDefault(t *testing.T) {
 // The editor trial of M-8 is gone (ADR-21: until M-8 closes): its address finds nothing, also for an administrator or
 // with the dev switch on.
 func TestEditorTrialIsGone(t *testing.T) {
-	admin := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample).getWith("/dev/editor-trial", gateHeaders)
-	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", map[string]string{"Remote-Auth": "session", "Remote-User": "bea", "Remote-Groups": "ops"})
+	admin := newSite(t, Options{}, sample).getWith("/dev/editor-trial", gateHeaders)
+	dev := newSite(t, Options{DevUI: true}, sample).getWith("/dev/editor-trial", map[string]string{"Remote-Auth": "session", "Remote-User": "bea", "Remote-Id": "1004", "Remote-Groups": "ops"})
 	for name, answer := range map[string]*httptest.ResponseRecorder{"administrator": admin, "dev switch": dev} {
 		if answer.Code != http.StatusNotFound {
 			t.Errorf("%s: /dev/editor-trial = %d, want 404", name, answer.Code)
@@ -695,12 +696,12 @@ func TestOldAddressesMove(t *testing.T) {
 
 // Who is signed in, as the profile shows it; the administration only for administrators (ADR-16).
 func TestAccount(t *testing.T) {
-	s := newSite(t, Options{AdminGroup: "underdoc-admins"}, sample)
+	s := newSite(t, Options{}, sample)
 	anna := decode[apiState](t, s.get("/api/state")).User
-	if anna.Name != "Anna Berg" || anna.Email != "anna@example.com" || anna.Initials != "AB" || !anna.Admin || strings.Join(anna.Groups, ",") != "ops,underdoc-admins" {
+	if anna.Name != "Anna Berg" || anna.Email != "anna@example.com" || anna.Initials != "AB" || !anna.Admin || strings.Join(anna.Groups, ",") != "ops,underdoc-admin" {
 		t.Errorf("anna: %+v", anna)
 	}
-	if bob := decode[apiState](t, s.getWith("/api/state", map[string]string{"Remote-Auth": "session", "Remote-User": "bob"})).User; bob.Admin || bob.Login != "bob" {
+	if bob := decode[apiState](t, s.getWith("/api/state", map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002"})).User; bob.Admin || bob.Login != "bob" {
 		t.Errorf("only administrators see the administration: %+v", bob)
 	}
 }

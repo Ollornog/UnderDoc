@@ -1003,7 +1003,7 @@ func TestAccessSetByTheOwner(t *testing.T) {
 		t.Errorf("the database keeps it, nav3 shows the lock: %q", got)
 	}
 	// Someone else.
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if got := b.eval(`[!!document.getElementById('cname'), document.querySelector('section > header[data-cdrop="` + team + `"] .btn') === null].join(' ')`); got != "false true" {
@@ -1015,7 +1015,7 @@ func TestAccessSetByTheOwner(t *testing.T) {
 	b.ready("Team")
 	b.clickOn(`article.typeset [data-act="cacc"][data-id="edit"]`, 1)
 	b.settled()
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if got := b.eval(`[!!document.getElementById('cname'), [...document.querySelectorAll('article.typeset [data-act="cacc"]')].every(n => n.disabled)].join(' ')`); got != "true true" {
@@ -1274,7 +1274,7 @@ func TestTheHandleOfABlock(t *testing.T) {
 		t.Errorf("a click elsewhere closes the menu")
 	}
 	// Someone who may only comment: no editing, but comments.
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + page)
 	b.ready("Plan")
 	b.clickOn(`article.typeset [data-block="b1"] > .editor-handle > button`, 1)
@@ -1373,7 +1373,7 @@ func TestTagsOfAPage(t *testing.T) {
 		t.Errorf("the tag finds the page, and one never opened: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText.slice(0, 200)`))
 	}
 	// Someone who may only read sees the tags, but changes none.
-	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
+	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob Kern", "Remote-Email": "bob@example.com", "Remote-Groups": "ops"}}, nil)
 	b.open(base + "/o/" + page)
 	b.ready("Rack")
 	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)

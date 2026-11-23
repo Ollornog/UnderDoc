@@ -138,7 +138,7 @@ func TestSpreadsheetThatCannotBeRead(t *testing.T) {
 		if got.Code != http.StatusUnprocessableEntity || !strings.Contains(got.Body.String(), "cannot be") {
 			t.Errorf("%s: %d %s", name, got.Code, got.Body.String())
 		}
-		v, err := s.db.FileVersion(inMain(), up.ID, "u-7", 0)
+		v, err := s.db.FileVersion(inMain(), up.ID, "1007", 0)
 		if err != nil {
 			t.Fatal(err)
 		}

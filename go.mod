@@ -6,6 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/Ollornog/EightPerDay v0.0.0-20261120205811-50e51209e223
+	github.com/Ollornog/TinySesam/clients/go v0.0.0-20261123102300-4bb607f652e3
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/fxamacker/cbor/v2 v2.10.0
 	github.com/go-jose/go-jose/v4 v4.1.9

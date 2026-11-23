@@ -85,7 +85,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	b, base := setupWith(t, web.Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: "localhost", AdminGroup: "ops"}, nil)
+	b, base := setupWith(t, web.Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: "localhost", GateClient: gateWithRole(t, "ops")}, nil)
 
 	// Off by default: no entry in the workspace, no address.
 	b.open(base + "/")
@@ -151,7 +151,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 	// Each field saved itself: the week arrives in the database, five entries.
 	var entries []core.Entry
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-		entries, err = database.TimeStore().Entries(main, core.EntryFilter{Owner: db.Person("anna"), From: monday, To: monday.AddDays(6)})
+		entries, err = database.TimeStore().Entries(main, core.EntryFilter{Owner: db.Person("1007"), From: monday, To: monday.AddDays(6)})
 		if (err == nil && len(entries) == 5) || time.Now().After(deadline) {
 			break
 		}
@@ -172,6 +172,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 		request.Host = "acme.localhost"
 		request.Header.Set("Remote-Auth", "session")
 		request.Header.Set("Remote-User", "anna")
+		request.Header.Set("Remote-Id", "1007")
 		request.Header.Set("Remote-Groups", "ops")
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
@@ -183,7 +184,7 @@ func TestTimeTrackingInTheWorkspace(t *testing.T) {
 			t.Errorf("acme %s: %d, shows the employer of Main: %v", target, response.StatusCode, strings.Contains(string(body), "Acme work"))
 		}
 	}
-	if theirs, err := database.TimeStore().Entries(acme, core.EntryFilter{Owner: db.Person("anna")}); err != nil || len(theirs) != 0 {
+	if theirs, err := database.TimeStore().Entries(acme, core.EntryFilter{Owner: db.Person("1007")}); err != nil || len(theirs) != 0 {
 		t.Errorf("acme's database holds the week of Main: %+v %v", theirs, err)
 	}
 }

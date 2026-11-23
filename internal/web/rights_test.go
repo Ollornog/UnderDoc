@@ -20,8 +20,8 @@ import (
 // carlOf is carl, signed in through the gate with the group editors and nothing else; plain is bob with no group, so
 // neither administers.
 var (
-	carlOf = map[string]string{"Remote-Auth": "session", "Remote-User": "carl", "Remote-Id": "u-carl", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
-	plain  = map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
+	carlOf = map[string]string{"Remote-Auth": "session", "Remote-User": "carl", "Remote-Id": "1003", "Remote-Name": "Carl", "Remote-Groups": "editors", "Sec-Fetch-Site": "same-origin"}
+	plain  = map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
 )
 
 // TestRightsThroughTheAPI: roles to persons, groups and the tenant, breaking the inheritance, and embedding that bypasses
@@ -34,7 +34,7 @@ func TestRightsThroughTheAPI(t *testing.T) {
 	t.Cleanup(database.Close)
 	behindGate(t, database, tenant.Main)
 	// Anna administers through the group of her gate headers.
-	s := newSite(t, Options{DB: database, AdminGroup: "underdoc-admins"}, sample)
+	s := newSite(t, Options{DB: database}, sample)
 	// Everyone signs in once, so their accounts and groups are there.
 	for _, who := range []map[string]string{plain, carlOf} {
 		s.send(http.MethodGet, "/api/state", "", who)
@@ -101,7 +101,7 @@ func TestRightsThroughTheAPI(t *testing.T) {
 	if got := s.send(http.MethodPut, "/api/pages/"+salaries+"/blocks/b1", `{"md":"changed"}`, carlOf).Code; got != http.StatusForbidden {
 		t.Errorf("carl edits = %d", got)
 	}
-	if got := put("/api/objects/"+salaries+"/grants", `{"kind":"person","who":"u-carl","role":"manage"}`, carlOf); got != http.StatusForbidden {
+	if got := put("/api/objects/"+salaries+"/grants", `{"kind":"person","who":"1003","role":"manage"}`, carlOf); got != http.StatusForbidden {
 		t.Errorf("carl grants himself = %d", got)
 	}
 	rights := decode[apiRights](t, s.send(http.MethodGet, "/api/objects/"+salaries+"/rights", "", carlOf))
@@ -112,7 +112,7 @@ func TestRightsThroughTheAPI(t *testing.T) {
 		t.Errorf("bob reads no rights of what he does not see: %d", got)
 	}
 	// Ownership goes to carl; anna keeps edit.
-	if got := put("/api/objects/"+salaries+"/owner", `{"to":"u-carl"}`, sameSite); got != http.StatusNoContent {
+	if got := put("/api/objects/"+salaries+"/owner", `{"to":"1003"}`, sameSite); got != http.StatusNoContent {
 		t.Fatalf("transfer = %d", got)
 	}
 	if rights := decode[apiRights](t, s.send(http.MethodGet, "/api/objects/"+salaries+"/rights", "", carlOf)); rights.Role != "owner" || !rights.Manage {
@@ -123,10 +123,10 @@ func TestRightsThroughTheAPI(t *testing.T) {
 		t.Errorf("bob makes a group = %d", got)
 	}
 	board := decode[apiGroup](t, s.send(http.MethodPost, "/api/groups", `{"name":"Board","description":"The board"}`, sameSite))
-	if got := put("/api/groups/"+board.ID+"/members/u-bob", `{"member":true}`, sameSite); got != http.StatusNoContent {
+	if got := put("/api/groups/"+board.ID+"/members/1002", `{"member":true}`, sameSite); got != http.StatusNoContent {
 		t.Fatalf("member = %d", got)
 	}
-	if got := put("/api/groups/"+editors+"/members/u-bob", `{"member":true}`, sameSite); got != http.StatusForbidden {
+	if got := put("/api/groups/"+editors+"/members/1002", `{"member":true}`, sameSite); got != http.StatusForbidden {
 		t.Errorf("a group taken over can only be read = %d", got)
 	}
 	mine := decode[[]apiGroup](t, s.send(http.MethodGet, "/api/groups", "", plain))
@@ -153,7 +153,7 @@ func adminSite(t *testing.T) (*site, *db.DB) {
 	}
 	t.Cleanup(database.Close)
 	behindGate(t, database, tenant.Main)
-	return newSite(t, Options{DB: database, AdminGroup: "underdoc-admins"}, sample), database
+	return newSite(t, Options{DB: database}, sample), database
 }
 
 // TestCommentingWithoutEditing: the role comment adds comments, on the whole page and on one block, and changes nothing
@@ -168,7 +168,7 @@ func TestCommentingWithoutEditing(t *testing.T) {
 	if got := s.send(http.MethodPost, "/api/pages/"+page.ID+"/comments", `{"body":"before","block":"b1"}`, plain).Code; got != http.StatusForbidden {
 		t.Fatalf("reading only, no comment: %d", got)
 	}
-	if got := s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"u-bob","role":"comment"}`, sameSite).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"1002","role":"comment"}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("grant = %d", got)
 	}
 	doc := decode[apiDocument](t, s.send(http.MethodGet, "/api/doc/"+page.ID, "", plain))
@@ -192,33 +192,33 @@ func TestTheAccessCheck(t *testing.T) {
 	s.send(http.MethodGet, "/api/state", "", plain)
 	s.send(http.MethodGet, "/api/state", "", carlOf)
 	team := s.sharedCollection(`{"title":"Team"}`, sameSite)
-	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"u-bob","role":"manage"}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+team.ID+"/grants", `{"kind":"person","who":"1002","role":"manage"}`, sameSite)
 	check := decode[struct {
 		Role    string        `json:"role"`
 		Actions []apiDecision `json:"actions"`
-	}](t, s.get("/api/rights/check?object="+team.ID+"&account=u-bob"))
+	}](t, s.get("/api/rights/check?object="+team.ID+"&account=1002"))
 	if check.Role != "manage" || len(check.Actions) != len(db.Actions) {
 		t.Fatalf("bob manages Team: %+v", check)
 	}
 	for _, d := range check.Actions {
-		if !d.Allowed || d.Via != db.ViaEntry || d.Kind != db.ToPerson || d.Who != "u-bob" || d.Object != team.ID || d.Value != db.Allow {
+		if !d.Allowed || d.Via != db.ViaEntry || d.Kind != db.ToPerson || d.Who != "1002" || d.Object != team.ID || d.Value != db.Allow {
 			t.Errorf("each action of bob is decided by his own entry on Team: %+v", d)
 		}
 	}
-	held := decode[[]apiHeld](t, s.get("/api/rights/held?account=u-bob"))
+	held := decode[[]apiHeld](t, s.get("/api/rights/held?account=1002"))
 	if len(held) != 2 {
 		t.Errorf("what bob holds: %+v", held)
 	}
-	if got := s.send(http.MethodGet, "/api/rights/held?account=u-carl", "", plain).Code; got != http.StatusForbidden {
+	if got := s.send(http.MethodGet, "/api/rights/held?account=1003", "", plain).Code; got != http.StatusForbidden {
 		t.Errorf("bob asks about carl = %d", got)
 	}
 	if got := s.send(http.MethodGet, "/api/rights/held", "", plain).Code; got != http.StatusOK {
 		t.Errorf("bob asks about himself = %d", got)
 	}
-	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=u-carl", "", carlOf).Code; got != http.StatusOK {
+	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=1003", "", carlOf).Code; got != http.StatusOK {
 		t.Errorf("carl asks about himself = %d", got)
 	}
-	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=u-bob", "", carlOf).Code; got != http.StatusForbidden {
+	if got := s.send(http.MethodGet, "/api/rights/check?object="+team.ID+"&account=1002", "", carlOf).Code; got != http.StatusForbidden {
 		t.Errorf("carl, who only edits Team, asks about bob = %d", got)
 	}
 	if got := s.send(http.MethodGet, "/api/users", "", plain).Code; got != http.StatusForbidden {
@@ -267,7 +267,7 @@ func TestTakingBackAnAdministratorThroughTheAPI(t *testing.T) {
 	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, plain).Code; got != http.StatusForbidden {
 		t.Errorf("bob takes it back = %d", got)
 	}
-	if got := s.send(http.MethodPut, "/api/users/u-7/admin", `{"admin":false}`, sameSite).Code; got != http.StatusConflict {
+	if got := s.send(http.MethodPut, "/api/users/1007/admin", `{"admin":false}`, sameSite).Code; got != http.StatusConflict {
 		t.Errorf("anna is an administrator through her group = %d", got)
 	}
 	if got := s.send(http.MethodPut, "/api/users/"+dora.ID+"/admin", `{"admin":false}`, sameSite).Code; got != http.StatusNoContent {

@@ -112,7 +112,7 @@ func TestCollectionsThroughTheAPI(t *testing.T) {
 	if !strings.Contains(s.get("/api/state").Body.String(), `"Network gear"`) {
 		t.Error("the new name is not kept")
 	}
-	bob := map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob", "Sec-Fetch-Site": "same-origin"}
+	bob := map[string]string{"Remote-Auth": "session", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Sec-Fetch-Site": "same-origin"}
 	notes := state.Collections[0].ID
 	if got := s.send(http.MethodPatch, "/api/objects/"+notes, `{"title":"Mine"}`, bob).Code; got != http.StatusNotFound {
 		t.Errorf("bob renames Anna's private notes: %d", got)

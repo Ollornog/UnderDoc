@@ -79,11 +79,12 @@ it, only for the persons and groups taken over that are directly in the group.
 
 - **Who is in it:** every request whose sign-in is not an interactive session. A session in the browser (passkey,
   password, single sign-on) is one; through the gate the way comes from `Remote-Auth` (`session`, `oauth`, `apikey`,
-  `app-password`), and a missing or unknown value counts as an agent (fail closed). Until T-27 takes it from the result
-  the gate's Go client checked, UnderDoc reads `Remote-Auth` as it reads `Remote-User`: trusted because the proxy of the
-  gate sets it on every request. In the code it is `account.User.AuthKind`, and `account.User.Agent()` decides.
+  `app-password`), and a missing or unknown value counts as an agent (fail closed). The value comes only from the result
+  the gate's Go client checked ([sign-in.md](sign-in.md#the-gate)), never raw from a header. In the code it is
+  `account.User.AuthKind`, and `account.User.Agent()` decides.
 - **Service accounts** (`Remote-Kind: service`) are a case of their own: they get what is granted to them, not this
-  group.
+  group. Until the gate's proxy sets `Remote-Kind` on every request, that holds only with `UNDERDOC_GATE_KIND=required`
+  or in token mode; otherwise a service account counts as an agent.
 - **A deny on Agents is a ceiling** after the evaluation above: an action denied for Agents on the object or anywhere
   above it is refused, for the owner too, and breaking the inheritance below it does not lift it.
 - **Agents never** manage rights or groups, share (links), delete for good (empty the trash) or read passwords

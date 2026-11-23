@@ -193,7 +193,7 @@ func TestQuickSearchFindsAFileByItsText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, base := setupSearchWith(t, web.Options{Store: content, AdminGroup: "ops", TextWays: db.Ways{Browser: true}})
+	b, base := setupSearchWith(t, web.Options{Store: content, GateClient: gateWithRole(t, "ops"), TextWays: db.Ways{Browser: true}})
 	b.open(base + "/")
 	b.ready("")
 	b.openMyFiles()

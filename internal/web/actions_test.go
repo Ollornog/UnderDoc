@@ -29,10 +29,10 @@ func TestEntriesThroughTheAPI(t *testing.T) {
 	addBlocks(t, s, secret.ID, "Anna 100, Bob 90.")
 	rack := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Rack","parent":"`+team.ID+`"}`, sameSite))
 	addBlocks(t, s, rack.ID, "Before.\n\n::embed{ref=\""+secret.ID+"\"}\n\nAfter.")
-	if got := s.send(http.MethodPut, "/api/objects/"+secret.ID+"/grants", `{"kind":"person","who":"u-bob","actions":{"read":"deny","write":"deny"}}`, sameSite); got.Code != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+secret.ID+"/grants", `{"kind":"person","who":"1002","actions":{"read":"deny","write":"deny"}}`, sameSite); got.Code != http.StatusNoContent {
 		t.Fatalf("deny for bob: %d %s", got.Code, got.Body.String())
 	}
-	if got := s.send(http.MethodPut, "/api/objects/"+secret.ID+"/grants", `{"kind":"person","who":"u-bob","actions":{"read":"perhaps"}}`, sameSite).Code; got != http.StatusBadRequest {
+	if got := s.send(http.MethodPut, "/api/objects/"+secret.ID+"/grants", `{"kind":"person","who":"1002","actions":{"read":"perhaps"}}`, sameSite).Code; got != http.StatusBadRequest {
 		t.Errorf("an unknown value = %d", got)
 	}
 	if got := s.send(http.MethodPut, "/api/objects/"+secret.ID+"/grants", `{"kind":"agents","actions":{"read":"allow"}}`, sameSite).Code; got != http.StatusBadRequest {
@@ -66,7 +66,7 @@ func TestEntriesThroughTheAPI(t *testing.T) {
 	// The access check names the deciding entry.
 	check := decode[struct {
 		Actions []apiDecision `json:"actions"`
-	}](t, s.get("/api/rights/check?object="+secret.ID+"&account=u-bob"))
+	}](t, s.get("/api/rights/check?object="+secret.ID+"&account=1002"))
 	if len(check.Actions) == 0 || check.Actions[0].Action != "read" || check.Actions[0].Allowed || check.Actions[0].Value != "deny" ||
 		check.Actions[0].Object != secret.ID || check.Actions[0].Name != "Bob" {
 		t.Errorf("the check names bob's deny on the page: %+v", check.Actions)
@@ -117,7 +117,7 @@ func TestAgentsThroughTheGate(t *testing.T) {
 	s.send(http.MethodGet, "/api/state", "", plain)
 	s.send(http.MethodPost, "/api/objects/"+team.ID+"/access", `{"access":"read"}`, sameSite)
 	link := decode[apiLink](t, s.send(http.MethodPost, "/api/objects/"+team.ID+"/links", `{"mode":"edit"}`, sameSite))
-	bobsAgent := map[string]string{"Remote-Auth": "apikey", "Remote-User": "bob", "Remote-Id": "u-bob", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
+	bobsAgent := map[string]string{"Remote-Auth": "apikey", "Remote-User": "bob", "Remote-Id": "1002", "Remote-Name": "Bob", "Remote-Groups": "", "Sec-Fetch-Site": "same-origin"}
 	if got := s.send(http.MethodGet, pathOf(t, link.URL), "", bobsAgent).Code; got == http.StatusSeeOther {
 		t.Errorf("bob's agent took the link to edit")
 	}
@@ -164,14 +164,14 @@ func TestNestedGroupsThroughTheAPI(t *testing.T) {
 	}
 	company := make(`{"name":"Company"}`, sameSite)
 	sales := make(`{"name":"Sales","parent":"`+company.ID+`"}`, sameSite)
-	if got := s.send(http.MethodPut, "/api/groups/"+sales.ID+"/admins/u-bob", `{"admin":true}`, sameSite).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/groups/"+sales.ID+"/admins/1002", `{"admin":true}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("bob admin of Sales = %d", got)
 	}
 	north := make(`{"name":"North","parent":"`+sales.ID+`"}`, plain)
-	if got := s.send(http.MethodPut, "/api/groups/"+north.ID+"/members/u-carl", `{"member":true}`, plain).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/groups/"+north.ID+"/members/1003", `{"member":true}`, plain).Code; got != http.StatusNoContent {
 		t.Errorf("bob takes carl into North = %d", got)
 	}
-	if got := s.send(http.MethodPut, "/api/groups/"+company.ID+"/members/u-bob", `{"member":true}`, plain).Code; got != http.StatusForbidden {
+	if got := s.send(http.MethodPut, "/api/groups/"+company.ID+"/members/1002", `{"member":true}`, plain).Code; got != http.StatusForbidden {
 		t.Errorf("bob changes Company = %d", got)
 	}
 	if got := s.send(http.MethodPut, "/api/groups/"+north.ID+"/groups/"+company.ID, `{"member":true}`, sameSite).Code; got != http.StatusConflict {
@@ -190,7 +190,7 @@ func TestNestedGroupsThroughTheAPI(t *testing.T) {
 	page := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Handbook","parent":"`+team.ID+`"}`, sameSite))
 	s.send(http.MethodPut, "/api/objects/"+page.ID+"/inherit", `{"inherit":false}`, sameSite)
 	s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"tenant","role":""}`, sameSite)
-	s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"u-bob","role":""}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"person","who":"1002","role":""}`, sameSite)
 	if got := s.send(http.MethodPut, "/api/objects/"+page.ID+"/grants", `{"kind":"group","who":"`+company.ID+`","actions":{"read":"allow"}}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("grant to Company = %d", got)
 	}
@@ -213,7 +213,7 @@ func TestDenyInTheSearch(t *testing.T) {
 	addBlocks(t, s.site, open.ID, "Die Kartenzahlung beginnt mit der Taste Karte.")
 	closed := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Gehälter zur Kartenzahlung","parent":"`+team.ID+`"}`, sameSite))
 	addBlocks(t, s.site, closed.ID, "Kartenzahlung der Gehälter.")
-	if got := s.send(http.MethodPut, "/api/objects/"+closed.ID+"/grants", `{"kind":"person","who":"u-bob","actions":{"read":"deny"}}`, sameSite).Code; got != http.StatusNoContent {
+	if got := s.send(http.MethodPut, "/api/objects/"+closed.ID+"/grants", `{"kind":"person","who":"1002","actions":{"read":"deny"}}`, sameSite).Code; got != http.StatusNoContent {
 		t.Fatalf("deny = %d", got)
 	}
 	s.drain()
@@ -232,11 +232,11 @@ func TestDenyInTheSearch(t *testing.T) {
 	}
 	// The index alone keeps it from bob: its record lists the deny.
 	docs, err := s.db.SearchSource().Docs(tenant.With(context.Background(), tenant.Main), closed.ID)
-	if err != nil || len(docs) == 0 || docs[0].MayRead([]string{"all", "account:u-bob"}, false) || !docs[0].MayRead([]string{"all", "account:u-carl"}, false) {
+	if err != nil || len(docs) == 0 || docs[0].MayRead([]string{"all", "account:1002"}, false) || !docs[0].MayRead([]string{"all", "account:1003"}, false) {
 		t.Errorf("the record of the page denies bob and lets carl read: %+v %v", docs, err)
 	}
 	// A deny the index has not heard of yet holds at once: each hit is checked again.
-	s.send(http.MethodPut, "/api/objects/"+open.ID+"/grants", `{"kind":"person","who":"u-bob","actions":{"read":"deny"}}`, sameSite)
+	s.send(http.MethodPut, "/api/objects/"+open.ID+"/grants", `{"kind":"person","who":"1002","actions":{"read":"deny"}}`, sameSite)
 	if got := ids(s.find("q=Kartenzahlung", bob)); len(got) != 0 {
 		t.Errorf("before the index catches up bob finds %v", got)
 	}

@@ -123,7 +123,8 @@ comes from.
     space with no agents cannot let agents in by breaking it. Agents can only be denied: an allow for Agents would give
     every agent what its person may not hold.
   - The way of signing in reaches the check through `account.User.AuthKind`: a session of the sign-in pages is a
-    session, the gate's `Remote-Auth` is read as `Remote-User` is until T-27 takes it from the checked result, and an
+    session, the gate's `Remote-Auth` ~~is read as `Remote-User` is until T-27 takes it from the checked result~~ comes from
+    the result of the gate's Go client (ADR-32, 2026-11-23), and an
     empty or unknown value is an agent. An agent is no administrator for its request, takes no share link for its
     person and makes no app password for the share, since the share decides each person as a person.
   - Moving to another place needs delete on the object and on everything below it, as a deletion does, and create where

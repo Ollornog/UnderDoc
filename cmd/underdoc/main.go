@@ -9,7 +9,6 @@
 //	UNDERDOC_HEALTH_ADDR    address of the health endpoint ("127.0.0.1:8081")
 //	UNDERDOC_SCAN_INTERVAL  how often the folder is checked for changes ("2s")
 //	UNDERDOC_DEV_UI         "1" turns on the component gallery at /dev/ui
-//	UNDERDOC_ADMIN_GROUP    the group of the gate whose members see the administration ("underdoc-admins")
 //	UNDERDOC_DEV_USER       a login that stands in for the gate, for development on one machine only
 //	UNDERDOC_DATABASE_URL   PostgreSQL for accounts and what is made in the web (none: the folder is all there is)
 //	UNDERDOC_TENANTS        "one" tenant, or "many" found by their host name, which needs the database ("one")
@@ -27,6 +26,8 @@
 //	UNDERDOC_TEXT_WAYS, _TEXT_MAX_SIZE, UNDERDOC_TESSERACT, UNDERDOC_AI_OCR_PAGES_USER, _TENANT
 //	                        how the text of files is read for the search (docs/files.md)
 //	UNDERDOC_SEARCH_*       the search service, see search.go and docs/search.md
+//	UNDERDOC_GATE_*, UNDERDOC_ADMIN_ROLE
+//	                        the sign-in gate and its client, see gate.go and docs/sign-in.md
 //
 // Export, import and tenants need the database (docs/export.md, docs/tenants.md). --tenant names the tenant, Main
 // without it:
@@ -173,7 +174,6 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	}
 	options := web.Options{
 		DevUI:        os.Getenv("UNDERDOC_DEV_UI") == "1",
-		AdminGroup:   env("UNDERDOC_ADMIN_GROUP", "underdoc-admins"),
 		Tenants:      env("UNDERDOC_TENANTS", tenant.ModeOne),
 		TenantDomain: os.Getenv("UNDERDOC_TENANT_DOMAIN"),
 		Gate:         os.Getenv("UNDERDOC_GATE"),
@@ -181,6 +181,13 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 	}
 	if options.Modules, err = module.ParsePolicy(os.Getenv("UNDERDOC_MODULES")); err != nil {
 		return err
+	}
+	gateConfig, err := readGateConfig(log)
+	if err != nil {
+		return err
+	}
+	if options.GateClient, err = account.NewGate(gateConfig); err != nil {
+		return fmt.Errorf("gate: %w", err)
 	}
 	keys, err := vault.NewRotating(os.Getenv(vault.KeyEnv), os.Getenv(vault.OldKeyEnv))
 	if err != nil {
@@ -261,7 +268,8 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 		log.Warn("the search service needs the database (UNDERDOC_DATABASE_URL); the folder is searched in memory")
 	}
 	if login := os.Getenv("UNDERDOC_DEV_USER"); login != "" {
-		options.DevUser = &account.User{ID: login, Login: login, Name: login, Groups: []string{options.AdminGroup}}
+		// It stands for the account with the lasting ID 1 of a gate, an administrator.
+		options.DevUser = &account.User{ID: "1", RemoteID: "1", Login: login, Name: login, Groups: []string{options.GateClient.AdminRole()}}
 		log.Warn("UNDERDOC_DEV_USER is set: every request counts as signed in, never use this behind a real gate", slog.String("user", login))
 	}
 	handler, err := web.New(lib, log, options)

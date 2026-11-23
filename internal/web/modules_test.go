@@ -32,7 +32,7 @@ func documents(states []apiModule) apiModule {
 // TestModulesSwitchOffWithoutLoss (ADR-25): the administrator switches Documents off, and its entries, addresses and
 // API are gone for everyone, but nothing of it is deleted: switched on again, everything is back.
 func TestModulesSwitchOffWithoutLoss(t *testing.T) {
-	s, _ := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, _ := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	team := admin.sharedCollection(`{"title":"Team"}`)
@@ -84,7 +84,7 @@ func TestModulesSwitchOffWithoutLoss(t *testing.T) {
 // TestTheHosterDecidesWhatATenantMayUse: a module the hoster does not allow is off whatever the tenant switches, and
 // what the instance does not allow is off for everyone.
 func TestTheHosterDecidesWhatATenantMayUse(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{AdminGroup: "underdoc-admins"})
+	s, database := signInSite(t, gateOnly, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	if err := database.SetTenantLimits(context.Background(), tenant.Main, db.HosterLimits{Modules: []string{}}); err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestTheHosterDecidesWhatATenantMayUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	strict := newClientWith(t, newSite(t, Options{DB: database, AdminGroup: "underdoc-admins", Modules: none}, sample), gateHeaders)
+	strict := newClientWith(t, newSite(t, Options{DB: database, Modules: none}, sample), gateHeaders)
 	if m := documents(stateOf(t, strict).Modules); m.Allowed || m.On {
 		t.Errorf("not allowed by the instance: %+v", m)
 	}
@@ -114,7 +114,7 @@ func TestTheHosterDecidesWhatATenantMayUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	off, _ := module.ParsePolicy("documents:off")
-	fresh := newClientWith(t, newSite(t, Options{DB: database, AdminGroup: "underdoc-admins", Modules: off}, sample), gateHeaders)
+	fresh := newClientWith(t, newSite(t, Options{DB: database, Modules: off}, sample), gateHeaders)
 	if m := documents(stateOf(t, fresh).Modules); !m.Allowed || !m.On {
 		t.Errorf("the switch of the tenant counts over the default of the instance: %+v", m)
 	}

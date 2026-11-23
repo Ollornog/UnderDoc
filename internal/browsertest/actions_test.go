@@ -64,7 +64,7 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 	// The access check, for bob and for an agent of anna.
 	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
 	b.clickOn(`[data-act="sec"][data-id="check"]`, 1)
-	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + page, "account": "bob"})
+	b.submit(`[data-rights="check"] [data-rform="who"]`, map[string]string{"object": "/o/" + page, "account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-decisions] tr[data-decision="write"]')?.innerText || '').includes('❌ denied')`) {
 		t.Fatalf("bob may not write: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
 	}
@@ -120,7 +120,7 @@ func TestNestedGroupsInTheTabRights(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('[data-group-detail="Company"] [data-subgroup="ops"]')`) {
 		t.Errorf("ops from the sign-in is inside Company: %s", b.eval(`document.querySelector('[data-group-detail="Company"]')?.innerText`))
 	}
-	b.submit(`[data-group-detail="Company"] form[data-rform="groupadmin"]`, map[string]string{"account": "bob"})
+	b.submit(`[data-group-detail="Company"] form[data-rform="groupadmin"]`, map[string]string{"account": "1002"})
 	if !b.waitFor(`(document.querySelector('[data-group-detail="Company"] [data-admins]')?.innerText || '').includes('Bob Kern')`) {
 		t.Errorf("bob is a group admin of Company: %s", b.eval(`document.querySelector('[data-group-detail="Company"]')?.innerText`))
 	}

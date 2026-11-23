@@ -41,7 +41,7 @@ func withFiles(t *testing.T) *filesSite {
 	}
 	database.SetLimits(db.Limits{MaxFile: 1 << 20, User: 2 << 20})
 	behindGate(t, database, tenant.Main)
-	return &filesSite{site: newSite(t, Options{DB: database, Store: s, AdminGroup: "underdoc-admins"}, sample), db: database, store: s}
+	return &filesSite{site: newSite(t, Options{DB: database, Store: s}, sample), db: database, store: s}
 }
 
 type rootsAnswer struct {
@@ -401,7 +401,7 @@ func TestTenantsShareNoFiles(t *testing.T) {
 	}
 	behindGate(t, database, tenant.Main, "acme")
 	st, _ := store.Open(t.TempDir())
-	s := &filesSite{site: newSite(t, Options{DB: database, Store: st, AdminGroup: "underdoc-admins", Tenants: tenant.ModeMany, TenantDomain: tenantDomain, TextWays: db.Ways{Browser: true, Server: true}}, sample),
+	s := &filesSite{site: newSite(t, Options{DB: database, Store: st, Tenants: tenant.ModeMany, TenantDomain: tenantDomain, TextWays: db.Ways{Browser: true, Server: true}}, sample),
 		db: database, store: st}
 	type made struct{ root, file, folder, upload, page, attachment string }
 	build := func(host string) made {

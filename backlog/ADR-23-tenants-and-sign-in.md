@@ -32,7 +32,8 @@ The third option, settled with the maintainer on 2026-11-16. This replaces ADR-5
   job of the proxy in front. Paths are not used, as they would share cookies and the CSP between tenants.
 - **A hoster administrator manages tenants only:** create, lock, delete, set quotas (storage, users) and allow modules. That
   role sees no content. Each tenant has administrators of its own.
-- **Sign-in is chosen per tenant** (with one tenant: per instance), any of:
+- *Replaced by ADR-32 (2026-11-23): sign-in only through the gate, checked by its Go client; this list, registration
+  and the passwords of local accounts go.* **Sign-in is chosen per tenant** (with one tenant: per instance), any of:
   - local accounts with a **passkey** (the default),
   - local accounts with name, password and **TOTP**,
   - local accounts with name and password only,
