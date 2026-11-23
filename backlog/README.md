@@ -36,7 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 4/10 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 4/12 erledigt
 
 ## Aufgaben
 
@@ -76,6 +76,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-34](T-34-archive-for-groups-and-spaces-and-a-members-preset.md)** Archive for groups and spaces, and a Members preset · M-30
 * ☐ **[T-35](T-35-folder-mode-reviewed-agent-changes-to-human-docume.md)** Folder mode "reviewed": changes by agents to human documentation wait as a proposal · M-20
 * ☐ **[T-36](T-36-inbox-list-ai-changes-to-check.md)** Inbox list "AI changes to check" · M-16
+* ☐ **[T-37](T-37-mcp-tools-second-round-conflict-diff-move-a-sectio.md)** MCP tools, second round: conflict diff, move a section, search filters, attachment text · M-30
 
 ## Fehler
 
@@ -83,6 +84,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[B-2](B-2-spreadsheet-attack-round-leftovers.md)** Spreadsheets, what the attack round of ADR-31 left open · M-2
 * ☑ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
 * ☑ **[B-4](B-4-review-of-b-3-service-accounts-get-admin-through-g.md)** Review of B-3: service accounts get admin through gate roles, archive bypass, facet leaks · M-30
+* ☐ **[B-5](B-5-review-of-b-4-and-the-mcp-core-rules-page-archive.md)** Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves · M-30
 
 ## Entscheidungen (ADR)
 
