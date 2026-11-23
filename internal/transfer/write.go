@@ -45,10 +45,12 @@ type dirMeta struct {
 	Description string `yaml:"description,omitempty"`
 	Access      string `yaml:"access,omitempty"`
 	// Inherit is false where the object breaks the inheritance of roles (ADR-29), and absent otherwise.
-	Inherit *bool         `yaml:"inherit,omitempty"`
-	Private bool          `yaml:"private,omitempty"`
-	Tags    markdown.Tags `yaml:"tags,omitempty,flow"`
-	Order   []entry       `yaml:"order,omitempty"`
+	Inherit *bool `yaml:"inherit,omitempty"`
+	Private bool  `yaml:"private,omitempty"`
+	// Archived marks an archived space (T-34): an import makes it archived again.
+	Archived bool          `yaml:"archived,omitempty"`
+	Tags     markdown.Tags `yaml:"tags,omitempty,flow"`
+	Order    []entry       `yaml:"order,omitempty"`
 }
 
 // entry is one place in the order of a directory: a file or directory by its name, or a line or a space by its ID.
@@ -192,7 +194,8 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 		if err != nil {
 			return entry{}, err
 		}
-		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Private: n.Private, Tags: n.Tags, Order: order}
+		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Private: n.Private,
+			Archived: n.Archived && n.Parent == "", Tags: n.Tags, Order: order}
 		return entry{Name: stem}, w.meta(sub, m)
 	}
 }

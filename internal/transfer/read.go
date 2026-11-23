@@ -291,7 +291,7 @@ func cleanTitle(title string) string {
 
 func cleanAccess(access string) (string, bool) {
 	switch access {
-	case "", "edit", "comment", "read", "manage", db.AccessNone:
+	case "", "edit", "comment", "read", "manage", db.RoleMembers, db.AccessNone:
 		return access, true
 	}
 	return "", false
@@ -451,9 +451,11 @@ func (r *reader) dir(dir, name string) (*db.Node, error) {
 	if access, ok := cleanAccess(m.Access); ok {
 		n.Access = access
 	} else {
-		r.warn(path.Join(dir, MetaFile), fmt.Sprintf("access %q is not manage, edit, comment, read or none, it was left out", m.Access))
+		r.warn(path.Join(dir, MetaFile), fmt.Sprintf("access %q is not manage, members, edit, comment, read or none, it was left out", m.Access))
 	}
 	n.Breaks = m.Inherit != nil && !*m.Inherit
+	// Only a collection at the top is archived; the import makes it archived (T-34).
+	n.Archived = m.Archived && n.Kind == db.KindCollection
 	kids, err := r.children(dir, m.Order)
 	n.Kids = kids
 	return n, err

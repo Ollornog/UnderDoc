@@ -104,10 +104,11 @@ makes an app password in its profile, and saving in Office or LibreOffice become
 
 **Rights** hold for documents and files alike: an owner, and the actions read, comment, create, write, delete, share and
 manage, each inherit, allow or deny, for persons, groups (local and nested, or taken over from the gate) and the
-whole tenant, with the roles read, comment, edit and manage as presets. The nearest entry wins, deny beats allow on the
+whole tenant, with the roles read, comment, edit, members (manage without delete) and manage as presets. The nearest entry wins, deny beats allow on the
 same level, and the built-in group Agents (every sign-in that is not a session, and every service account) can be denied
-as a ceiling. Groups are archived, never deleted; deleting for good from the trash is for the owner or an administrator in
-the browser, with the name typed in. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+as a ceiling. Groups are archived, never deleted, and a space goes into the archive without a limit: hidden from the tree
+and the search until asked for, read only through every door, restored by its owner or an administrator in the browser.
+Deleting for good from the trash is for the owner or an administrator in the browser, with the name typed in. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
 
 **Passwords in the text** are references, `::secret{id="…"}`: the value lives sealed in the database, shows as a mask
 with Reveal and Copy, comes from the server on a click only, and every reveal is logged. Whoever reads the page reveals

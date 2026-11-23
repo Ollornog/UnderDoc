@@ -220,7 +220,7 @@ func (t *mcpTools) failure(err error, what string) *mcp.CallToolResult {
 		return refusal(err.Error() + "\n" + findingLines(rule.Findings))
 	case errors.Is(err, db.ErrNotAllowed), errors.Is(err, db.ErrPrivate), errors.Is(err, db.ErrGroup), errors.Is(err, db.ErrSecretHeld):
 		return refusal("Not allowed: " + err.Error())
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace),
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrArchivePlace),
 		errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrQuota):
 		return refusal(err.Error())
 	}

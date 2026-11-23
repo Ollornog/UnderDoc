@@ -364,6 +364,9 @@ func filters(q search.Query) []string {
 			out = append(out, f.field+" IN "+list(f.values))
 		}
 	}
+	if len(q.Filters.NotCollections) > 0 {
+		out = append(out, "collection NOT IN "+list(q.Filters.NotCollections))
+	}
 	// Tags: every chosen tag must be there.
 	for _, tag := range q.Filters.Tags {
 		out = append(out, "tags = "+quote(tag))

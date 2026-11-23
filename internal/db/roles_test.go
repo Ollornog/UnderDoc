@@ -209,13 +209,20 @@ func TestTransferringOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	team, _ := db.createShared(ctx, anna, "Team")
-	if err := db.TransferOwner(ctx, team.ID, Actor{ID: bob.ID}, bob.ID); !errors.Is(err, ErrNotAllowed) {
+	if err := db.TransferOwner(asPerson(bob), team.ID, Actor{ID: bob.ID}, bob.ID); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("bob may not take it: %v", err)
 	}
-	if err := db.TransferOwner(ctx, team.ID, Actor{ID: anna.ID}, "nobody"); !errors.Is(err, ErrNotFound) {
+	if err := db.TransferOwner(asPerson(anna), team.ID, Actor{ID: anna.ID}, "nobody"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("to nobody: %v", err)
 	}
-	if err := db.TransferOwner(ctx, team.ID, Actor{ID: anna.ID}, bob.ID); err != nil {
+	// Only a person in the browser gives something away (T-34): not an agent, not without a request.
+	if err := db.TransferOwner(asAgent(anna), team.ID, Actor{ID: anna.ID}, bob.ID); !errors.Is(err, ErrAgent) {
+		t.Errorf("an agent of the owner transfers: %v", err)
+	}
+	if err := db.TransferOwner(ctx, team.ID, Actor{ID: anna.ID}, bob.ID); !errors.Is(err, ErrSession) {
+		t.Errorf("without a session: %v", err)
+	}
+	if err := db.TransferOwner(asPerson(anna), team.ID, Actor{ID: anna.ID}, bob.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := role(t, db, team.ID, bob.ID); got != RoleOwner {
@@ -224,14 +231,14 @@ func TestTransferringOwnership(t *testing.T) {
 	if got := role(t, db, team.ID, anna.ID); got != RoleEdit {
 		t.Errorf("anna keeps edit: %q", got)
 	}
-	if err := db.TransferOwner(ctx, team.ID, Actor{ID: carl.ID, Admin: true}, carl.ID); err != nil {
+	if err := db.TransferOwner(asPerson(carl), team.ID, Actor{ID: carl.ID, Admin: true}, carl.ID); err != nil {
 		t.Errorf("an administrator transfers: %v", err)
 	}
 	if got := role(t, db, team.ID, carl.ID); got != RoleOwner {
 		t.Errorf("carl owns Team: %q", got)
 	}
 	notes, _ := db.Collections(ctx, anna.ID)
-	if err := db.TransferOwner(ctx, notes[0].ID, Actor{ID: anna.ID}, bob.ID); !errors.Is(err, ErrPrivate) {
+	if err := db.TransferOwner(asPerson(anna), notes[0].ID, Actor{ID: anna.ID}, bob.ID); !errors.Is(err, ErrPrivate) {
 		t.Errorf("private notes are not given away: %v", err)
 	}
 	if err := db.SetGrant(ctx, notes[0].ID, Actor{ID: anna.ID}, ToPerson, bob.ID, RoleRead); !errors.Is(err, ErrPrivate) {

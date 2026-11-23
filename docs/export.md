@@ -9,6 +9,7 @@ export UNDERDOC_DATABASE_URL=postgres://underdoc@db/underdoc
 
 underdoc export ./backup                               # a new or empty directory, nothing is overwritten
 underdoc import --owner anna ./backup/Team "Team"      # a new collection owned by the account with the login anna
+underdoc import --archived --owner anna ./old "Old"    # the same, archived (docs/rights.md#archived-spaces)
 ```
 
 The web offers the same files for one collection, folder or page as a zip: "Export as files" in the right click menu of a
@@ -98,6 +99,10 @@ backup/
 - The directory becomes a new collection at the top, with the title given on the command line, owned by the account given
   with `--owner` (it must have signed in once). Its `.underdoc.yaml`, if any, gives the description, access level, order
   and, where it says so, privacy: imported private notes stay private to their new owner.
+- **The archive** (T-34): an archived space is exported with `archived: true` in its `.underdoc.yaml`, and imported it is
+  archived again ([rights.md](rights.md#archived-spaces)); `underdoc import --archived` archives the new space whatever
+  the directory says. Only the top of an import is archived, never a folder below it. The access level `members` (the
+  preset Members) is read like the others.
 - Directories become folders, or collections if their `.underdoc.yaml` says so. A directory beside a page with the same
   name, without a kind of its own, holds the children of that page. Entries starting with a dot, symbolic links and
   anything that is not a regular file are left out. Files that are not Markdown are named in the warnings and left out

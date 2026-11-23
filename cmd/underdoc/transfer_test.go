@@ -126,6 +126,14 @@ func TestExportAndImport(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout, `imported 2 objects into "Team again"`) || !strings.Contains(stdout, "2 got a new id") || !strings.Contains(errOut, plan.ID+" was taken") {
 		t.Errorf("into the same database, every ID is taken: exit %d, %q %q", code, stdout, errOut)
 	}
+	// --archived brings the space in archived (T-34).
+	code, stdout, _ = runCommand(t, "import", "--archived", "--owner", "anna", filepath.Join(out, "Team"), "Team archived")
+	if code != 0 || !strings.Contains(stdout, ", archived)") {
+		t.Errorf("an import into the archive: exit %d, %q", code, stdout)
+	}
+	if code, stdout, _ := runCommand(t, "import", "--owner", "anna", filepath.Join(out, "Team"), "Team plain"); code != 0 || strings.Contains(stdout, "archived") {
+		t.Errorf("an import without --archived: exit %d, %q", code, stdout)
+	}
 
 	_, other := database(t)
 	t.Setenv("UNDERDOC_DATABASE_URL", other)

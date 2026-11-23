@@ -368,15 +368,18 @@ type Object struct {
 	Area string
 	// PageKind is the kind of a page (T-20, ADR-33), one of package pagekind; empty for none and for every other object.
 	PageKind string
+	// Archived tells that the object is an archived space (T-34): kept without a limit, hidden from the tree and the
+	// search unless asked for, read only for everyone until it is restored. Only a collection at the top is.
+	Archived bool
 }
 
 const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(tenant_grant(id), ''), NOT inherit, private, created, changed, tags,
-	coalesce(width, ''), coalesce(contents, ''), template, area, page_kind`
+	coalesce(width, ''), coalesce(contents, ''), template, area, page_kind, archived IS NOT NULL`
 
 // fields are the places columns scans into, in their order.
 func fields(o *Object) []any {
 	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Breaks, &o.Private, &o.Created, &o.Changed, &o.Tags,
-		&o.Width, &o.Contents, &o.Template, &o.Area, &o.PageKind}
+		&o.Width, &o.Contents, &o.Template, &o.Area, &o.PageKind, &o.Archived}
 }
 
 func scan(row pgx.Row) (Object, error) {
@@ -481,10 +484,11 @@ func (db *DB) CreateCollection(ctx context.Context, owner account.User, title, p
 // not deleted never lies below one that is.
 const alive = `o.deleted_at IS NULL`
 
-// Collections returns the collections of the documents at the top that the viewer may see, in their order. The roots
-// of the view Files are collections too, and come from FileRoots.
+// Collections returns the collections of the documents at the top that the viewer may see, in their order, without the
+// archived ones (T-34), which ArchivedSpaces lists. The roots of the view Files are collections too, and come from
+// FileRoots.
 func (db *DB) Collections(ctx context.Context, viewer string) ([]Object, error) {
-	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND area = 'docs' AND `+alive+` AND `+visible+`
+	return db.list(ctx, `SELECT `+columns+` FROM objects o WHERE parent IS NULL AND kind = 'collection' AND area = 'docs' AND `+alive+` AND `+notArchived+` AND `+visible+`
 		ORDER BY private DESC, position, created`, viewer)
 }
 

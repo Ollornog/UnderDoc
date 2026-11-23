@@ -60,7 +60,11 @@ type apiNode struct {
 	Width    string `json:"width,omitempty"`
 	Contents string `json:"contents,omitempty"`
 	// Template tells that a page is offered as a template for new pages (M-8).
-	Template bool      `json:"template,omitempty"`
+	Template bool `json:"template,omitempty"`
+	// Archived tells that a space is archived, read only until it is restored; Archive that the viewer may archive or
+	// restore it: its owner or an administrator, in the browser (T-34).
+	Archived bool      `json:"archived,omitempty"`
+	Archive  bool      `json:"archive,omitempty"`
 	Kids     []apiNode `json:"kids"`
 }
 
@@ -119,6 +123,10 @@ type apiDocument struct {
 	Removed        []apiRemoved `json:"removed,omitempty"`
 	Checked        *apiChecked  `json:"checked,omitempty"`
 	MaintainedByAI bool         `json:"maintainedByAI,omitempty"`
+	// Archived tells that the object lies in an archived space, or is one, so it is read only; Archive that the viewer
+	// may archive or restore the space it is (T-34).
+	Archived bool `json:"archived,omitempty"`
+	Archive  bool `json:"archive,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.
@@ -179,6 +187,15 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.log.Error("collections failed", slog.String("error", err.Error()))
 		}
+		// The archive (T-34) comes only when asked for, after the others.
+		if documents && err == nil && r.URL.Query().Get("archive") == "1" {
+			var archived []db.Object
+			archived, err = h.options.DB.ArchivedSpaces(ctx, user.ID)
+			if err != nil {
+				h.log.Error("archive failed", slog.String("error", err.Error()))
+			}
+			collections = append(collections, slices.DeleteFunc(archived, func(o db.Object) bool { return o.Area != db.AreaDocs })...)
+		}
 		for _, c := range collections {
 			state.Collections = append(state.Collections, h.databaseNode(r, c, 0))
 		}
@@ -208,7 +225,11 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 func (h *handler) databaseNode(r *http.Request, o db.Object, depth int) apiNode {
 	user, _ := account.From(r.Context())
 	node := apiNode{ID: o.ID, Title: o.Title, Kind: o.Kind, Private: o.Private, Owner: h.options.DB.AccountName(r.Context(), o.Owner),
-		Access: o.Access, Breaks: o.Breaks, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template, Kids: []apiNode{}}
+		Access: o.Access, Breaks: o.Breaks, Mine: o.Owner == user.ID, Tags: o.Tags, Width: o.Width, Contents: o.Contents, Template: o.Template,
+		Archived: o.Archived, Kids: []apiNode{}}
+	if depth == 0 {
+		node.Archive = h.mayArchive(r, o)
+	}
 	role, err := h.options.DB.Role(r.Context(), o.ID, user.ID)
 	if err != nil {
 		h.log.Error("role failed", slog.String("error", err.Error()))
@@ -290,7 +311,8 @@ func (h *handler) apiDocument(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			writeJSON(w, http.StatusOK, apiDocument{ID: o.ID, Title: o.Title, Kind: o.Kind, Description: o.Description, Tags: tagList(o.Tags),
 				Path: "not a file, lives in the database", Changed: stamp(o.Changed), Intro: "", Sections: [][]string{},
-				UsedIn: []string{}, Links: []string{}, Stable: true, Owner: h.options.DB.AccountName(ctx, o.Owner), SeenBy: h.seenBy(r, o)})
+				UsedIn: []string{}, Links: []string{}, Stable: true, Owner: h.options.DB.AccountName(ctx, o.Owner), SeenBy: h.seenBy(r, o),
+				Archived: h.inArchive(r, o), Archive: o.Parent == "" && h.mayArchive(r, o)})
 			return
 		}
 		if !errors.Is(err, db.ErrNotFound) {

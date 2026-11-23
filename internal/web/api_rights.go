@@ -567,7 +567,7 @@ func (h *handler) apiSetAgentLimit(w http.ResponseWriter, r *http.Request) {
 }
 
 // roleWords are the roles as the interface names them.
-var roleWords = map[string]string{db.RoleRead: "read", db.RoleComment: "comment", db.RoleEdit: "edit", db.RoleManage: "manage", db.RoleOwner: "owner",
+var roleWords = map[string]string{db.RoleRead: "read", db.RoleComment: "comment", db.RoleEdit: "edit", db.RoleMembers: "members", db.RoleManage: "manage", db.RoleOwner: "owner",
 	db.PresetCustom: "custom"}
 
 // seenBy names who sees an object and with which role, the highest of each: the owner, the owners above, and every

@@ -360,6 +360,9 @@ func filters(q search.Query) []any {
 			out = append(out, map[string]any{"terms": map[string]any{f.field: f.values}})
 		}
 	}
+	if len(q.Filters.NotCollections) > 0 {
+		out = append(out, map[string]any{"bool": map[string]any{"must_not": []any{map[string]any{"terms": map[string]any{"collection": q.Filters.NotCollections}}}}})
+	}
 	for _, tag := range q.Filters.Tags {
 		out = append(out, map[string]any{"term": map[string]any{"tags": tag}})
 	}

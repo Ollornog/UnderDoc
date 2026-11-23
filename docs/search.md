@@ -108,6 +108,11 @@ errors. **Similar meaning** comes with AI (M-13) as a hybrid search of the same 
   Confluence: type, collection, author, the time of the last change, and tags that all must be there. Enter opens the
   first hit.
 - A hit opens its page at the section, scrolled there, with the matching words marked.
+- **The archive** (T-34, [rights.md](rights.md#archived-spaces)): records of archived spaces are left out by a filter on
+  their collection at the top (`collection NOT IN …` in Meilisearch, `must_not` in OpenSearch, the same in the search of
+  titles), so the counts beside the hits leave them out too. The filter *Also in the archive* (`archive=1`) takes them
+  in; a search limited to an archived space by its collection finds it as well. Nothing is indexed anew when a space is
+  archived or restored.
 
 ## Tests
 

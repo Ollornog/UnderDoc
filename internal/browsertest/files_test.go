@@ -120,7 +120,7 @@ func TestFilesByHand(t *testing.T) {
 	if !b.waitFor(`!!document.querySelector('[aria-label=Nav3] [data-act="fup"]')`) {
 		t.Fatalf("no upload in my files: %s", b.eval(`document.querySelector('[aria-label=Nav3]')?.innerText`))
 	}
-	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ')`); got != "Company, My files, New collection, Add a source" {
+	if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ')`); got != "Company, My files, New collection, Add a source, Show the archive" {
 		t.Errorf("the roots in nav2: %q", got)
 	}
 	picture, _ := base64.StdEncoding.DecodeString(pixel)
@@ -262,7 +262,7 @@ func TestFilesWaitForTheirRoots(t *testing.T) {
 	}
 	b.call("Fetch.continueRequest", map[string]any{"requestId": held.RequestID}, nil)
 	b.call("Fetch.disable", map[string]any{}, nil)
-	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source'`) {
+	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav2] [data-act="sec"] > span')].map(n => n.textContent).join(', ') === 'Company, My files, New collection, Add a source, Show the archive'`) {
 		t.Fatalf("the roots: %s", b.eval(`document.querySelector('[aria-label=Nav2]')?.innerText`))
 	}
 }

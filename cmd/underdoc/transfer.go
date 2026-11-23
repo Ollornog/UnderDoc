@@ -200,8 +200,8 @@ func accounts(private []db.Owned) int {
 }
 
 // importTree reads dir into a new collection of the account with the login owner, in the tenant of ctx. It never
-// changes what exists.
-func importTree(ctx context.Context, owner, dir, title string, stdout, stderr io.Writer) error {
+// changes what exists. With archived, or where the export says so, the new space is archived (T-34).
+func importTree(ctx context.Context, owner, dir, title string, archived bool, stdout, stderr io.Writer) error {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
@@ -216,6 +216,7 @@ func importTree(ctx context.Context, owner, dir, title string, stdout, stderr io
 		return err
 	}
 	defer database.Close()
+	tree.Archived = tree.Archived || archived
 	done, err := database.Import(ctx, owner, title, tree)
 	if err != nil {
 		return err
@@ -226,7 +227,11 @@ func importTree(ctx context.Context, owner, dir, title string, stdout, stderr io
 	for _, old := range slices.Sorted(maps.Keys(done.Renamed)) {
 		fmt.Fprintf(stderr, "new id: %s was taken or not valid, it is %s now\n", old, done.Renamed[old])
 	}
-	fmt.Fprintf(stdout, "imported %d objects into %q (%s), %d got a new id\n", done.Objects, done.Top.Title, done.Top.ID, len(done.Renamed))
+	state := ""
+	if done.Top.Archived {
+		state = ", archived"
+	}
+	fmt.Fprintf(stdout, "imported %d objects into %q (%s%s), %d got a new id\n", done.Objects, done.Top.Title, done.Top.ID, state, len(done.Renamed))
 	return nil
 }
 

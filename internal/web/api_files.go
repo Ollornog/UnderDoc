@@ -48,6 +48,10 @@ type apiRoot struct {
 	Limit   int64  `json:"limit"`
 	Used    int64  `json:"used"`
 	CanEdit bool   `json:"canEdit"`
+	// Archived tells that the collection is archived and read only; Archive that the viewer may archive or restore it
+	// (T-34).
+	Archived bool `json:"archived,omitempty"`
+	Archive  bool `json:"archive,omitempty"`
 }
 
 type apiFileEntry struct {
@@ -145,11 +149,19 @@ func (h *handler) apiFileRoots(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "roots") {
 		return
 	}
+	// The archive (T-34) comes only when asked for, after the others.
+	if r.URL.Query().Get("archive") == "1" {
+		archived, err := h.options.DB.ArchivedFileRoots(ctx, user.ID)
+		if h.failed(w, err, "roots") {
+			return
+		}
+		roots = append(roots, archived...)
+	}
 	out := make([]apiRoot, 0, len(roots))
 	for _, root := range roots {
 		out = append(out, apiRoot{ID: root.ID, Title: root.Title, Role: root.Role, Private: root.Private, Mine: root.Owner == user.ID,
 			Access: root.Access, Writers: root.Writers, Quota: root.Quota, Limit: root.Limit, Used: root.Used,
-			CanEdit: h.options.DB.MayEdit(ctx, root.Object, user.ID)})
+			CanEdit: h.options.DB.MayEdit(ctx, root.Object, user.ID), Archived: root.Archived, Archive: h.mayArchive(r, root.Object)})
 	}
 	ways, err := h.options.DB.TextWays(ctx, h.options.TextWays, user.ID)
 	if h.failed(w, err, "roots") {

@@ -8,6 +8,23 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **An archive for spaces, and the preset Members** (T-34, ADR-36 part 3, [docs/rights.md](docs/rights.md#archived-spaces),
+  migration 037). A space (a collection at the top of the documents or of Files) is archived by its owner or an
+  administrator in the browser, never by an agent, a service account, a key or an app password, and restored by the same
+  people (`PUT /api/objects/<id>/archive`, buttons in the overview of the space and at the root in Files). It keeps
+  everything without a limit, is hidden from the tree, the search and the MCP tools `context` and `search` until asked
+  for (*Show the archive*, the filter *Also in the archive*, `archive=1`, `archived`), and is read only for everyone,
+  its owner included: one rule of the one check refuses comment, create, write, delete and share inside it, so the API,
+  MCP and its upload links, Samba, uploads in the browser and share links hold it alike. Manage stays, so who may read it
+  can still be set. An export marks an archived space and an import brings it back archived; `underdoc import --archived`
+  archives what it makes, and `db.ImportGroup` makes archived groups for the import of T-28. The preset **Members** is
+  every action but delete: it manages members and rights, but deletes and archives nothing. Attack round with tests:
+  archiving and restoring by an agent, a key, an app password, a service account with the administrators' role, an
+  editor, a holder of Members and another site; writing into the archive through the API, MCP, an upload link made
+  before, an upload started before, the share and a share link; the search, its counts and the tree of MCP telling of
+  the archive unasked or to someone who may not read it; Members giving edit, manage or delete, to the tenant, by taking
+  a deny back or by restoring the inheritance. 44 mutations, all red.
+
 - **UnderDoc as an MCP server, part 2: writing, structure and files** (T-21, ADR-34, [docs/mcp.md](docs/mcp.md#writing),
   migration 036): `write` (a page, or the section a block opens, as Markdown with its block markers, against the version
   read; `<!-- block -->` starts a new block; a page changed since is refused with "page changed since you read it"),
@@ -94,6 +111,13 @@ All notable changes to this project are documented in this file. The format foll
   agent, each action with ✅ or ❌, the deciding entry and the object it is on. Browser tests for both.
 
 ### Changed
+
+- **Nobody opens up what they do not hold** (T-34, ADR-36 part 3): whoever manages an object allows an action, or takes a
+  deny of it back, only where they hold that action themselves, also for the whole tenant and through the level of the
+  workspace; restoring the inheritance needs all seven actions. Taking back and denying stay open. Administrators are not
+  bound. A link to comment or edit lends only the actions its maker still holds.
+- **Transferring the ownership** needs a browser session (T-34): never an agent, a service account, a key or an app
+  password.
 
 - **A word takes a typing error from four letters on** (T-24, [docs/search.md](docs/search.md)), in Meilisearch
   (`oneTypo: 4`) and OpenSearch (`AUTO:4,9`): measured with eight new questions of the kind `typo-short` in the German

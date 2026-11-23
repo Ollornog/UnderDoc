@@ -33,8 +33,20 @@ request; entries that are no preset show as **custom**.
 | **Read** | read |
 | **Comment** | read, comment |
 | **Edit** | read, comment, create, write, delete |
+| **Members** | read, comment, create, write, share, manage: everything but delete (T-34) |
 | **Manage** | all seven |
-| **Owner** | all seven, and transferring the ownership; nobody takes it away |
+| **Owner** | all seven, and transferring the ownership and archiving a space; nobody takes it away |
+
+**Members** manages who may do what (members and rights) and edits, but deletes nothing and archives nothing; **Manage**
+keeps delete. The team wiki's *moderator* is Members ([T-28](../backlog/T-28-import-and-export-of-a-git-markdown-wiki-with-a-ro.md)).
+
+**Nobody gives what they do not hold** (T-34): whoever manages an object only opens up the actions they hold there
+themselves, that is allows one or takes back a deny of one, also for the whole tenant and through the level of the
+workspace (`/access`). Narrowing is always allowed: taking an allow back, denying. So a holder of Members gives Read,
+Comment and Members, takes any role back, but gives no Edit or Manage (`403`). **Restoring the inheritance** may open up
+anything from above, so only whoever holds all seven actions there does it; breaking it copies what holds and is open to
+every manager. A **link** to comment or edit lends only the actions its maker still holds, as long as the maker may still
+share it. Administrators manage rights whatever they hold.
 
 **The owner** is one person per object, whoever made it. Entries go to
 
@@ -95,6 +107,43 @@ entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc 
   - it gets no new entry, member, admin or group inside, is put inside no group, becomes no new reader of a password,
   and is offered nowhere for a grant. Its entries can still be taken back, and a reader of a password it already is stays
   while the list is written anew (B-4).
+
+## Archived spaces
+
+A space is **archived** instead of left in the way or deleted (T-34). Only the space itself, a collection at the top of the
+documents or of Files, is: a space has one owner who answers for it; what lies inside one is moved to a space of its own
+first. The folder of the workspace and the folders of users among Files, and private notes, are never archived.
+
+- **Who:** its **owner** or an **administrator**, in a **browser session** (`Remote-Auth: session`), never an agent, a
+  service account, a key or an app password, as deleting for good. Neither Manage nor Members archives, nor do group
+  admins. Restoring is for the same people. The workspace offers it in the overview of the space (`archive` in
+  `/api/state`).
+- **Kept:** everything inside it, its entries and its links, **without a limit**: the archive is not the trash, and nothing
+  goes by itself. What already lay in the trash of the space goes after 30 days as always.
+- **Hidden:** the tree (`/api/state`, `/api/files`), the search and the tree of MCP leave archived spaces out, unless
+  asked for (`archive=1`, the button *Show the archive* below the collections and below the roots of Files, the filter
+  *Also in the archive* of the results page, `archived` of the MCP tools `context` and `search`), or unless the search
+  names the space as its collection. An address still opens what lies inside, for whoever may read it.
+- **Read only for everyone**, the owner and administrators included, until it is restored: the one check refuses
+  comment, create, write, delete and share inside it (`archived` as the deciding entry of the access check). So every door
+  holds it at once: the web, the API, MCP and its upload links (also one made before), Samba (read only for everyone),
+  uploads in the browser (also one started before), share links (a link lends nothing and opens nothing while its maker
+  may not share, which nobody may in the archive; restoring brings them back unless they expired), copying in, moving in
+  or out, restoring from the trash into it, renaming it. Read stays as the entries say, and so does **manage**: who may
+  read the archive can still be set, opening up only read and manage (above). Copying out needs read here and create
+  there. The owner and administrators still transfer it.
+- **In the database** the columns `objects.archived` and `archived_by` (migration 037) mark a space; a check keeps them on
+  a collection at the top that is not private. The log names archiving and restoring (`archive`).
+- **An import** brings an archived space archived: an export marks it (`archived: true` in its `.underdoc.yaml`), and
+  `underdoc import --archived` archives what it makes ([export.md](export.md)). Groups that arrive archived are made by
+  `db.ImportGroup`, which only runs without a request, as the command line does ([T-28](../backlog/T-28-import-and-export-of-a-git-markdown-wiki-with-a-ro.md)).
+
+```text
+PUT /api/objects/<id>/archive    {"archived": true}   archives a space; false restores it: owner or administrator, session
+GET /api/state?archive=1         the archived spaces of the documents too, after the others, each "archived": true
+GET /api/files?archive=1         the archived collections of Files too
+GET /api/search?…&archive=1      the archived spaces too
+```
 
 ## Spaces
 
@@ -191,6 +240,9 @@ Administrators of the tenant ([sign-in.md](sign-in.md)) **manage rights, not con
 of every object that is not private, whatever a deny says, break and restore its inheritance and transfer its ownership,
 and they make local groups and manage them. They read the content of an object only where the entries let them, like
 everyone else. Their agents manage nothing.
+
+**Transferring the ownership** is for the owner and administrators, in a browser session only (T-34): never an agent, a
+service account, a key or an app password.
 
 **What someone left behind:** UnderDoc deactivates no account; the gate or the identity provider ends the sign-in. An
 administrator asks "what may they do" for that account in the tab Rights, which lists what it owns by title, and
@@ -290,11 +342,12 @@ deny and `subgroups`. The column `objects.inherit` says whether an object takes 
 GET    /api/objects/<id>/rights              owner, own entries, inherited entries, denies on Agents above, the viewer's role
                                              and actions; each holder with its "role" (preset or "custom"), "actions" and
                                              "subgroups"
-PUT    /api/objects/<id>/grants              {"kind": "person|group|tenant", "who": "<id>", "role": "read|comment|edit|manage|"}
+PUT    /api/objects/<id>/grants              {"kind": "person|group|tenant", "who": "<id>", "role": "read|comment|edit|members|manage|"}
 PUT    /api/objects/<id>/grants              {"kind": "person|group|tenant|agents", "who": "<id>",
                                               "actions": {"read": "allow", "write": "deny"}, "subgroups": true}
 PUT    /api/objects/<id>/inherit             {"inherit": false}   break; true restores
-PUT    /api/objects/<id>/owner               {"to": "<account id>"}
+PUT    /api/objects/<id>/owner               {"to": "<account id>"}   owner or administrator, in a browser session
+PUT    /api/objects/<id>/archive             {"archived": true|false}   a space: owner or administrator, session (above)
 POST   /api/objects/<id>/access              {"access": "edit|comment|read|"}   the level for the whole tenant (ADR-20)
 GET    /api/people                           accounts and groups to grant roles to
 GET    /api/groups                           administrators: all; everyone else: their own and those they manage

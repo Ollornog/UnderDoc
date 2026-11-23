@@ -4,8 +4,9 @@
 // tab through UDRights.nav3 and opens the dialog through UDRights.open; this script keeps what it loaded and asks the
 // workspace to draw again when something arrives.
 window.UDRights = (() => {
-  const ROLES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["manage", "Manage"]];
-  const ROLEWORD = { read: "read", comment: "comment", edit: "edit", manage: "manage", owner: "owner", custom: "custom" };
+  // Members (T-34) manages members and rights like Manage, but deletes nothing and archives nothing.
+  const ROLES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["members", "Members"], ["manage", "Manage"]];
+  const ROLEWORD = { read: "read", comment: "comment", edit: "edit", members: "members", manage: "manage", owner: "owner", custom: "custom" };
   const ACTIONS = ["read", "comment", "create", "write", "delete", "share", "manage"];
   const ACTIONWORD = { read: "Read", comment: "Comment", create: "Create", write: "Write", delete: "Delete", share: "Share", manage: "Manage" };
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
