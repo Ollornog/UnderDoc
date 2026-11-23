@@ -39,29 +39,34 @@ func (f *sambaFixture) bobEditsCompany() (inbox, archive db.Object) {
 	return inbox, archive
 }
 
-// An editor may not move a file to another folder: that needs manage on the file (ADR-29, 2026-11-19). Over SMB the
-// move is taken as whoever the audit names; once Bob pushes his rename out of the audit's ring with harmless listings,
-// the pass falls back to the owner of the file and takes the move as Anna, who may.
+// An editor may not move a file into a folder of their own, where they would come to share it and manage its rights as
+// the owner above (ADR-36; ADR-29, 2026-11-19, asked manage for every move). Samba lets the rename through, since Bob
+// writes in both folders; over SMB the move is taken as whoever the audit names. Once Bob pushes his rename out of the
+// audit's ring with harmless listings, the pass falls back to the owner of the file and takes the move as Anna, who may.
 func TestSambaAttackAuditFloodMovesAsOwner(t *testing.T) {
 	f := setupSamba(t)
 	ctx := inMain()
-	inbox, archive := f.bobEditsCompany()
+	inbox, _ := f.bobEditsCompany()
+	mine, err := f.db.CreateFolder(ctx, bob, "Mine", f.company.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.put(anna, "Company", "Inbox/contract.txt", "signed")
 	f.sync(tenant.Main)
 	file := f.fileNamed(inbox.ID, "contract.txt")
 	f.sync(tenant.Main) // the helper hands the new file over to UnderDoc's UID
 
 	// Without the flood the audit names Bob, the database refuses, and the file goes back: the baseline.
-	if out, err := f.smb(tenant.Main, bob, "", "Company", `rename Inbox\contract.txt Archive\contract.txt`, ""); err != nil || strings.Contains(out, "NT_STATUS") {
+	if out, err := f.smb(tenant.Main, bob, "", "Company", `rename Inbox\contract.txt Mine\contract.txt`, ""); err != nil || strings.Contains(out, "NT_STATUS") {
 		t.Fatalf("Bob's rename on the share: %v %s", err, out)
 	}
 	f.sync(tenant.Main)
 	if o, err := f.db.Object(ctx, file.ID, anna.ID); err != nil || o.Parent != inbox.ID {
-		t.Fatalf("baseline: the move of an editor was taken: %+v %v", o, err)
+		t.Fatalf("baseline: an editor's move into a folder of his own was taken: %+v %v", o, err)
 	}
 
 	// Now the same move, followed by enough listings to push it out of the ring of 4096 events.
-	commands := `rename Inbox\contract.txt Archive\contract.txt` + strings.Repeat("; ls", 5000)
+	commands := `rename Inbox\contract.txt Mine\contract.txt` + strings.Repeat("; ls", 5000)
 	if out, err := f.smb(tenant.Main, bob, "", "Company", commands, ""); err != nil {
 		t.Fatalf("Bob's rename and listings: %v %s", err, lastLines(out))
 	}
@@ -70,8 +75,8 @@ func TestSambaAttackAuditFloodMovesAsOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.Parent == archive.ID {
-		t.Errorf("an editor moved Anna's file to Archive over SMB: the move was taken as its owner once the audit forgot Bob")
+	if o.Parent == mine.ID {
+		t.Errorf("an editor moved Anna's file into his own folder over SMB: the move was taken as its owner once the audit forgot Bob")
 	}
 }
 
