@@ -7,7 +7,7 @@ and PostgreSQL are not in that file: they run however an installation runs them 
 | Service | For | Profile | Port (loopback only) | UnderDoc settings |
 |---|---|---|---|---|
 | Meilisearch | The search (ADR-24, [search.md](search.md)), the default engine | always | 7700 | `UNDERDOC_SEARCH_URL=http://127.0.0.1:7700`, the key in the file named by `UNDERDOC_SEARCH_KEY_FILE` or in `UNDERDOC_SEARCH_KEY` |
-| Mailpit | Catching every mail in development and tests (M-7, M-22); it delivers nothing | always | 1025 (SMTP), 8025 (web) | none yet: UnderDoc sends no mail so far |
+| Mailpit | Catching every mail in development and tests (M-7, M-22); it delivers nothing | always | 1025 (SMTP), 8025 (web) | none yet: UnderDoc sends no mail so far (until M-22, `scripts/check-services.sh` stands in for it) |
 | OpenSearch | The search, as the choice of ADR-24 | `opensearch` | 9200 | `UNDERDOC_SEARCH_ENGINE=opensearch`, `UNDERDOC_SEARCH_URL=http://127.0.0.1:9200` |
 | Gotenberg | Previews of Office files ([files.md](files.md)) | `office` | 3000 | `UNDERDOC_OFFICE_URL=http://127.0.0.1:3000` |
 
@@ -36,8 +36,10 @@ lost its data, `underdoc reindex` fills it again; a new index is filled by itsel
   `http://meilisearch:7700`; `127.0.0.1` inside a container is the container itself.
 - The search engines run the versions the tests use (`scripts/search/Dockerfile.*`); `tests/test_repo.py` holds the
   file to them, and Dependabot moves them there. `scripts/check-services.sh` (in the CI) starts the services from this
-  file: Meilisearch has to take over a database of the version before, Gotenberg has to turn a spreadsheet into a PDF.
-  Mailpit has no test, so updates of this file are still looked at by hand.
+  file: Meilisearch has to take over a database of the version before, Gotenberg has to turn a spreadsheet into a PDF,
+  Mailpit has to hand a mail sent over SMTP out of its API with subject, recipient and text (`internal/mailpit`, tag
+  `mailpit`). So a green check accepts an update of any of the three, and Dependabot's updates of this file merge by
+  themselves. UnderDoc sends no mail yet; once M-22 does, this test becomes the test of the real dispatch.
 
 ## Updating Meilisearch
 

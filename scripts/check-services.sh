@@ -6,6 +6,8 @@
 #     upgrade the new version refuses to start, and so would the search of every installation after an update.
 #   - Gotenberg (profile office): a real spreadsheet becomes a PDF through the client of the preview
 #     (internal/files, tag office).
+#   - Mailpit: a mail sent over SMTP has to come out of its API with subject, recipient and text (internal/mailpit, tag
+#     mailpit). UnderDoc sends no mail yet; once M-22 does, this becomes the test of the real dispatch.
 #
 # This is the acceptance test for updates of these images. Like scripts/check-image.sh it needs Docker and runs in the
 # required check of the CI; locally: sg docker -c scripts/check-services.sh
@@ -33,6 +35,8 @@ services:
     ports: !reset []
   gotenberg:
     ports: !override ["127.0.0.1::3000"]
+  mailpit:
+    ports: !override ["127.0.0.1::1025", "127.0.0.1::8025"]
 networks:
   default:
     name: $run
@@ -84,5 +88,13 @@ compose up -d --wait --wait-timeout 120 gotenberg >/dev/null 2>&1 || { compose l
 port="$(compose port gotenberg 3000 | sed 's/.*://')"
 UNDERDOC_TEST_OFFICE_URL="http://127.0.0.1:$port" go test -count=1 -tags office -run '^TestTheOfficeModuleConverts$' -v ./internal/files/ ||
     fail "the office module does not convert through Gotenberg"
+
+echo "▸ Mailpit: a mail goes in over SMTP and comes out of the API"
+compose up -d --wait --wait-timeout 120 mailpit >/dev/null 2>&1 || { compose logs --no-color --tail 20 mailpit >&2 || true; fail "Mailpit does not start"; }
+smtp_port="$(compose port mailpit 1025 | sed 's/.*://')"
+api_port="$(compose port mailpit 8025 | sed 's/.*://')"
+UNDERDOC_TEST_MAILPIT_SMTP="127.0.0.1:$smtp_port" UNDERDOC_TEST_MAILPIT_API="127.0.0.1:$api_port" \
+    go test -count=1 -tags mailpit -run '^TestMailpitCatchesAMail$' -v ./internal/mailpit/ ||
+    fail "Mailpit does not hand a mail sent over SMTP out of its API"
 
 printf '✓ the services of deploy/compose.yml work\n'

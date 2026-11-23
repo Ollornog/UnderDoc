@@ -119,9 +119,9 @@ updates:
     commit-message:
       prefix: "deps"
   # The services next to UnderDoc (deploy/compose.yml). scripts/check-services.sh accepts Meilisearch (the upgrade of a
-  # filled database) and Gotenberg (a conversion); Mailpit has no test, so this ecosystem is not in the auto-merge and an
-  # update is looked at by hand. The search engines are left out here: they follow the pins of scripts/search, which
-  # tests/test_repo.py holds them to, so one update moves them everywhere.
+  # filled database), Gotenberg (a conversion) and Mailpit (a mail in over SMTP, out of the API), so a green check is the
+  # acceptance and the auto-merge takes the update. The search engines are left out here: they follow the pins of
+  # scripts/search, which tests/test_repo.py holds them to, so one update moves them everywhere.
   - package-ecosystem: docker-compose
     directory: /deploy
     cooldown:
