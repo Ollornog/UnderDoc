@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -80,29 +81,18 @@ type Actor struct {
 	Admin bool
 }
 
-// visible is a condition on o: the viewer ($1) holds a role on it (ADR-29). The function object_role decides, the same
-// for every query that lists, finds or opens objects.
-const visible = `object_role(o.id, $1) > 0`
+// visible is a condition on o: the viewer ($1) may read it (ADR-36). The function object_may decides, the same for
+// every query that lists, finds or opens objects, and a deny on read holds through every one of them.
+const visible = `object_may(o.id, $1, 'read')`
 
-// Role returns the role of an account on an object it sees, RoleNone where it sees nothing.
+// Role returns the role of ADR-29 an account holds on an object it sees, RoleNone where it sees nothing: owner, or the
+// widest preset all of whose actions it may do. It names what the interface shows; the actions decide.
 func (db *DB) Role(ctx context.Context, objectID, viewer string) (string, error) {
 	var rank int
 	if err := db.pool.QueryRow(ctx, "SELECT object_role($1, $2)", objectID, viewer).Scan(&rank); err != nil {
 		return RoleNone, err
 	}
 	return roleOf(rank), nil
-}
-
-// may tells whether the viewer holds at least the role on an object.
-func (db *DB) may(ctx context.Context, o Object, viewer, role string) error {
-	held, err := db.Role(ctx, o.ID, viewer)
-	if err != nil {
-		return err
-	}
-	if Rank(held) < Rank(role) {
-		return ErrNotAllowed
-	}
-	return nil
 }
 
 // isPrivate tells whether an object or anything above it is private.
@@ -116,10 +106,14 @@ func isPrivate(ctx context.Context, q execer, objectID string) (bool, error) {
 	return private, err
 }
 
-// forRights returns an object whose rights the actor may manage: one they manage, or, for an administrator, any that is
-// alive and not private. Something private, or something the actor does not see and does not administer, is not found;
+// forRights returns an object whose rights the actor may manage: one they may manage, or, for an administrator, any that
+// is alive and not private, whatever a deny says (administrators manage rights, not content, ADR-36). Something private, or something the actor does not see and does not administer, is not found;
 // one they see but may not manage is not allowed.
 func (db *DB) forRights(ctx context.Context, objectID string, actor Actor) (Object, error) {
+	// Agents never manage rights, administrators' agents included (ADR-36).
+	if err := noAgent(ctx); err != nil {
+		return Object{}, err
+	}
 	o, err := db.Object(ctx, objectID, actor.ID)
 	if errors.Is(err, ErrNotFound) && actor.Admin {
 		o, err = scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects o WHERE id = $1 AND `+alive, objectID))
@@ -146,46 +140,75 @@ func (db *DB) forRights(ctx context.Context, objectID string, actor Actor) (Obje
 	if actor.Admin {
 		return o, nil
 	}
-	if err := db.may(ctx, o, actor.ID, RoleManage); err != nil {
+	if err := db.mayDo(ctx, o, actor.ID, ActManage); err != nil {
 		return Object{}, err
 	}
 	return o, nil
 }
 
-// Grant is a role granted on an object.
+// Grant is what one holder is granted on an object: its entries per action (ADR-36), and the preset they make.
 type Grant struct {
 	Object string
-	// Kind is ToPerson, ToGroup or ToTenant, and Who the account or the group; empty for the tenant.
+	// Kind is ToPerson, ToGroup, ToTenant or ToAgents, and Who the account or the group; empty for the tenant and Agents.
 	Kind, Who string
 	// Name is how the interface names Who: the name of the account or of the group.
 	Name string
+	// Role is the preset the entries make: a role of ADR-29, PresetCustom, or RoleNone.
 	Role string
-	By   string
-	At   time.Time
+	// Actions maps each action with an entry to Allow or Deny; an action without one inherits.
+	Actions map[string]string
+	// Subgroups is whether a grant to a group holds for the groups inside it too (the default).
+	Subgroups bool
+	By        string
+	At        time.Time
 }
 
-// Rights are the roles that hold on an object: its owner, its own grants, and what it inherits from above.
+// Rights are the entries that hold on an object: its owner, its own entries, and what it inherits from above.
 type Rights struct {
 	Owner, OwnerName string
-	// Private tells that the object is private: its owner alone sees it, and no grant counts.
+	// Private tells that the object is private: its owner alone sees it, and no entry counts.
 	Private bool
 	// Inherit is false where the object breaks the inheritance.
 	Inherit bool
 	Own     []Grant
-	// Inherited are the grants of the objects above, up to where the inheritance breaks, with the object each is on; the
-	// owners of those objects manage and are listed as such.
+	// Inherited are the entries of the objects above, up to where the inheritance breaks, nearest first, with the object
+	// each is on; the owners of those objects hold every action there and are listed as such.
 	Inherited []Grant
+	// Agents are the denies on Agents above, which hold as a ceiling whatever breaks the inheritance.
+	Agents []Grant
 }
 
-const grantColumns = `g.object, g.kind, g.who, CASE g.kind WHEN 'person' THEN coalesce(a.name, g.who) WHEN 'group' THEN coalesce(gr.name, g.who)
-	ELSE '' END, g.role, g.granted_by, g.granted_at`
-
-const grantJoins = ` LEFT JOIN accounts a ON g.kind = 'person' AND a.id = g.who LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who`
+// grantsQuery reads the entries of one object, a row per holder.
+const grantsQuery = `SELECT g.object, g.kind, g.who,
+		CASE g.kind WHEN 'person' THEN coalesce(min(a.name), g.who) WHEN 'group' THEN coalesce(min(gr.name), g.who) WHEN 'agents' THEN 'Agents' ELSE '' END,
+		array_agg(g.action ORDER BY g.action), array_agg(g.value ORDER BY g.action), bool_and(g.subgroups),
+		(array_agg(g.granted_by ORDER BY g.granted_at DESC))[1], max(g.granted_at)
+	FROM grants g LEFT JOIN accounts a ON g.kind = 'person' AND a.id = g.who LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
+	WHERE g.object = $1 AND ($2 OR g.kind = 'agents')
+	GROUP BY g.object, g.kind, g.who
+	ORDER BY CASE g.kind WHEN 'agents' THEN 0 WHEN 'tenant' THEN 1 WHEN 'group' THEN 2 ELSE 3 END,
+		lower(coalesce(min(a.name), min(gr.name), '')), g.who`
 
 func scanGrant(row pgx.CollectableRow) (Grant, error) {
 	var g Grant
-	err := row.Scan(&g.Object, &g.Kind, &g.Who, &g.Name, &g.Role, &g.By, &g.At)
+	var actions, values []string
+	err := row.Scan(&g.Object, &g.Kind, &g.Who, &g.Name, &actions, &values, &g.Subgroups, &g.By, &g.At)
+	g.Actions = map[string]string{}
+	for i, action := range actions {
+		if i < len(values) {
+			g.Actions[action] = values[i]
+		}
+	}
+	g.Role = PresetOf(g.Actions)
 	return g, err
+}
+
+func (db *DB) grantsOn(ctx context.Context, objectID string, all bool) ([]Grant, error) {
+	rows, err := db.pool.Query(ctx, grantsQuery, objectID, all)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, scanGrant)
 }
 
 // RightsOf returns the rights of an object. Whoever sees the object reads them (the facts panel names who sees it), and
@@ -202,51 +225,72 @@ func (db *DB) RightsOf(ctx context.Context, objectID string, actor Actor) (Right
 	if r.Private, err = isPrivate(ctx, db.pool, o.ID); err != nil || r.Private {
 		return r, err
 	}
-	rows, err := db.pool.Query(ctx, `SELECT `+grantColumns+` FROM grants g`+grantJoins+` WHERE g.object = $1
-		ORDER BY CASE g.kind WHEN 'tenant' THEN 0 WHEN 'group' THEN 1 ELSE 2 END, lower(coalesce(a.name, gr.name, '')), g.who`, objectID)
-	if err != nil {
+	if r.Own, err = db.grantsOn(ctx, objectID, true); err != nil {
 		return Rights{}, err
 	}
-	if r.Own, err = pgx.CollectRows(rows, scanGrant); err != nil {
-		return Rights{}, err
-	}
-	if o.Breaks {
-		return r, nil
-	}
+	inheriting := !o.Breaks
 	for x := o; x.Parent != ""; {
 		var parent Object
 		parent, err = scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects WHERE id = $1`, x.Parent))
 		if err != nil {
 			return Rights{}, err
 		}
-		r.Inherited = append(r.Inherited, Grant{Object: parent.ID, Kind: ToPerson, Who: parent.Owner, Name: db.AccountName(ctx, parent.Owner),
-			Role: RoleManage})
-		rows, err := db.pool.Query(ctx, `SELECT `+grantColumns+` FROM grants g`+grantJoins+` WHERE g.object = $1
-			ORDER BY CASE g.kind WHEN 'tenant' THEN 0 WHEN 'group' THEN 1 ELSE 2 END, lower(coalesce(a.name, gr.name, '')), g.who`, parent.ID)
+		above, err := db.grantsOn(ctx, parent.ID, inheriting)
 		if err != nil {
 			return Rights{}, err
 		}
-		above, err := pgx.CollectRows(rows, scanGrant)
-		if err != nil {
-			return Rights{}, err
+		if inheriting {
+			// The owner of something above holds every action there, as an allow on that level.
+			r.Inherited = append(r.Inherited, Grant{Object: parent.ID, Kind: ToPerson, Who: parent.Owner, Name: db.AccountName(ctx, parent.Owner),
+				Role: RoleManage, Actions: allowAll(), Subgroups: true})
 		}
-		r.Inherited = append(r.Inherited, above...)
+		for _, g := range above {
+			if g.Kind == ToAgents {
+				r.Agents = append(r.Agents, g)
+			} else {
+				r.Inherited = append(r.Inherited, g)
+			}
+		}
 		if parent.Breaks {
-			break
+			inheriting = false
 		}
 		x = parent
 	}
 	return r, nil
 }
 
-// SetGrant grants a role on an object to a person, a group or the tenant, or takes it back with RoleNone. The actor
-// must manage the object, or administer the tenant; nobody grants owner, and nothing private gets grants (ADR-29).
+func allowAll() map[string]string {
+	m := map[string]string{}
+	for _, a := range Actions {
+		m[a] = Allow
+	}
+	return m
+}
+
+// SetGrant grants a preset (a role of ADR-29) on an object to a person, a group or the tenant, or takes every entry of
+// that holder back with RoleNone: SetEntries with the actions of the preset, all allowed, with subgroups.
 func (db *DB) SetGrant(ctx context.Context, objectID string, actor Actor, kind, who, role string) error {
 	if role != RoleNone && !grantable(role) {
 		return ErrRole
 	}
+	actions := map[string]string{}
+	for _, a := range PresetActions(role) {
+		actions[a] = Allow
+	}
+	return db.SetEntries(ctx, objectID, actor, kind, who, actions, true)
+}
+
+// ErrEntry is an entry that cannot be: an unknown action or value, an allow for Agents (Agents only narrow), or an
+// entry for Agents on something that is not a place of its own.
+var ErrEntry = errors.New("no such entry: an action is read, comment, create, write, delete, share or manage, each allow or deny, and Agents can only be denied")
+
+// SetEntries sets every entry of one holder on an object at once (ADR-36): each action maps to Allow or Deny, and an
+// action left out inherits. No action at all takes the holder away. The actor must manage the object, or administer
+// the tenant; nothing private gets entries (ADR-29). Subgroups says whether a grant to a group holds for the groups
+// inside it too.
+func (db *DB) SetEntries(ctx context.Context, objectID string, actor Actor, kind, who string, actions map[string]string, subgroups bool) error {
 	switch kind {
-	case ToTenant:
+	case ToTenant, ToAgents:
 		who = ""
 	case ToPerson, ToGroup:
 		if who == "" {
@@ -255,15 +299,37 @@ func (db *DB) SetGrant(ctx context.Context, objectID string, actor Actor, kind, 
 	default:
 		return ErrRole
 	}
-	if _, err := db.forRights(ctx, objectID, actor); err != nil {
+	if kind != ToGroup {
+		subgroups = true
+	}
+	keys := make([]string, 0, len(actions))
+	for action, value := range actions {
+		if !IsAction(action) || (value != Allow && value != Deny && value != Inherit) {
+			return ErrEntry
+		}
+		if kind == ToAgents && value == Allow {
+			return ErrEntry
+		}
+		if value != Inherit {
+			keys = append(keys, action)
+		}
+	}
+	slices.SortFunc(keys, func(a, b string) int { return slices.Index(Actions, a) - slices.Index(Actions, b) })
+	o, err := db.forRights(ctx, objectID, actor)
+	if err != nil {
 		return err
 	}
-	if role == RoleNone {
-		_, err := db.pool.Exec(ctx, "DELETE FROM grants WHERE object = $1 AND kind = $2 AND who = $3", objectID, kind, who)
-		return err
+	// In a library shared over Samba a deny on a single file would hide it in the web and show it on the share, which
+	// knows rights per folder only (ADR-29, ADR-36): it is refused, as breaking the inheritance of a file is.
+	if o.Kind == KindFile && kind != ToAgents && slices.ContainsFunc(keys, func(a string) bool { return actions[a] == Deny }) {
+		if root, err := db.sharedRootOf(ctx, db.pool, objectID); err != nil || root != "" {
+			if err == nil {
+				err = ErrPerFolder
+			}
+			return err
+		}
 	}
 	var known bool
-	var err error
 	switch kind {
 	case ToPerson:
 		err = db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", who).Scan(&known)
@@ -275,23 +341,47 @@ func (db *DB) SetGrant(ctx context.Context, objectID string, actor Actor, kind, 
 	if err != nil {
 		return err
 	}
-	if !known {
+	if !known && len(keys) > 0 {
 		return ErrNotFound
 	}
-	return setGrant(ctx, db.pool, objectID, kind, who, role, actor.ID)
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		return setEntries(ctx, tx, objectID, kind, who, keys, actions, subgroups, actor.ID)
+	})
 }
 
-// setGrant writes one grant, replacing what that one held before.
+// setEntries replaces the entries of one holder on an object with those named by keys, in one statement.
+func setEntries(ctx context.Context, q execer, objectID, kind, who string, keys []string, actions map[string]string, subgroups bool, by string) error {
+	values := make([]string, len(keys))
+	for i, k := range keys {
+		values[i] = actions[k]
+	}
+	var n int
+	return q.QueryRow(ctx, `WITH gone AS (
+			DELETE FROM grants WHERE object = $1 AND kind = $2 AND who = $3 AND NOT (action = ANY ($4::text[]))
+		), made AS (
+			INSERT INTO grants (object, kind, who, action, value, subgroups, granted_by)
+			SELECT $1, $2, $3, a, v, $6, $7 FROM unnest($4::text[], $5::text[]) AS x(a, v)
+			ON CONFLICT (tenant, object, kind, who, action) DO UPDATE
+				SET value = EXCLUDED.value, subgroups = EXCLUDED.subgroups, granted_by = EXCLUDED.granted_by, granted_at = now()
+			RETURNING 1
+		) SELECT count(*) FROM made`, objectID, kind, who, nonNil(keys), nonNil(values), subgroups, by).Scan(&n)
+}
+
+// setGrant writes the preset of a role for one holder, replacing what that one held before.
 func setGrant(ctx context.Context, q execer, objectID, kind, who, role, by string) error {
-	var done bool
-	return q.QueryRow(ctx, `INSERT INTO grants (object, kind, who, role, granted_by) VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (tenant, object, kind, who) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, granted_at = now()
-		RETURNING true`, objectID, kind, who, role, by).Scan(&done)
+	actions := map[string]string{}
+	keys := PresetActions(role)
+	for _, a := range keys {
+		actions[a] = Allow
+	}
+	return setEntries(ctx, q, objectID, kind, who, keys, actions, true, by)
 }
 
 // SetInherit breaks the inheritance of an object, or restores it. Breaking copies what held from above onto the object,
-// so nobody loses access by surprise; the manager then takes back what shall not hold (ADR-29). A collection at the top
-// has nothing above it.
+// for each holder and action the nearest entry, so nobody gains anything and nobody loses access by surprise where the
+// entries above do not overlap; the manager then takes back what shall not hold (ADR-29, ADR-36). Where entries above
+// overlap (an allow for someone nearer, a deny for a group of theirs farther up), deny on the one level now wins. The
+// denies on Agents are not copied: they hold as a ceiling anyway. A collection at the top has nothing above it.
 func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inherit bool) error {
 	o, err := db.forRights(ctx, objectID, actor)
 	if err != nil {
@@ -322,43 +412,63 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 		copied = r.Inherited
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		// The highest role of each one, as a copy may name someone twice.
-		best := map[[2]string]string{}
-		for _, g := range copied {
-			key := [2]string{g.Kind, g.Who}
-			if Rank(g.Role) > Rank(best[key]) {
-				best[key] = g.Role
-			}
-		}
-		own := map[[2]string]string{}
-		rows, err := tx.Query(ctx, "SELECT kind, who, role FROM grants WHERE object = $1", objectID)
+		type holder struct{ kind, who string }
+		own := map[holder]map[string]bool{}
+		rows, err := tx.Query(ctx, "SELECT kind, who, action FROM grants WHERE object = $1", objectID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			var kind, who, role string
-			if err := rows.Scan(&kind, &who, &role); err != nil {
+			var kind, who, action string
+			if err := rows.Scan(&kind, &who, &action); err != nil {
 				return err
 			}
-			own[[2]string{kind, who}] = role
+			h := holder{kind, who}
+			if own[h] == nil {
+				own[h] = map[string]bool{}
+			}
+			own[h][action] = true
 		}
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		keys := make([][2]string, 0, len(best))
-		for key := range best {
-			keys = append(keys, key)
+		// Nearest first: the first entry of a holder for an action is the one that held.
+		type entry struct {
+			value     string
+			subgroups bool
 		}
-		slices.SortFunc(keys, func(a, b [2]string) int { return strings.Compare(a[0]+"\x00"+a[1], b[0]+"\x00"+b[1]) })
-		for _, key := range keys {
-			if key[0] == ToPerson && key[1] == o.Owner {
+		taken := map[holder]map[string]entry{}
+		var order []holder
+		for _, g := range copied {
+			h := holder{g.Kind, g.Who}
+			if h.kind == ToPerson && h.who == o.Owner {
 				continue
 			}
-			if Rank(own[key]) >= Rank(best[key]) {
-				continue
+			if taken[h] == nil {
+				taken[h] = map[string]entry{}
+				order = append(order, h)
 			}
-			if err := setGrant(ctx, tx, objectID, key[0], key[1], best[key], actor.ID); err != nil {
-				return err
+			for _, a := range Actions {
+				v, ok := g.Actions[a]
+				if !ok {
+					continue
+				}
+				if _, done := taken[h][a]; done || own[h][a] {
+					continue
+				}
+				taken[h][a] = entry{v, g.Subgroups}
+			}
+		}
+		for _, h := range order {
+			for _, a := range Actions {
+				e, ok := taken[h][a]
+				if !ok {
+					continue
+				}
+				if _, err := tx.Exec(ctx, `INSERT INTO grants (object, kind, who, action, value, subgroups, granted_by) VALUES ($1, $2, $3, $4, $5, $6, $7)
+					ON CONFLICT DO NOTHING`, objectID, h.kind, h.who, a, e.value, e.subgroups || h.kind != ToGroup, actor.ID); err != nil {
+					return err
+				}
 			}
 		}
 		_, err = tx.Exec(ctx, "UPDATE objects SET inherit = $2, changed = now() WHERE id = $1", objectID, inherit)
@@ -367,7 +477,8 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 }
 
 // TransferOwner gives an object to another account of the tenant. Only the owner or an administrator does; the former
-// owner keeps the role edit, which can be taken back like any other (ADR-29).
+// owner keeps the preset edit for every action of it they hold no entry for, which can be taken back like any other
+// (ADR-29).
 func (db *DB) TransferOwner(ctx context.Context, objectID string, actor Actor, to string) error {
 	o, err := db.forRights(ctx, objectID, actor)
 	if err != nil {
@@ -393,47 +504,48 @@ func (db *DB) TransferOwner(ctx context.Context, objectID string, actor Actor, t
 		if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE object = $1 AND kind = 'person' AND who = $2", objectID, to); err != nil {
 			return err
 		}
-		var held string
-		err := tx.QueryRow(ctx, "SELECT role FROM grants WHERE object = $1 AND kind = 'person' AND who = $2", objectID, o.Owner).Scan(&held)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if Rank(held) >= Rank(RoleEdit) {
-			return nil
-		}
-		return setGrant(ctx, tx, objectID, ToPerson, o.Owner, RoleEdit, actor.ID)
+		_, err := tx.Exec(ctx, `INSERT INTO grants (object, kind, who, action, value, granted_by)
+			SELECT $1, 'person', $2, a, 'allow', $3 FROM unnest(preset_actions('edit')) AS a ON CONFLICT DO NOTHING`, objectID, o.Owner, actor.ID)
+		return err
 	})
 }
 
 // --- Groups
 
-// Group is a group of accounts: local, or taken over from the sign-in.
+// Group is a group of accounts: local, or taken over from the sign-in. A local group contains persons, other local
+// groups and groups taken over; membership is passed down (ADR-36).
 type Group struct {
 	ID          string
 	Name        string
 	Source      string
 	Description string
-	Members     int
-	Created     time.Time
+	// Members counts the persons in it directly, Groups the groups in it directly.
+	Members int
+	Groups  int
+	Created time.Time
 }
 
 const groupColumns = `g.id, g.name, g.source, g.description,
 	CASE g.source WHEN 'local' THEN (SELECT count(*) FROM group_members m WHERE m.grp = g.id)
-		ELSE (SELECT count(*) FROM accounts a WHERE g.name = ANY (a.groups)) END, g.created`
+		ELSE (SELECT count(*) FROM accounts a WHERE g.name = ANY (a.groups)) END,
+	(SELECT count(*) FROM group_groups gg WHERE gg.grp = g.id), g.created`
 
 func scanGroup(row pgx.Row) (Group, error) {
 	var g Group
-	err := row.Scan(&g.ID, &g.Name, &g.Source, &g.Description, &g.Members, &g.Created)
+	err := row.Scan(&g.ID, &g.Name, &g.Source, &g.Description, &g.Members, &g.Groups, &g.Created)
 	return g, err
 }
 
-// Groups returns every group of the tenant, by name.
-func (db *DB) Groups(ctx context.Context) ([]Group, error) {
-	rows, err := db.pool.Query(ctx, `SELECT `+groupColumns+` FROM groups g ORDER BY lower(g.name), g.source, g.id`)
+func collectGroups(rows pgx.Rows, err error) ([]Group, error) {
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Group, error) { return scanGroup(row) })
+}
+
+// Groups returns every group of the tenant, by name.
+func (db *DB) Groups(ctx context.Context) ([]Group, error) {
+	return collectGroups(db.pool.Query(ctx, `SELECT `+groupColumns+` FROM groups g ORDER BY lower(g.name), g.source, g.id`))
 }
 
 // GroupOf returns one group.
@@ -445,25 +557,132 @@ func (db *DB) GroupOf(ctx context.Context, groupID string) (Group, error) {
 	return g, err
 }
 
-// GroupsOf returns the IDs of the groups an account belongs to.
+// GroupsOf returns the IDs of the groups an account belongs to, directly and through the groups that contain those.
 func (db *DB) GroupsOf(ctx context.Context, accountID string) ([]string, error) {
 	var groups []string
 	err := db.pool.QueryRow(ctx, "SELECT account_groups($1)", accountID).Scan(&groups)
 	return nonNil(groups), err
 }
 
+// DirectGroupsOf returns the IDs of the groups an account belongs to directly: a grant to a group without its
+// subgroups holds for these only.
+func (db *DB) DirectGroupsOf(ctx context.Context, accountID string) ([]string, error) {
+	var groups []string
+	err := db.pool.QueryRow(ctx, "SELECT account_direct_groups($1)", accountID).Scan(&groups)
+	return nonNil(groups), err
+}
+
+// SubGroups returns the groups directly inside a group, by name.
+func (db *DB) SubGroups(ctx context.Context, groupID string) ([]Group, error) {
+	return collectGroups(db.pool.Query(ctx, `SELECT `+groupColumns+` FROM group_groups x JOIN groups g ON g.id = x.member WHERE x.grp = $1
+		ORDER BY lower(g.name), g.source, g.id`, groupID))
+}
+
+// ParentGroups returns the groups a group is directly inside, by name.
+func (db *DB) ParentGroups(ctx context.Context, groupID string) ([]Group, error) {
+	return collectGroups(db.pool.Query(ctx, `SELECT `+groupColumns+` FROM group_groups x JOIN groups g ON g.id = x.grp WHERE x.member = $1
+		ORDER BY lower(g.name), g.source, g.id`, groupID))
+}
+
+// GroupAdmins returns the admins of a group, by name.
+func (db *DB) GroupAdmins(ctx context.Context, groupID string) ([]Member, error) {
+	rows, err := db.pool.Query(ctx, `SELECT a.id, a.login, a.name FROM group_admins x JOIN accounts a ON a.id = x.account WHERE x.grp = $1
+		ORDER BY lower(a.name), a.login`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, scanMember)
+}
+
+func scanMember(row pgx.CollectableRow) (Member, error) {
+	var m Member
+	err := row.Scan(&m.ID, &m.Login, &m.Name)
+	return m, err
+}
+
+// AdministeredGroups returns the IDs of the groups an account administers as a group admin: those it is an admin of,
+// and every group inside them at any depth (ADR-36).
+func (db *DB) AdministeredGroups(ctx context.Context, accountID string) ([]string, error) {
+	var groups []string
+	err := db.pool.QueryRow(ctx, `WITH RECURSIVE down(id) AS (
+			SELECT grp FROM group_admins WHERE account = $1
+			UNION SELECT gg.member FROM group_groups gg JOIN down ON gg.grp = down.id
+		) SELECT coalesce(array_agg(id ORDER BY id), '{}') FROM down`, accountID).Scan(&groups)
+	return nonNil(groups), err
+}
+
+// ErrGroupAdmin is a change of a group by someone who administers neither the tenant nor the group or a group above it.
+var ErrGroupAdmin = fmt.Errorf("%w: only administrators and the admins of this group or of a group above it change it", ErrNotAllowed)
+
+// mayAdministerGroup refuses whoever may not manage a group: administrators of the tenant manage every group, the admins
+// of a group manage it and the groups inside it (ADR-36). Agents manage no group.
+func (db *DB) mayAdministerGroup(ctx context.Context, actor Actor, groupID string) error {
+	if err := noAgent(ctx); err != nil {
+		return err
+	}
+	if actor.Admin {
+		return nil
+	}
+	mine, err := db.AdministeredGroups(ctx, actor.ID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(mine, groupID) {
+		return ErrGroupAdmin
+	}
+	return nil
+}
+
+// MayAdministerGroup tells whether the actor manages a group.
+func (db *DB) MayAdministerGroup(ctx context.Context, actor Actor, groupID string) (bool, error) {
+	err := db.mayAdministerGroup(ctx, actor, groupID)
+	if isNotAllowed(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // ErrGroupName is a name of a group that is empty, too long, or taken by another local group.
 var ErrGroupName = errors.New("a group has a name of 1 to 200 characters that no other local group has")
 
-// CreateGroup makes a local group. Only administrators do; the caller checks.
-func (db *DB) CreateGroup(ctx context.Context, name, description string) (Group, error) {
+// CreateGroup makes a local group. Administrators make one anywhere; the admin of a group makes one inside it, which then
+// is inside it from the start (parent).
+func (db *DB) CreateGroup(ctx context.Context, actor Actor, name, description, parent string) (Group, error) {
 	name, description = strings.TrimSpace(name), strings.TrimSpace(description)
 	if n := len([]rune(name)); n < 1 || n > 200 || len([]rune(description)) > 1000 {
 		return Group{}, ErrGroupName
 	}
+	if parent == "" {
+		if err := noAgent(ctx); err != nil {
+			return Group{}, err
+		}
+		if !actor.Admin {
+			return Group{}, ErrGroupAdmin
+		}
+	} else {
+		p, err := db.GroupOf(ctx, parent)
+		if err != nil {
+			return Group{}, err
+		}
+		if p.Source != GroupLocal {
+			return Group{}, ErrGroup
+		}
+		if err := db.mayAdministerGroup(ctx, actor, parent); err != nil {
+			return Group{}, err
+		}
+	}
 	for attempt := 0; ; attempt++ {
 		groupID := id.New()
-		_, err := db.pool.Exec(ctx, "INSERT INTO groups (id, name, source, description) VALUES ($1, $2, 'local', $3)", groupID, name, description)
+		err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, "INSERT INTO groups (id, name, source, description) VALUES ($1, $2, 'local', $3)", groupID, name, description); err != nil {
+				return err
+			}
+			if parent == "" {
+				return nil
+			}
+			_, err := tx.Exec(ctx, "INSERT INTO group_groups (grp, member) VALUES ($1, $2)", parent, groupID)
+			return err
+		})
 		if isUnique(err, "groups_tenant_source_name_key") {
 			return Group{}, ErrGroupName
 		}
@@ -477,34 +696,39 @@ func (db *DB) CreateGroup(ctx context.Context, name, description string) (Group,
 	}
 }
 
-// RenameGroup gives a local group a new name and description.
-func (db *DB) RenameGroup(ctx context.Context, groupID, name, description string) error {
+// localGroup returns a local group the actor manages.
+func (db *DB) localGroup(ctx context.Context, actor Actor, groupID string) (Group, error) {
 	g, err := db.GroupOf(ctx, groupID)
 	if err != nil {
-		return err
+		return Group{}, err
 	}
 	if g.Source != GroupLocal {
-		return ErrGroup
+		return Group{}, ErrGroup
+	}
+	return g, db.mayAdministerGroup(ctx, actor, groupID)
+}
+
+// RenameGroup gives a local group a new name and description.
+func (db *DB) RenameGroup(ctx context.Context, actor Actor, groupID, name, description string) error {
+	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
+		return err
 	}
 	name, description = strings.TrimSpace(name), strings.TrimSpace(description)
 	if n := len([]rune(name)); n < 1 || n > 200 || len([]rune(description)) > 1000 {
 		return ErrGroupName
 	}
-	_, err = db.pool.Exec(ctx, "UPDATE groups SET name = $2, description = $3 WHERE id = $1", groupID, name, description)
+	_, err := db.pool.Exec(ctx, "UPDATE groups SET name = $2, description = $3 WHERE id = $1", groupID, name, description)
 	if isUnique(err, "groups_tenant_source_name_key") {
 		return ErrGroupName
 	}
 	return err
 }
 
-// DeleteGroup deletes a local group with its members and every role granted to it.
-func (db *DB) DeleteGroup(ctx context.Context, groupID string) error {
-	g, err := db.GroupOf(ctx, groupID)
-	if err != nil {
+// DeleteGroup deletes a local group with its members and every entry granted to it. The groups inside it stay, and are
+// no longer inside it.
+func (db *DB) DeleteGroup(ctx context.Context, actor Actor, groupID string) error {
+	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
 		return err
-	}
-	if g.Source != GroupLocal {
-		return ErrGroup
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE kind = 'group' AND who = $1", groupID); err != nil {
@@ -524,7 +748,7 @@ type Member struct {
 	ID, Login, Name string
 }
 
-// GroupMembers returns the members of a group, by name.
+// GroupMembers returns the persons directly in a group, by name.
 func (db *DB) GroupMembers(ctx context.Context, groupID string) ([]Member, error) {
 	g, err := db.GroupOf(ctx, groupID)
 	if err != nil {
@@ -540,21 +764,13 @@ func (db *DB) GroupMembers(ctx context.Context, groupID string) ([]Member, error
 	if err != nil {
 		return nil, err
 	}
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Member, error) {
-		var m Member
-		err := row.Scan(&m.ID, &m.Login, &m.Name)
-		return m, err
-	})
+	return pgx.CollectRows(rows, scanMember)
 }
 
 // SetMember adds an account to a local group, or takes it out.
-func (db *DB) SetMember(ctx context.Context, groupID, accountID string, member bool) error {
-	g, err := db.GroupOf(ctx, groupID)
-	if err != nil {
+func (db *DB) SetMember(ctx context.Context, actor Actor, groupID, accountID string, member bool) error {
+	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
 		return err
-	}
-	if g.Source != GroupLocal {
-		return ErrGroup
 	}
 	if !member {
 		_, err := db.pool.Exec(ctx, "DELETE FROM group_members WHERE grp = $1 AND account = $2", groupID, accountID)
@@ -567,7 +783,64 @@ func (db *DB) SetMember(ctx context.Context, groupID, accountID string, member b
 	if !known {
 		return ErrNotFound
 	}
-	_, err = db.pool.Exec(ctx, "INSERT INTO group_members (grp, account) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, accountID)
+	_, err := db.pool.Exec(ctx, "INSERT INTO group_members (grp, account) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, accountID)
+	return err
+}
+
+// ErrGroupCycle is a group put inside itself, directly or through the groups inside it.
+var ErrGroupCycle = errors.New("a group cannot be inside itself, also not through the groups inside it")
+
+// SetSubgroup puts a group inside a local group, or takes it out (ADR-36). The inner group may be local or taken over
+// from the sign-in; a group taken over contains nothing. A cycle is refused, checked by the database under a lock.
+func (db *DB) SetSubgroup(ctx context.Context, actor Actor, groupID, memberID string, on bool) error {
+	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
+		return err
+	}
+	if !on {
+		_, err := db.pool.Exec(ctx, "DELETE FROM group_groups WHERE grp = $1 AND member = $2", groupID, memberID)
+		return err
+	}
+	inner, err := db.GroupOf(ctx, memberID)
+	if err != nil {
+		return err
+	}
+	if groupID == memberID {
+		return ErrGroupCycle
+	}
+	// A group admin puts only a local group inside theirs that they manage already: inside it, they would manage it.
+	if inner.Source == GroupLocal {
+		if err := db.mayAdministerGroup(ctx, actor, memberID); err != nil {
+			return err
+		}
+	}
+	_, err = db.pool.Exec(ctx, "INSERT INTO group_groups (grp, member) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, memberID)
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "23514" && (pg.ConstraintName == "group_groups_cycle" || pg.ConstraintName == "group_groups_check") {
+		return ErrGroupCycle
+	}
+	if errors.As(err, &pg) && pg.Code == "23514" && pg.ConstraintName == "group_groups_local" {
+		return ErrGroup
+	}
+	return err
+}
+
+// SetGroupAdmin makes an account an admin of a local group, or takes that back.
+func (db *DB) SetGroupAdmin(ctx context.Context, actor Actor, groupID, accountID string, admin bool) error {
+	if _, err := db.localGroup(ctx, actor, groupID); err != nil {
+		return err
+	}
+	if !admin {
+		_, err := db.pool.Exec(ctx, "DELETE FROM group_admins WHERE grp = $1 AND account = $2", groupID, accountID)
+		return err
+	}
+	var known bool
+	if err := db.pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)", accountID).Scan(&known); err != nil {
+		return err
+	}
+	if !known {
+		return ErrNotFound
+	}
+	_, err := db.pool.Exec(ctx, "INSERT INTO group_admins (grp, account) VALUES ($1, $2) ON CONFLICT DO NOTHING", groupID, accountID)
 	return err
 }
 
@@ -617,19 +890,10 @@ func (db *DB) People(ctx context.Context) ([]Member, error) {
 	})
 }
 
-// Reason is one way an account holds a role on an object: a grant to it, to one of its groups or to the tenant, a link
-// it opened, or the owner of the object or of something above it.
-type Reason struct {
-	// Object is where the role comes from, and Title its name.
-	Object, Title string
-	// Via is "owner", "owner above", "person", "group", "tenant" or "link"; Name names the group where it is one.
-	Via, Name string
-	Role      string
-}
-
-// Explain tells the role an account holds on an object and why, for the access check of the tab Rights (ADR-29).
-// Whoever manages the object asks it, and administrators; anyone may ask it for themselves.
-func (db *DB) Explain(ctx context.Context, objectID string, actor Actor, accountID string) (string, []Reason, error) {
+// Explain tells the role an account holds on an object and, for each action, whether it is allowed and the deciding
+// entry with where it comes from (ADR-36), for the access check of the tab Rights. Agent asks it as for a request of an
+// agent of that account. Whoever manages the object asks it, and administrators; anyone may ask it for themselves.
+func (db *DB) Explain(ctx context.Context, objectID string, actor Actor, accountID string, agent bool) (string, []Decision, error) {
 	if accountID != actor.ID {
 		if _, err := db.forRights(ctx, objectID, actor); err != nil {
 			return "", nil, err
@@ -637,76 +901,45 @@ func (db *DB) Explain(ctx context.Context, objectID string, actor Actor, account
 	} else if _, err := db.Object(ctx, objectID, actor.ID); err != nil {
 		return RoleNone, nil, nil
 	}
-	held, err := db.Role(ctx, objectID, accountID)
-	if err != nil || held == RoleNone {
-		return held, nil, err
+	var decisions []Decision
+	held := map[string]bool{}
+	for _, action := range Actions {
+		d, err := db.Decide(ctx, objectID, accountID, action, agent)
+		if err != nil {
+			return "", nil, err
+		}
+		held[action] = d.Allowed
+		decisions = append(decisions, d)
 	}
-	var private bool
-	if private, err = isPrivate(ctx, db.pool, objectID); err != nil || private {
-		return held, []Reason{{Object: objectID, Via: "owner", Role: RoleOwner}}, err
+	role := RoleNone
+	for _, r := range []string{RoleRead, RoleComment, RoleEdit, RoleManage} {
+		all := true
+		for _, a := range PresetActions(r) {
+			all = all && held[a]
+		}
+		if all {
+			role = r
+		}
 	}
-	groups, err := db.GroupsOf(ctx, accountID)
-	if err != nil {
-		return "", nil, err
+	if len(decisions) > 0 && decisions[0].Allowed && (decisions[0].Via == ViaOwner || decisions[0].Via == ViaPrivate) && !agent {
+		role = RoleOwner
 	}
-	var reasons []Reason
-	for cur, self := objectID, true; cur != ""; self = false {
-		o, err := db.objectForRights(ctx, cur)
-		if err != nil {
-			return "", nil, err
-		}
-		if o.Owner == accountID {
-			via, role := "owner above", RoleManage
-			if self {
-				via, role = "owner", RoleOwner
-			}
-			reasons = append(reasons, Reason{Object: o.ID, Title: o.Title, Via: via, Role: role})
-		}
-		rows, err := db.pool.Query(ctx, `SELECT g.kind, g.role, coalesce(gr.name, '') FROM grants g LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
-			WHERE g.object = $1 AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $2) OR (g.kind = 'group' AND g.who = ANY ($3)))
-			ORDER BY g.kind, gr.name`, o.ID, accountID, groups)
-		if err != nil {
-			return "", nil, err
-		}
-		found, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Reason, error) {
-			r := Reason{Object: o.ID, Title: o.Title}
-			err := row.Scan(&r.Via, &r.Role, &r.Name)
-			return r, err
-		})
-		if err != nil {
-			return "", nil, err
-		}
-		reasons = append(reasons, found...)
-		links, err := db.pool.Query(ctx, `SELECT l.mode FROM share_links l JOIN share_link_users u ON u.link = l.id
-			WHERE l.object = $1 AND u.account = $2 AND l.mode IN ('comment', 'edit') AND (l.expires IS NULL OR l.expires > now())
-			  AND object_role(l.object, l.created_by, false) >= 4`, o.ID, accountID)
-		if err != nil {
-			return "", nil, err
-		}
-		modes, err := pgx.CollectRows(links, pgx.RowTo[string])
-		if err != nil {
-			return "", nil, err
-		}
-		for _, m := range modes {
-			reasons = append(reasons, Reason{Object: o.ID, Title: o.Title, Via: "link", Role: m})
-		}
-		if o.Breaks {
-			break
-		}
-		cur = o.Parent
-	}
-	return held, reasons, nil
+	return role, decisions, nil
 }
 
-// Held is a role an account holds directly: on which object, and through what.
+// Held is what an account holds directly: on which object, and through what.
 type Held struct {
 	Object, Title, Kind, Area string
-	Via, Name, Role           string
+	// Via is owner, person, group or tenant; Name names the group.
+	Via, Name string
+	// Role is the preset of the entries, PresetCustom where they are none; Actions the entries.
+	Role    string
+	Actions map[string]string
 }
 
-// HeldBy lists where an account holds a role of its own, through a group or as the whole tenant: the start of "what may
-// X do" in the tab Rights. Administrators ask it for anyone, everyone else for themselves. Objects in the trash are left
-// out, and nothing private is ever there.
+// HeldBy lists where an account holds entries of its own, through a group or as the whole tenant, allow or deny: the
+// start of "what may X do" in the tab Rights. Administrators ask it for anyone, everyone else for themselves. Objects in
+// the trash are left out, and nothing private is ever there.
 func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held, error) {
 	if accountID != actor.ID && !actor.Admin {
 		return nil, ErrNotAllowed
@@ -715,24 +948,74 @@ func (db *DB) HeldBy(ctx context.Context, actor Actor, accountID string) ([]Held
 	if err != nil {
 		return nil, err
 	}
+	direct, err := db.DirectGroupsOf(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.pool.Query(ctx, `
-		SELECT o.id, o.title, o.kind, o.area, 'owner', '', 'owner' FROM objects o
+		SELECT o.id, o.title, o.kind, o.area, 'owner', '', '{}'::text[], '{}'::text[] FROM objects o
 		WHERE o.owner = $1 AND o.deleted_at IS NULL AND NOT object_private(o.id)
 		  AND (o.parent IS NULL OR (SELECT p.owner FROM objects p WHERE p.id = o.parent) <> $1)
 		UNION ALL
-		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(gr.name, ''), g.role FROM grants g JOIN objects o ON o.id = g.object
-			LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
+		SELECT o.id, o.title, o.kind, o.area, g.kind, coalesce(min(gr.name), ''), array_agg(g.action ORDER BY g.action), array_agg(g.value ORDER BY g.action)
+		FROM grants g JOIN objects o ON o.id = g.object LEFT JOIN groups gr ON g.kind = 'group' AND gr.id = g.who
 		WHERE o.deleted_at IS NULL AND NOT object_private(o.id)
-		  AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1) OR (g.kind = 'group' AND g.who = ANY ($2)))
-		ORDER BY 2, 1, 5`, accountID, groups)
+		  AND (g.kind = 'tenant' OR (g.kind = 'person' AND g.who = $1)
+		       OR (g.kind = 'group' AND g.who = ANY (CASE WHEN g.subgroups THEN $2::text[] ELSE $3::text[] END)))
+		GROUP BY o.id, o.title, o.kind, o.area, g.kind, g.who
+		ORDER BY 2, 1, 5`, accountID, groups, direct)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Held, error) {
 		var h Held
-		err := row.Scan(&h.Object, &h.Title, &h.Kind, &h.Area, &h.Via, &h.Name, &h.Role)
+		var actions, values []string
+		err := row.Scan(&h.Object, &h.Title, &h.Kind, &h.Area, &h.Via, &h.Name, &actions, &values)
+		if h.Via == ViaOwner {
+			h.Role, h.Actions = RoleOwner, allowAll()
+			return h, err
+		}
+		h.Actions = map[string]string{}
+		for i, a := range actions {
+			if i < len(values) {
+				h.Actions[a] = values[i]
+			}
+		}
+		h.Role = PresetOf(h.Actions)
 		return h, err
 	})
+}
+
+// AgentLimit returns what an account lets its own agents do (ADR-36): at most AgentActions, all of them by default.
+func (db *DB) AgentLimit(ctx context.Context, accountID string) ([]string, error) {
+	var actions []string
+	err := db.pool.QueryRow(ctx, "SELECT actions FROM agent_limits WHERE account = $1", accountID).Scan(&actions)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return slices.Clone(AgentActions), nil
+	}
+	return nonNil(actions), err
+}
+
+// SetAgentLimit sets what an account lets its own agents do. Only the account itself does, signed in in a session: an
+// agent cannot widen its own limit.
+func (db *DB) SetAgentLimit(ctx context.Context, accountID string, actions []string) error {
+	if err := noAgent(ctx); err != nil {
+		return err
+	}
+	var keep []string
+	for _, a := range AgentActions {
+		if slices.Contains(actions, a) {
+			keep = append(keep, a)
+		}
+	}
+	for _, a := range actions {
+		if !slices.Contains(AgentActions, a) {
+			return ErrEntry
+		}
+	}
+	_, err := db.pool.Exec(ctx, `INSERT INTO agent_limits (account, actions) VALUES ($1, $2)
+		ON CONFLICT (tenant, account) DO UPDATE SET actions = EXCLUDED.actions, changed = now()`, accountID, nonNil(keep))
+	return err
 }
 
 // ErrLastAdmin is taking away one's own administration.
@@ -741,6 +1024,9 @@ var ErrLastAdmin = errors.New("nobody takes their own administration away, so a 
 // SetAdmin makes a local account an administrator of the tenant, or takes that back (ADR-29). Accounts of the gate or of
 // OIDC are administrators through their group, which their sign-in decides. Only administrators do; the caller checks.
 func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin bool) error {
+	if err := noAgent(ctx); err != nil {
+		return err
+	}
 	if !actor.Admin {
 		return ErrNotAllowed
 	}

@@ -189,7 +189,7 @@ func TestAccessIsInherited(t *testing.T) {
 			t.Errorf("%s: the tenant edits a shared collection and what is inside, got %q %v", o.Title, got, err)
 		}
 	}
-	if _, err := db.pool.Exec(ctx, "UPDATE grants SET role = 'read' WHERE object = $1 AND kind = 'tenant'", top.ID); err != nil {
+	if _, err := db.pool.Exec(ctx, "DELETE FROM grants WHERE object = $1 AND kind = 'tenant' AND action <> 'read'", top.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := db.Role(ctx, inner.ID, bob.ID); got != RoleRead {

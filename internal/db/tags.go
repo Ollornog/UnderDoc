@@ -63,7 +63,7 @@ func (db *DB) SetTags(ctx context.Context, objectID, viewer string, tags []strin
 	if IsDivider(o.Kind) {
 		return Object{}, ErrPlace
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
 	return scan(db.pool.QueryRow(ctx, "UPDATE objects SET tags = $2, changed = now() WHERE id = $1 RETURNING "+columns, objectID, clean))

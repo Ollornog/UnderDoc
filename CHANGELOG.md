@@ -8,6 +8,27 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- **Rights per action with allow and deny, nested groups and the group Agents** (ADR-36, T-26,
+  [docs/rights.md](docs/rights.md), migration 030). A right is now one of the actions read, comment, create, write,
+  delete, share and manage, each inherit, allow or deny per person, group, the tenant or Agents; the roles of ADR-29 stay
+  as presets, and entries that are none show as custom. For each action the nearest object with an entry for the account
+  or one of its groups decides, deny beats allow on the same level, and without an entry the action is denied; the owner
+  keeps every action on their own object, administrators manage rights whatever a deny says, private stays private.
+  Local groups contain persons, groups and roles of the gate, cycles are refused by the database, a grant holds for the
+  subgroups unless it says otherwise, and group admins manage their group and those inside it. Every request that did
+  not sign in as a session belongs to the built-in group Agents (`Remote-Auth` of the gate, fail closed; a session of the
+  sign-in pages is a session; `account.User.AuthKind` for T-27): a deny on Agents is a ceiling after the evaluation, for
+  the owner too; agents never manage, share, delete for good or read passwords; a space can be set to no agents, and
+  every person limits their own agents. A deny holds in the tree, the API, embedding ("not to be found"), the export and
+  the search: the index keeps the levels of entries on read and the denies on Agents (search source 6, Meilisearch and
+  OpenSearch settings 2, so every index is filled again once), and each hit is checked once more. Moving to another place
+  needs delete where the object is and create where it goes, and never makes the mover someone who may share or manage
+  it. In a library shared over Samba a deny on a single file is refused, like breaking its inheritance. The access check
+  and the log (`refused`) name the deciding entry and where it comes from. Existing grants become allow entries of their
+  preset, broken inheritance stays broken. API: `PUT /api/objects/<id>/grants` takes `actions` and `subgroups`, `GET
+  /api/rights/check` answers each action (`&agent=1` for an agent), new `GET /api/groups/<id>`, `PUT
+  /api/groups/<id>/groups/<group>`, `PUT /api/groups/<id>/admins/<account>`, `GET`/`PUT /api/me/agents`.
+
 - Repokit 0.59.1 (with 0.58.0): `fc-pin` keeps one rolling pin PR `pin/underdoc` in the deployment repository and closes the old
   per-commit ones. Dependabot's updates of `deploy/compose.yml` (Mailpit, Gotenberg) now merge by themselves:
   `docker_compose` joined the ecosystems of the auto-merge, because the required check runs `scripts/check-services.sh`. New `nightly-repeat.yml` runs `ci.yml` (now with

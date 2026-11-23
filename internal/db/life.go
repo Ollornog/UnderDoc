@@ -907,7 +907,7 @@ func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, 
 	if err != nil {
 		return "", err
 	}
-	if err := db.mayEdit(ctx, to, viewer); err != nil {
+	if err := db.mayDo(ctx, to, viewer, ActWrite); err != nil {
 		return "", err
 	}
 	var id string

@@ -181,7 +181,7 @@ const rootColumns = `, r.role, ` + writersOf + `, coalesce(r.quota, -1)`
 
 // writersOf names the groups that edit in a root, for the folder of the tenant.
 const writersOf = `coalesce((SELECT string_agg(gr.name, ', ' ORDER BY gr.name) FROM grants g JOIN groups gr ON gr.id = g.who
-	WHERE g.object = r.object AND g.kind = 'group' AND g.role IN ('edit', 'manage')), '')`
+	WHERE g.object = r.object AND g.kind = 'group' AND g.action = 'write' AND g.value = 'allow'), '')`
 
 func (db *DB) scanRoot(row pgx.Row) (Root, error) {
 	var r Root
@@ -292,7 +292,7 @@ func (db *DB) SetWriters(ctx context.Context, group string) error {
 
 // setWriters makes one group the writers of a root, or none with an empty name.
 func setWriters(ctx context.Context, tx pgx.Tx, root, group, by string) error {
-	if _, err := tx.Exec(ctx, "DELETE FROM grants WHERE object = $1 AND kind = 'group' AND role = 'edit'", root); err != nil {
+	if _, err := tx.Exec(ctx, "DELETE FROM grants g WHERE g.object = $1 AND g.kind = 'group' AND entries_preset(g.object, 'group', g.who) = 'edit'", root); err != nil {
 		return err
 	}
 	if group == "" {
@@ -553,7 +553,7 @@ func (db *DB) StartUpload(ctx context.Context, viewer string, target UploadTarge
 		if p.Area != AreaFiles || (p.Kind != KindCollection && p.Kind != KindFolder) {
 			return Upload{}, ErrPlace
 		}
-		if err := db.mayEdit(ctx, p, viewer); err != nil {
+		if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 			return Upload{}, err
 		}
 	case target.File != "":
@@ -564,7 +564,7 @@ func (db *DB) StartUpload(ctx context.Context, viewer string, target UploadTarge
 		if f.Kind != KindFile {
 			return Upload{}, ErrNotFile
 		}
-		if err := db.mayEdit(ctx, f, viewer); err != nil {
+		if err := db.mayDo(ctx, f, viewer, ActWrite); err != nil {
 			return Upload{}, err
 		}
 	default:
@@ -572,7 +572,7 @@ func (db *DB) StartUpload(ctx context.Context, viewer string, target UploadTarge
 		if err != nil {
 			return Upload{}, err
 		}
-		if err := db.mayEdit(ctx, p, viewer); err != nil {
+		if err := db.mayDo(ctx, p, viewer, ActWrite); err != nil {
 			return Upload{}, err
 		}
 	}
@@ -682,18 +682,18 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 	switch {
 	case u.Parent != "":
 		if target, err = db.Object(ctx, u.Parent, viewer); err == nil {
-			err = db.mayEdit(ctx, target, viewer)
+			err = db.mayDo(ctx, target, viewer, ActCreate)
 		}
 	case u.File != "":
 		if target, err = db.Object(ctx, u.File, viewer); err == nil {
-			err = db.mayEdit(ctx, target, viewer)
+			err = db.mayDo(ctx, target, viewer, ActWrite)
 		}
 		if err == nil {
 			err = db.guardFile(ctx, target)
 		}
 	default:
 		if target, err = db.page(ctx, u.Page, viewer); err == nil {
-			err = db.mayEdit(ctx, target, viewer)
+			err = db.mayDo(ctx, target, viewer, ActWrite)
 		}
 	}
 	if err != nil {
@@ -749,7 +749,7 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 		case err == nil && existing.Kind != KindFile:
 			return fmt.Errorf("%w: a %s has this name", ErrPlace, existing.Kind)
 		case err == nil:
-			if err := db.mayEdit(ctx, existing, viewer); err != nil {
+			if err := db.mayDo(ctx, existing, viewer, ActWrite); err != nil {
 				return err
 			}
 			if err := db.guardFile(ctx, existing); err != nil {
@@ -858,7 +858,7 @@ func (db *DB) FileVersions(ctx context.Context, fileID, viewer string) ([]FileVe
 	if err != nil {
 		return nil, err
 	}
-	if err := db.mayEdit(ctx, f.Object, viewer); err != nil {
+	if err := db.mayDo(ctx, f.Object, viewer, ActWrite); err != nil {
 		return nil, err
 	}
 	rows, err := db.pool.Query(ctx, `SELECT `+fileVersionColumns+` FROM file_versions v WHERE v.file = $1 ORDER BY v.number DESC`, fileID)
@@ -900,7 +900,7 @@ func (db *DB) RestoreVersion(ctx context.Context, fileID, viewer string, number 
 	if err != nil {
 		return 0, err
 	}
-	if err := db.mayEdit(ctx, f.Object, viewer); err != nil {
+	if err := db.mayDo(ctx, f.Object, viewer, ActWrite); err != nil {
 		return 0, err
 	}
 	if err := db.guardFile(ctx, f.Object); err != nil {
@@ -999,7 +999,7 @@ func (db *DB) MoveAttachment(ctx context.Context, pageID, attachmentID, viewer, 
 	if p.Area != AreaFiles || (p.Kind != KindCollection && p.Kind != KindFolder) {
 		return Object{}, ErrPlace
 	}
-	if err := db.mayEdit(ctx, p, viewer); err != nil {
+	if err := db.mayDo(ctx, p, viewer, ActCreate); err != nil {
 		return Object{}, err
 	}
 	root, err := rootOf(ctx, db.pool, parentID)

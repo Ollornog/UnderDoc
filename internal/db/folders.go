@@ -21,7 +21,7 @@ func (db *DB) CreateFolder(ctx context.Context, owner account.User, title, paren
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, p, owner.ID); err != nil {
+	if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
 		return Object{}, err
 	}
 	if IsDivider(p.Kind) {
@@ -46,7 +46,7 @@ func (db *DB) Convert(ctx context.Context, objectID, viewer, kind string) (Objec
 	if err != nil {
 		return Object{}, err
 	}
-	if err := db.mayEdit(ctx, o, viewer); err != nil {
+	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
 	if o.Kind != KindCollection && o.Kind != KindFolder {

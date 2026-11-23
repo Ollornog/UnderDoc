@@ -70,16 +70,16 @@ func scanComment(row pgx.Row) (Comment, error) {
 	return c, err
 }
 
-// mayComment tells whether the viewer may add comments to an object: whoever holds the role comment on it (ADR-29).
-// Read only means no comment.
+// mayComment tells whether the viewer may add comments to an object: whoever may do the action comment on it (ADR-36).
 func (db *DB) mayComment(ctx context.Context, o Object, viewer string) error {
-	return db.may(ctx, o, viewer, RoleComment)
+	return db.mayDo(ctx, o, viewer, ActComment)
 }
 
 // MayComment tells whether the viewer may add comments to an object, for showing the means to do so. Each change checks
 // again.
 func (db *DB) MayComment(ctx context.Context, o Object, viewer string) bool {
-	return db.mayComment(ctx, o, viewer) == nil
+	ok, err := db.May(ctx, o.ID, viewer, ActComment)
+	return err == nil && ok
 }
 
 func checkComment(body string) (string, error) {
@@ -267,7 +267,7 @@ func (db *DB) ResolveComment(ctx context.Context, id int64, viewer string, resol
 		return Comment{}, err
 	}
 	if c.Author != viewer {
-		if err := db.mayEdit(ctx, o, viewer); err != nil {
+		if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 			return Comment{}, err
 		}
 	}

@@ -19,14 +19,16 @@ writer unknown, or refused), the directory stays on disk, the log says what, and
 
 ## Rights on the share
 
-Roles become POSIX ACLs per folder: read and comment read, edit and above write, no role sees nothing. `hide unreadable`
+The actions of each account (ADR-36) become POSIX ACLs per folder: read where it may read, write where it may read,
+create, write and delete, nothing where it may not read. Each account is decided on its own, so a deny on a folder holds
+on the share as in the web. `hide unreadable`
 hides what a user may not read, and `access based share enum` lists only the shares a user reaches. **Samba knows rights
 per folder only** ([T-1](../backlog/T-1-measure-office-saving.md)): a save through a temporary file and a rename makes a
 new file that takes the rights of its folder, so a right on a single file would not survive it. In a shared library a
-role granted on a single file holds in the web only, and the rights dialog says so; breaking the inheritance of a single
-file is refused there, a folder can break it. For the same reason a collection holding a file that breaks the inheritance
-is not shared, and nothing holding one moves into a shared library: both answer `409` naming the files, which must
-inherit again first. A file that is in a shared library anyway (it broke the inheritance before the tenant had a
+allow on a single file holds in the web only, and the rights dialog says so; a deny on a single file and breaking its
+inheritance are refused there (the share would show what the web hides), a folder can do both. For the same reason a
+collection holding a file that breaks the inheritance or denies someone is not shared, and nothing holding one moves
+into a shared library: both answer `409` naming the files, which must inherit again and lose their deny first. A file that is in a shared library anyway (it broke the inheritance before the tenant had a
 companion, or came back from the trash) is kept off the disk, and the log says so.
 
 A file moved into another folder, in the web or over SMB, and a file saved through a rename get the ACL of their folder

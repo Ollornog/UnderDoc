@@ -17,9 +17,13 @@ import (
 // Request is a search as a reader asks it.
 type Request struct {
 	Text string
-	// Account is the reader, and Groups the groups it belongs to. What it may not read is never found (ADR-24, ADR-29).
+	// Account is the reader, Groups the groups it belongs to and Direct those it is in directly. What it may not read is
+	// never found (ADR-24, ADR-29, ADR-36).
 	Account string
 	Groups  []string
+	Direct  []string
+	// Agent tells that the reader is an agent (ADR-36): it finds nothing a deny on Agents keeps from it.
+	Agent   bool
 	Filters Filters
 	Limit   int
 	// Exact finds the words only as written and in this order, without typing errors (the strategy "exact words" of
@@ -191,7 +195,7 @@ func (s *Service) tenantOf(ctx context.Context) string {
 
 func (s *Service) searchEngine(ctx context.Context, tenantID string, r Request, limit int) (Result, error) {
 	q := Parse(r.Text)
-	readers := Readers(r.Account, r.Groups...)
+	readers := ReadersOf(r.Account, r.Groups, r.Direct)
 	result := Result{Engine: s.engine.Name(), Hits: []Hit{}, Facets: Facets{}}
 	seen := map[string]bool{}
 	add := func(found Found, code bool) {
@@ -213,7 +217,7 @@ func (s *Service) searchEngine(ctx context.Context, tenantID string, r Request, 
 			if len(t.conditions[len(t.conditions)-1].Codes) == 0 {
 				t.conditions = t.conditions[:len(t.conditions)-1]
 			}
-			answer, err := s.engine.Search(ctx, tenantID, Query{Readers: readers, Filters: r.Filters, Codes: t.conditions,
+			answer, err := s.engine.Search(ctx, tenantID, Query{Readers: readers, Agent: r.Agent, Filters: r.Filters, Codes: t.conditions,
 				Limit: maxTierRecords, Newest: true})
 			if err != nil {
 				return Result{}, err
@@ -236,7 +240,7 @@ func (s *Service) searchEngine(ctx context.Context, tenantID string, r Request, 
 	if len(q.Codes) > 0 && text == "" {
 		return result, nil
 	}
-	answer, err := s.engine.Search(ctx, tenantID, Query{Text: text, Readers: readers, Filters: r.Filters, Limit: limit + len(seen),
+	answer, err := s.engine.Search(ctx, tenantID, Query{Text: text, Readers: readers, Agent: r.Agent, Filters: r.Filters, Limit: limit + len(seen),
 		OnePerObject: true, Facets: true, Newest: strings.TrimSpace(text) == "", Phrase: r.Exact})
 	if err != nil {
 		return Result{}, err

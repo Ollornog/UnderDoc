@@ -5,7 +5,9 @@
 // workspace to draw again when something arrives.
 window.UDRights = (() => {
   const ROLES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["manage", "Manage"]];
-  const ROLEWORD = { read: "read", comment: "comment", edit: "edit", manage: "manage", owner: "owner" };
+  const ROLEWORD = { read: "read", comment: "comment", edit: "edit", manage: "manage", owner: "owner", custom: "custom" };
+  const ACTIONS = ["read", "comment", "create", "write", "delete", "share", "manage"];
+  const ACTIONWORD = { read: "Read", comment: "Comment", create: "Create", write: "Write", delete: "Delete", share: "Share", manage: "Manage" };
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
   const VIA = { owner: "owns it", "owner above": "owns what lies above", person: "as a person", group: "through a group", tenant: "as everyone", link: "through a link" };
   const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
@@ -233,10 +235,21 @@ window.UDRights = (() => {
     const who = st.who
       ? `<div class="flex flex-col gap-2" data-who>${st.who.private ? hint(`Private: only ${esc(st.who.ownerName)} sees it.`) : `${hint(`Owner: ${esc(st.who.ownerName)}${st.who.inherit ? "" : " · takes no roles from above"}`)}${grantList(st.who.own, false)}${st.who.inherited.length ? `<h4 class="text-sm font-medium">From above</h4>${grantList(st.who.inherited, true)}` : ""}`}</div>`
       : "";
-    const check = st.check ? `<p class="text-muted-foreground text-xs" data-check>${st.check.role ? `Role: ${ROLEWORD[st.check.role]}` : "No role: sees nothing of it"}${st.check.reasons.map((r) => ` · ${ROLEWORD[r.role]} ${VIA[r.via] || esc(r.via)}${r.name ? " " + esc(r.name) : ""} on ${esc(r.title)}`).join("")}</p>` : "";
+    const check = st.check ? `<p class="text-muted-foreground text-xs" data-check>${st.check.role ? `Role: ${ROLEWORD[st.check.role] || esc(st.check.role)}` : "No role: sees nothing of it"}</p>${decisions(st.check.actions)}` : "";
     return `${head("What may someone do")}${forWhom}${held}
       ${head("Who sees something")}<form class="grid gap-2" data-rform="who"><input class="input" name="object" required placeholder="Address or ID, such as /o/7k2m9q4x1c" aria-label="Address of the object">${me.admin ? personSelect("account", me.id) : ""}<div>${submit("Check")}</div></form>${who}${check}`;
   }
+
+  // decisions shows, for each action, whether it is allowed and what decided it, with where that comes from (ADR-36), so
+  // a deny is never a riddle. ✅ and ❌ say it, never a colour alone.
+  const DECIDED = { owner: "owns it", "owner above": "owns what lies above", link: "through a link", private: "private", none: "no entry up to the top",
+    agents: "denied to agents", "agents default": "agents never do this", "agents own": "the person does not let their agents do this", unknown: "nobody known" };
+  const holderName = (d) => (d.kind === "tenant" ? "everyone" : d.kind === "group" ? `group ${esc(d.name)}` : d.kind === "agents" ? "Agents" : esc(d.name));
+  const decided = (d) => (d.via === "entry" ? `${d.value} for ${holderName(d)}` : DECIDED[d.via] || esc(d.via)) + (d.title ? ` · on ${esc(d.title)}` : "");
+  const decisions = (list) =>
+    list && list.length
+      ? `<div class="table-container"><table class="table" data-decisions><thead><tr><th>Action</th><th></th><th>Decided by</th></tr></thead><tbody>${list.map((d) => `<tr data-decision="${esc(d.action)}"><td>${esc(ACTIONWORD[d.action] || d.action)}</td><td>${d.allowed ? "✅ allowed" : "❌ denied"}</td><td>${decided(d)}</td></tr>`).join("")}</tbody></table></div>`
+      : "";
 
   const grantName = (g) => (g.kind === "tenant" ? "Everyone" : g.kind === "group" ? `Group ${esc(g.name)}` : esc(g.name));
   // grantList lists roles as entries; a role from above names where it comes from and the role as one split badge.

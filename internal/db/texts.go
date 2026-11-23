@@ -157,7 +157,7 @@ func (db *DB) SaveFileText(ctx context.Context, fileID, viewer, source, text str
 	if err != nil {
 		return err
 	}
-	if err := db.mayEdit(ctx, f.Object, viewer); err != nil {
+	if err := db.mayDo(ctx, f.Object, viewer, ActWrite); err != nil {
 		return err
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error { return saveText(ctx, tx, f.Blob, source, text, viewer) })

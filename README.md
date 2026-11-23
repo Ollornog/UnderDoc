@@ -43,8 +43,8 @@ or Docker, as shown below.
 UnderDoc binds to loopback by default. Each tenant chooses how people sign in ([docs/sign-in.md](docs/sign-in.md)):
 local accounts with a passkey (the default), with a password and a code, or with a password alone, single sign-on with
 any OIDC provider, or a sign-in gate in front. A gate checks who someone is and passes that on in the headers
-`Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email` and `Remote-Groups`, which it must remove from every incoming
-request first; [TinySesam](https://github.com/Ollornog/TinySesam) is one, and any other gate that sets these headers works
+`Remote-User`, `Remote-Id`, `Remote-Name`, `Remote-Email`, `Remote-Groups`, `Remote-Auth` and `Remote-Kind`, which it
+must remove from every incoming request first (a request whose `Remote-Auth` is not `session` counts as an agent); [TinySesam](https://github.com/Ollornog/TinySesam) is one, and any other gate that sets these headers works
 too. An instance that ran behind a gate keeps it. The first administrator of a new instance comes from
 `underdoc invite --admin <login> <name>`. To try it on your own machine, let a made-up user stand in for the gate:
 
@@ -100,9 +100,11 @@ by its hash, and an export takes the files along. How it works: [docs/files.md](
 makes an app password in its profile, and saving in Office or LibreOffice becomes a version. How it works:
 [docs/samba.md](docs/samba.md).
 
-**Rights** hold for documents and files alike: an owner, and the roles manage, edit, comment and read for persons, groups
-(local, or taken over from OIDC and the gate) and the whole tenant, inherited down the tree and narrowed by breaking the
-inheritance. Private notes stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
+**Rights** hold for documents and files alike: an owner, and the actions read, comment, create, write, delete, share and
+manage, each inherit, allow or deny, for persons, groups (local and nested, or taken over from OIDC and the gate) and the
+whole tenant, with the roles read, comment, edit and manage as presets. The nearest entry wins, deny beats allow on the
+same level, and the built-in group Agents (every sign-in that is not a session) can be denied as a ceiling. Private notes
+stay private, also from administrators. How it works: [docs/rights.md](docs/rights.md).
 
 **Passwords in the text** are references, `::secret{id="…"}`: the value lives sealed in the database, shows as a mask
 with Reveal and Copy, comes from the server on a click only, and every reveal is logged. Whoever reads the page reveals

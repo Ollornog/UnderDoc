@@ -399,7 +399,8 @@ func (h *handler) share(w http.ResponseWriter, r *http.Request) {
 	}
 	// To comment or edit, an account of the tenant holds the role from now on, and works in the workspace.
 	if l.Mode == db.LinkComment || l.Mode == db.LinkEdit {
-		if user, ok := h.signedInUser(r); ok && user.ID != "" {
+		// An agent never takes a link for its person: that is sharing, which agents never do (ADR-36).
+		if user, ok := h.signedInUser(r); ok && user.ID != "" && !user.Agent() {
 			if err := h.seeAccount(r.Context(), user); err == nil {
 				if err := h.options.DB.UseLink(r.Context(), l.ID, user.ID); err != nil {
 					h.log.Error("link not used", slog.String("error", err.Error()))

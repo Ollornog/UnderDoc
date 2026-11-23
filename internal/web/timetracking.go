@@ -61,6 +61,11 @@ func (h *handler) mapTenant(next http.Handler) http.Handler {
 	done := map[string]time.Time{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := h.me(r)
+		// An agent is no administrator for its request alone; its person's membership stays as it is (ADR-36).
+		if user.Agent() {
+			next.ServeHTTP(w, r)
+			return
+		}
 		t, _ := tenant.From(r.Context())
 		key := t + "\x00" + user.ID
 		mu.Lock()

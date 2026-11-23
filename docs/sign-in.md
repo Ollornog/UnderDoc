@@ -63,6 +63,12 @@ network, so `UNDERDOC_GATE` decides, not the administrator of a tenant:
 | `on` | Administrators may switch the gate on for their tenant. |
 | `off` | The headers never count, whatever a tenant says. |
 
+Besides who someone is, the gate says how the request signed in (`Remote-Auth`: `session`, `oauth`, `apikey`,
+`app-password`) and whether the account is a service account (`Remote-Kind: service`). Every request that did not sign in
+as a session belongs to the built-in group Agents, a missing or unknown `Remote-Auth` included ([rights.md](rights.md#the-group-agents)):
+it may never manage rights, share, delete for good or read passwords. A session of the sign-in pages (passkey, password,
+single sign-on) is always a session. A gate that does not send `Remote-Auth` therefore signs everyone in as an agent.
+
 Where the gate is the only way in, nothing changes from before: the headers sign in, a request without them gets the
 page "Not signed in", and none of the pages of signing in answers. `UNDERDOC_DEV_USER` still stands in for the gate on
 one machine.

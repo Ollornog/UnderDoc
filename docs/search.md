@@ -63,10 +63,14 @@ Everything a reader may read, and nothing else:
   filled again once, as for new settings of the engine.
 - **Passwords never**: the directives of ADR-7 (`::secret{…}`) and their IDs are cut out before anything is indexed.
 
-**Rights** are a filter in the index, not a check afterwards: every record lists its readers as tokens of the persons,
-groups and the tenant that hold a role on it (`all`, `account:<id>`, `group:<id>`, ADR-29), and every query carries the
-tokens of the person asking and of their groups. A change of roles queues the object and everything below it. A query without readers is refused.
-The tenant is separated by its own index. When groups and shares of M-5 come, they add reader tokens of their own.
+**Rights** are a filter in the index, and a check afterwards: every record keeps its owner, who always finds it, and the
+levels of entries on read from it up, each with the tokens allowed and denied there (`all`, `account:<id>`,
+`group:<id>`, `direct:<id>`, fields `readers`, `l0a` … `l5d`, ADR-36), and whether no agent may find it (`no_agents`).
+Every query carries the tokens of the person asking, of their groups at any depth and of the groups they are in
+directly, and whether they are an agent; the first level that names one of their tokens decides, deny before allow
+([rights.md](rights.md#one-check)). A change of entries queues the object and everything below it, and each hit is
+checked once more in the database before it shows. A query without readers is refused. The tenant is separated by its
+own index.
 
 **Sections:** a page is indexed in sections, one per heading and what follows it up to the next heading (ADR-22). A hit
 names its section: it opens at that block or heading, with the matching words marked there. Each page shows once in the
@@ -118,7 +122,7 @@ The OpenSearch of the tests runs with `cluster.routing.allocation.disk.threshold
 look at the disk of the host, and above the high watermark (90 %) OpenSearch refuses to create an index, so a test would
 turn red because the machine is full. `deploy/compose.yml` keeps the watermarks: in production they protect the data.
 
-Every engine passes the same functional tests (`internal/search/searchtest`): readers, tenants, replacing and removing,
+Every engine passes the same functional tests (`internal/search/searchtest`): readers, deny by levels, tenants, replacing and removing,
 filters, one hit per page, codes exactly and never through a typing error, typing errors in words, title before heading
 before text, marks, exact words.
 

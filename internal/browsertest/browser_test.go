@@ -452,7 +452,7 @@ func (b *browser) signIn(on bool) {
 	b.t.Helper()
 	headers := map[string]string{}
 	if on {
-		headers = map[string]string{"Remote-User": "anna", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}
+		headers = map[string]string{"Remote-Auth": "session", "Remote-User": "anna", "Remote-Name": "Anna Berg", "Remote-Email": "anna@example.com", "Remote-Groups": "ops"}
 	}
 	b.call("Network.setExtraHTTPHeaders", map[string]any{"headers": headers}, nil)
 }

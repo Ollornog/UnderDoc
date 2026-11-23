@@ -58,7 +58,7 @@ func (db *DB) tenantAbove(ctx context.Context, o Object) (string, error) {
 			SELECT id, parent, inherit FROM objects WHERE id = $1
 			UNION ALL SELECT p.id, p.parent, p.inherit FROM objects p JOIN up ON p.id = up.parent WHERE up.inherit
 		)
-		SELECT coalesce(max(role_rank(g.role)), 0) FROM up JOIN grants g ON g.object = up.id AND g.kind = 'tenant'`, o.Parent).Scan(&rank)
+		SELECT coalesce(max(role_rank(entries_preset(up.id, 'tenant', ''))), 0) FROM up`, o.Parent).Scan(&rank)
 	return roleOf(rank), err
 }
 

@@ -19,7 +19,7 @@ import (
 
 // version changes whenever the mapping or the analysis changes: OpenSearch cannot change them in place, so the index is
 // made anew and filled again from the queue.
-const version = "opensearch-1"
+const version = "opensearch-2"
 
 // Engine is one OpenSearch.
 type Engine struct {
@@ -129,6 +129,9 @@ func mapping() map[string]any {
 				"codes": keyword, "code_parts": keyword, "title_codes": keyword, "heading_codes": keyword,
 				"path": stored, "collection": keyword, "collection_name": stored, "author": keyword, "author_name": stored,
 				"changed": map[string]any{"type": "long"}, "readers": keyword, "origin": keyword,
+				"l0a": keyword, "l0d": keyword, "l1a": keyword, "l1d": keyword, "l2a": keyword, "l2d": keyword,
+				"l3a": keyword, "l3d": keyword, "l4a": keyword, "l4d": keyword, "l5a": keyword, "l5d": keyword,
+				"no_agents": map[string]any{"type": "boolean"},
 			},
 		},
 	}
@@ -324,10 +327,31 @@ func (e *Engine) Search(ctx context.Context, tenant string, q search.Query) (sea
 	return answer, nil
 }
 
+// access is the filter of who reads (ADR-36): one of the tokens that always find the record, or, from the nearest level
+// up, the first level that names a token of the reader allows one and denies none.
+func access(readers []string) any {
+	terms := func(field string) any { return map[string]any{"terms": map[string]any{field: readers}} }
+	var expr any
+	for i := search.MaxLevels - 1; i >= 0; i-- {
+		a, d := terms(search.LevelField(i, false)), terms(search.LevelField(i, true))
+		here := map[string]any{"bool": map[string]any{"filter": []any{a}, "must_not": []any{d}}}
+		if expr == nil {
+			expr = here
+			continue
+		}
+		further := map[string]any{"bool": map[string]any{"filter": []any{expr}, "must_not": []any{a, d}}}
+		expr = map[string]any{"bool": map[string]any{"should": []any{here, further}, "minimum_should_match": 1}}
+	}
+	return map[string]any{"bool": map[string]any{"should": []any{terms("readers"), expr}, "minimum_should_match": 1}}
+}
+
 // filters turns the readers, the filters of the results page and the codes into filters of OpenSearch, all of which must
 // hold.
 func filters(q search.Query) []any {
-	out := []any{map[string]any{"terms": map[string]any{"readers": q.Readers}}}
+	out := []any{access(q.Readers)}
+	if q.Agent {
+		out = append(out, map[string]any{"bool": map[string]any{"must_not": []any{map[string]any{"term": map[string]any{"no_agents": true}}}}})
+	}
 	for _, f := range []struct {
 		field  string
 		values []string

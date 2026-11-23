@@ -24,6 +24,7 @@ func Run(t *testing.T, newEngine NewEngine) {
 		test func(*testing.T, context.Context, search.Engine, string)
 	}{
 		{"readers", testReaders},
+		{"deny by levels", testDenyByLevels},
 		{"tenants", testTenants},
 		{"replace", testReplace},
 		{"filters", testFilters},
@@ -106,6 +107,83 @@ func testReaders(t *testing.T, ctx context.Context, engine search.Engine, tenant
 	}
 	if _, err := engine.Search(ctx, tenant, search.Query{Text: "Kartenzahlung", Limit: 5}); err == nil {
 		t.Error("a query without readers must be refused, not run without them")
+	}
+}
+
+// testDenyByLevels: the nearest level that names a reader's token decides, deny beats allow on it, the owner always finds
+// the record, a grant without subgroups names the direct members only, and an agent finds nothing denied to Agents
+// (ADR-36). Every case is checked against Doc.MayRead too, so the engine and the rule agree.
+func testDenyByLevels(t *testing.T, ctx context.Context, engine search.Engine, tenant string) {
+	withLevels := func(object string, owner string, noAgents bool, levels ...search.Level) []search.Doc {
+		docs := page(object, "Lagerplan "+object, "Kartenzahlung", "Kartenzahlung im Lager "+object+".")
+		for i := range docs {
+			docs[i].Readers = []string{search.ReaderAccount(owner)}
+			docs[i].SetLevels(levels)
+			docs[i].NoAgents = noAgents
+		}
+		return docs
+	}
+	g := search.ReaderGroup
+	cases := map[string][]search.Doc{
+		// Everyone reads at the top, Sales is denied in the folder, bob is allowed on the page itself.
+		"nearest": withLevels("nearest", "anna", false,
+			search.Level{Allow: []string{search.ReaderAccount("bob")}},
+			search.Level{Deny: []string{g("sales")}},
+			search.Level{Allow: []string{search.Everyone}}),
+		// On one level everyone is allowed and Sales denied: deny wins.
+		"same": withLevels("same", "anna", false, search.Level{Allow: []string{search.Everyone}, Deny: []string{g("sales")}}),
+		// Sales denies its owner too: the owner still finds it.
+		"owned": withLevels("owned", "carl", false, search.Level{Deny: []string{g("sales")}}),
+		// Only the direct members of Sales.
+		"direct": withLevels("direct", "anna", false, search.Level{Allow: []string{search.ReaderDirect("sales")}}),
+		// Everyone, but no agents.
+		"noagents": withLevels("noagents", "anna", true, search.Level{Allow: []string{search.Everyone}}),
+	}
+	for key, docs := range cases {
+		Load(t, ctx, engine, tenant, search.Key{Source: "object", Key: key}, docs)
+	}
+	service := serviceOf(engine, tenant)
+	readers := map[string]search.Request{
+		// bob and carl are in Sales through its subgroup North; dora is in Sales directly; erik in nothing.
+		"bob":        {Account: "bob", Groups: []string{"sales", "north"}, Direct: []string{"north"}},
+		"carl":       {Account: "carl", Groups: []string{"sales", "north"}, Direct: []string{"north"}},
+		"dora":       {Account: "dora", Groups: []string{"sales"}, Direct: []string{"sales"}},
+		"erik":       {Account: "erik"},
+		"erik agent": {Account: "erik", Agent: true},
+		"anna agent": {Account: "anna", Agent: true},
+	}
+	want := map[string][]string{
+		"bob":        {"nearest", "noagents"},
+		"carl":       {"noagents", "owned"},
+		"dora":       {"direct", "noagents"},
+		"erik":       {"nearest", "noagents", "same"},
+		"erik agent": {"nearest", "same"},
+		"anna agent": {"direct", "nearest", "same"},
+	}
+	for who, r := range readers {
+		r.Text, r.Limit = "Kartenzahlung", 20
+		result, err := service.Search(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, h := range result.Hits {
+			got = append(got, h.Object)
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want[who]) {
+			t.Errorf("%s finds %v, want %v", who, got, want[who])
+		}
+		var byRule []string
+		for key, docs := range cases {
+			if docs[0].MayRead(search.ReadersOf(r.Account, r.Groups, r.Direct), r.Agent) {
+				byRule = append(byRule, key)
+			}
+		}
+		slices.Sort(byRule)
+		if !slices.Equal(byRule, want[who]) {
+			t.Errorf("by the rule %s reads %v, want %v", who, byRule, want[who])
+		}
 	}
 }
 

@@ -168,11 +168,11 @@ func TestNoTableShowsAnotherTenant(t *testing.T) {
 	if err := db.Delete(main, gone.ID, anna.ID); err != nil {
 		t.Fatal(err)
 	}
-	editors, err := db.CreateGroup(main, "Editors", "")
+	editors, err := db.CreateGroup(main, Actor{ID: anna.ID, Admin: true}, "Editors", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMember(main, editors.ID, bob.ID, true); err != nil {
+	if err := db.SetMember(main, Actor{ID: anna.ID, Admin: true}, editors.ID, bob.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetGrant(main, p.ID, Actor{ID: anna.ID}, ToGroup, editors.ID, RoleComment); err != nil {

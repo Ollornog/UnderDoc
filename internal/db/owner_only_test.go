@@ -227,7 +227,7 @@ func TestNothingReachesANewCollectionBeforeItIsShared(t *testing.T) {
 		t.Errorf("only anna reads the record of the page: %+v %v", docs, err)
 	}
 	// The access check: bob learns nothing of it for himself.
-	if got, reasons, err := db.Explain(ctx, salaries.ID, Actor{ID: bob.ID}, bob.ID); err != nil || got != RoleNone || len(reasons) != 0 {
+	if got, reasons, err := db.Explain(ctx, salaries.ID, Actor{ID: bob.ID}, bob.ID, false); err != nil || got != RoleNone || len(reasons) != 0 {
 		t.Errorf("bob's access check: %q %+v %v", got, reasons, err)
 	}
 	if held, err := db.HeldBy(ctx, Actor{ID: bob.ID}, bob.ID); err != nil || slices.ContainsFunc(held, func(h Held) bool { return h.Object == board.ID }) {
