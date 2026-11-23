@@ -96,15 +96,21 @@ the agent reads: "Not found" never tells whether something exists that the perso
 
 The conventions of an instance are one page in the wiki (ADR-33, ADR-34): the page an **administrator names** in the
 browser, in the settings of a page of the kind `agent-notes` (*Make it the rules page for agents*, `PUT /api/rules-page`,
-B-5). `context` names it to whoever may read it; the instructions of the server say to read it before writing. Agents
+B-5). `context` names it to whoever may read it and gives its text as written, up to 16 KB: an embed in it is not
+followed, since agents may write what it embeds, and only what stands on the rules page itself holds (B-6). The
+instructions of the server say to read it before writing. Agents
 **only read** it: the one check refuses every other action of an agent on it and below it, whatever the entries say
 (deciding entry `rules page`), and no agent sets or takes away the tag `rules` anywhere. People change it in the browser
 like any page. Until B-5 it was the oldest page of that kind tagged `rules`, which an agent could take over by tagging an
-older page; migration 038 kept such a page as the rules page.
+older page; migration 038 kept such a page as the rules page. Migration 039 drops one that is private, and marks the
+others as taken over from the tag: administrators see *Taken over from the tag rules: please confirm it* in the
+settings of the page until they confirm it (`fromTag`, B-6). The rules page is never a private page or one in an
+archived space (`400`).
 
 ```text
-GET /api/rules-page    {"page": "<id>", "title": "…"}   the rules page the viewer reads, empty for none
-PUT /api/rules-page    {"page": "<id>"}   administrators in the browser; "" for none
+GET /api/rules-page    {"page": "<id>", "title": "…", "fromTag": false}   the rules page the viewer reads, empty for none;
+                       fromTag for administrators only
+PUT /api/rules-page    {"page": "<id>"}   administrators in the browser; "" for none; the same page again confirms it
 ```
 
 ### Instructions

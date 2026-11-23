@@ -96,6 +96,9 @@ func (db *DB) change(ctx context.Context, pageID, viewer string, do func(tx pgx.
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", pageID); err != nil {
 			return err
 		}
+		if err := holdSpace(ctx, tx, pageID); err != nil {
+			return err
+		}
 		if err := do(tx); err != nil {
 			return err
 		}

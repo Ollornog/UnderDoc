@@ -335,6 +335,9 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created), SeenBy: h.seenBy(r, o), Archived: h.inArchive(r, o)}
 	if rules, err := h.options.DB.RulesPageID(ctx); err == nil {
 		answer.RulesPage = rules == o.ID
+		if answer.RulesPage && administers(user) {
+			answer.RulesFromTag, _ = h.options.DB.RulesPageFromTag(ctx)
+		}
 	}
 	used, err := h.options.DB.UsedIn(ctx, o.ID, user.ID)
 	if err != nil {

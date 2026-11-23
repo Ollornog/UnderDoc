@@ -42,7 +42,9 @@ window.UDKinds = (() => {
     rulesMake: 'Make it the rules page for agents',
     rulesOff: 'No longer the rules page',
     rulesHint: 'Agents read the rules page before they write, and change nothing of it. Administrators name it; there is one.',
-    rulesFailed: 'Only an administrator names the rules page, in the browser.',
+    rulesFailed: 'Only an administrator names the rules page, in the browser, and never a private page or one in an archived space.',
+    rulesFromTag: 'Taken over from the tag rules: please confirm it',
+    rulesConfirm: 'Confirm as the rules page',
     notAllowed: 'Only who may change this page sets its kind.',
     problems: 'Writing rules',
     problemsHint: 'Pages and folders that break the rules of their kind. A warning blocks nothing; it says how to fix it.',
@@ -276,13 +278,18 @@ window.UDKinds = (() => {
     if (!S.user || !S.user.admin || (d.kind !== 'agent-notes' && !d.rulesPage)) return '';
     const label = d.rulesPage ? T.rulesOff : T.rulesMake;
     const state = d.rulesPage ? `<span class="badge" data-variant="secondary" data-rules-page>✅ ${esc(T.rulesOn)}</span> ` : '';
-    return `${prow(T.rules, `${state}<button type="button" class="btn" data-variant="outline" data-size="xs" data-setrules="${esc(key)}" aria-pressed="${!!d.rulesPage}">${esc(label)}</button>`)}${hint(esc(T.rulesHint))}`;
+    // A page taken over from the tag rules (migration 038) waits for an administrator to confirm it (B-6).
+    const confirm = d.rulesFromTag
+      ? `<span class="badge" data-variant="outline" data-rules-from-tag>⚠ ${esc(T.rulesFromTag)}</span> <button type="button" class="btn" data-variant="outline" data-size="xs" data-confirmrules="${esc(key)}">${esc(T.rulesConfirm)}</button> `
+      : '';
+    return `${prow(T.rules, `${state}${confirm}<button type="button" class="btn" data-variant="outline" data-size="xs" data-setrules="${esc(key)}" aria-pressed="${!!d.rulesPage}">${esc(label)}</button>`)}${hint(esc(T.rulesHint))}`;
   }
 
-  async function saveRules(key) {
+  async function saveRules(key, confirm) {
     const d = D[key];
     if (!d) return;
-    const was = !!d.rulesPage;
+    // Confirming names the same page again; otherwise the button switches it.
+    const was = confirm ? false : !!d.rulesPage;
     try {
       const r = await fetch('/api/rules-page', {
         method: 'PUT',
@@ -295,6 +302,7 @@ window.UDKinds = (() => {
         if (D[k] && D[k].rulesPage) D[k].rulesPage = false;
       });
       d.rulesPage = !was;
+      d.rulesFromTag = false;
     } catch (e) {
       toast(T.rulesFailed);
     }
@@ -304,6 +312,8 @@ window.UDKinds = (() => {
   document.addEventListener('click', (e) => {
     const b = e.target && e.target.closest && e.target.closest('[data-setrules]');
     if (b) saveRules(b.dataset.setrules);
+    const c = e.target && e.target.closest && e.target.closest('[data-confirmrules]');
+    if (c) saveRules(c.dataset.confirmrules, true);
   });
 
   async function saveKind(key, kind) {

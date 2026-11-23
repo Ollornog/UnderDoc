@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -224,17 +225,23 @@ var (
 // TrashName is the name to type to empty the whole trash.
 const TrashName = "Trash"
 
-// ApprovePurge is the action of the app that a signed approval of the gate names for deleting for good (ADR-35, T-33).
-const ApprovePurge = "underdoc.purge"
+// Actions of the app that a signed one-time approval of the gate confirms (ADR-35, T-33). The type the gate signs is
+// the id of the app in the gate followed by the action, such as underdoc.object.purge: the operator registers both.
+const (
+	// ApprovePurge is deleting one object of the trash for good, with what lies below it; the approval names the object.
+	ApprovePurge = "object.purge"
+	// ApproveEmptyTrash is emptying the trash: one approval for all that goes (B-5), bound to a cutoff, so that only
+	// what lay in the trash at that moment goes (B-6).
+	ApproveEmptyTrash = "trash.empty"
+)
 
-// ApproveEmptyTrash is the action an approval names for emptying the trash: one approval for all that goes (B-5).
-const ApproveEmptyTrash = "underdoc.empty-trash"
-
-// Approver confirms a dangerous action with a signed one-time approval of the gate, its jti used once (ADR-35). T-33
-// wires the gate's VerifyApproval; until then there is none, and such actions stay with owners and administrators in
-// the browser.
+// Approver confirms a dangerous action with a signed one-time approval of the gate, its jti used once (ADR-35, T-33).
+// Approve runs after every other check of the action, with what goes locked, right before it goes: a confirmation is
+// used up only by an action that goes (B-4 finding 8, B-6). subject is what the approval is bound to: the object for
+// ApprovePurge, the cutoff in Unix seconds for ApproveEmptyTrash. Until T-33 wires the gate's VerifyApproval there is
+// none, and such actions stay with owners and administrators in the browser.
 type Approver interface {
-	Approve(ctx context.Context, action, objectID string) error
+	Approve(ctx context.Context, action, subject string) error
 }
 
 // SetApprover makes deleting for good wait for an approval of the gate; nil (the default) asks for none. Set once
@@ -253,7 +260,7 @@ func (db *DB) Purge(ctx context.Context, objectID string, actor Actor, confirm s
 	if strings.TrimSpace(confirm) != t.Title {
 		return ErrConfirmName
 	}
-	return db.purge(ctx, objectID, actor, true)
+	return db.purge(ctx, objectID, actor)
 }
 
 // forPurge returns an object of the trash the actor may delete for good, as far as that can be told before the name.
@@ -272,14 +279,22 @@ func (db *DB) forPurge(ctx context.Context, objectID string, actor Actor) (Trash
 	return t, nil
 }
 
-// purge deletes for good, checking first and asking the gate for its approval after (B-5): an approval is used up only
-// by a purge that goes, never by one the check refuses. With approve false the caller has the approval already.
-func (db *DB) purge(ctx context.Context, objectID string, actor Actor, approve bool) error {
+// purge deletes for good: it locks what goes, checks, asks the gate for its approval and then deletes, nothing else in
+// between (B-5, B-6): an approval is used up only by a purge that goes, never by one the check refuses.
+func (db *DB) purge(ctx context.Context, objectID string, actor Actor) error {
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var id string
+		err := tx.QueryRow(ctx, "SELECT id FROM objects WHERE id = $1 AND deleted_at IS NOT NULL FOR UPDATE", objectID).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
 		if err := mayTakeAll(ctx, tx, objectID, actor.ID, "true"); err != nil {
 			return err
 		}
-		if approve && db.approver != nil {
+		if db.approver != nil {
 			if err := db.approver.Approve(ctx, ApprovePurge, objectID); err != nil {
 				return err
 			}
@@ -306,53 +321,105 @@ const TrashDays = 30
 // what they deleted too. The rules of Purge hold, with TrashName typed as confirm. What someone deleted but does not own
 // stays for its owner until it goes by itself. It returns how many deletions went.
 func (db *DB) EmptyTrash(ctx context.Context, actor Actor, confirm string) (int, error) {
-	if err := browserSession(ctx, actor.ID); err != nil {
+	return db.EmptyTrashBefore(ctx, actor, confirm, time.Now())
+}
+
+// EmptyTrashBefore empties the trash as EmptyTrash does, of what was deleted at or before cutoff only: the moment an
+// approval of the gate was asked for, so that nothing deleted after it goes with it (B-6). Everything is checked and
+// locked first, then the gate's approval is asked for once, bound to the cutoff, and then it all goes in one statement.
+func (db *DB) EmptyTrashBefore(ctx context.Context, actor Actor, confirm string, cutoff time.Time) (int, error) {
+	// The candidates whatever their moment; the lock below takes only those deleted at or before the cutoff.
+	purgeable, err := db.purgeableTrash(ctx, actor, confirm, nil)
+	if err != nil || len(purgeable) == 0 {
 		return 0, err
 	}
-	if strings.TrimSpace(confirm) != TrashName {
-		return 0, ErrConfirmName
-	}
-	list, err := db.Trash(ctx, actor.ID)
+	gone := 0
+	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		// What goes is locked, so nothing comes below it and nothing of it is taken out before it goes.
+		rows, err := tx.Query(ctx, `SELECT id FROM objects WHERE id = ANY ($1::text[]) AND deleted_at IS NOT NULL AND deleted_at <= $2
+			ORDER BY id FOR UPDATE`, purgeable, cutoff)
+		if err != nil {
+			return err
+		}
+		locked, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		var take []string
+		for _, id := range locked {
+			// Something below that is not open to the actor keeps its top in the trash for its owner.
+			if err := mayTakeAll(ctx, tx, id, actor.ID, "true"); errors.Is(err, ErrHeldBelow) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			take = append(take, id)
+		}
+		if len(take) == 0 {
+			return nil
+		}
+		// One approval of the gate covers emptying the trash, never one per item (B-5); nothing but the deletion follows.
+		if db.approver != nil {
+			if err := db.approver.Approve(ctx, ApproveEmptyTrash, strconv.FormatInt(cutoff.Unix(), 10)); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx, `WITH RECURSIVE down AS (
+				SELECT id FROM objects WHERE id = ANY ($1::text[]) AND deleted_at IS NOT NULL
+				UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+			) DELETE FROM objects WHERE id IN (SELECT id FROM down)`, take); err != nil {
+			return err
+		}
+		gone = len(take)
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	// What may go is found first; then one approval of the gate covers emptying the trash, never one per item (B-5).
+	return gone, nil
+}
+
+// PurgeableTrash returns what emptying the trash would take for the actor, as far as can be told before anything is
+// locked: the objects at the top of the trash deleted at or before cutoff that they may delete for good, with TrashName
+// typed as confirm.
+func (db *DB) PurgeableTrash(ctx context.Context, actor Actor, confirm string, cutoff time.Time) ([]string, error) {
+	return db.purgeableTrash(ctx, actor, confirm, &cutoff)
+}
+
+func (db *DB) purgeableTrash(ctx context.Context, actor Actor, confirm string, cutoff *time.Time) ([]string, error) {
+	if err := browserSession(ctx, actor.ID); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(confirm) != TrashName {
+		return nil, ErrConfirmName
+	}
+	list, err := db.Trash(ctx, actor.ID)
+	if err != nil {
+		return nil, err
+	}
 	var purgeable []string
 	for _, t := range list {
+		if cutoff != nil && t.DeletedAt.After(*cutoff) {
+			continue
+		}
 		if _, err := db.forPurge(ctx, t.ID, actor); errors.Is(err, ErrPurger) || errors.Is(err, ErrNotFound) {
 			continue
 		} else if err != nil {
-			return 0, err
+			return nil, err
 		}
 		purgeable = append(purgeable, t.ID)
 	}
-	if len(purgeable) == 0 {
-		return 0, nil
-	}
-	if db.approver != nil {
-		if err := db.approver.Approve(ctx, ApproveEmptyTrash, ""); err != nil {
-			return 0, err
-		}
-	}
-	gone := 0
-	for _, id := range purgeable {
-		err := db.purge(ctx, id, actor, false)
-		if errors.Is(err, ErrHeldBelow) || errors.Is(err, ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return gone, err
-		}
-		gone++
-	}
-	return gone, nil
+	return purgeable, nil
 }
 
 // ExpireTrash takes away for good what was deleted before the given moment, for every account of the tenant of ctx.
 // Something deleted on its own before what lay above it is older still, so it goes in the same statement, and nothing
 // is left without its parent.
+//
+// The trash of an archived space waits: nothing of it can be restored while the space is archived, so its time does not
+// run, and restoring the space moves the moment of its deletion on by as long as the space was archived (B-6).
 func (db *DB) ExpireTrash(ctx context.Context, before time.Time) (int64, error) {
-	tag, err := db.pool.Exec(ctx, "DELETE FROM objects WHERE deleted_at IS NOT NULL AND deleted_at < $1", before)
+	tag, err := db.pool.Exec(ctx, "DELETE FROM objects WHERE deleted_at IS NOT NULL AND deleted_at < $1 AND NOT object_archived(id)", before)
 	if err != nil {
 		return 0, err
 	}

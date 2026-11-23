@@ -43,10 +43,13 @@ keeps delete. The team wiki's *moderator* is Members ([T-28](../backlog/T-28-imp
 **Nobody gives what they do not hold** (T-34): whoever manages an object only opens up the actions they hold there
 themselves, that is allows one or takes back a deny of one, also for the whole tenant and through the level of the
 workspace (`/access`). Narrowing is always allowed: taking an allow back, denying. So a holder of Members gives Read,
-Comment and Members, takes any role back, but gives no Edit or Manage (`403`). **Restoring the inheritance** may open up
+Comment and Members, takes any role back, but gives no Edit or Manage (`403`). An entry holds below the object too,
+wherever the inheritance is not broken, so the actions it opens up must be held on each of those as well: a manager with
+a deny of delete on a page inside gives nobody delete on the folder around it (B-6). The entries are read under a lock
+of the object, in the transaction that changes them, so a deny set at the same moment is seen. **Restoring the inheritance** may open up
 anything from above, so only whoever holds all seven actions there does it; breaking it copies what holds and is open to
-every manager. A **link** to comment or edit lends only the actions its maker still holds, as long as the maker may still
-share it. Administrators manage rights whatever they hold.
+every manager. A **link** to comment or edit lends only the actions its maker still holds on the object asked for, as
+long as the maker may still share it there (B-6). Administrators manage rights whatever they hold.
 
 **The owner** is one person per object, whoever made it. Entries go to
 
@@ -119,7 +122,8 @@ first. The folder of the workspace and the folders of users among Files, and pri
   admins. Restoring is for the same people. The workspace offers it in the overview of the space (`archive` in
   `/api/state`).
 - **Kept:** everything inside it, its entries and its links, **without a limit**: the archive is not the trash, and nothing
-  goes by itself. What already lay in the trash of the space goes after 30 days as always.
+  goes by itself. What already lay in the trash of the space waits while it is archived, since nothing of it can be
+  restored then: its 30 days pause, and restoring the space gives them back (B-6).
 - **Hidden:** the tree (`/api/state`, `/api/files`), the search and the tree of MCP leave archived spaces out, unless
   asked for (`archive=1`, the button *Show the archive* below the collections and below the roots of Files, the filter
   *Also in the archive* of the results page, `archived` of the MCP tools `context` and `search`), or unless the search
@@ -129,7 +133,10 @@ first. The folder of the workspace and the folders of users among Files, and pri
   holds it at once: the web, the API, MCP and its upload links (also one made before), Samba (read only for everyone),
   uploads in the browser (also one started before), share links (a link lends nothing and opens nothing while its maker
   may not share, which nobody may in the archive; restoring brings them back unless they expired), copying in, moving in
-  or out, restoring from the trash into it, renaming it. Read stays as the entries say, and so does **manage**: who may
+  or out, restoring from the trash into it, renaming it. A write that checked its rights before the space was archived
+  does not land in it either: every write of content (blocks, versions of files, attachments, new objects) holds the
+  space in its transaction, and archiving waits for it or the write finds the archive (`holdSpace`, B-6). Read stays as
+  the entries say, and so does **manage**: who may
   read the archive can still be set, opening up only read and manage (above). Copying out needs read here and create
   there. The owner and administrators still transfer it.
 - **In the database** the columns `objects.archived` and `archived_by` (migration 037) mark a space; a check keeps them on
@@ -166,7 +173,11 @@ collections at the top as whoever runs the instance.
 - **Agents never** manage rights or groups, share (links), delete for good (empty the trash) or read passwords
   (ADR-7). Read, create, write, comment and moving to the trash stay as their person may.
 - **Agents never publish** (B-5): they move or copy nothing, a page, a folder or a block, to where someone may read it
-  who may not read it where it is now (`403`); a person does that. They make no space and move no space to the trash,
+  who may not read it where it is now (`403`); a person does that. A copy keeps of what lies below its top none of its
+  entries for persons or groups, its denies or a break of its inheritance, so every object a copy makes is checked, not
+  only its top (B-6). A live link that shows its object (read, comment or edit, not upload) on the target or above it
+  counts as readers without limit, and a link on what an agent moves that is dead where it lies, because its maker may
+  not share it there, counts where its maker may share the target (B-6). They make no space and move no space to the trash,
   and the **rules page** ([mcp.md](mcp.md#the-rules-page)) they only read, whatever its entries say (deciding entry
   `rules page`).
 - **No agents** on a space is a deny on read for Agents there, set like any entry (kind `agents`).
@@ -220,7 +231,9 @@ copied: they hold as a ceiling anyway.
   session** (`Remote-Auth: session`, never an agent, a key or an app password), with its **name typed in**, which the
   server checks exactly; emptying the trash needs `Trash` typed in and takes only what the person may delete for good.
   Whoever only deleted it waits for its owner, or for the trash to empty itself after 30 days. Once the gate signs
-  approvals for actions of an app (T-33), it will need one as well (`db.SetApprover`).
+  approvals for actions of an app (T-33), it will need one as well (`db.SetApprover`): what goes is locked and checked
+  first, then the approval is asked for, then it goes, nothing in between, so an approval is used up only by what goes.
+  Emptying the trash asks for one approval bound to a cutoff, and takes only what was deleted at or before it (B-6).
 - **Versions are for write:** the history of a page or a file holds what was taken out, so whoever only reads gets the
   current state, not the versions.
 - **Embedding bypasses nothing:** an embedded page or block shows "not to be found" to whoever may not read it, a deny
@@ -228,6 +241,23 @@ copied: they hold as a ceiling anyway.
   embedded table of a spreadsheet the same, without the name of its file ([tables.md](tables.md#tables-in-pages)).
 - **Passwords in the text** ([secrets.md](secrets.md), ADR-7) are revealed by whoever reads their page, or narrower by
   whom its managers name; a role lent by a share link reveals none.
+
+## Known limits
+
+What the rights do not do, on purpose or not yet (B-6):
+
+- **The search may trail a new deny** for a moment: its counts come from the index until the queue is drained; the hits
+  themselves are checked every time.
+- **Members on Samba:** a holder of Members writes in the browser, but the share knows rights per folder only and shows
+  them read only there.
+- **An import** (`underdoc import --archived`, the command line only) archives without the check of the fixed roots the
+  web makes; the check of the database (a collection at the top that is not private) still holds.
+- **Group admins pass on through membership** what they do not hold themselves: putting someone into a group gives them
+  what the group holds. The rule "nobody gives what they do not hold" covers entries, not memberships.
+- **A copy keeps the tags**, so an agent can make a page tagged `rules`; since B-5 the tag makes no rules page.
+- **"Agents never publish"** covers moving, copying and moving blocks. An agent that reads something and writes it anew
+  elsewhere is not stopped by it ([T-38](../backlog/T-38-attack-round-an-agent-makes-something-readable-to.md) looks at
+  marking such writes).
 
 ## On the Samba share
 
@@ -389,7 +419,7 @@ and lends nobody a role. The log names `/s/…` without the token. A link to com
 |---|---|---|
 | **read** | anyone with the link | a page **frozen**; a file, or a folder of the files with what is below it, as it is now, and only what the maker of the link sees now, checked for each folder and file |
 | **upload** | anyone with the link | into a folder of the files: each file arrives under a name nothing there has when it is made, as a file of whoever made the link, never as a version of what is there; the visitor sees nothing of the folder |
-| **comment**, **edit** | accounts of the tenant | whoever opens the link while signed in holds that role on the object and below it, as long as the link lives; without an account, the link asks to sign in |
+| **comment**, **edit** | accounts of the tenant | whoever opens the link while signed in holds that role on the object and below it, as long as the link lives and only where its maker still holds each action, on the object asked for itself (a deny for the maker on a page below holds for the link too, B-6); without an account, the link asks to sign in |
 
 - **Frozen:** a page is rendered when the link is made, as its maker sees it then, and the link shows exactly that until a
   manager renews it. Every page it embeds, directly or through what it embeds, is listed (`/shareables`) and shows only

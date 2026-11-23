@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -41,6 +41,28 @@ var (
 
 // LogArchive is archiving or restoring a space; its detail says which.
 const LogArchive = "archive"
+
+// holdSpace takes the space an object lies in for share, inside a write transaction, and refuses when it is archived
+// (B-6). Archiving updates that row, so it waits for the write, and a write that checked its rights before archiving
+// came finds the archive here instead of landing in it. Every write of content goes through it: the blocks of a page,
+// versions of files, attachments and new objects.
+func holdSpace(ctx context.Context, q execer, objectID string) error {
+	var archived bool
+	err := q.QueryRow(ctx, `WITH RECURSIVE up AS (
+			SELECT id, parent, 0 AS depth FROM objects WHERE id = $1
+			UNION ALL SELECT o.id, o.parent, up.depth + 1 FROM objects o JOIN up ON o.id = up.parent WHERE up.depth < 200
+		) SELECT archived IS NOT NULL FROM objects WHERE id = (SELECT id FROM up WHERE parent IS NULL) FOR SHARE`, objectID).Scan(&archived)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if archived {
+		return ErrArchived
+	}
+	return nil
+}
 
 // ArchivedSpaces returns the archived spaces of the documents and of Files the viewer may read, by area and title, for
 // the tree when the archive is shown.
@@ -124,12 +146,30 @@ func (db *DB) SetArchived(ctx context.Context, objectID string, actor Actor, arc
 
 func (db *DB) setArchived(ctx context.Context, objectID, by string, archived bool) error {
 	if archived {
+		// The update waits for every write that holds the space (holdSpace), and those after it find it archived.
 		_, err := db.pool.Exec(ctx, `UPDATE objects SET archived = coalesce(archived, now()), archived_by = $2, changed = now()
 			WHERE id = $1 AND parent IS NULL`, objectID, by)
 		return err
 	}
-	_, err := db.pool.Exec(ctx, `UPDATE objects SET archived = NULL, archived_by = '', changed = now() WHERE id = $1`, objectID)
-	return err
+	// What lay in its trash gets the time back that the space was archived, so its 30 days pause while archived (B-6).
+	// Everything deleted together moves by the same span, so it stays together.
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var since *time.Time
+		if err := tx.QueryRow(ctx, "SELECT archived FROM objects WHERE id = $1 FOR UPDATE", objectID).Scan(&since); err != nil {
+			return err
+		}
+		if since != nil {
+			if _, err := tx.Exec(ctx, `WITH RECURSIVE down AS (
+					SELECT id FROM objects WHERE id = $1
+					UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+				) UPDATE objects SET deleted_at = deleted_at + (now() - $2::timestamptz)
+				WHERE id IN (SELECT id FROM down) AND deleted_at IS NOT NULL`, objectID, *since); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE objects SET archived = NULL, archived_by = '', changed = now() WHERE id = $1`, objectID)
+		return err
+	})
 }
 
 // ArchiveAsOperator archives a space without a request, as whoever runs the instance: for an import that brings an
@@ -198,18 +238,26 @@ func (db *DB) ImportGroup(ctx context.Context, name, description, parent string,
 // manages without delete (the preset Members) gives nobody delete, also not through the whole tenant, and takes back no
 // deny of it. Narrowing is always allowed: taking an allow back, or denying. Administrators manage rights whatever they
 // hold (ADR-36).
-func (db *DB) mayOpenUp(ctx context.Context, o Object, actor Actor, opened []string) error {
+//
+// An entry holds below the object too, wherever the inheritance is not broken, so the actor must hold the action on each
+// of those as well, as mayTakeAll asks for deleting (B-6): a manager with a deny of delete on a page inside gives nobody
+// delete on the folder around it. What is private below gets no entries, so it does not count. q is the transaction of
+// the change, so that what it reads is what it changes.
+func (db *DB) mayOpenUp(ctx context.Context, q execer, o Object, actor Actor, opened []string) error {
 	if actor.Admin || len(opened) == 0 {
 		return nil
 	}
-	held, err := db.ActionsOf(ctx, o.ID, actor.ID)
-	if err != nil {
+	var shut bool
+	if err := q.QueryRow(ctx, `WITH RECURSIVE down AS (
+			SELECT id, 0 AS depth FROM objects WHERE id = $1
+			UNION ALL SELECT c.id, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
+				WHERE c.inherit AND NOT c.private AND c.deleted_at IS NULL AND down.depth < 200
+		) SELECT EXISTS (SELECT 1 FROM down CROSS JOIN unnest($3::text[]) a WHERE NOT object_may(down.id, $2, a))`,
+		o.ID, actor.ID, opened).Scan(&shut); err != nil {
 		return err
 	}
-	for _, a := range opened {
-		if !slices.Contains(held, a) {
-			return ErrWiden
-		}
+	if shut {
+		return ErrWiden
 	}
 	return nil
 }

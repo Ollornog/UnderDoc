@@ -786,6 +786,9 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 }
 
 func addVersion(ctx context.Context, tx pgx.Tx, fileID, author, sha string, size int64, name, contentType string) (int, error) {
+	if err := holdSpace(ctx, tx, fileID); err != nil {
+		return 0, err
+	}
 	var number int
 	err := tx.QueryRow(ctx, `INSERT INTO file_versions (file, number, blob, size, name, content_type, author)
 		VALUES ($1, (SELECT coalesce(max(number), 0) + 1 FROM file_versions WHERE file = $1), $2, $3, $4, $5, $6) RETURNING number`,
@@ -798,6 +801,9 @@ func addVersion(ctx context.Context, tx pgx.Tx, fileID, author, sha string, size
 }
 
 func addAttachment(ctx context.Context, tx pgx.Tx, pageID, author, sha string, size int64, name, contentType string) (string, error) {
+	if err := holdSpace(ctx, tx, pageID); err != nil {
+		return "", err
+	}
 	var number int
 	if err := tx.QueryRow(ctx, "UPDATE objects SET next_attachment = next_attachment + 1 WHERE id = $1 RETURNING next_attachment - 1", pageID).Scan(&number); err != nil {
 		return "", err

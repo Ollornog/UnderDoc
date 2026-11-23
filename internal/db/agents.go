@@ -58,8 +58,19 @@ func (db *DB) RulesPageID(ctx context.Context) (string, error) {
 // ErrRulesPageAgents is a change of an agent to the rules page or below it: agents read it only (B-5).
 var ErrRulesPageAgents = fmt.Errorf("%w: agents only read the rules page; a person changes it in the browser", ErrNotAllowed)
 
-// ErrRulesPage is a rules page that is no page the administrator reads.
-var ErrRulesPage = errors.New("the rules page is a page you read")
+// ErrRulesPage is a rules page that is no page the administrator reads, or one that is private or archived (B-6).
+var ErrRulesPage = errors.New("the rules page is a page you read, neither private nor in an archived space")
+
+// RulesPageFromTag tells whether the rules page is still the one migration 038 took over from the tag rules, which an
+// administrator has not confirmed yet (B-6).
+func (db *DB) RulesPageFromTag(ctx context.Context) (bool, error) {
+	var fromTag bool
+	err := db.pool.QueryRow(ctx, "SELECT from_tag AND rules_page IS NOT NULL FROM agent_settings").Scan(&fromTag)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return fromTag, err
+}
 
 // SetRulesPage names the rules page of the tenant, or none with "" (B-5). Only an administrator does, in the browser:
 // agents read it and do nothing else with it or below it, the one check says so (object_decide, migration 038). The page
@@ -79,9 +90,23 @@ func (db *DB) SetRulesPage(ctx context.Context, actor Actor, pageID string) erro
 		if o.Kind != KindPage {
 			return ErrRulesPage
 		}
+		// A private page is its owner's alone, and an archived one cannot be kept up to date (B-6).
+		private, err := isPrivate(ctx, db.pool, o.ID)
+		if err != nil {
+			return err
+		}
+		archived, err := db.InArchive(ctx, o.ID)
+		if err != nil {
+			return err
+		}
+		if private || archived {
+			return ErrRulesPage
+		}
 	}
-	_, err := db.pool.Exec(ctx, `INSERT INTO agent_settings (rules_page, changed_by) VALUES (nullif($1, ''), $2)
-		ON CONFLICT (tenant) DO UPDATE SET rules_page = EXCLUDED.rules_page, changed_by = EXCLUDED.changed_by, changed = now()`, pageID, actor.ID)
+	// Naming it, also the same page again, confirms it: it is no longer the one taken over from the tag.
+	_, err := db.pool.Exec(ctx, `INSERT INTO agent_settings (rules_page, changed_by, from_tag) VALUES (nullif($1, ''), $2, false)
+		ON CONFLICT (tenant) DO UPDATE SET rules_page = EXCLUDED.rules_page, changed_by = EXCLUDED.changed_by, changed = now(),
+			from_tag = false`, pageID, actor.ID)
 	return err
 }
 
@@ -124,18 +149,34 @@ func (db *DB) TakeUploadLink(ctx context.Context, token string) (Upload, error) 
 // a person does in the browser (B-5, ADR-36).
 var ErrPublish = fmt.Errorf("%w: an agent moves or copies nothing to where more people may read it than may read it now; a person does that in the browser", ErrNotAllowed)
 
-// agentNoWider refuses, for a request of an agent, to put what source holds below target when some account may read
-// target but may not read source now (B-5): moving a private page into a shared collection publishes it. What lies
-// below target inherits from it, and what the object decides itself it decides there as here, so nobody reads more than
-// before when every reader of target reads source already. A person may; the check counts persons, not agents.
-func (db *DB) agentNoWider(ctx context.Context, source, target string) error {
-	if !requestAgent(ctx) || target == "" {
+// agentNoWider refuses, for a request of an agent, to put what sources hold below target when some account may read
+// target but may not read one of the sources now (B-5): moving a private page into a shared collection publishes it.
+// What lies below target inherits from it, and what the object decides itself it decides there as here, so nobody
+// reads more than before when every reader of target reads the source already. A person may; the check counts persons,
+// not agents.
+//
+// A copy keeps of an object below its top only the role it grants everyone, not its entries for persons or groups, its
+// denies or a break of its inheritance, so every copied object is a source of its own (B-6). A move keeps them, so its
+// top is enough. A live read link on target or above it serves target to anyone with the link: that counts as readers
+// without limit, so only what such a link serves already goes there (B-6). A read link on what an agent moves that is
+// dead where it lies, because its maker may not share it there, comes alive where its maker may share target: that
+// counts too (B-6).
+func (db *DB) agentNoWider(ctx context.Context, sources []string, target string, move bool) error {
+	if !requestAgent(ctx) || target == "" || len(sources) == 0 {
 		return nil
 	}
 	var wider bool
-	if err := db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accounts a
-		WHERE (object_decide($2, a.id, 'read', false, true)).allowed AND NOT (object_decide($1, a.id, 'read', false, true)).allowed)`,
-		source, target).Scan(&wider); err != nil {
+	if err := db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accounts a, unnest($1::text[]) s
+			WHERE (object_decide($2, a.id, 'read', false, true)).allowed AND NOT (object_decide(s, a.id, 'read', false, true)).allowed)
+		OR (object_public($2) AND EXISTS (SELECT 1 FROM unnest($1::text[]) s WHERE NOT object_public(s)))
+		OR ($3 AND EXISTS (WITH RECURSIVE down AS (
+				SELECT id FROM objects WHERE id = ANY ($1::text[])
+				UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
+			) SELECT 1 FROM share_links l JOIN down ON down.id = l.object
+			WHERE l.mode = 'read' AND (l.expires IS NULL OR l.expires > now())
+			  AND NOT (object_decide(l.object, l.created_by, 'share', false, false)).allowed
+			  AND (object_decide($2, l.created_by, 'share', false, false)).allowed))`,
+		sources, target, move).Scan(&wider); err != nil {
 		return err
 	}
 	if wider {

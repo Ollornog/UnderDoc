@@ -100,8 +100,9 @@ type apiDocument struct {
 	UsedIn      []string   `json:"usedIn"`
 	Links       []string   `json:"links"`
 	Stable      bool       `json:"stable"`
-	// Blocks, CanEdit and Owner belong to pages of the database.
-	Blocks []apiBlock `json:"blocks,omitempty"`
+	// Blocks, CanEdit and Owner belong to pages of the database. Blocks is there for an empty page too, as [], so the
+	// workspace knows it for a page of the database and offers its kind (B-6); null for anything else.
+	Blocks []apiBlock `json:"blocks"`
 	// Embeds lists what a page of the database embeds, for its facts panel (M-3).
 	Embeds  []apiEmbed `json:"embeds,omitempty"`
 	CanEdit bool       `json:"canEdit,omitempty"`
@@ -127,8 +128,10 @@ type apiDocument struct {
 	// may archive or restore the space it is (T-34).
 	Archived bool `json:"archived,omitempty"`
 	Archive  bool `json:"archive,omitempty"`
-	// RulesPage tells that the page is the rules page for agents (B-5).
-	RulesPage bool `json:"rulesPage,omitempty"`
+	// RulesPage tells that the page is the rules page for agents (B-5); RulesFromTag, for administrators, that it is still
+	// the one taken over from the tag rules, not confirmed yet (B-6).
+	RulesPage    bool `json:"rulesPage,omitempty"`
+	RulesFromTag bool `json:"rulesFromTag,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.

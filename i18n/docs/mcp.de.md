@@ -97,12 +97,21 @@ sehen darf.
 
 Die Konventionen einer Instanz sind eine Seite im Wiki (ADR-33, ADR-34): die Seite, die ein **Administrator im Browser
 benennt**, in den Einstellungen einer Seite der Art `agent-notes` („Make it the rules page for agents“,
-`PUT /api/rules-page`, B-5). `context` nennt sie jedem, der sie lesen darf; die Anweisungen des Servers sagen, sie vor dem
-Schreiben zu lesen. Agenten **lesen sie nur**: Die eine Prüfung verweigert jede andere Aktion eines Agenten auf ihr und
+`PUT /api/rules-page`, B-5). `context` nennt sie jedem, der sie lesen darf, und gibt ihren Text so, wie er dasteht, bis
+16 KB: Einer Einbettung darin folgt es nicht, weil Agenten schreiben dürfen, was sie einbettet, und es gilt nur, was auf
+der Regelseite selbst steht (B-6). Die Anweisungen des Servers sagen, sie vor dem Schreiben zu lesen. Agenten **lesen sie nur**: Die eine Prüfung verweigert jede andere Aktion eines Agenten auf ihr und
 darunter, was immer die Einträge sagen (entscheidender Eintrag `rules page`), und kein Agent setzt oder entfernt
 irgendwo das Tag `rules`. Menschen ändern sie im Browser wie jede Seite. Bis B-5 war es die älteste Seite dieser Art mit
 dem Tag `rules`, die ein Agent durch Taggen einer älteren Seite übernehmen konnte; Migration 038 hat eine solche Seite
-als Regelseite übernommen.
+als Regelseite übernommen. Migration 039 verwirft eine private davon und markiert die anderen als vom Tag übernommen:
+Administratoren sehen in den Einstellungen der Seite „Taken over from the tag rules: please confirm it“, bis sie sie
+bestätigen (`fromTag`, B-6). Die Regelseite ist nie eine private Seite und keine in einem archivierten Bereich (`400`).
+
+```text
+GET /api/rules-page    {"page": "<id>", "title": "…", "fromTag": false}   die Regelseite, die der Leser liest, leer für keine;
+                       fromTag nur für Administratoren
+PUT /api/rules-page    {"page": "<id>"}   Administratoren im Browser; "" für keine; dieselbe Seite noch einmal bestätigt sie
+```
 
 ### Anweisungen
 

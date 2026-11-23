@@ -25,7 +25,16 @@ func (h *handler) apiRulesPage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"page": "", "title": ""})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"page": o.ID, "title": o.Title})
+	out := map[string]any{"page": o.ID, "title": o.Title}
+	// Administrators are told when the page is still the one taken over from the tag, to confirm it (B-6).
+	if administers(h.me(r)) {
+		fromTag, err := h.options.DB.RulesPageFromTag(r.Context())
+		if h.failed(w, err, "rules page") {
+			return
+		}
+		out["fromTag"] = fromTag
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // apiSetRulesPage names the rules page, or none with an empty page: administrators, in the browser.

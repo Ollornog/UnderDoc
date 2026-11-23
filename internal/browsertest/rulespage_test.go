@@ -59,3 +59,25 @@ func TestTheRulesPageIsNamedInTheSettings(t *testing.T) {
 		t.Error("bob is offered the rules page")
 	}
 }
+
+// An empty page of the database offers its kind in the settings, as one with blocks does (B-6, finding 14).
+func TestAnEmptyPageOffersItsKind(t *testing.T) {
+	b, base := setupWithDatabase(t)
+	b.signInWith("anna", "Anna Berg", "ops,underdoc-admin")
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	team := makeTeam(b)
+	b.eval(`window.made = null; (async () => {
+		const r = await fetch('/api/pages', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: 'Empty', parent: '` + team + `'})});
+		window.made = (await r.json()).id;
+	})()`)
+	if !b.waitFor(`!!window.made`) {
+		t.Fatal("the page was not made")
+	}
+	b.open(base + "/o/" + b.eval(`window.made`))
+	b.ready("Empty")
+	b.clickOn(`[data-win="0"] [data-act="gear"][aria-label="Document settings"]`, 1)
+	if !b.waitFor(`!!document.querySelector('aside[data-drawer] select[data-setkind]')`) {
+		t.Fatalf("an empty page offers no kind: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText`))
+	}
+}
