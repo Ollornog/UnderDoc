@@ -8,6 +8,19 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Page kinds with writing rules** (T-20, ADR-33, [docs/page-kinds.md](docs/page-kinds.md), migration 033): a page
+  names its kind (overview, register, record, plan, source; reference, agent notes; how-to, explanation, tutorial), and
+  the kind sets its audience; a page without one counts as human documentation. The kind is chosen in the settings of a
+  page, given to a new page or taken from its template, kept by a copy, and written as `kind:` in the front matter of an
+  export, read back by an import in English and German (`pagekind.FromTeamWiki` maps the two axes of a team wiki for
+  T-28). Every write of a block is checked in one place: front matter in a block and a part ID used twice are refused
+  with their fix; warnings (no kind, no opening sentence, no numbered steps, a value copied from a reference or record
+  with "embed instead of copying" and its source, an image only linked, an error table, a reference without stable
+  headings, an embedding that finds nothing, too long a description) come back with every write and show folded above
+  the page for whoever may change it. The list of problems names the pages and folders that break their rules, folders
+  without an overview and with more than 25 pages included. People see the kind and side under the title; agents read
+  the raw page with its front matter at `GET /api/pages/<id>/raw`. Browser test.
+
 - **The emergency access and the binding of accounts made before** on the command line (ADR-32, T-27 part 2):
   `underdoc admin grant|revoke <remote-id>` marks the account of a lasting ID of the gate as an administrator, also before
   its first sign-in; `underdoc account list` shows every account with its lasting ID, source and mark; `underdoc account

@@ -10,6 +10,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 // maxProblemBlocks is how many blocks the list of problems reads at most; beyond that it says there is more.
@@ -33,17 +34,27 @@ type apiSourceProblem struct {
 	Message string `json:"message"`
 }
 
+// apiRuleProblem is a page or folder that breaks writing rules (T-20), with what it breaks.
+type apiRuleProblem struct {
+	Page     string             `json:"page"`
+	Title    string             `json:"title"`
+	Kind     string             `json:"kind"`
+	Findings []pagekind.Finding `json:"findings"`
+}
+
 type apiProblems struct {
 	Database []apiProblem       `json:"database"`
 	Source   []apiSourceProblem `json:"source"`
 	More     bool               `json:"more"`
+	// Rules are the pages and folders the viewer sees that break the writing rules of their kind (T-20, ADR-33).
+	Rules []apiRuleProblem `json:"rules"`
 }
 
 // apiProblems lists what does not resolve (M-3): in the pages of the database the viewer sees, embeddings and links to
 // pages or blocks that are gone, never there or not to be seen by the viewer, and links of the Markdown that find
 // nothing; and what the folder source ran into. A broken reference is a visible error, never a silent gap.
 func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
-	out := apiProblems{Database: []apiProblem{}, Source: []apiSourceProblem{}}
+	out := apiProblems{Database: []apiProblem{}, Source: []apiSourceProblem{}, Rules: []apiRuleProblem{}}
 	for _, p := range h.library(r.Context()).Problems() {
 		out.Source = append(out.Source, apiSourceProblem{Source: p.Source, Message: p.Message})
 	}
@@ -143,6 +154,14 @@ func (h *handler) apiProblems(w http.ResponseWriter, r *http.Request) {
 				add(b, broken.Reference, broken.Reason)
 			}
 		}
+	}
+	rules, more, err := h.options.DB.RuleProblems(ctx, user.ID)
+	if h.failed(w, err, "problems") {
+		return
+	}
+	out.More = out.More || more
+	for _, p := range rules {
+		out.Rules = append(out.Rules, apiRuleProblem{Page: p.Page, Title: p.Title, Kind: p.Kind, Findings: p.Findings})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

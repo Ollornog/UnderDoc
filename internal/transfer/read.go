@@ -19,6 +19,7 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 // MaxPageBytes is the largest Markdown file that is read, as in the folder source.
@@ -571,7 +572,11 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 	case db.KindNotes:
 		n.Kind, n.Template = db.KindNotes, false
 	default:
-		r.warn(file, fmt.Sprintf("kind %q is not a page or quick notes, it was read as a page", p.Meta.Kind))
+		if kind, ok := pagekind.Parse(p.Meta.Kind); ok {
+			n.PageKind = kind
+		} else {
+			r.warn(file, fmt.Sprintf("kind %q is not a kind of page or quick notes, it was read as a page without one", p.Meta.Kind))
+		}
 	}
 	if db.ValidView(p.Meta.Width, p.Meta.Contents) {
 		n.Width, n.Contents = p.Meta.Width, p.Meta.Contents

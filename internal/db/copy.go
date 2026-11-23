@@ -142,7 +142,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 				access = ""
 			}
 			made, err := insertObject(ctx, tx, Object{Kind: n.o.Kind, Title: title, Description: n.o.Description, Tags: n.o.Tags, Owner: viewer,
-				Parent: parent, Access: access, Private: n.o.Private && parent == "", Width: n.o.Width, Contents: n.o.Contents})
+				Parent: parent, Access: access, Private: n.o.Private && parent == "", Width: n.o.Width, Contents: n.o.Contents, PageKind: n.o.PageKind})
 			if err != nil {
 				return Object{}, err
 			}

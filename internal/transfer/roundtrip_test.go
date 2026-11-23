@@ -16,6 +16,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
@@ -124,6 +125,7 @@ func TestRoundTrip(t *testing.T) {
 	first := open(t)
 	team := shared(t, first, anna, "Team: ops/net")
 	plan := must[db.Object](t)(first.CreatePage(ctx, anna, "Plan", team.ID))
+	guide := must[db.Object](t)(first.CreatePageOf(ctx, anna, "Why", team.ID, "", pagekind.Explanation))
 	b1 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, "", "## Switches\n\nTwo of them."))
 	b2 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "gone"))
 	b3 := must[db.Block](t)(first.AddBlock(ctx, plan.ID, anna.ID, b1.ID, "```md\n# not a heading\n<!-- not a marker -->\n```"))
@@ -210,6 +212,9 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if b := must[[]db.Block](t)(second.Blocks(ctx, plan.ID, anna.ID)); b[0].ID != b1.ID || b[0].Align != "center" || b[1].Align != "" {
 		t.Errorf("the alignment of the blocks after the round trip: %+v", b)
+	}
+	if o := must[db.Object](t)(second.Object(ctx, guide.ID, anna.ID)); o.PageKind != pagekind.Explanation {
+		t.Errorf("the kind of a page after the round trip: %q", o.PageKind)
 	}
 	if o := must[db.Object](t)(second.Object(ctx, board.ID, anna.ID)); o.Kind != db.KindNotes {
 		t.Errorf("the board of quick notes after the round trip: %+v", o)

@@ -51,7 +51,10 @@ backup/
       - space: 9x4c1m2k7q
   ```
 
-- **A page** is a Markdown file with front matter: `id`, `title`, and `description`, `access`, `tags`, `width`, `contents` and `template` where set; a board of quick notes says `kind: notes`. Its blocks
+- **A page** is a Markdown file with front matter: `id`, `title`, and `kind`, `description`, `access`, `tags`, `width`,
+  `contents` and `template` where set. `kind` is the kind of the page ([page-kinds.md](page-kinds.md)), and a board of
+  quick notes says `kind: notes`. An import reads the kinds in English and German; one it does not know is a warning,
+  and the page comes in without a kind. Its blocks
   follow in order, each after a marker that keeps its ID:
 
   ```markdown

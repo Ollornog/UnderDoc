@@ -243,6 +243,9 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("GET /api/values", h.apiValues)
 	doc("GET /api/snippets", h.apiSnippets)
 	doc("GET /api/pages/{id}/versions", h.apiVersions)
+	// Page kinds and their writing rules (T-20, ADR-33); the raw page with its front matter for agents.
+	doc("PUT /api/pages/{id}/kind", h.apiPageKind)
+	doc("GET /api/pages/{id}/raw", h.apiRawPage)
 	// Passwords in the text (ADR-7): the value only through reveal.
 	doc("GET /api/pages/{id}/secrets", h.apiPageSecrets)
 	doc("POST /api/pages/{id}/secrets", h.apiCreateSecret)

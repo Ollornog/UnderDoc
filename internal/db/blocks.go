@@ -109,9 +109,13 @@ func checkBody(body string) error {
 	return nil
 }
 
-// AddBlock puts a new block after the block named by after, or first if after is empty. The block has its ID at once.
+// AddBlock puts a new block after the block named by after, or first if after is empty. The block has its ID at once. A
+// text that breaks a blocking writing rule is refused with a *RuleError (T-20).
 func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) (Block, error) {
 	if err := checkBody(body); err != nil {
+		return Block{}, err
+	}
+	if err := refuse("", body); err != nil {
 		return Block{}, err
 	}
 	var b Block
@@ -188,6 +192,9 @@ func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body strin
 // for all ("*").
 func (db *DB) EditBlockWays(ctx context.Context, pageID, blockID, viewer, body string, ways map[string]Way) (Block, error) {
 	if err := checkBody(body); err != nil {
+		return Block{}, err
+	}
+	if err := refuse(blockID, body); err != nil {
 		return Block{}, err
 	}
 	err := db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {

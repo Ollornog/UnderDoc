@@ -18,6 +18,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/id"
 	"github.com/Ollornog/UnderDoc/internal/module"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 	"github.com/Ollornog/UnderDoc/internal/route"
 	"github.com/Ollornog/UnderDoc/internal/tree"
 )
@@ -105,6 +106,11 @@ type apiDocument struct {
 	CanComment bool `json:"canComment,omitempty"`
 	// SeenBy names who sees an object of the database and with which role, for its facts panel (ADR-29).
 	SeenBy []string `json:"seenBy,omitempty"`
+	// PageKind is the kind of a page of the database and Audience the side it sets (T-20, ADR-33); Findings are the
+	// writing rules it breaks, for whoever may change it.
+	PageKind string             `json:"kind,omitempty"`
+	Audience string             `json:"audience,omitempty"`
+	Findings []pagekind.Finding `json:"findings,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.

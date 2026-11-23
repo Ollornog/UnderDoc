@@ -500,6 +500,7 @@ function gearHtml(t,i,hasSecs){
     ${prow('Width',seg('setw',['slim','wide','full'],d.w,'Width'))}
     ${prow('Page view',pbtn('disabled title="Comes later"','DIN A4, later'))}
     ${d.db&&d.blocks?prow('Template',seg('settpl',['off','offered'],d.tpl?'offered':'off','Template')):''}
+    ${window.UDKinds?UDKinds.kindRow(t.d,d,mayTag(t.d)):''}
     <h3>Others can</h3>${prow(d.acc?'Set here':'Inherited: '+ACC[othersOf(t.d)].toLowerCase(),seg('setacc',['inherit','edit','comment','read'],d.acc||'inherit','Others can'))}
     ${hint(d.db?'Both are kept with this document, for everyone who opens it.':'Both belong to this document, in its metadata. The source view shows them. Here a change lasts until you reload.')}
     ${d.db?prow('People, groups and links',pbtn(`data-act="rights" data-id="${t.d}"`,'Rights and sharing')):''}
@@ -607,8 +608,8 @@ function winHtml(w,i){
   /* The document column is C22's article.typeset with its width; the blocks of a page are its div[data-block] wrappers,
      and C22 keeps room for their handles beside it. A view (a list of to-dos, the month, a board, a saved search) stands
      straight in the window's section, as C22's views do. */
-  const whead=`<header>${status}<div>${place}${marks}<span data-fill></span>${tools}</div><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}</header>`;
-  const inner=t.src?`<pre class="code-block" data-line-numbers data-art="${i}"><code>${sourceOf(d).map(l=>`<span>${esc(l)}</span>`).join('')}</code></pre>`:d.view?h:`<article class="typeset" data-width="${d.w}" data-art="${i}">${h}</article>`;
+  const whead=`<header>${status}<div>${place}${marks}<span data-fill></span>${tools}</div><h1>${d.n}</h1>${d.desc?`<p>${d.desc}</p>`:''}${window.UDKinds?UDKinds.head(d):''}</header>`;
+  const inner=t.src?`<pre class="code-block" data-line-numbers data-art="${i}"><code>${sourceOf(d).map(l=>`<span>${esc(l)}</span>`).join('')}</code></pre>`:d.view?h:`<article class="typeset" data-width="${d.w}" data-art="${i}">${window.UDKinds&&!ed?UDKinds.findingsHtml(d):''}${h}</article>`;
   return `${open}${head}${pop}<main class="workspace-main">${whead}<div data-drop-zone="start" hidden></div><div data-drop-zone="end" hidden></div><div data-drop-zone="here" hidden></div>${ed&&!t.src?edBarHtml(t.d,i):''}
     <section data-sc="${i}">${toc}${inner}</section>${t.gear?gearHtml(t,i,hs.length>0):''}${t.cmt&&cmtShown(t.d)?cmtHtml(t,i):''}${ai}${statusHtml(d)}</main></section>`;
 }
@@ -1538,6 +1539,8 @@ async function loadDoc(id){
     /* What a page of the database embeds (M-3): a value by its name, everything else by its kind and where it lives. */
     (a.embeds||[]).forEach(e=>{const at=esc(e.title)+(e.ref.includes('#')?' #'+esc(e.ref.split('#')[1]):'');
       if(e.kind==='value')d.uses.vals.push(`${esc(e.name)} <small>${at}</small>`);else d.uses.emb.push({l:EMBED_KINDS[e.kind]||'Embedded',x:at});});
+    /* The kind of a page and what it breaks (T-20, kinds.js). */
+    d.kind=a.kind||'';d.audience=a.audience||'';d.findings=a.findings||[];
     if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(S.files)loadAttachments(id);}
   }catch(e){d.html='<p class="text-muted-foreground text-sm">This page could not be loaded.</p>';}
   d.loading=false;render();
@@ -1756,8 +1759,9 @@ const edAPI=key=>{
 function edSaved(key){
   const d=D[key],done=()=>{syncBlocks(d);d.ch='now';if(gearOpen(key))loadVersions(key);};
   return {
-    edited:b=>{const x=d.blocks.find(y=>y.id===b.id),n=blockOf(b);if(x){x.html=n.html;x.md=n.md;x.raw=n.raw;x.usedIn=n.usedIn;}done();},
-    added:(b,after)=>{const k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,blockOf(b));done();},
+    /* The answer of a write names what the page breaks now (T-20). */
+    edited:b=>{const x=d.blocks.find(y=>y.id===b.id),n=blockOf(b);if(x){x.html=n.html;x.md=n.md;x.raw=n.raw;x.usedIn=n.usedIn;}d.findings=b.findings||[];done();},
+    added:(b,after)=>{const k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,blockOf(b));d.findings=b.findings||[];done();},
     removed:id=>{d.blocks=d.blocks.filter(x=>x.id!==id);done();},
     moved:(id,after)=>{const k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);done();},
   };
@@ -1785,7 +1789,8 @@ function makeEditor(key){
       secretFrom:v=>window.UDSecrets?UDSecrets.makeFrom(d.sid,v):Promise.resolve(null),
       /* A pasted or dropped image becomes an attachment of the page (ADR-28). */
       upload:f=>uploadAttachment(key,f),
-      error:err=>toast(err&&err.message==='403'?'Others may not change this page.':'The page could not be saved. What you wrote stays in the editor.'),
+      /* A text that breaks a blocking writing rule (T-20) says which and how to fix it. */
+      error:err=>toast(err&&err.message==='403'?'Others may not change this page.':err&&err.message==='400'&&err.detail?err.detail+' What you wrote stays in the editor.':'The page could not be saved. What you wrote stays in the editor.'),
       conflict:text=>{S.edNote=S.edNote||{};S.edNote[key]=text;if(EDS[key]===e){delete EDS[key];e.ed.discard();}d.loaded=false;loadDoc(key);},
       saved:edSaved(key),
       inUse:q=>askWays(q.inUse).then(m=>m&&Object.fromEntries(Object.entries(m).map(([ref,w])=>[ref.split('#')[1],w]))),
@@ -2161,18 +2166,21 @@ D['trash:']=fill({t:'trash',n:'Trash',w:'wide',tool:true,path:'not a file, what 
    source ran into (M-3). A broken reference is a visible error, never a silent gap. */
 TYPE.problems=['info','Problems'];
 D['problems:']=fill({t:'problems',n:'Problems',w:'wide',tool:true,path:'not a file, what does not resolve',place:'Workspace',by:'',ch:'',vis:'Only you: in what you may see',
-  get stat(){const P=S.problems;return P?(P.db.length+P.src.length)+' problems':'Loading…';},
+  get stat(){const P=S.problems;return P?(P.db.length+P.src.length+P.rules.length)+' problems':'Loading…';},
   get html(){const P=S.problems;if(!P)return '<p class="text-muted-foreground text-sm">Loading…</p>';
-    if(!P.db.length&&!P.src.length)return '<p class="text-muted-foreground text-sm">Nothing is broken.</p>';
+    if(!P.db.length&&!P.src.length&&!P.rules.length)return '<p class="text-muted-foreground text-sm">Nothing is broken.</p>';
     const where=x=>SID[x.page]&&D[SID[x.page]]?`<button type="button" class="btn" data-variant="outline" data-size="xs" data-act="open" data-id="${SID[x.page]}">${icon('page')}${x.title}</button>`:`<a href="/o/${x.page}">${x.title}</a>`;
     return `<p class="text-muted-foreground text-sm">Embeddings and links that find nothing, in the pages you may see, and what the folder source ran into. Each stays visible in its page until it is fixed.</p>
       ${P.db.length?`<h2>Pages</h2><div class="table-container"><table class="table"><tr><th>Page</th><th>Block</th><th>Reference</th><th>Why</th></tr>${P.db.map(x=>`<tr data-problem="${x.page}#${x.block}"><td>${where(x)}</td><td>#${x.block}</td><td><code>${x.ref}</code></td><td>${x.why}</td></tr>`).join('')}</table></div>`:''}
+      ${window.UDKinds?UDKinds.problemsHtml(P.rules,where):''}
       ${P.src.length?`<h2>Folder source</h2><div class="table-container"><table class="table"><tr><th>File</th><th>Problem</th></tr>${P.src.map(x=>`<tr><td>${x.source}</td><td>${x.message}</td></tr>`).join('')}</table></div>`:''}
       ${P.more?'<p class="text-muted-foreground text-sm">There are more blocks than were read.</p>':''}`;}});
 async function loadProblems(){
   try{const r=await fetch('/api/problems',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    const a=await r.json();S.problems={db:a.database.map(x=>({page:esc(x.page),title:esc(x.title),block:esc(x.block),ref:esc(x.ref),why:esc(x.why)})),src:a.source.map(x=>({source:esc(x.source),message:esc(x.message)})),more:!!a.more};}
-  catch(e){S.problems={db:[],src:[],more:false};toast('The problems could not be read.');return;}
+    const a=await r.json();S.problems={db:a.database.map(x=>({page:esc(x.page),title:esc(x.title),block:esc(x.block),ref:esc(x.ref),why:esc(x.why)})),src:a.source.map(x=>({source:esc(x.source),message:esc(x.message)})),more:!!a.more,
+      /* Pages and folders that break the writing rules of their kind (T-20); kinds.js escapes the findings. */
+      rules:(a.rules||[]).map(x=>({page:esc(x.page),title:esc(x.title),kind:x.kind,findings:x.findings||[]}))};}
+  catch(e){S.problems={db:[],src:[],rules:[],more:false};toast('The problems could not be read.');return;}
   render();
 }
 async function loadTrash(){

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 // Template is what a new page can start from (M-8): one of UnderDoc's own, or a page offered as a template.
@@ -22,6 +23,8 @@ type Template struct {
 	Place string
 	// Blocks are the Markdown of UnderDoc's own templates, one block each.
 	Blocks []string
+	// Kind is the kind a page made from it gets (T-20).
+	Kind string
 }
 
 // BuiltIn is the prefix of the IDs of UnderDoc's own templates.
@@ -29,13 +32,13 @@ const BuiltIn = "builtin:"
 
 // BuiltInTemplates are the templates UnderDoc brings, after Confluence and Docmost: a page starts with their blocks.
 var BuiltInTemplates = []Template{
-	{ID: BuiltIn + "meeting", Title: "Meeting notes", Description: "Date, who came, agenda, decisions and to-dos.",
+	{ID: BuiltIn + "meeting", Title: "Meeting notes", Description: "Date, who came, agenda, decisions and to-dos.", Kind: pagekind.Record,
 		Blocks: []string{"**Date:** \n**Present:** ", "## Agenda\n\n1. ", "## Notes", "## Decisions\n\n- ", "## To-dos\n\n- [ ] "}},
-	{ID: BuiltIn + "howto", Title: "How-to", Description: "A task in steps, with what is needed first.",
+	{ID: BuiltIn + "howto", Title: "How-to", Description: "A task in steps, with what is needed first.", Kind: pagekind.HowTo,
 		Blocks: []string{"What this does, in one sentence.", "## Before you start\n\n- ", "## Steps\n\n1. \n2. \n3. ", "## Check that it worked"}},
-	{ID: BuiltIn + "runbook", Title: "Runbook", Description: "What to do when something fails, and whom to call.",
+	{ID: BuiltIn + "runbook", Title: "Runbook", Description: "What to do when something fails, and whom to call.", Kind: pagekind.HowTo,
 		Blocks: []string{"## When to use this", "## Check first\n\n- [ ] ", "## Fix\n\n1. ", "## Escalate\n\n| Who | How | When |\n|---|---|---|\n|  |  |  |"}},
-	{ID: BuiltIn + "decision", Title: "Decision", Description: "Context, options, the decision and what follows.",
+	{ID: BuiltIn + "decision", Title: "Decision", Description: "Context, options, the decision and what follows.", Kind: pagekind.Explanation,
 		Blocks: []string{"## Context", "## Options\n\n1. ", "## Decision", "## Consequences"}},
 }
 
@@ -52,7 +55,7 @@ func (db *DB) Templates(ctx context.Context, viewer string) ([]Template, error) 
 		return nil, err
 	}
 	for _, p := range pages {
-		out = append(out, Template{ID: p.ID, Title: p.Title, Description: p.Description, Place: db.placeOf(ctx, p, viewer)})
+		out = append(out, Template{ID: p.ID, Title: p.Title, Description: p.Description, Place: db.placeOf(ctx, p, viewer), Kind: p.PageKind})
 	}
 	return out, nil
 }
@@ -90,14 +93,33 @@ func (db *DB) SetTemplate(ctx context.Context, pageID, viewer string, on bool) (
 // the owner sees that is offered as a template. The blocks are new, numbered from b1, each with a version by the owner;
 // the page is not a template itself. An empty template makes an empty page, as CreatePage does.
 func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, parent, template string) (Object, error) {
+	return db.CreatePageOf(ctx, owner, title, parent, template, "")
+}
+
+// CreatePageOf is CreatePageFrom with a kind (T-20). Without one, the page takes the kind of its template.
+func (db *DB) CreatePageOf(ctx context.Context, owner account.User, title, parent, template, kind string) (Object, error) {
+	kind, err := cleanKind(kind)
+	if err != nil {
+		return Object{}, err
+	}
 	if template == "" {
-		return db.CreatePage(ctx, owner, title, parent)
+		p, err := db.Object(ctx, parent, owner.ID)
+		if err != nil {
+			return Object{}, err
+		}
+		if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
+			return Object{}, err
+		}
+		return insertObject(ctx, db.pool, Object{Kind: KindPage, Title: title, Owner: owner.ID, Parent: parent, PageKind: kind})
 	}
 	var bodies []string
 	if strings.HasPrefix(template, BuiltIn) {
 		for _, t := range BuiltInTemplates {
 			if t.ID == template {
 				bodies = t.Blocks
+				if kind == "" {
+					kind = t.Kind
+				}
 			}
 		}
 		if bodies == nil {
@@ -118,6 +140,9 @@ func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, par
 		for _, b := range blocks {
 			bodies = append(bodies, b.Body)
 		}
+		if kind == "" {
+			kind = from.PageKind
+		}
 	}
 	p, err := db.Object(ctx, parent, owner.ID)
 	if err != nil {
@@ -129,7 +154,7 @@ func (db *DB) CreatePageFrom(ctx context.Context, owner account.User, title, par
 	var made Object
 	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		var err error
-		if made, err = insertObject(ctx, tx, Object{Kind: KindPage, Title: title, Owner: owner.ID, Parent: parent}); err != nil {
+		if made, err = insertObject(ctx, tx, Object{Kind: KindPage, Title: title, Owner: owner.ID, Parent: parent, PageKind: kind}); err != nil {
 			return err
 		}
 		for i, body := range bodies {

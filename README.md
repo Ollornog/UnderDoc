@@ -110,6 +110,11 @@ with Reveal and Copy, comes from the server on a click only, and every reveal is
 it, or fewer if its managers say so; it never reaches the search, an export, a share link or the share. Operations
 documentation, not a vault: [docs/secrets.md](docs/secrets.md).
 
+**Page kinds** say who a page is for: structure and records, agent documentation and reference, or human documentation
+(how-to, explanation, tutorial). Every write is checked against the rules of its kind; errors block, warnings come back
+with how to fix them, such as "embed instead of copying". Agents read the raw page with its front matter:
+[docs/page-kinds.md](docs/page-kinds.md).
+
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
 `web/editor` by `scripts/build-js.sh` before `go build` (the built bundle is not in the repository). How it works and how to
