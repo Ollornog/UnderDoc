@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
@@ -42,6 +43,32 @@ type apiBlock struct {
 	// Findings are the writing rules the page breaks after a write, with how to fix each (T-20): the answer of a write
 	// carries them, so every door hears of them at once.
 	Findings []pagekind.Finding `json:"findings,omitempty"`
+	// AI is the change of agents of this block that nobody checked yet, on human documentation (ADR-33): readers see it.
+	AI *apiAIMark `json:"ai,omitempty"`
+}
+
+// apiAIMark is the hint "written by AI, not checked" of a block: the change a check names, whom the agent works for,
+// when, and whether an agent made the block.
+type apiAIMark struct {
+	Version int64  `json:"version"`
+	By      string `json:"by"`
+	At      string `json:"at"`
+	Added   bool   `json:"added,omitempty"`
+}
+
+// apiRemoved is a block an agent took out of human documentation that nobody checked yet; Moved names where it went.
+type apiRemoved struct {
+	Block   string `json:"block"`
+	Version int64  `json:"version"`
+	By      string `json:"by"`
+	At      string `json:"at"`
+	Moved   string `json:"moved,omitempty"`
+}
+
+// apiChecked is the last check of a page: who and when.
+type apiChecked struct {
+	By string `json:"by"`
+	At string `json:"at"`
 }
 
 type apiVersion struct {
@@ -52,6 +79,8 @@ type apiVersion struct {
 	Excerpt string `json:"excerpt"`
 	// Origin says where a copy came from or where moved text went (ADR-22).
 	Origin string `json:"origin,omitempty"`
+	// AI tells that an agent wrote the change (ADR-33).
+	AI bool `json:"ai,omitempty"`
 }
 
 // change reads the body of a request that changes something: only with the database, only from this application, and
@@ -96,6 +125,8 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrPart):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": strings.TrimPrefix(err.Error(), db.ErrPart.Error()+"\n")})
+	case errors.Is(err, db.ErrStale), errors.Is(err, db.ErrMovedAway):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrHasReplies):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, db.ErrNotFound):
@@ -353,8 +384,106 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		if answer.CanEdit {
 			answer.Findings = h.findings(r, o.ID)
 		}
+		h.aiMarks(r, o, &answer)
 	}
 	writeJSON(w, http.StatusOK, answer)
+}
+
+// aiMarks puts the hints of changes by agents into a page (ADR-33): on human documentation each block an agent changed
+// and nobody checked carries one, and what agents took out is listed; the agent side says once that AI maintains it.
+// The last check shows as "checked by … on …".
+func (h *handler) aiMarks(r *http.Request, o db.Object, answer *apiDocument) {
+	ctx := r.Context()
+	user, _ := account.From(ctx)
+	answer.MaintainedByAI = pagekind.Audience(o.PageKind) == pagekind.AudienceAgents
+	changes, err := h.options.DB.AIChanges(ctx, o.ID, user.ID)
+	if err != nil {
+		h.log.Error("ai changes failed", slog.String("error", err.Error()))
+	}
+	for _, c := range changes {
+		if c.Deleted {
+			answer.Removed = append(answer.Removed, apiRemoved{Block: c.Block, Version: c.Head, By: c.By, At: stamp(c.At), Moved: c.Moved})
+			continue
+		}
+		for i := range answer.Blocks {
+			if answer.Blocks[i].ID == c.Block {
+				answer.Blocks[i].AI = &apiAIMark{Version: c.Head, By: c.By, At: stamp(c.At), Added: c.Base == 0}
+			}
+		}
+	}
+	if checked, err := h.options.DB.LastCheck(ctx, o.ID, user.ID); err == nil && checked != nil {
+		answer.Checked = &apiChecked{By: checked.By, At: stamp(checked.At)}
+	}
+}
+
+type apiChange struct {
+	Block   string `json:"block"`
+	Version int64  `json:"version"`
+	By      string `json:"by"`
+	At      string `json:"at"`
+	Before  string `json:"before"`
+	Now     string `json:"now"`
+	Added   bool   `json:"added,omitempty"`
+	Deleted bool   `json:"deleted,omitempty"`
+	Moved   string `json:"moved,omitempty"`
+}
+
+// apiChange answers the open change of agents of a block with its text before and now, for the diff of a check.
+func (h *handler) apiChange(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	d, err := h.options.DB.ChangeOf(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID)
+	if h.failed(w, err, "change") {
+		return
+	}
+	writeJSON(w, http.StatusOK, apiChange{Block: d.Block, Version: d.Head, By: d.By, At: stamp(d.At), Before: d.Before, Now: d.Now,
+		Added: d.Base == 0, Deleted: d.Deleted, Moved: d.Moved})
+}
+
+// apiCheckChange marks the open change of agents of a block as checked, the one the person saw ({"version": n}).
+func (h *handler) apiCheckChange(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Version int64 `json:"version"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	if h.failed(w, h.options.DB.CheckChange(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Version), "check") {
+		return
+	}
+	h.noteReview(r, db.LogChecked, in.Version)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// noteReview logs a check or a taking back, unless the page is private: what lies in private notes is nobody's business.
+func (h *handler) noteReview(r *http.Request, action string, version int64) {
+	if private, err := h.options.DB.Private(r.Context(), r.PathValue("id")); err != nil || private {
+		return
+	}
+	h.note(r, action, r.PathValue("id"), "#"+r.PathValue("block")+" version "+strconv.FormatInt(version, 10))
+}
+
+// apiTakeBack undoes the open change of agents of a block, the one the person saw ({"version": n}); a block in use that
+// it would take away needs a way, as a deletion does (ADR-22).
+func (h *handler) apiTakeBack(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Version int64             `json:"version"`
+		Ways    map[string]db.Way `json:"ways"`
+	}
+	user, ok := h.change(w, r, 8<<10, &in)
+	if !ok {
+		return
+	}
+	err := h.options.DB.TakeBack(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Version, in.Ways)
+	if h.inUse(w, r, err) || h.failed(w, err, "take back") {
+		return
+	}
+	h.noteReview(r, db.LogTakenBack, in.Version)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // findings are the writing rules a page breaks for the viewer (T-20). A failure to check is logged, never a failed write.
@@ -642,7 +771,7 @@ func (h *handler) apiVersions(w http.ResponseWriter, r *http.Request) {
 		if len(excerpt) > 80 {
 			excerpt = append(excerpt[:79], '…')
 		}
-		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt), Origin: v.Origin})
+		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt), Origin: v.Origin, AI: v.Agent})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -173,3 +173,16 @@ func TestValues(t *testing.T) {
 		t.Errorf("Values:\n got %q\nwant %q", got, want)
 	}
 }
+
+// TestParseChecked reads the mark of a check of a team wiki for the import (T-28).
+func TestParseChecked(t *testing.T) {
+	who, day, ok := ParseChecked(" AB 2026-11-20 ")
+	if !ok || who != "AB" || day.Format("2006-01-02") != "2026-11-20" {
+		t.Errorf("a mark: %q %v %v", who, day, ok)
+	}
+	for _, bad := range []string{"", "AB", "AB 20.11.2026", "A B 2026-11-20", strings.Repeat("x", 41) + " 2026-11-20"} {
+		if _, _, ok := ParseChecked(bad); ok {
+			t.Errorf("%q is no mark", bad)
+		}
+	}
+}

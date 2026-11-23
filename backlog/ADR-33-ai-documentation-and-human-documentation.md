@@ -107,3 +107,22 @@ the reader is. Front matter and IDs stay hidden; the description shows on top as
     art becomes agent notes. Its lint codes map onto English codes (table in docs/page-kinds.md).
   - People get the description on top, the kind and side under the title and no front matter or IDs; agents read the raw
     page at `GET /api/pages/<id>/raw`.
+- **Built on 2026-11-23, part 2: changes by agents** ([docs/page-kinds.md](../docs/page-kinds.md#changes-by-agents),
+  migration 034, T-20). Settled in the build:
+  - Whether an agent wrote a version comes from the sign-in of the request (`account.User.Agent`): a trigger takes it
+    from the connection, which the application sets per request, so no client and no code path can claim otherwise.
+  - The hint belongs to the block and spans every unchecked change of agents since a person last saw it: the diff shows
+    all of it, and a check names the newest change, so one made while the diff was open is never checked blind.
+  - A check is a person's: checking and taking back refuse every request of an agent, as the ceiling of the group Agents
+    (ADR-36), and need the right to write. Taking back restores the text before, removes a block an agent made and puts
+    a deleted block back where it stood; a block an agent moved to another page is moved back from there.
+  - Moving a block out, deleting it and adding one are changes like editing: what an agent takes out of human
+    documentation is listed under the page until checked.
+  - An agent may not change the kind of a page people wrote to a kind of the agent side, which would hide its hints; a
+    page only agents wrote it may class freely. Hints on a page whose kind a person changes to the agent side stay
+    kept and show again if it comes back.
+  - The page shows its last check, "checked by … on …". The import of a team wiki marks every block of a page checked
+    with its `geprüft:` (`db.MarkPageChecked`), a door without an API.
+  - The search filter "AI changes to check" is the database's list of pages with open hints, passed to the search
+    engine as a filter of objects, so it is current at once. The inbox list (M-16) is T-36, the folder mode reviewed
+    (M-20) is T-35.

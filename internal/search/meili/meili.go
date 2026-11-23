@@ -359,7 +359,7 @@ func filters(q search.Query) []string {
 	for _, f := range []struct {
 		field  string
 		values []string
-	}{{"type", q.Filters.Types}, {"collection", q.Filters.Collections}, {"author", q.Filters.Authors}} {
+	}{{"type", q.Filters.Types}, {"collection", q.Filters.Collections}, {"author", q.Filters.Authors}, {"object", q.Filters.Objects}} {
 		if len(f.values) > 0 {
 			out = append(out, f.field+" IN "+list(f.values))
 		}

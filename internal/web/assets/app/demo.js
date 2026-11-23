@@ -1541,6 +1541,8 @@ async function loadDoc(id){
       if(e.kind==='value')d.uses.vals.push(`${esc(e.name)} <small>${at}</small>`);else d.uses.emb.push({l:EMBED_KINDS[e.kind]||'Embedded',x:at});});
     /* The kind of a page and what it breaks (T-20, kinds.js). */
     d.kind=a.kind||'';d.audience=a.audience||'';d.findings=a.findings||[];
+    /* Changes by agents nobody checked, the last check, and whether AI maintains the page (ADR-33, kinds.js). */
+    d.removed=a.removed||[];d.checked=a.checked||null;d.maintainedByAI=!!a.maintainedByAI;
     if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(S.files)loadAttachments(id);}
   }catch(e){d.html='<p class="text-muted-foreground text-sm">This page could not be loaded.</p>';}
   d.loading=false;render();
@@ -1624,7 +1626,7 @@ async function renameObject(id,title){
    stops and when it is left, block by block through the same API. */
 const ALIGNS=['center','right'];
 const blockOf=b=>({id:esc(b.id),html:b.html,md:esc(b.md),raw:b.md,usedIn:(b.usedIn||[]).map(esc),cmts:b.comments||0,align:ALIGNS.includes(b.align)?b.align:'',
-  parts:(b.parts||[]).map(p=>({id:p.id,name:p.name||'',usedIn:p.usedIn||[]}))});
+  parts:(b.parts||[]).map(p=>({id:p.id,name:p.name||'',usedIn:p.usedIn||[]})),ai:b.ai||null});
 function syncBlocks(d){d.doc={intro:d.blocks.map(b=>b.html).join(''),secs:[]};d.ch=d.ch||'';}
 /* The bar sits once above the page (2026-11-09, ADR-21): a bar that follows the cursor jumps with every line and covers
    the text above it, and M-8 asks for a bar above the page. It acts on the selection of the editor; "/" at the start of an
@@ -1693,7 +1695,7 @@ function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
   if(d.t==='notes'&&!(editing(w)&&d.canEdit))return notesHtml(d,w,i);
   /* Each block is C22's wrapper in the typeset flow: div[data-block] with its handle, then what the block renders. */
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-block="${b.id}"${b.align?` class="text-${b.align}"`:''}${b.parts&&b.parts.length?` data-parts="${esc(JSON.stringify(b.parts))}"`:''}>${handleHtml(d,w,i,b)}${b.html}</div>`).join(''):`<p class="text-muted-foreground">Empty.${d.canEdit?' Click Reading to write.':''}</p>`;
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-block="${b.id}"${b.align?` class="text-${b.align}"`:''}${b.parts&&b.parts.length?` data-parts="${esc(JSON.stringify(b.parts))}"`:''}>${handleHtml(d,w,i,b)}${b.html}${window.UDKinds?UDKinds.blockHint(d,b,key):''}</div>`).join('')+(window.UDKinds?UDKinds.removedHtml(d,key):''):`<p class="text-muted-foreground">Empty.${d.canEdit?' Click Reading to write.':''}</p>${window.UDKinds?UDKinds.removedHtml(d,key):''}`;
   return edHtml(d,i,key);
 }
 
@@ -1760,7 +1762,7 @@ function edSaved(key){
   const d=D[key],done=()=>{syncBlocks(d);d.ch='now';if(gearOpen(key))loadVersions(key);};
   return {
     /* The answer of a write names what the page breaks now (T-20). */
-    edited:b=>{const x=d.blocks.find(y=>y.id===b.id),n=blockOf(b);if(x){x.html=n.html;x.md=n.md;x.raw=n.raw;x.usedIn=n.usedIn;}d.findings=b.findings||[];done();},
+    edited:b=>{const x=d.blocks.find(y=>y.id===b.id),n=blockOf(b);if(x){x.html=n.html;x.md=n.md;x.raw=n.raw;x.usedIn=n.usedIn;x.ai=n.ai;}d.findings=b.findings||[];done();},
     added:(b,after)=>{const k=after?d.blocks.findIndex(x=>x.id===after)+1:0;d.blocks.splice(k,0,blockOf(b));d.findings=b.findings||[];done();},
     removed:id=>{d.blocks=d.blocks.filter(x=>x.id!==id);done();},
     moved:(id,after)=>{const k=d.blocks.findIndex(x=>x.id===id);if(k<0)return;const [b]=d.blocks.splice(k,1);d.blocks.splice(after?d.blocks.findIndex(x=>x.id===after)+1:0,0,b);done();},
@@ -1883,7 +1885,8 @@ function versionsHtml(d){
   if(!d.canEdit)return '<p class="text-muted-foreground text-xs">Versions are for whoever may edit this page.</p>';
   if(!d.versions)return '<p class="text-muted-foreground text-xs">Loading…</p>';
   if(!d.versions.length)return '<p class="text-muted-foreground text-xs">No changes yet.</p>';
-  return factList(d.versions.map(v=>[v.at,`${v.who} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}`]));
+  /* A change by an agent says so (ADR-33). */
+  return factList(d.versions.map(v=>[v.at,`${v.who}${v.ai?' (AI)':''} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}`]));
 }
 /* Marked text in the editor (ADR-22): Copy puts it on the clipboard as plain text with no tie; Embed makes it a part, or
    finds the part it already is, and puts its address on the clipboard, to paste where it should show. */
@@ -1908,7 +1911,7 @@ const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
 async function loadVersions(id){
   if(!D[id].canEdit)return;
   try{const r=await fetch(pageURL(id)+'/versions',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt)}));}
+    D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt),ai:!!v.ai}));}
   catch(e){D[id].versions=[];}
   render();
 }

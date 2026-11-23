@@ -208,6 +208,13 @@ func TestFallbackWithoutEngine(t *testing.T) {
 	if err != nil || result.Notice != NoticeServiceDown || len(result.Hits) != 1 {
 		t.Errorf("an engine that fails hands over to the titles: %+v %v", result, err)
 	}
+	// A limit to objects holds for the titles as well (ADR-33, the filter "AI changes to check").
+	for objects, want := range map[string]int{"t": 1, "u": 0} {
+		result, err = NewService(nil, &fakeFallback{}, "t", quiet()).Search(context.Background(), Request{Text: "Kasse", Account: "a", Filters: Filters{Objects: []string{objects}}})
+		if err != nil || len(result.Hits) != want {
+			t.Errorf("titles limited to %s: %+v %v", objects, result.Hits, err)
+		}
+	}
 }
 
 // memoryQueue is a queue in memory.

@@ -246,6 +246,10 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	// Page kinds and their writing rules (T-20, ADR-33); the raw page with its front matter for agents.
 	doc("PUT /api/pages/{id}/kind", h.apiPageKind)
 	doc("GET /api/pages/{id}/raw", h.apiRawPage)
+	// Changes by agents on human documentation: the diff, checking it and taking it back, one block at a time (ADR-33).
+	doc("GET /api/pages/{id}/blocks/{block}/change", h.apiChange)
+	doc("POST /api/pages/{id}/blocks/{block}/check", h.apiCheckChange)
+	doc("POST /api/pages/{id}/blocks/{block}/takeback", h.apiTakeBack)
 	// Passwords in the text (ADR-7): the value only through reveal.
 	doc("GET /api/pages/{id}/secrets", h.apiPageSecrets)
 	doc("POST /api/pages/{id}/secrets", h.apiCreateSecret)

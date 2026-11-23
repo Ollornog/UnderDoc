@@ -8,6 +8,19 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Changes by agents stay visible until a person checks them** (T-20 part 2, ADR-33,
+  [docs/page-kinds.md](docs/page-kinds.md#changes-by-agents), migration 034): every version records whether an agent
+  wrote it, taken by a trigger from the checked sign-in of the request, never from the client. On human documentation
+  every block an agent changed carries "Written by AI, not checked" for every reader, what agents took out is listed
+  under the page, and whoever may change the page opens the change as a diff and sets Checked or takes it back (the text
+  before, a made block gone, a deleted block back where it stood); the page shows "Checked by … on …". A check names the
+  change it saw, one at a time. A person's own edit ends the hint. The agent side says once "Maintained by AI". Search
+  filter **AI changes to check** (`check=ai`). `db.MarkPageChecked` and `pagekind.ParseChecked` are ready for the
+  import's `geprüft:` (T-28). Attack round with tests: an agent never checks or takes back, directly or through the API,
+  nor hides its hints by changing the kind of a page people wrote; what a client sends never makes a version an agent's
+  or a person's; a reader neither reads the diff nor checks; an older change or that of another block is refused.
+  Browser test. Follow-ups: T-35 (folder mode reviewed), T-36 (inbox list).
+
 - **Page kinds with writing rules** (T-20, ADR-33, [docs/page-kinds.md](docs/page-kinds.md), migration 033): a page
   names its kind (overview, register, record, plan, source; reference, agent notes; how-to, explanation, tutorial), and
   the kind sets its audience; a page without one counts as human documentation. The kind is chosen in the settings of a

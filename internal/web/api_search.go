@@ -77,6 +77,18 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		request.Filters.To = to.Add(24*time.Hour - time.Second)
 	}
 	request.Agent = user.Agent()
+	// The filter "AI changes to check" (ADR-33): the pages the database names, of what the reader sees.
+	if query.Get("check") == "ai" && h.options.DB != nil {
+		pages, err := h.options.DB.PagesToCheck(r.Context(), user.ID)
+		if h.failed(w, err, "search") {
+			return
+		}
+		if len(pages) == 0 {
+			writeJSON(w, http.StatusOK, apiSearchResult{Engine: h.options.Search.Engine(), Hits: []apiHit{}, Facets: map[string][]apiFacet{}})
+			return
+		}
+		request.Filters.Objects = pages
+	}
 	if h.options.DB != nil {
 		groups, err := h.options.DB.GroupsOf(r.Context(), user.ID)
 		if h.failed(w, err, "search") {

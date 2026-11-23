@@ -69,6 +69,9 @@ func (db *DB) SetPageKind(ctx context.Context, pageID, viewer, kind string) (Obj
 	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
 	}
+	if err := db.mayLeaveHumanDocs(ctx, o, k); err != nil {
+		return Object{}, err
+	}
 	return scan(db.pool.QueryRow(ctx, "UPDATE objects SET page_kind = $2, changed = now() WHERE id = $1 RETURNING "+columns, pageID, k))
 }
 

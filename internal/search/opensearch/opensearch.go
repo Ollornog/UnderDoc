@@ -355,7 +355,7 @@ func filters(q search.Query) []any {
 	for _, f := range []struct {
 		field  string
 		values []string
-	}{{"type", q.Filters.Types}, {"collection", q.Filters.Collections}, {"author", q.Filters.Authors}} {
+	}{{"type", q.Filters.Types}, {"collection", q.Filters.Collections}, {"author", q.Filters.Authors}, {"object", q.Filters.Objects}} {
 		if len(f.values) > 0 {
 			out = append(out, map[string]any{"terms": map[string]any{f.field: f.values}})
 		}

@@ -8,6 +8,7 @@ package pagekind
 
 import (
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -64,6 +65,9 @@ func Audience(kind string) string {
 
 // ForPeople tells whether pages of this kind are human documentation, which carries the hints of AI changes.
 func ForPeople(kind string) bool { return Audience(kind) == AudiencePeople }
+
+// PeopleKinds are the kinds of human documentation, none included, as the database asks for them.
+var PeopleKinds = []string{"", HowTo, Explanation, Tutorial}
 
 // Parse reads a kind as people and programs write it: the English names in any case, with spaces, underscores or
 // hyphens, a few common other spellings, and the German names of FromGerman. ok is false for anything else. An empty
@@ -159,4 +163,18 @@ func Name(kind string) string {
 	r := []rune(kind)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
+}
+
+// ParseChecked reads the mark of a check a team wiki keeps in its front matter, `geprüft: <KÜRZEL> <JJJJ-MM-TT>`: who
+// checked the page and on which day. The import (T-28) gives it to every block of the page (db.MarkPageChecked).
+func ParseChecked(s string) (who string, day time.Time, ok bool) {
+	fields := strings.Fields(s)
+	if len(fields) != 2 {
+		return "", time.Time{}, false
+	}
+	day, err := time.ParseInLocation(time.DateOnly, fields[1], time.UTC)
+	if err != nil || len([]rune(fields[0])) > 40 {
+		return "", time.Time{}, false
+	}
+	return fields[0], day, true
 }

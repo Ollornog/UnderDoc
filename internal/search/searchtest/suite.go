@@ -253,6 +253,8 @@ func testFilters(t *testing.T, ctx context.Context, engine search.Engine, tenant
 		{"from", search.Filters{From: time.Unix(day(5), 0)}, []string{"b", "c"}},
 		{"to", search.Filters{To: time.Unix(day(15), 0)}, []string{"a", "b"}},
 		{"together", search.Filters{Collections: []string{"c1"}, Authors: []string{"bob"}}, []string{"c"}},
+		{"objects", search.Filters{Objects: []string{"a", "c"}}, []string{"a", "c"}},
+		{"objects and author", search.Filters{Objects: []string{"a", "c"}, Authors: []string{"bob"}}, []string{"c"}},
 	}
 	for _, c := range cases {
 		if got := objects(t, ctx, service, "anna", "Kassennetz", c.filters); !sameSet(got, c.want...) {
@@ -262,6 +264,9 @@ func testFilters(t *testing.T, ctx context.Context, engine search.Engine, tenant
 	// Without text, the filters alone list what fits, the newest first.
 	if got := objects(t, ctx, service, "anna", "", search.Filters{Tags: []string{"kasse"}}); !slices.Equal(got, []string{"b", "a"}) {
 		t.Errorf("filters without text, newest first: %v", got)
+	}
+	if got := objects(t, ctx, service, "anna", "", search.Filters{Objects: []string{"b", "c"}}); !slices.Equal(got, []string{"c", "b"}) {
+		t.Errorf("objects without text, newest first: %v", got)
 	}
 	result, err := service.Search(ctx, search.Request{Text: "Kassennetz", Account: "anna", Limit: 10})
 	if err != nil {
