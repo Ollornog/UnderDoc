@@ -10,6 +10,7 @@ import (
 	"testing/fstest"
 
 	"github.com/Ollornog/UnderDoc/internal/db"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 func TestSafeStem(t *testing.T) {
@@ -228,5 +229,38 @@ func TestReadAFolder(t *testing.T) {
 	}
 	if strings.Contains(joined, ".git") || strings.Contains(joined, "hidden") {
 		t.Errorf("hidden entries are left out without a word:\n%s", joined)
+	}
+}
+
+// TestPageKindInFrontMatter: an export writes the kind of a page as kind: in its front matter, as a board says notes,
+// and an import reads it back, also in German; a kind there is not is a warning and no kind (T-20).
+func TestPageKindInFrontMatter(t *testing.T) {
+	guide := pageNode("7k2m9q4x1c", "Guide", db.Block{ID: "b1", Body: "This guide does it."})
+	guide.PageKind = pagekind.HowTo
+	text, err := PageMarkdown(guide)
+	if err != nil || !strings.Contains(string(text), "\nkind: how-to\n") {
+		t.Fatalf("the kind in the front matter:\n%s %v", text, err)
+	}
+	fsys := fstest.MapFS{
+		"a.md": {Data: text},
+		"b.md": {Data: []byte("---\ntitle: B\nkind: Anleitung\n---\nb")},
+		"c.md": {Data: []byte("---\ntitle: C\nkind: manual\n---\nc")},
+		"d.md": {Data: []byte("---\ntitle: D\nkind: notes\n---\nd")},
+		"e.md": {Data: []byte("---\ntitle: E\nkind: agent notes\n---\ne")},
+	}
+	root, warnings, err := Read(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, n := range root.Kids {
+		got[n.Title] = n.Kind + ":" + n.PageKind
+	}
+	want := map[string]string{"Guide": "page:how-to", "B": "page:how-to", "C": "page:", "D": "notes:", "E": "page:agent-notes"}
+	if !maps.Equal(got, want) {
+		t.Errorf("kinds read: %v", got)
+	}
+	if joined := strings.Join(warnings, "\n"); !strings.Contains(joined, `c.md: kind "manual" is not a kind of page`) || len(warnings) != 1 {
+		t.Errorf("one warning for the unknown kind:\n%s", joined)
 	}
 }

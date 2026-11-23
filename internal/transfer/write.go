@@ -60,7 +60,7 @@ type entry struct {
 
 type pageMeta struct {
 	ID string `yaml:"id,omitempty"`
-	// Kind is written only for a board of quick notes; a page has none.
+	// Kind is notes for a board of quick notes, and the kind of a page where it has one (T-20, docs/page-kinds.md).
 	Kind        string `yaml:"kind,omitempty"`
 	Title       string `yaml:"title,omitempty"`
 	Description string `yaml:"description,omitempty"`
@@ -206,21 +206,25 @@ func inheritOf(o db.Object) *bool {
 	return &inherit
 }
 
-// kindOfPage is the kind a page file names: only a board of quick notes says so.
-func kindOfPage(kind string) string {
-	if kind == db.KindNotes {
-		return kind
+// kindOfPage is the kind a page file names: notes for a board of quick notes, else the kind of the page (T-20), if any.
+func kindOfPage(o db.Object) string {
+	if o.Kind == db.KindNotes {
+		return o.Kind
 	}
-	return ""
+	return o.PageKind
 }
 
 // trimBody takes the blank lines off both ends of a block: they mean nothing in Markdown, and the file needs one blank
 // line between blocks.
 func trimBody(body string) string { return strings.Trim(body, "\r\n") }
 
+// PageMarkdown is the Markdown file of one page as an export writes it: front matter, then each block after its marker.
+// Pages below it are not part of it.
+func PageMarkdown(n *db.Node) ([]byte, error) { return pageText(n) }
+
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Kind), Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
+	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Object), Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

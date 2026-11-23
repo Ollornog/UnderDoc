@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
 
 // Export and import (ADR-13, ADR-19): the database hands out whole trees and takes whole trees in. Turning a tree into
@@ -316,12 +317,12 @@ func insertWithID(ctx context.Context, tx pgx.Tx, o Object) (Object, error) {
 			o.ID = id.New()
 		}
 		made, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, inherit, private, tags, width, contents, template, area)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, inherit, private, tags, width, contents, template, area, page_kind)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''), $7, $8, $9, $10, nullif($11, ''), nullif($12, ''), $13,
-				coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $14))
+				coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $14), $15)
 			ON CONFLICT (tenant, id) DO NOTHING
 			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Position, !(o.Breaks && o.Parent != ""), o.Private, tagsOf(o),
-			o.Width, o.Contents, o.Template && o.Kind == KindPage, areaOf(o)))
+			o.Width, o.Contents, o.Template && o.Kind == KindPage, areaOf(o), kindOfPageIn(o)))
 		if errors.Is(err, pgx.ErrNoRows) && attempt < 6 {
 			continue
 		}
@@ -355,4 +356,12 @@ func importedAccess(o Object) string {
 		return RoleEdit
 	}
 	return ""
+}
+
+// kindOfPageIn is the kind of a page an import keeps: only a page has one, and only a kind there is (T-20).
+func kindOfPageIn(o Object) string {
+	if o.Kind != KindPage || !pagekind.Valid(o.PageKind) {
+		return ""
+	}
+	return o.PageKind
 }

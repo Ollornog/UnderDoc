@@ -15,7 +15,9 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
+	"github.com/Ollornog/UnderDoc/internal/pagekind"
 	"github.com/Ollornog/UnderDoc/internal/route"
+	"github.com/Ollornog/UnderDoc/internal/transfer"
 )
 
 // Pages of the database, edited block by block (ADR-19). Every change answers with what the workspace shows next.
@@ -37,6 +39,9 @@ type apiBlock struct {
 	Parts []apiPart `json:"parts,omitempty"`
 	// SectionUsedIn names the pages that embed the section this block opens.
 	SectionUsedIn []string `json:"sectionUsedIn,omitempty"`
+	// Findings are the writing rules the page breaks after a write, with how to fix each (T-20): the answer of a write
+	// carries them, so every door hears of them at once.
+	Findings []pagekind.Finding `json:"findings,omitempty"`
 }
 
 type apiVersion struct {
@@ -72,10 +77,13 @@ func (h *handler) change(w http.ResponseWriter, r *http.Request, limit int64, in
 
 // failed answers an error of the database in the words a person can act on. It reports whether there was one.
 func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
+	var rule *db.RuleError
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName),
+	case errors.As(err, &rule):
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "findings": rule.Findings})
+	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName),
 		errors.Is(err, db.ErrLogKeep), errors.Is(err, db.ErrFileName), errors.Is(err, db.ErrSambaName), errors.Is(err, db.ErrNoSamba):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.As(err, new(*db.OpenError)), errors.Is(err, db.ErrPerFolder):
@@ -340,7 +348,23 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 	}
 	answer.CanEdit = h.options.DB.MayEdit(ctx, o, user.ID)
 	answer.CanComment = h.options.DB.MayComment(ctx, o, user.ID)
+	if o.Kind == db.KindPage {
+		answer.PageKind, answer.Audience = o.PageKind, pagekind.Audience(o.PageKind)
+		if answer.CanEdit {
+			answer.Findings = h.findings(r, o.ID)
+		}
+	}
 	writeJSON(w, http.StatusOK, answer)
+}
+
+// findings are the writing rules a page breaks for the viewer (T-20). A failure to check is logged, never a failed write.
+func (h *handler) findings(r *http.Request, page string) []pagekind.Finding {
+	user, _ := account.From(r.Context())
+	found, err := h.options.DB.Findings(r.Context(), page, user.ID)
+	if err != nil {
+		h.log.Error("findings failed", slog.String("error", err.Error()))
+	}
+	return found
 }
 
 // place names the collections and folders above an object, as the workspace shows it.
@@ -364,12 +388,14 @@ func (h *handler) apiCreatePage(w http.ResponseWriter, r *http.Request) {
 		Title    string `json:"title"`
 		Parent   string `json:"parent"`
 		Template string `json:"template"`
+		// Kind is the kind of the page (T-20); without it the page takes the kind of its template.
+		Kind string `json:"kind"`
 	}
 	user, ok := h.change(w, r, 8<<10, &in)
 	if !ok {
 		return
 	}
-	created, err := h.options.DB.CreatePageFrom(r.Context(), user, in.Title, in.Parent, in.Template)
+	created, err := h.options.DB.CreatePageOf(r.Context(), user, in.Title, in.Parent, in.Template, in.Kind)
 	if h.failed(w, err, "page") {
 		return
 	}
@@ -391,7 +417,9 @@ func (h *handler) apiAddBlock(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "new block") {
 		return
 	}
-	writeJSON(w, http.StatusCreated, h.block(r, r.PathValue("id"), b, nil))
+	out := h.block(r, r.PathValue("id"), b, nil)
+	out.Findings = h.findings(r, r.PathValue("id"))
+	writeJSON(w, http.StatusCreated, out)
 }
 
 // apiMoveBlock puts a block after another, or first.
@@ -435,7 +463,56 @@ func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	used, _ := h.options.DB.UsedIn(r.Context(), r.PathValue("id"), user.ID)
-	writeJSON(w, http.StatusOK, h.block(r, r.PathValue("id"), b, used))
+	out := h.block(r, r.PathValue("id"), b, used)
+	out.Findings = h.findings(r, r.PathValue("id"))
+	writeJSON(w, http.StatusOK, out)
+}
+
+// apiPageKind gives a page its kind, or none (T-20), and answers with the side it sets and what the page breaks now.
+func (h *handler) apiPageKind(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Kind string `json:"kind"`
+	}
+	user, ok := h.change(w, r, 1<<10, &in)
+	if !ok {
+		return
+	}
+	o, err := h.options.DB.SetPageKind(r.Context(), r.PathValue("id"), user.ID, in.Kind)
+	if h.failed(w, err, "kind") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"kind": o.PageKind, "audience": pagekind.Audience(o.PageKind), "findings": nonNilFindings(h.findings(r, o.ID))})
+}
+
+func nonNilFindings(found []pagekind.Finding) []pagekind.Finding {
+	if found == nil {
+		return []pagekind.Finding{}
+	}
+	return found
+}
+
+// apiRawPage answers a page as its Markdown file, with its front matter and the marker before each block, as an export
+// writes it (docs/export.md): what agents read, while people get the page without them (T-20).
+func (h *handler) apiRawPage(w http.ResponseWriter, r *http.Request) {
+	if h.options.DB == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "this needs the database"})
+		return
+	}
+	user, _ := account.From(r.Context())
+	n, err := h.options.DB.Subtree(r.Context(), r.PathValue("id"), user.ID)
+	if err == nil && n.Kind != db.KindPage && n.Kind != db.KindNotes {
+		err = db.ErrNotFound
+	}
+	if h.failed(w, err, "raw page") {
+		return
+	}
+	text, err := transfer.PageMarkdown(n)
+	if h.failed(w, err, "raw page") {
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(text)
 }
 
 type apiTemplate struct {
@@ -445,6 +522,8 @@ type apiTemplate struct {
 	Place       string `json:"place,omitempty"`
 	// Blocks are the Markdown of UnderDoc's own templates, for a preview.
 	Blocks []string `json:"blocks,omitempty"`
+	// Kind is the kind a page made from it gets (T-20).
+	Kind string `json:"kind,omitempty"`
 }
 
 // apiTemplates lists what a new page can start from: UnderDoc's own templates, then the pages offered as one.
@@ -460,7 +539,7 @@ func (h *handler) apiTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []apiTemplate{}
 	for _, t := range list {
-		out = append(out, apiTemplate{ID: t.ID, Title: t.Title, Description: t.Description, Place: t.Place, Blocks: t.Blocks})
+		out = append(out, apiTemplate{ID: t.ID, Title: t.Title, Description: t.Description, Place: t.Place, Blocks: t.Blocks, Kind: t.Kind})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

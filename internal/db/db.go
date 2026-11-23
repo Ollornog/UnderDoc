@@ -353,15 +353,17 @@ type Object struct {
 	// Area is where the object lives: AreaDocs for the documents, AreaFiles for the view Files (ADR-28). Below the top it
 	// is the area of the parent.
 	Area string
+	// PageKind is the kind of a page (T-20, ADR-33), one of package pagekind; empty for none and for every other object.
+	PageKind string
 }
 
 const columns = `id, kind, title, description, owner, coalesce(parent, ''), position, coalesce(tenant_grant(id), ''), NOT inherit, private, created, changed, tags,
-	coalesce(width, ''), coalesce(contents, ''), template, area`
+	coalesce(width, ''), coalesce(contents, ''), template, area, page_kind`
 
 // fields are the places columns scans into, in their order.
 func fields(o *Object) []any {
 	return []any{&o.ID, &o.Kind, &o.Title, &o.Description, &o.Owner, &o.Parent, &o.Position, &o.Access, &o.Breaks, &o.Private, &o.Created, &o.Changed, &o.Tags,
-		&o.Width, &o.Contents, &o.Template, &o.Area}
+		&o.Width, &o.Contents, &o.Template, &o.Area, &o.PageKind}
 }
 
 func scan(row pgx.Row) (Object, error) {
@@ -402,11 +404,11 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 	for attempt := 0; ; attempt++ {
 		o.ID = id.New()
 		created, err := scan(tx.QueryRow(ctx, `
-			INSERT INTO objects (id, kind, title, description, owner, parent, position, private, tags, width, contents, area)
+			INSERT INTO objects (id, kind, title, description, owner, parent, position, private, tags, width, contents, area, page_kind)
 			VALUES ($1, $2, $3, $4, $5, nullif($6, ''),
 				(SELECT coalesce(max(position) + 1, 0) FROM objects WHERE parent IS NOT DISTINCT FROM nullif($6, '')),
-				$7, $8, nullif($9, ''), nullif($10, ''), coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $11))
-			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Private, tagsOf(o), o.Width, o.Contents, areaOf(o)))
+				$7, $8, nullif($9, ''), nullif($10, ''), coalesce((SELECT area FROM objects WHERE id = nullif($6, '')), $11), $12)
+			RETURNING `+columns, o.ID, o.Kind, o.Title, o.Description, o.Owner, o.Parent, o.Private, tagsOf(o), o.Width, o.Contents, areaOf(o), o.PageKind))
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "objects_pkey" && attempt < 5 {
 			continue

@@ -77,6 +77,11 @@ je Nutzer und Sammlungen, mit Uploads, die nach einem Abbruch weiterlaufen, Vers
 Jede Version liegt einmal in einem Inhaltsspeicher, benannt nach ihrem Hash, und ein Export nimmt die Dateien mit. Wie
 das arbeitet, steht (englisch) in [docs/files.md](../docs/files.md).
 
+**Seitenarten** sagen, für wen eine Seite ist: Struktur und Datensätze, Doku und Referenz für Agenten oder Doku für
+Menschen (Anleitung, Erklärung, Tutorial). Jedes Schreiben wird gegen die Regeln der Art geprüft; Fehler blockieren,
+Warnungen kommen mit einem Hinweis zur Behebung zurück, etwa „embed instead of copying“. Agenten lesen die Rohseite mit
+ihrem Kopfbereich (englisch): [docs/page-kinds.md](../docs/page-kinds.md).
+
 **Der Web-Editor** schreibt eine Seite der Datenbank in einem Editor mit Live-Vorschau: Markdown, das abseits des Cursors
 gerendert aussieht, eine Leiste über der Seite, `/` für die Arten von Blöcken und Speichern beim Tippen. Er wird mit
 Node aus `web/editor` gebaut, und das gebaute Paket liegt im Repository, also braucht der Bau von UnderDoc nur Go. Wie

@@ -88,3 +88,22 @@ the reader is. Front matter and IDs stay hidden; the description shows on top as
 - The check needs a set of rules per kind. The team wiki's rules are the starting point: copied value, image only linked,
   page that starts with a list, too long a description.
 - If the inbox is ignored, hints pile up. They stay visible and never expire on their own, so they are not lost either.
+- **Built on 2026-11-23, part 1: kinds and the check** ([docs/page-kinds.md](../docs/page-kinds.md), migration 033,
+  T-20). Settled in the build:
+  - The kind is a field of the page (`kind:` in the front matter of an export), one of overview, register, record, plan,
+    source, reference, agent-notes, how-to, explanation, tutorial, or none. The audience follows from it.
+  - **A page without a kind is never blocked.** It counts as human documentation and gets the warning `KIND-MISSING`.
+    "The page kind becomes mandatory for prose" above means this warning, not a refusal.
+  - **Errors block only what is broken for certain and can be fixed in the same write:** a kind that is not one
+    (`KIND`), front matter in the text of a block (`FRONT-MATTER`), a part ID opened twice in a block (`ID`). Everything
+    else is a warning with its fix: a page is written block by block, so rules over the whole page cannot hold while it
+    grows, heuristics such as copied values can be wrong, and by default nothing waits.
+  - The rules sit once in package `pagekind`; the database refuses the errors at every write of a block and gathers the
+    warnings for the answer of the write, the page and the list of problems, so the MCP access (T-21) and the import
+    (T-28) reach the same check.
+  - Copied values (`COPY`) are addresses, e-mail, URLs, paths and host names, compared only with the references and
+    records the writer may read, so a warning never shows a hidden page.
+  - The German values and the two axes of the team wiki (`type:` and `art:`) map onto the one kind; `Regeln` without an
+    art becomes agent notes. Its lint codes map onto English codes (table in docs/page-kinds.md).
+  - People get the description on top, the kind and side under the title and no front matter or IDs; agents read the raw
+    page at `GET /api/pages/<id>/raw`.
