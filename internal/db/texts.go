@@ -205,4 +205,6 @@ func (db *DB) UseAIPages(ctx context.Context, account string, pages, userQuota, 
 }
 
 // cleanText trims a text and drops what no search needs.
-func cleanText(text string) string { return strings.TrimSpace(strings.ToValidUTF8(text, "")) }
+// cleanText trims a text at both ends, but keeps its page breaks (files.PageBreak), so a PDF that starts or ends with an
+// empty page keeps its pages counted (ADR-34).
+func cleanText(text string) string { return strings.Trim(strings.ToValidUTF8(text, ""), " \t\r\n\v") }

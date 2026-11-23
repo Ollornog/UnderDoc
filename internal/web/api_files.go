@@ -547,37 +547,48 @@ func (h *handler) apiFinishUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer h.uploads.give(u.ID)
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(10 * time.Minute))
+	done, contentType, err := h.completeUpload(r, u, user)
+	if h.filesFailed(w, err, "finish upload") {
+		return
+	}
+	if done.Page != "" {
+		writeJSON(w, http.StatusCreated, map[string]string{"page": done.Page, "attachment": done.Attachment,
+			"url": db.AttachmentPath(done.Page, done.Attachment), "type": contentType})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"id": done.File.ID, "n": done.File.Title, "version": done.Version, "type": contentType})
+}
+
+// completeUpload turns a complete upload into a file, a version or an attachment and logs it, for the browser and for a
+// one-time link (ADR-34); the caller holds the upload. It answers what was made and the type the content shows.
+func (h *handler) completeUpload(r *http.Request, u db.Upload, user account.User) (db.Finished, string, error) {
 	tenant := h.tenant(r)
 	path, err := h.options.Store.UploadPath(tenant, u.ID)
 	if err != nil {
-		h.failed(w, err, "finish upload")
-		return
+		return db.Finished{}, "", err
 	}
 	if u.Size == 0 {
 		// An empty file has no chunk that would have made its data.
 		f, err := h.options.Store.OpenUpload(tenant, u.ID)
 		if err != nil {
-			h.failed(w, err, "finish upload")
-			return
+			return db.Finished{}, "", err
 		}
 		_ = f.Close()
 	}
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(10 * time.Minute))
 	sha, size, err := store.HashFile(path)
 	if err != nil {
-		h.failed(w, err, "finish upload")
-		return
+		return db.Finished{}, "", err
 	}
 	contentType, err := detect(path, u.Name)
 	if err != nil {
-		h.failed(w, err, "finish upload")
-		return
+		return db.Finished{}, "", err
 	}
 	done, err := h.options.DB.FinishUpload(r.Context(), u.ID, user.ID, sha, size, contentType, func() error {
 		return h.options.Store.Adopt(tenant, u.ID, sha)
 	})
-	if h.filesFailed(w, err, "finish upload") {
-		return
+	if err != nil {
+		return db.Finished{}, "", err
 	}
 	if err := h.options.Store.RemoveUpload(tenant, u.ID); err != nil {
 		h.log.Error("upload not removed", slog.String("error", err.Error()))
@@ -590,12 +601,7 @@ func (h *handler) apiFinishUpload(w http.ResponseWriter, r *http.Request) {
 	if private, err := h.options.DB.Private(r.Context(), changed); err == nil && !private {
 		h.note(r, db.LogChange, changed, "upload "+u.Name)
 	}
-	if done.Page != "" {
-		writeJSON(w, http.StatusCreated, map[string]string{"page": done.Page, "attachment": done.Attachment,
-			"url": db.AttachmentPath(done.Page, done.Attachment), "type": contentType})
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": done.File.ID, "n": done.File.Title, "version": done.Version, "type": contentType})
+	return done, contentType, nil
 }
 
 // detect reads the first bytes of a file and tells its type.

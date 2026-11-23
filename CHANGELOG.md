@@ -8,6 +8,20 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **UnderDoc as an MCP server, part 2: writing, structure and files** (T-21, ADR-34, [docs/mcp.md](docs/mcp.md#writing),
+  migration 036): `write` (a page, or the section a block opens, as Markdown with its block markers, against the version
+  read; `<!-- block -->` starts a new block; a page changed since is refused with "page changed since you read it"),
+  `replace` (one passage), both with `dry_run` (the whole write in a transaction that is undone), `set_front_matter`
+  (title, tags, kind), `create_page`, `move` (addresses stay, a moved block redirects), `trash` (restorable, nothing
+  deleted for good), `list_files`, `read_file_page` (the text of a PDF page by page) and `upload_link` (a one-time link
+  below `/s/u/`, open at the gate like share links: once, 15 minutes, the exact size, only its hash kept, the rights
+  checked again as an agent when the file is made). Every answer carries the diff and the check; versions are an
+  agent's, so human documentation shows "written by AI, not checked". New warnings of the check, in every door:
+  `LINK` (link to nowhere), `UNLINKED-FILE` (file nobody links to), `PAGE-SIZE` (above 25 KB). Attack round with tests:
+  writing what the person may only read, in a space with no agents, beyond the person's limit for agents, without or
+  against an old base, a made-up block ID, a section's neighbours, a request above 2 MB; an upload link used twice,
+  from another site, with another size, after the person narrowed their agents, into another person's folder.
+
 - **UnderDoc as an MCP server, part 1** (T-21, ADR-34, [docs/mcp.md](docs/mcp.md)): agents reach `/mcp` over streamable
   HTTP, stateless, built on the official Go SDK (`github.com/modelcontextprotocol/go-sdk` v1.8.0). Signed in through the
   gate with OAuth (the gate serves the metadata of the protected resource and checks the token), so UnderDoc carries no

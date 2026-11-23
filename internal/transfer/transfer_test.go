@@ -264,3 +264,20 @@ func TestPageKindInFrontMatter(t *testing.T) {
 		t.Errorf("one warning for the unknown kind:\n%s", joined)
 	}
 }
+
+// TestParseBlocks: what an agent writes back keeps the IDs of its markers, once each; a marker without an ID, text
+// before the first marker and text without any marker are new blocks, the last split at headings (ADR-34).
+func TestParseBlocks(t *testing.T) {
+	front, blocks := ParseBlocks([]byte("---\ntitle: Plan\nkind: how-to\ntags: [a]\n---\nLead.\n\n## Before\n\n<!-- block b3 -->\n## Kept\n\nText.\n\n<!-- block -->\nNew.\n\n<!-- block b3 align=center -->\nTwice.\n\n<!-- block b4 -->\n\n<!-- block bx -->\nBad id.\n"))
+	if !front.Found || front.Title != "Plan" || front.Kind != "how-to" || len(front.Tags) != 1 {
+		t.Errorf("front matter: %+v", front)
+	}
+	want := []db.Block{{Body: "Lead."}, {Body: "## Before"}, {ID: "b3", Body: "## Kept\n\nText."}, {Body: "New."}, {Body: "Twice.", Align: "center"}, {ID: "b4", Body: "<!-- block bx -->\nBad id."}}
+	if !slices.Equal(blocks, want) {
+		t.Errorf("blocks:\n%+v\nwant %+v", blocks, want)
+	}
+	_, plain := ParseBlocks([]byte("Intro.\n\n## One\n\nText.\n\n```\n## not a heading\n```\n"))
+	if len(plain) != 2 || plain[0].ID != "" || plain[1].Body != "## One\n\nText.\n\n```\n## not a heading\n```" {
+		t.Errorf("without markers: %+v", plain)
+	}
+}

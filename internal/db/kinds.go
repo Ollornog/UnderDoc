@@ -5,6 +5,8 @@ package db
 import (
 	"context"
 	"errors"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -153,9 +155,51 @@ func (db *DB) findingsOf(ctx context.Context, o Object, blocks []Block, values [
 			f.Source = a.String()
 			found = append(found, f)
 		}
+		// A link to an object of UnderDoc that finds nothing for the writer: "link to nowhere" (ADR-34).
+		for _, m := range linkToObject.FindAllStringSubmatch(fencedCode.ReplaceAllString(b.Body, ""), -1) {
+			a := Address{Object: m[1]}
+			if fragment, ok := ParseAddress(m[1] + m[2]); ok && m[2] != "" && !IsTableID(fragment.Block) {
+				a = fragment
+			}
+			// A link may lead to any object the writer sees, a collection or a folder too; into a page, to a block of it.
+			if a.Block == "" {
+				if _, err := db.Object(ctx, a.Object, viewer); err == nil {
+					continue
+				}
+			} else if db.resolves(ctx, a, viewer, targets) {
+				continue
+			}
+			f := pagekind.New(pagekind.CodeLink, b.ID, a.String())
+			f.Source = a.String()
+			found = append(found, f)
+		}
+	}
+	// A file attached to the page that no block shows or links to: "file nobody links to" (ADR-34).
+	if o.Kind == KindPage {
+		if rows, err := db.pool.Query(ctx, "SELECT id, name FROM attachments WHERE page = $1 ORDER BY at, id", o.ID); err == nil {
+			type attachment struct{ id, name string }
+			list, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (attachment, error) {
+				var a attachment
+				err := row.Scan(&a.id, &a.name)
+				return a, err
+			})
+			for _, a := range list {
+				if err != nil {
+					break
+				}
+				path := AttachmentPath(o.ID, a.id)
+				if !slices.ContainsFunc(blocks, func(b Block) bool { return strings.Contains(b.Body, path) }) {
+					found = append(found, pagekind.New(pagekind.CodeUnlinkedFile, "", a.name))
+				}
+			}
+		}
 	}
 	return found
 }
+
+// linkToObject finds a Markdown link to an object of UnderDoc: the address of the workspace (/o/<id>) or of the MCP
+// access (underdoc:<id>), with a fragment where there is one.
+var linkToObject = regexp.MustCompile(`\]\(\s*<?(?:/o/|underdoc:)([0-9a-hjkmnp-tv-z]{10})(#[A-Za-z0-9.=-]*)?>?(?:\s+"[^"]*")?\s*\)`)
 
 // embedTarget is a page as far as an embedding needs it: whether the viewer sees it, and its blocks.
 type embedTarget struct {

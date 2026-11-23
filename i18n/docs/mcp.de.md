@@ -78,6 +78,15 @@ Host). Eine Adresse wird immer nur über ihre ID nachgeschlagen: Nichts davon er
 | `read` | Eine bis fünf Seiten als Markdown mit Front Matter, der Markierung vor jedem Block und der Version, gegen die geschrieben wird; oder ein Block oder Abschnitt (`#b3`); eine Seite der Ordnerquelle als Gliederung |
 | `used_in` | Die Seiten, die eine Seite, einen Block, Abschnitt oder Teil einbetten |
 | `search` | Eine Suche über die Abschnitte von Seiten und die Seiten von PDF und anderen Dateien: eine Zeile je Treffer mit Adresse, Abschnitt und Auszug, höchstens 20 Treffer, die Gesamtzahl am Ende; Fehlercodes exakt |
+| `write` | Eine Seite oder den Abschnitt, den ein Block eröffnet (`#b3`), als Markdown mit den Markierungen, die read geliefert hat, gegen die gelesene Version (`base`); `dry_run` liefert Prüfung und Diff ohne zu speichern |
+| `replace` | Eine Passage, die einmal in der Seite steht, gegen `base`; `dry_run` wie bei `write` |
+| `set_front_matter` | Titel, Tags oder Art einer Seite |
+| `create_page` | Eine Seite in einer Sammlung, einem Ordner oder einer Seite, mit Art und Text |
+| `move` | Ein Objekt in eine Sammlung, einen Ordner oder eine Seite, oder einen Block in eine andere Seite |
+| `trash` | Ein Objekt mit allem darunter in den Papierkorb, aus dem eine Person es zurückholen kann |
+| `list_files` | Die Wurzeln der Ansicht Dateien, was in einem Ordner liegt, oder die Anhänge einer Seite (Modul Dateien) |
+| `read_file_page` | Den Text einer Datei Seite für Seite (`#page=2`) (Modul Dateien) |
+| `upload_link` | Einen Einmal-Link, um eine Datei in einen Ordner, als neue Version einer Datei oder an eine Seite hochzuladen (Modul Dateien) |
 
 Antworten sind knapp (ADR-34): Eine Liste hat höchstens 20 Zeilen, eine Antwort höchstens 100 KB. Eine größere Seite,
 oder eine größer als ihr Anteil, wenn mehrere auf einmal gelesen werden, kommt als Gliederung mit der Adresse jedes
@@ -96,6 +105,65 @@ Die Anweisungen des Servers sind kurz (deutlich unter den 4.096 Zeichen, die Cli
 die Adressen, die Zielgruppen der Seitenarten, die Grenzen der Antworten und wie gearbeitet wird. Alles andere steht auf
 der Regelseite.
 
+## Schreiben
+
+Eine Seite wird als Markdown gelesen: Front Matter, dann jeder Block nach einer Markierungszeile `<!-- block b3 -->`, und
+die Version der Seite, die neueste Änderung ihrer Blöcke. Ein Schreiben schickt sie in derselben Form zurück, mit dieser
+Version als `base`:
+
+- Ein Block mit der Markierung eines Blocks des geschriebenen Teils behält seine ID; sein Text wird, wenn geändert, eine
+  Version.
+- `<!-- block -->`, eine Markierung ohne ID, beginnt einen neuen Block; Text vor der ersten Markierung oder ein Text ganz
+  ohne Markierung wird vor seinen Überschriften in neue Blöcke geteilt. Eine ID, die nicht im geschriebenen Teil steht,
+  wird nie übernommen: Dieser Block wird neu angelegt.
+- Ein Block des geschriebenen Teils, der fehlt, wird gelöscht. Was eine andere Seite einbettet, wird nicht gelöscht: Die
+  Antwort nennt die Seiten, und eine Person entscheidet im Browser, was aus den Verwendungen wird, oder der Agent
+  verschiebt den Block mit `move`, dem sie folgen.
+- Front Matter in einem Schreiben wird nicht übernommen; `set_front_matter` setzt Titel, Tags und Art.
+- **Konflikt:** Eine Seite, die sich seit dem Lesen ihrer Version geändert hat, wird abgelehnt, „page changed since you
+  read it“, mit beiden Versionen. Ein Schreiben ohne `base` wird ebenfalls abgelehnt. Einen Block innerhalb einer Seite
+  zu verschieben macht keine Version und ist kein Konflikt.
+- **Probelauf:** Das ganze Schreiben läuft in einer Transaktion, die danach zurückgenommen wird; die Antwort ist
+  dieselbe, gespeichert wird nichts.
+
+Jede Antwort enthält den Diff der Blöcke und die Prüfung der Seite ([page-kinds.md](../../docs/page-kinds.md)): Fehler
+blockieren das Schreiben, Warnungen kommen mit ihrer Behebung. Für Agenten zählen diese am meisten: `LINK` (ein Link
+ins Leere), `UNLINKED-FILE` (eine Datei, auf die nichts verweist), `PAGE-SIZE` (eine Seite über 25 KB), `EMBED`, `COPY`
+und die Regeln der Art. Dieselbe Prüfung läuft im Browser.
+
+Was ein Agent schreibt, ist die Version eines Agenten (ADR-33): Auf Doku für Menschen tragen die Blöcke, die er geändert
+hat, „written by AI, not checked“, bis eine Person sie prüft, und was er herausgenommen hat, steht unter der Seite. Jede
+Änderung wird als Änderung der Person protokolliert, einmal je Stunde und Objekt wie im Browser (ADR-11); die Versionen
+halten jede einzelne fest.
+
+## Struktur
+
+- `create_page` legt eine Seite in einer Sammlung, einem Ordner oder einer Seite an; einen Space oben legt eine Person
+  an.
+- `move` behält die Adresse eines Objekts, also führt jeder Link weiter dorthin. Ein Block, der in eine andere Seite
+  verschoben wird, hinterlässt eine Weiterleitung: Seine alte Adresse führt zur neuen, und was ihn eingebettet hat, folgt
+  (ADR-22).
+- `trash` legt ein Objekt mit allem darunter in den Papierkorb, aus dem eine Person es binnen 30 Tagen zurückholt. Ein
+  Agent löscht nichts endgültig.
+
+## Dateien
+
+Eine Datei erreicht einen Agenten als Text, Seite für Seite, nie als ihre Bytes: `read_file_page` liefert eine Seite des
+Texts eines PDF oder den Text einer anderen Datei als eine Seite, den besten Text zuerst (was der Inhalt selbst sagt vor
+dem, was aus Pixeln erkannt wurde).
+
+Eine Datei erreicht UnderDoc über einen **Einmal-Upload-Link**, nie in einer Nachricht:
+
+1. `upload_link` beginnt einen Upload mit den Rechten der Person, für einen Namen und eine genaue Größe, und liefert einen
+   Link `https://<host>/s/u/<token>` mit einer `curl`-Zeile.
+2. Ein Programm schickt die Datei dorthin als Körper eines einzigen `PUT`, binnen 15 Minuten. Seine Antwort nennt, was
+   angelegt wurde.
+
+Der Link wirkt einmal: Ihn zu nehmen entfernt ihn, auch wenn der Upload scheitert. Gespeichert wird nur der Hash seines
+Tokens. Er liegt unter `/s/`, das das Gate offen lässt wie für Freigabelinks, denn das Programm, das die Datei schickt, ist
+nicht angemeldet; allein das Token sagt, was es darf. Die Rechte werden geprüft, wenn der Link entsteht, und noch einmal,
+wenn die Datei angelegt wird, als Agent der Person. Eine Anfrage eines Browsers einer anderen Website wird abgelehnt.
+
 ## Suche
 
 Die Suche liefert Abschnitte (ADR-24): ein Datensatz je Überschrift und was folgt, ein Treffer je Objekt, Codes in
@@ -106,6 +174,13 @@ nennt seine Seite (`#page=3`). Ein Wort verträgt ab vier Buchstaben einen Tippf
 
 ## Was noch fehlt
 
-- Schreiben, Verschieben, Papierkorb und Dateien kommen im zweiten Teil von T-21.
+- **Lücken des Browsers** (ein Werkzeug, das der Browser nicht kann, ist eine fehlende Funktion der Oberfläche,
+  ADR-34): Die Beschreibung einer Seite lässt sich im Browser nicht setzen, also setzt `set_front_matter` sie auch
+  nicht; ein Treffer in einem PDF (`#page=3`) öffnet die Datei am Anfang.
+- Die Wege für etwas, das verwendet wird (überall löschen, eine Kopie je Verwendung, eine neue Quelle), wählt eine
+  Person im Browser.
+- Den Text eines Anhangs lesen, Verlauf und ältere Versionen, Ordner, Sammlungen und Gruppen sind keine Werkzeuge:
+  Menschen tun das im Browser (ADR-34).
+- Einen Block innerhalb einer Seite zu verschieben macht keine Version, also trägt es keinen KI-Hinweis (T-20).
 - Andere Quellen (`source_search`, `source_read`) und die Werkzeuge von Konnektoren kommen mit T-31.
 - Automatische Abschnitte (T-30) gibt es noch nicht, also hat `read` nichts zu zählen.

@@ -86,8 +86,10 @@ Diff prüft oder die Änderung zurücknimmt (englisch): [docs/page-kinds.md](../
 **Agenten über MCP** erreichen die Seiten unter `/mcp` (ADR-34): angemeldet über das Gate mit OAuth, immer als Agent
 ihrer Person, also bleibt ein Space mit „keine Agenten“ zu, und Rechte, Freigabelinks, endgültiges Löschen und
 Passwörter bleiben außer Reichweite. Ein kleiner Kern an Werkzeugen: `context` zum Anfangen, `read` für Seiten und
-Abschnitte mit der Version, gegen die geschrieben wird, `used_in` und eine `search` über Abschnitte von Seiten und Seiten
-von PDF. Die Konventionen sind eine Regelseite im Wiki: [i18n/docs/mcp.de.md](docs/mcp.de.md).
+Abschnitte mit der Version, gegen die geschrieben wird, `used_in`, eine `search` über Abschnitte von Seiten und Seiten
+von PDF, `write` und `replace` gegen diese Version mit Probelauf, Diff und Prüfung in jeder Antwort, Front Matter, eine
+neue Seite, `move`, `trash`, und Dateien, Seite für Seite gelesen und über einen Einmal-Link hochgeladen. Die
+Konventionen sind eine Regelseite im Wiki: [i18n/docs/mcp.de.md](docs/mcp.de.md).
 
 **Der Web-Editor** schreibt eine Seite der Datenbank in einem Editor mit Live-Vorschau: Markdown, das abseits des Cursors
 gerendert aussieht, eine Leiste über der Seite, `/` für die Arten von Blöcken und Speichern beim Tippen. Er wird mit

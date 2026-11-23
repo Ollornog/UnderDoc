@@ -19,6 +19,7 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/document"
 	"github.com/Ollornog/UnderDoc/internal/id"
+	"github.com/Ollornog/UnderDoc/internal/module"
 	"github.com/Ollornog/UnderDoc/internal/pagekind"
 	"github.com/Ollornog/UnderDoc/internal/search"
 )
@@ -147,7 +148,38 @@ func (h *handler) mcpServer(r *http.Request, cache *mcp.SchemaCache) *mcp.Server
 	mcp.AddTool(server, &mcp.Tool{Name: "search", Annotations: readOnly,
 		Description: "One search over pages and the text of files and PDFs, ranked together: one line per hit with its " +
 			"address and section, a short excerpt, at most 20 hits and the total at the end. Error codes are found exactly."}, t.search)
+	mcp.AddTool(server, &mcp.Tool{Name: "write",
+		Description: "Write a page, or the section a block opens (underdoc:<id>#b3), as Markdown with the block markers you read, " +
+			"against the version you read (base). Blocks without a marker are new, blocks left out are deleted. dry_run " +
+			"answers the check and the diff without saving. Every answer has the check: errors block, warnings come with a fix."}, t.write)
+	mcp.AddTool(server, &mcp.Tool{Name: "replace",
+		Description: "Replace one passage of a page, which must stand there once, against the version you read; dry_run as in write."}, t.replace)
+	mcp.AddTool(server, &mcp.Tool{Name: "set_front_matter",
+		Description: "Set the title, the tags or the kind of a page."}, t.setFrontMatter)
+	mcp.AddTool(server, &mcp.Tool{Name: "create_page",
+		Description: "Make a page in a collection, folder or page, with its kind and, if given, its text; answers its address and the check."}, t.createPage)
+	mcp.AddTool(server, &mcp.Tool{Name: "move",
+		Description: "Move an object into a collection, folder or page, or a block into another page. Addresses stay or redirect, so links and embeddings follow."}, t.move)
+	mcp.AddTool(server, &mcp.Tool{Name: "trash",
+		Description: "Move an object with everything below it to the trash, where a person can restore it. Nothing is deleted for good by an agent."}, t.trash)
+	if t.h.options.Store != nil && t.h.moduleOn(r.Context(), module.Files) {
+		mcp.AddTool(server, &mcp.Tool{Name: "list_files", Annotations: readOnly,
+			Description: "List the files of the view Files: the roots without in, or what lies in a folder; the files attached to a page with its address. At most 20 rows and the total."}, t.listFiles)
+		mcp.AddTool(server, &mcp.Tool{Name: "read_file_page", Annotations: readOnly,
+			Description: "Read the text of a file page by page: underdoc:<id>#page=2 for a page of a PDF, underdoc:<id> for the first."}, t.readFilePage)
+		mcp.AddTool(server, &mcp.Tool{Name: "upload_link",
+			Description: "Get a one-time link to upload a file into a folder, as a new version of a file, or to a page: a program sends it there with PUT, once, within 15 minutes. Never put a file into a message."}, t.uploadLink)
+	}
 	return server
+}
+
+// noteChange logs a change through MCP (ADR-11), unless the object is private: what lies in private notes is nobody's
+// business.
+func (h *handler) noteChange(r *http.Request, objectID, detail string) {
+	if private, err := h.options.DB.Private(r.Context(), objectID); err != nil || private {
+		return
+	}
+	h.note(r, db.LogChange, objectID, detail)
 }
 
 // mcpTools are the tools of one request.
