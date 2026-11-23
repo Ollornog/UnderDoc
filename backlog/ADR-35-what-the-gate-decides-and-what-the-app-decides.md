@@ -30,13 +30,16 @@ A team wiki behind the same gate learned the following:
 
 The state of the gate on 2026-11-23:
 
-- The gate calls groups "roles". They arrive in `Remote-Groups` or the gate token. A role is never renamed and is deleted
-  only when unused.
+- The gate calls groups "roles". They arrive in `Remote-Groups` or the gate token. Roles are free names on accounts and
+  in the configuration. They have no rename, so the name is the stable key. A planned role catalog will refuse to delete a
+  role that is in use.
 - Accounts carry a lasting ID in `Remote-Id`.
 - `Remote-Kind` tells a person from a service account. It is merged and comes with gate version 0.28.0.
 - `Remote-Auth` says how someone signed in: `session`, `oauth`, `apikey` or `app-password`.
 - An account API lets an app with its own service account and an allowlist of roles invite, change, lock and reset
-  accounts, always on behalf of a person.
+  accounts. A write call names the person it acts for (`TinySesam-On-Behalf-Of`, `-` for jobs). The gate does not
+  check that name: it only records it as claimed in its log. Only an approval confirms who acted. The gate enforces the
+  service account, its scopes, the allowlist, that only accounts managed by the app are visible, and its limits.
 - Approvals with a step-up exist for the gate's own actions. Signed one-time approvals for actions of an app come next.
 - Tenants (T-73 of the gate) are not built yet.
 
@@ -56,17 +59,23 @@ The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 
 
 - Who someone is: a person is bound by `Remote-Id`, never by name or mail.
 - Whether someone may use UnderDoc at all: the gate's role for the app.
-- The coarse roles UnderDoc reads:
-  - administrator of the tenant;
-  - may create spaces;
-  - superadmin of the gate.
-  The gate's own admin flag is never a right in UnderDoc.
+- The coarse roles UnderDoc reads, as roles of the app in the gate:
+  - administrator of UnderDoc, for example `underdoc-admin`;
+  - may create spaces.
+
+  The gate's own admin flag stays outside and is never a right in UnderDoc.
 - Person or service account (`Remote-Kind`). Once gate 0.28.0 has rolled out and old tokens have expired, a request without
   it is refused.
-- How someone signed in (`Remote-Auth`). Sensitive actions can demand a session.
-- The account lifecycle through the account API: invite, lock, unlock, new link, reset with approval, later delete with a
-  grace period.
-- Approvals for dangerous actions, for example deleting a space for good, once the gate signs approvals for apps.
+- How someone signed in (`Remote-Auth`). Sensitive actions can demand `session` as a minimum. That value also holds for a gate
+  token as old as `gate_token_ttl_sec`, so it does not prove a fresh confirmation.
+- The account lifecycle through the account API:
+  - invite, lock and unlock;
+  - a new sign-in link, only before the first sign-in;
+  - reset access as the gate's approval `tinysesam.account.reset_access`, confirmed with a step-up by an account with the
+    gate's approver role (that role must never be on UnderDoc's allowlist);
+  - later delete with a grace period.
+- Approvals for dangerous actions, for example deleting a space for good: a signed one-time approval for an app action,
+  once the gate offers it (its next step). Until then such actions stay with administrators in the browser.
 - Later the tenant (`Remote-Tenant`, open until the gate decides T-73). Until then UnderDoc runs one tenant (ADR-23).
 
 **UnderDoc decides:**
@@ -77,8 +86,9 @@ The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 
   - **Open for the maintainer: groups inside groups.** ADR-29 said no for now. The team wiki shows that a tree of groups
     with admins per part carries a company well. Recommendation: allow nesting for local groups, passed down by default;
     roles of the gate stay flat.
-- Group admins in UnderDoc invite colleagues and lock them. UnderDoc calls the account API with its service account, on
-  behalf of the person who clicked, and only with roles on its allowlist.
+- Group admins in UnderDoc invite colleagues and lock them. **UnderDoc itself checks** that the person who clicked is a group
+  admin, because the gate takes the named person on trust. It then calls the account API with its service account, names
+  that person, and uses only roles on its allowlist.
 - What a service account may reach: the gate gives it roles. UnderDoc grants it paths or spaces like any person, for example
   an export that may only replace one data page.
 - Exceptions per folder only as an explicit special case, for example an inbox everyone may write to.

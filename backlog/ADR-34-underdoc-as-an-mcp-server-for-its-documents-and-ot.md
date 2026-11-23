@@ -90,14 +90,20 @@ Proposed by the team wiki and UnderDoc on 2026-11-23. The maintainer decides.
   - Timeouts for connectors.
 - **Rights and log:**
   - Every call runs as the person behind the token, with the same checks as the browser.
-  - Sensitive actions can refuse `Remote-Auth: oauth`, for example deleting for good.
+  - The gate's OAuth scopes are only `mcp` and `offline_access`, so an agent's token carries the person's full rights on
+    UnderDoc. If an agent should be allowed less than its person, UnderDoc needs its own rule based on
+    `Remote-Auth: oauth`, or the gate needs finer scopes later. That would be a new wish for the gate.
+  - Sensitive actions refuse `Remote-Auth: oauth`, for example deleting for good.
   - Every write and every read of an outside source is logged (ADR-11).
 - **No MCP resources and no prompts** for now.
 - **Without an AI model on the server:** the MCP server needs no model and works without the AI drawer (M-13).
 
 ## Consequences
 
-- UnderDoc carries no OAuth code. It registers with the gate as an OAuth resource.
+- UnderDoc carries no OAuth code. The operator lists UnderDoc's address as an OAuth resource in the gate's configuration,
+  and the gate registers the MCP clients.
+- **Open for the maintainer:** should agents get less than their person, for example read only by default? Either way it
+  is decided in UnderDoc first; finer scopes in the gate would be a separate request.
 - Sources need a URI scheme and a read and search adapter each (M-4, M-27). Connectors need an extension point with their own
   tools and credentials.
 - The search of M-12 has to return sections and rank sources together.
