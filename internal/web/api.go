@@ -127,6 +127,8 @@ type apiDocument struct {
 	// may archive or restore the space it is (T-34).
 	Archived bool `json:"archived,omitempty"`
 	Archive  bool `json:"archive,omitempty"`
+	// RulesPage tells that the page is the rules page for agents (B-5).
+	RulesPage bool `json:"rulesPage,omitempty"`
 }
 
 // apiEmbed is one thing a page embeds: a value (a part with a name), a part, a section, a block or a whole page.
@@ -164,7 +166,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
 			Admin: user.Admin, Agent: user.Agent()},
 		CanCreate: h.options.DB != nil && documents,
-		CanSpaces: h.options.DB != nil && documents && (user.Admin || user.Spaces),
+		CanSpaces: h.options.DB != nil && documents && (user.Admin || user.Spaces) && !user.Agent(),
 		Problems:  len(lib.Problems()),
 		Files: h.options.DB != nil && h.options.Store != nil &&
 			slices.ContainsFunc(modules, func(m module.State) bool { return m.ID == module.Files && m.On && !m.Hidden }),

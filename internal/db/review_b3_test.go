@@ -79,7 +79,7 @@ func TestArchivingAGroup(t *testing.T) {
 	if err := db.ArchiveGroup(asAgent(dora), Actor{ID: dora.ID}, inner.ID); !errors.Is(err, ErrAgent) {
 		t.Errorf("an agent archives: %v", err)
 	}
-	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, sales.ID); !errors.Is(err, ErrGroupHasGroups) {
+	if err := db.ArchiveGroup(ctx, admin, sales.ID); !errors.Is(err, ErrGroupHasGroups) {
 		t.Errorf("Sales is archived with Key accounts inside: %v", err)
 	}
 	synced, err := db.GroupsOf(ctx, anna.ID)
@@ -93,14 +93,18 @@ func TestArchivingAGroup(t *testing.T) {
 		t.Error("the list offers the admin of Sales to archive it")
 	}
 
-	// The admin of Company archives what lies inside it, the inner group first.
-	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, inner.ID); err != nil {
+	// Since B-5 only administrators archive, the admin of a group above neither.
+	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, inner.ID); !errors.Is(err, ErrGroupArchiver) {
+		t.Errorf("the admin of Company archives Key accounts: %v", err)
+	}
+	// An administrator archives what lies inside it, the inner group first.
+	if err := db.ArchiveGroup(ctx, admin, inner.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, sales.ID); err != nil {
+	if err := db.ArchiveGroup(ctx, admin, sales.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ArchiveGroup(ctx, Actor{ID: dora.ID}, sales.ID); !errors.Is(err, ErrGroupArchived) {
+	if err := db.ArchiveGroup(ctx, admin, sales.ID); !errors.Is(err, ErrGroupArchived) {
 		t.Errorf("archived twice: %v", err)
 	}
 	check("archived", false, false)
@@ -143,10 +147,13 @@ func TestArchivingAGroup(t *testing.T) {
 	if err := db.RestoreGroup(ctx, admin, company.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("restoring a group that is not archived: %v", err)
 	}
-	if err := db.RestoreGroup(ctx, Actor{ID: dora.ID}, sales.ID); err != nil {
+	if err := db.RestoreGroup(ctx, Actor{ID: dora.ID}, sales.ID); !errors.Is(err, ErrGroupArchiver) {
+		t.Errorf("the admin of Company restores Sales: %v", err)
+	}
+	if err := db.RestoreGroup(ctx, admin, sales.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RestoreGroup(ctx, Actor{ID: dora.ID}, inner.ID); err != nil {
+	if err := db.RestoreGroup(ctx, admin, inner.ID); err != nil {
 		t.Fatal(err)
 	}
 	check("restored", true, true)
@@ -300,8 +307,14 @@ func TestOnlyHoldersOfTheRoleMakeSpaces(t *testing.T) {
 	if _, err := db.CreateCollection(person(asAdmin), asAdmin, "Carl's space", ""); err != nil {
 		t.Errorf("an administrator: %v", err)
 	}
-	if _, err := db.CreateFileCollection(asAgent(withRole), withRole, "Agent's files"); err != nil {
-		t.Errorf("an agent of a holder of the role: %v", err)
+	// B-5, finding 5: an agent of a holder of the role (a key, an app password, OAuth) makes no space.
+	if _, err := db.CreateFileCollection(asAgent(withRole), withRole, "Agent's files"); !errors.Is(err, ErrSpaces) {
+		t.Errorf("an agent of a holder of the role makes a space of files: %v", err)
+	}
+	keyed := withRole
+	keyed.AuthKind = account.AuthAPIKey
+	if _, err := db.CreateCollection(account.With(inMain(), keyed), keyed, "By key", ""); !errors.Is(err, ErrSpaces) {
+		t.Errorf("a key of a holder of the role makes a space: %v", err)
 	}
 	// Reordering at the top moves no collection up.
 	if _, err := db.Move(person(anna), team.ID, anna.ID, "", ""); err != nil {

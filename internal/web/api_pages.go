@@ -115,7 +115,7 @@ func (h *handler) failed(w http.ResponseWriter, err error, what string) bool {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "findings": rule.Findings})
 	case errors.Is(err, db.ErrTitle), errors.Is(err, db.ErrKind), errors.Is(err, db.ErrBlock), errors.Is(err, db.ErrPlace), errors.Is(err, db.ErrTooMany), errors.Is(err, db.ErrSettings), errors.Is(err, db.ErrComment), errors.Is(err, db.ErrTag), errors.Is(err, db.ErrView), errors.Is(err, db.ErrAlign), errors.Is(err, db.ErrTemplate), errors.Is(err, db.ErrRole), errors.Is(err, db.ErrGroupName),
 		errors.Is(err, db.ErrLogKeep), errors.Is(err, db.ErrFileName), errors.Is(err, db.ErrSambaName), errors.Is(err, db.ErrNoSamba),
-		errors.Is(err, db.ErrConfirmName), errors.Is(err, db.ErrArchivePlace):
+		errors.Is(err, db.ErrConfirmName), errors.Is(err, db.ErrArchivePlace), errors.Is(err, db.ErrRulesPage):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.As(err, new(*db.OpenError)), errors.Is(err, db.ErrPerFolder):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -275,7 +275,7 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	}
 	at := slices.IndexFunc(blocks, func(b db.Block) bool { return b.ID == a.Block })
 	if a.Block != "" && at < 0 {
-		if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+		if to, moved := h.options.DB.Redirect(r.Context(), a, user.ID); moved {
 			return h.embedded(r, to, trail)
 		}
 		return "", "", "Block #" + a.Block + " is no longer in " + o.Title
@@ -298,7 +298,7 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 		}
 		n := markdown.SectionEnd(bodies)
 		if n == 0 {
-			if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+			if to, moved := h.options.DB.Redirect(r.Context(), a, user.ID); moved {
 				return h.embedded(r, to, trail)
 			}
 			return "", "", "Block #" + a.Block + " opens no section in " + o.Title
@@ -311,7 +311,7 @@ func (h *handler) embedded(r *http.Request, a db.Address, trail []string) (inner
 	default:
 		part, ok := markdown.CutPart(h.render(r, blocks[at].Body, inside(blocks[at])), a.Sub)
 		if !ok {
-			if to, moved := h.options.DB.Redirect(r.Context(), a); moved {
+			if to, moved := h.options.DB.Redirect(r.Context(), a, user.ID); moved {
 				return h.embedded(r, to, trail)
 			}
 			return "", "", "Part #" + a.Target() + " is no longer in " + o.Title
@@ -333,6 +333,9 @@ func (h *handler) pageDocument(w http.ResponseWriter, r *http.Request, o db.Obje
 		Place: h.place(r, o), Path: "not a file, lives in the database", Changed: stamp(o.Changed),
 		Sections: [][]string{}, UsedIn: []string{}, Links: []string{}, Stable: true, Blocks: []apiBlock{},
 		Owner: h.options.DB.AccountName(ctx, o.Owner), Created: stamp(o.Created), SeenBy: h.seenBy(r, o), Archived: h.inArchive(r, o)}
+	if rules, err := h.options.DB.RulesPageID(ctx); err == nil {
+		answer.RulesPage = rules == o.ID
+	}
 	used, err := h.options.DB.UsedIn(ctx, o.ID, user.ID)
 	if err != nil {
 		h.log.Error("used in failed", slog.String("error", err.Error()))

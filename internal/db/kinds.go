@@ -238,7 +238,7 @@ func (db *DB) resolves(ctx context.Context, a Address, viewer string, targets ma
 			return true
 		}
 	}
-	_, moved := db.Redirect(ctx, a)
+	_, moved := db.Redirect(ctx, a, viewer)
 	return moved
 }
 

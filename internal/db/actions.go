@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/Ollornog/UnderDoc/internal/account"
 )
 
@@ -167,6 +169,8 @@ const (
 	ViaUnknown       = "unknown"
 	// ViaArchived is a space that is archived: read only for everyone until it is restored (T-34).
 	ViaArchived = "archived"
+	// ViaRulesPage is the rules page, which agents only read (B-5).
+	ViaRulesPage = "rules page"
 )
 
 // decideColumns reads a right_decision d with the names of where it was found and of whom.
@@ -193,12 +197,24 @@ func (db *DB) May(ctx context.Context, objectID, viewer, action string) (bool, e
 	return ok, err
 }
 
-// MayFind tells whether a hit of the search may show to the account of the request: an object of the database it may
-// read, or something that is no object of the database at all (a document of the folder source, M-1).
-func (db *DB) MayFind(ctx context.Context, objectID, viewer string) (bool, error) {
-	var ok bool
-	err := db.pool.QueryRow(ctx, "SELECT NOT EXISTS (SELECT 1 FROM objects WHERE id = $1) OR object_may($1, $2, 'read')", objectID, viewer).Scan(&ok)
-	return ok, err
+// MayFindAll tells which hits of the search may show to the account of the request, in one query (B-5): an object of
+// the database it may read, or something that is no object of the database at all (a document of the folder source,
+// M-1). It returns the IDs that may show.
+func (db *DB) MayFindAll(ctx context.Context, objectIDs []string, viewer string) (map[string]bool, error) {
+	rows, err := db.pool.Query(ctx, `SELECT x.id FROM unnest($1::text[]) AS x(id)
+		WHERE NOT EXISTS (SELECT 1 FROM objects WHERE id = x.id) OR object_may(x.id, $2, 'read')`, nonNil(objectIDs), viewer)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
 }
 
 // ActionsOf returns the actions the account of the request may do on an object.
@@ -221,6 +237,9 @@ func (db *DB) mayDo(ctx context.Context, o Object, viewer, action string) error 
 	}
 	if d.Via == ViaArchived {
 		return ErrArchived
+	}
+	if d.Via == ViaRulesPage {
+		return ErrRulesPageAgents
 	}
 	if d.Value == Deny && viewer != "" {
 		if private, err := isPrivate(ctx, db.pool, o.ID); err == nil && !private {
@@ -245,6 +264,8 @@ func DescribeDecision(d Decision) string {
 		return d.Action + ": no entry up to the top"
 	case ViaArchived:
 		return d.Action + ": the space " + d.Object + " is archived"
+	case ViaRulesPage:
+		return d.Action + ": agents only read the rules page"
 	}
 	where := ""
 	if d.Object != "" {

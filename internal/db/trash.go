@@ -57,6 +57,10 @@ func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before 
 	if o.Parent == "" && o.Owner != viewer {
 		return ErrNotAllowed
 	}
+	// A space goes to the trash only by a person (B-5): an agent moves pages, never a whole space.
+	if o.Parent == "" && requestAgent(ctx) {
+		return ErrAgent
+	}
 	// The folder of the tenant and of each user stay: they are where files land (ADR-28).
 	if fixed, err := isFixedRoot(ctx, db.pool, objectID); err != nil || fixed {
 		if err == nil {
@@ -223,6 +227,9 @@ const TrashName = "Trash"
 // ApprovePurge is the action of the app that a signed approval of the gate names for deleting for good (ADR-35, T-33).
 const ApprovePurge = "underdoc.purge"
 
+// ApproveEmptyTrash is the action an approval names for emptying the trash: one approval for all that goes (B-5).
+const ApproveEmptyTrash = "underdoc.empty-trash"
+
 // Approver confirms a dangerous action with a signed one-time approval of the gate, its jti used once (ADR-35). T-33
 // wires the gate's VerifyApproval; until then there is none, and such actions stay with owners and administrators in
 // the browser.
@@ -246,7 +253,7 @@ func (db *DB) Purge(ctx context.Context, objectID string, actor Actor, confirm s
 	if strings.TrimSpace(confirm) != t.Title {
 		return ErrConfirmName
 	}
-	return db.purge(ctx, objectID, actor)
+	return db.purge(ctx, objectID, actor, true)
 }
 
 // forPurge returns an object of the trash the actor may delete for good, as far as that can be told before the name.
@@ -265,15 +272,17 @@ func (db *DB) forPurge(ctx context.Context, objectID string, actor Actor) (Trash
 	return t, nil
 }
 
-func (db *DB) purge(ctx context.Context, objectID string, actor Actor) error {
-	if db.approver != nil {
-		if err := db.approver.Approve(ctx, ApprovePurge, objectID); err != nil {
-			return err
-		}
-	}
+// purge deletes for good, checking first and asking the gate for its approval after (B-5): an approval is used up only
+// by a purge that goes, never by one the check refuses. With approve false the caller has the approval already.
+func (db *DB) purge(ctx context.Context, objectID string, actor Actor, approve bool) error {
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		if err := mayTakeAll(ctx, tx, objectID, actor.ID, "true"); err != nil {
 			return err
+		}
+		if approve && db.approver != nil {
+			if err := db.approver.Approve(ctx, ApprovePurge, objectID); err != nil {
+				return err
+			}
 		}
 		// One statement takes the whole tree, so the parent of each is gone in the same moment as it is.
 		tag, err := tx.Exec(ctx, `WITH RECURSIVE down AS (
@@ -307,14 +316,27 @@ func (db *DB) EmptyTrash(ctx context.Context, actor Actor, confirm string) (int,
 	if err != nil {
 		return 0, err
 	}
-	gone := 0
+	// What may go is found first; then one approval of the gate covers emptying the trash, never one per item (B-5).
+	var purgeable []string
 	for _, t := range list {
 		if _, err := db.forPurge(ctx, t.ID, actor); errors.Is(err, ErrPurger) || errors.Is(err, ErrNotFound) {
 			continue
 		} else if err != nil {
-			return gone, err
+			return 0, err
 		}
-		err := db.purge(ctx, t.ID, actor)
+		purgeable = append(purgeable, t.ID)
+	}
+	if len(purgeable) == 0 {
+		return 0, nil
+	}
+	if db.approver != nil {
+		if err := db.approver.Approve(ctx, ApproveEmptyTrash, ""); err != nil {
+			return 0, err
+		}
+	}
+	gone := 0
+	for _, id := range purgeable {
+		err := db.purge(ctx, id, actor, false)
 		if errors.Is(err, ErrHeldBelow) || errors.Is(err, ErrNotFound) {
 			continue
 		}

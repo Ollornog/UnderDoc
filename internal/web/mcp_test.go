@@ -115,12 +115,14 @@ func TestMCPReadAndSearch(t *testing.T) {
 	}
 
 	got, failed := call(t, session, "context", nil)
-	if failed || !strings.Contains(got, "You act for Anna Berg (anna)") || !strings.Contains(got, "make no space at the top") || !strings.Contains(got, "- [collection] Team underdoc:"+team.ID) ||
+	if failed || !strings.Contains(got, "You act for Anna Berg (anna)") || !strings.Contains(got, "or make a space at the top") || !strings.Contains(got, "- [collection] Team underdoc:"+team.ID) ||
 		!strings.Contains(got, "  - [page] Kassen underdoc:"+page.ID+" (reference)") || !strings.Contains(got, "Rules page: none yet") {
 		t.Errorf("context:\n%s", got)
 	}
 	rules := decode[apiNode](t, s.send(http.MethodPost, "/api/pages", `{"title":"Rules for agents","parent":"`+team.ID+`","kind":"agent-notes"}`, sameSite))
-	s.send(http.MethodPut, "/api/objects/"+rules.ID+"/tags", `{"tags":["rules"]}`, sameSite)
+	if got := s.send(http.MethodPut, "/api/rules-page", `{"page":"`+rules.ID+`"}`, sameSite).Code; got != http.StatusNoContent {
+		t.Fatalf("the rules page = %d", got)
+	}
 	if got, _ := call(t, session, "context", map[string]any{"depth": 1}); !strings.Contains(got, `Rules page: underdoc:`+rules.ID+` "Rules for agents"`) ||
 		strings.Contains(got, "[page] Kassen") || !strings.Contains(got, "· 3 inside") {
 		t.Errorf("context with the rules page, depth 1:\n%s", got)

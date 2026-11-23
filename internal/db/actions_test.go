@@ -334,8 +334,13 @@ func TestAgentsAreACeiling(t *testing.T) {
 // TestAgentsNeverDeleteForGoodNorReadPasswords: the trash empties and passwords show only to the person (ADR-36, ADR-7).
 func TestAgentsNeverDeleteForGood(t *testing.T) {
 	db, ctx := setup(t)
-	page, _ := db.CreateCollection(ctx, anna, "Old", "")
+	team, _ := db.CreateCollection(ctx, anna, "Team", "")
+	page, _ := db.CreatePage(ctx, anna, "Old", team.ID)
 	agent := asAgent(anna)
+	// An agent moves no space to the trash (B-5), a page in it it does.
+	if err := db.Delete(agent, team.ID, anna.ID); !errors.Is(err, ErrAgent) {
+		t.Errorf("an agent moves a space to the trash: %v", err)
+	}
 	if err := db.Delete(agent, page.ID, anna.ID); err != nil {
 		t.Fatalf("an agent moves to the trash: %v", err)
 	}

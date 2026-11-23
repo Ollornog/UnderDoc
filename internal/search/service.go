@@ -60,6 +60,9 @@ type Result struct {
 	Engine string
 	// Notice says why only titles were searched; empty when the search service answered.
 	Notice string
+	// Found is how many hits the search gave before the database checked each once more; a caller that leaves some out
+	// still knows whether the limit was reached (B-5).
+	Found int
 }
 
 // Fallback finds objects by their title and tags in the database, for when no search service is set up or it does not

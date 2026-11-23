@@ -445,15 +445,16 @@ func insertObject(ctx context.Context, tx execer, o Object) (Object, error) {
 var ErrSpaces = fmt.Errorf("%w: only administrators and whoever the gate gives the role to create spaces make a collection at the top", ErrNotAllowed)
 
 // maySpace refuses a new collection at the top, made, copied or moved there, to a request of anyone but an
-// administrator or a holder of the role to create spaces (account.User.Spaces). Without a request in the context (the
+// administrator or a holder of the role to create spaces (account.User.Spaces), in a session: never an agent (B-5). Without a request in the context (the
 // command line, an import, a job), whoever runs the instance acts, and it is allowed.
 func maySpace(ctx context.Context, accountID string) error {
 	u, ok := account.From(ctx)
 	if !ok {
 		return nil
 	}
-	// A service account makes no space, whatever it carries (B-4).
-	if u.ID != accountID || u.Kind == account.KindService || !(u.Admin || u.Spaces) {
+	// A service account makes no space, whatever it carries (B-4), and no agent does: a key, an app password or OAuth
+	// of a person with the role neither (B-5).
+	if u.ID != accountID || u.Kind == account.KindService || u.Agent() || !(u.Admin || u.Spaces) {
 		return ErrSpaces
 	}
 	return nil

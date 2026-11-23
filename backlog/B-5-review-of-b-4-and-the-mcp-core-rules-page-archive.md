@@ -1,7 +1,7 @@
 ---
 type: Bug
 title: 'Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves'
-status: offen
+status: erledigt
 id: B-5
 milestone: M-30
 created: '2026-11-23'
@@ -26,3 +26,35 @@ Decisions by the maintainer's session (master), with the reason:
 12. **Low, unsure:** an unchanged read and write with CRLF or edge blank lines counts as a change and marks "written by AI". Normalise; test.
 13. **Low, unsure:** the dry run may give wrong LINK warnings for new anchors after the rollback. Test.
 14. **Notes:** agents may not trash a top-level collection; context stops at about 50 lines and points to under; purge order (B-4 finding 8: check first, then approve) is fixed now, not only documented, even while SetApprover is unused; /mcp has no rate limit (gate side, note in docs).
+
+**Built on 2026-11-23** (migration 038; [docs/mcp.md](../docs/mcp.md#the-rules-page), [docs/rights.md](../docs/rights.md),
+[docs/search.md](../docs/search.md); ADR-34 review notes, ADR-36 part 4). Each finding, as built:
+
+1. The rules page is the setting `agent_settings.rules_page` (`PUT /api/rules-page`, administrators in the browser, a
+   button in the settings of a page of agent notes). Migration 038 kept a page tagged `rules` as the setting. The one
+   check (`object_decide`) refuses every action but read to agents on the rules page and below it; no agent sets or
+   takes away the tag `rules`.
+2. Groups are archived and restored by administrators only (`mayArchiveGroup`); tests for the self-removal path.
+3. The counts come from the index unless tokens drop out for the reader (a service account, or groups whose allow does
+   not hold: `GroupsOf` differs from `AllowGroupsOf`); then from the checked hits. Test with counts beyond the first page.
+4. An agent moves or copies nothing, object or block, to where some account may read it that may not read it now
+   (`agentNoWider`, `ErrPublish`); a person may. Tests private to shared by move, copy and block move.
+5. `maySpace` refuses every agent, and `canSpaces` is false for one; the MCP context says so.
+6. `db.Redirect` takes the viewer and leads only to a page the viewer sees, in MCP `read`, embeddings, the problems and
+   `/api/redirect`.
+7. `move` takes `after` as a bare block (`b3`, `#b3`) for a block.
+8. The `curl` line quotes the link in single quotes (`shellQuote`) and names the local file `<local-file>`; docs name
+   the link a bearer address.
+9. `create_page` with text is `db.CreatePageWithBlocks`, one transaction, the blocks checked first.
+10. The check of the hits is one query (`MayFindAll`), and the total says "100 or more" by what the search gave before
+    the check (`search.Result.Found`).
+11. A text without page breaks above 20 KB is read and indexed in pseudo pages of about 20 KB (`files.Pages`).
+12. Writes normalise line ends to LF and drop blank lines at the edges of a block, so an unchanged write back changes
+    nothing.
+13. The check of a write finds the page itself as written (`ownTarget`), also in a dry run.
+14. Agents move no space to the trash; the tree of `context` stops at 50 entries; purge checks first and asks for the
+    approval after, emptying the trash asks once (`ApproveEmptyTrash`); `/mcp` has no rate limit of its own, the gate's
+    holds (docs).
+
+Attack round in `internal/db/review_b5_test.go`, `internal/web/review_b5_test.go`, the adapted tests of B-3 and B-4 and
+the browser test of the rules page; every guard is proven by a mutation.

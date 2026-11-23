@@ -74,10 +74,10 @@ Host). Eine Adresse wird immer nur über ihre ID nachgeschlagen: Nichts davon er
 
 | Werkzeug | Tut |
 |---|---|
-| `context` | Hier anfangen: für wen der Agent handelt und was er darf, die Regelseite, offene Hinweise, der Baum bis zu einer Tiefe (2, wenn nicht anders verlangt, höchstens 4, höchstens 200 Einträge; `under` für einen Teil davon); archivierte Bereiche nur mit `archived` |
+| `context` | Hier anfangen: für wen der Agent handelt und was er darf, die Regelseite, offene Hinweise, der Baum bis zu einer Tiefe (2, wenn nicht anders verlangt, höchstens 4, höchstens 50 Einträge, danach verweist er auf `under` für einen Teil davon, B-5); archivierte Bereiche nur mit `archived` |
 | `read` | Eine bis fünf Seiten als Markdown mit Front Matter, der Markierung vor jedem Block und der Version, gegen die geschrieben wird; oder ein Block oder Abschnitt (`#b3`); eine Seite der Ordnerquelle als Gliederung |
 | `used_in` | Die Seiten, die eine Seite, einen Block, Abschnitt oder Teil einbetten |
-| `search` | Eine Suche über die Abschnitte von Seiten und die Seiten von PDF und anderen Dateien: eine Zeile je Treffer mit Adresse, Abschnitt und Auszug, höchstens 20 Treffer, die Gesamtzahl am Ende; Fehlercodes exakt; archivierte Bereiche nur mit `archived` oder über `in` benannt |
+| `search` | Eine Suche über die Abschnitte von Seiten und die Seiten von PDF und anderen Dateien: eine Zeile je Treffer mit Adresse, Abschnitt und Auszug, höchstens 20 Treffer, die Gesamtzahl am Ende („100 or more“, wenn die Suche an ihre Grenze kam, auch wo die Prüfung Treffer herausnahm, B-5); Fehlercodes exakt; archivierte Bereiche nur mit `archived` oder über `in` benannt |
 | `write` | Eine Seite oder den Abschnitt, den ein Block eröffnet (`#b3`), als Markdown mit den Markierungen, die read geliefert hat, gegen die gelesene Version (`base`); `dry_run` liefert Prüfung und Diff ohne zu speichern |
 | `replace` | Eine Passage, die einmal in der Seite steht, gegen `base`; `dry_run` wie bei `write` |
 | `set_front_matter` | Titel, Tags oder Art einer Seite |
@@ -95,9 +95,14 @@ sehen darf.
 
 ### Die Regelseite
 
-Die Konventionen einer Instanz sind eine Seite im Wiki (ADR-33, ADR-34): die älteste Seite der Art `agent-notes` mit dem
-Tag `rules`, die die Person lesen darf. `context` nennt sie; die Anweisungen des Servers sagen, sie vor dem Schreiben zu
-lesen. Menschen schreiben und ändern sie im Browser wie jede Seite.
+Die Konventionen einer Instanz sind eine Seite im Wiki (ADR-33, ADR-34): die Seite, die ein **Administrator im Browser
+benennt**, in den Einstellungen einer Seite der Art `agent-notes` („Make it the rules page for agents“,
+`PUT /api/rules-page`, B-5). `context` nennt sie jedem, der sie lesen darf; die Anweisungen des Servers sagen, sie vor dem
+Schreiben zu lesen. Agenten **lesen sie nur**: Die eine Prüfung verweigert jede andere Aktion eines Agenten auf ihr und
+darunter, was immer die Einträge sagen (entscheidender Eintrag `rules page`), und kein Agent setzt oder entfernt
+irgendwo das Tag `rules`. Menschen ändern sie im Browser wie jede Seite. Bis B-5 war es die älteste Seite dieser Art mit
+dem Tag `rules`, die ein Agent durch Taggen einer älteren Seite übernehmen konnte; Migration 038 hat eine solche Seite
+als Regelseite übernommen.
 
 ### Anweisungen
 
@@ -124,7 +129,11 @@ Version als `base`:
   read it“, mit beiden Versionen. Ein Schreiben ohne `base` wird ebenfalls abgelehnt. Einen Block innerhalb einer Seite
   zu verschieben macht keine Version und ist kein Konflikt.
 - **Probelauf:** Das ganze Schreiben läuft in einer Transaktion, die danach zurückgenommen wird; die Antwort ist
-  dieselbe, gespeichert wird nichts.
+  dieselbe, gespeichert wird nichts. Die Prüfung findet die Blöcke, die das Schreiben anlegen würde, also ist ein Link
+  auf einen davon kein `LINK` (B-5).
+- **Unverändert bleibt unverändert:** Zeilenenden werden LF, Leerzeilen am Anfang und Ende eines Blocks fallen weg, also
+  ändert eine Seite nichts, die gelesen und unverändert zurückgeschrieben wird, auch wenn ein Client CRLF schickt oder
+  Leerzeilen ergänzt (B-5).
 
 Jede Antwort enthält den Diff der Blöcke und die Prüfung der Seite ([page-kinds.md](../../docs/page-kinds.md)): Fehler
 blockieren das Schreiben, Warnungen kommen mit ihrer Behebung. Für Agenten zählen diese am meisten: `LINK` (ein Link
@@ -138,24 +147,31 @@ halten jede einzelne fest.
 
 ## Struktur
 
-- `create_page` legt eine Seite in einer Sammlung, einem Ordner oder einer Seite an; einen Space oben legt eine Person
-  an.
+- `create_page` legt eine Seite in einer Sammlung, einem Ordner oder einer Seite an, mit ihrem Text in einer
+  Transaktion: Ein Text, den die Prüfung ablehnt, legt keine Seite an (B-5). Einen Space oben legt eine Person an.
 - `move` behält die Adresse eines Objekts, also führt jeder Link weiter dorthin. Ein Block, der in eine andere Seite
   verschoben wird, hinterlässt eine Weiterleitung: Seine alte Adresse führt zur neuen, und was ihn eingebettet hat, folgt
-  (ADR-22).
+  (ADR-22); `after` nennt einen Block der Zielseite auch allein (`b3`). Eine Weiterleitung nennt ihr Ziel nur dem, der es
+  lesen darf.
+- **Kein Veröffentlichen durch Agenten** (B-5): `move` und Kopieren legen nichts dorthin, wo jemand es lesen darf, der es
+  jetzt nicht lesen darf, weder Seite noch Ordner noch Block (etwa einen privaten Entwurf in eine geteilte Sammlung); das
+  tut eine Person im Browser. Bei gleichen oder weniger Lesern verschiebt ein Agent frei.
 - `trash` legt ein Objekt mit allem darunter in den Papierkorb, aus dem eine Person es binnen 30 Tagen zurückholt. Ein
-  Agent löscht nichts endgültig.
+  Agent löscht nichts endgültig und legt keinen ganzen Space in den Papierkorb.
 
 ## Dateien
 
 Eine Datei erreicht einen Agenten als Text, Seite für Seite, nie als ihre Bytes: `read_file_page` liefert eine Seite des
-Texts eines PDF oder den Text einer anderen Datei als eine Seite, den besten Text zuerst (was der Inhalt selbst sagt vor
-dem, was aus Pixeln erkannt wurde).
+Texts eines PDF, den besten Text zuerst (was der Inhalt selbst sagt vor dem, was aus Pixeln erkannt wurde). Der Text einer
+anderen Datei ist eine Seite, solange er kurz ist, und Seiten von etwa 20 KB, an einem Absatz oder einer Zeile
+geschnitten, wenn er länger ist (B-5); die Suche nennt dieselben Seiten.
 
 Eine Datei erreicht UnderDoc über einen **Einmal-Upload-Link**, nie in einer Nachricht:
 
 1. `upload_link` beginnt einen Upload mit den Rechten der Person, für einen Namen und eine genaue Größe, und liefert einen
-   Link `https://<host>/s/u/<token>` mit einer `curl`-Zeile.
+   Link `https://<host>/s/u/<token>` mit einer `curl`-Zeile: `curl -fsS -T <local-file> '<link>'`, der Pfad der lokalen
+   Datei als Platzhalter und der Link in einfachen Anführungszeichen, damit nichts vom Namen in einer Shell läuft (B-5).
+   Der Link ist eine **Inhaber-Adresse**: Wer ihn hat, schickt die Datei, also wird er an niemanden weitergegeben.
 2. Ein Programm schickt die Datei dorthin als Körper eines einzigen `PUT`, binnen 15 Minuten. Seine Antwort nennt, was
    angelegt wurde.
 
@@ -192,3 +208,5 @@ werden dort abgelehnt („this space is archived“). Agenten archivieren und st
 - Einen Block innerhalb einer Seite zu verschieben macht keine Version, also trägt es keinen KI-Hinweis (T-20).
 - Andere Quellen (`source_search`, `source_read`) und die Werkzeuge von Konnektoren kommen mit T-31.
 - Automatische Abschnitte (T-30) gibt es noch nicht, also hat `read` nichts zu zählen.
+- **Keine eigene Ratenbegrenzung** auf `/mcp`: Die Anmeldeschranke begrenzt Anfragen je Token vor UnderDoc (B-5); wer
+  ohne eine solche Schranke betreibt, setzt eine Grenze in den Proxy.

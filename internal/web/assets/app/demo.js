@@ -1553,7 +1553,7 @@ async function loadDoc(id){
     (a.embeds||[]).forEach(e=>{const at=esc(e.title)+(e.ref.includes('#')?' #'+esc(e.ref.split('#')[1]):'');
       if(e.kind==='value')d.uses.vals.push(`${esc(e.name)} <small>${at}</small>`);else d.uses.emb.push({l:EMBED_KINDS[e.kind]||'Embedded',x:at});});
     /* The kind of a page and what it breaks (T-20, kinds.js). */
-    d.kind=a.kind||'';d.audience=a.audience||'';d.findings=a.findings||[];
+    d.kind=a.kind||'';d.audience=a.audience||'';d.findings=a.findings||[];d.rulesPage=!!a.rulesPage;
     /* Changes by agents nobody checked, the last check, and whether AI maintains the page (ADR-33, kinds.js). */
     d.removed=a.removed||[];d.checked=a.checked||null;d.maintainedByAI=!!a.maintainedByAI;
     if(a.blocks){d.blocks=a.blocks.map(blockOf);d.canEdit=!!a.canEdit;d.by=esc(a.owner||'—');d.created=when(a.created||'',false);d.place=esc(a.place||'');d.canComment=!!a.canComment;d.ncmt=a.comments||0;delete d.cmts;syncBlocks(d);if(S.files)loadAttachments(id);}

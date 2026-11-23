@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/markdown"
 	"github.com/Ollornog/UnderDoc/internal/pagekind"
 )
@@ -65,6 +67,7 @@ type Written struct {
 // editor. With dryRun the whole write runs and is undone: the answer says what would change and what the check would
 // find, and nothing is kept.
 func (db *DB) WriteBlocks(ctx context.Context, pageID, viewer string, base int64, from string, blocks []Block, dryRun bool) (Written, error) {
+	blocks = normalizeBlocks(blocks)
 	for _, b := range blocks {
 		if err := checkBody(b.Body); err != nil {
 			return Written{}, err
@@ -211,9 +214,19 @@ func (db *DB) WriteBlocks(ctx context.Context, pageID, viewer string, base int64
 				return Written{}, err
 			}
 		}
-		out.Findings = db.findingsOf(ctx, o, out.Blocks, values, viewer, map[string]*embedTarget{})
+		out.Findings = db.findingsOf(ctx, o, out.Blocks, values, viewer, ownTarget(o, out.Blocks))
 	}
 	return out, nil
+}
+
+// ownTarget is what the check finds of the page itself: the blocks as written, not as the database holds them, so a
+// link or an embedding of a block the write makes is found also in a dry run, whose blocks are gone again (B-5).
+func ownTarget(o Object, blocks []Block) map[string]*embedTarget {
+	own := &embedTarget{ok: true, blocks: map[string]string{}}
+	for _, b := range blocks {
+		own.blocks[b.ID] = b.Body
+	}
+	return map[string]*embedTarget{o.ID: own}
 }
 
 // addBlockTx makes a block at the end of a page inside the transaction of a change, with the next free ID; the caller
@@ -238,4 +251,81 @@ func (db *DB) addBlockTx(ctx context.Context, tx pgx.Tx, pageID, viewer, body, a
 		return "", err
 	}
 	return id, noteChange(ctx, tx, pageID, id, [2]string{})
+}
+
+// CreatePageWithBlocks makes a page with its text in one transaction (B-5): a text the checks refuse makes no page, and
+// a retry makes no second one. The blocks are checked first, as WriteBlocks checks them; the IDs they bring are not
+// taken, every block gets a new one. The viewer must be allowed to create in the parent.
+func (db *DB) CreatePageWithBlocks(ctx context.Context, owner account.User, title, parent, kind string, blocks []Block) (Object, Written, error) {
+	blocks = normalizeBlocks(blocks)
+	for _, b := range blocks {
+		if err := checkBody(b.Body); err != nil {
+			return Object{}, Written{}, err
+		}
+		if !ValidAlign(b.Align) {
+			return Object{}, Written{}, ErrAlign
+		}
+		if err := refuse("", b.Body); err != nil {
+			return Object{}, Written{}, err
+		}
+	}
+	kind, err := cleanKind(kind)
+	if err != nil {
+		return Object{}, Written{}, err
+	}
+	p, err := db.Object(ctx, parent, owner.ID)
+	if err != nil {
+		return Object{}, Written{}, err
+	}
+	if err := db.mayDo(ctx, p, owner.ID, ActCreate); err != nil {
+		return Object{}, Written{}, err
+	}
+	var made Object
+	var out Written
+	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		var err error
+		if made, err = insertObject(ctx, tx, Object{Kind: KindPage, Title: title, Owner: owner.ID, Parent: parent, PageKind: kind}); err != nil {
+			return err
+		}
+		for _, b := range blocks {
+			id, err := db.addBlockTx(ctx, tx, made.ID, owner.ID, b.Body, b.Align)
+			if err != nil {
+				return err
+			}
+			out.Changes = append(out.Changes, BlockChange{Block: id, Kind: ChangeAdded, After: b.Body})
+			out.Blocks = append(out.Blocks, Block{ID: id, Body: b.Body, Align: b.Align})
+		}
+		return tx.QueryRow(ctx, "SELECT coalesce(max(version), 0) FROM block_versions WHERE page = $1", made.ID).Scan(&out.Version)
+	})
+	if err != nil {
+		return Object{}, Written{}, err
+	}
+	var values []pagekind.Value
+	if made.PageKind == pagekind.HowTo || made.PageKind == pagekind.Explanation {
+		if values, err = db.values(ctx, owner.ID); err != nil {
+			return Object{}, Written{}, err
+		}
+	}
+	out.Findings = db.findingsOf(ctx, made, out.Blocks, values, owner.ID, ownTarget(made, out.Blocks))
+	return made, out, nil
+}
+
+// normalizeBlocks gives each block the line ends and the edges a block keeps (B-5): LF, not CRLF or CR, and no blank
+// line at its start or end. So a page read and written back unchanged, by a client that sends CRLF or adds a blank line
+// around a block, changes nothing and leaves no version of an agent.
+func normalizeBlocks(blocks []Block) []Block {
+	out := make([]Block, len(blocks))
+	for i, b := range blocks {
+		body := strings.ReplaceAll(strings.ReplaceAll(b.Body, "\r\n", "\n"), "\r", "\n")
+		lines := strings.Split(body, "\n")
+		for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+			lines = lines[1:]
+		}
+		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+			lines = lines[:len(lines)-1]
+		}
+		b.Body = strings.Join(lines, "\n")
+		out[i] = b
+	}
+	return out
 }

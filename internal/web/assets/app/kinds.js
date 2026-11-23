@@ -37,6 +37,12 @@ window.UDKinds = (() => {
     warningWord: 'Warning',
     block: (id) => `Block #${id}`,
     saveFailed: 'The kind could not be saved.',
+    rules: 'Rules page',
+    rulesOn: 'The rules page for agents',
+    rulesMake: 'Make it the rules page for agents',
+    rulesOff: 'No longer the rules page',
+    rulesHint: 'Agents read the rules page before they write, and change nothing of it. Administrators name it; there is one.',
+    rulesFailed: 'Only an administrator names the rules page, in the browser.',
     notAllowed: 'Only who may change this page sets its kind.',
     problems: 'Writing rules',
     problemsHint: 'Pages and folders that break the rules of their kind. A warning blocks nothing; it says how to fix it.',
@@ -262,8 +268,43 @@ window.UDKinds = (() => {
     const opt = (k) => `<option value="${esc(k)}"${(d.kind || '') === k ? ' selected' : ''}>${esc(name(k))}</option>`;
     const groups = T.groups.map(([label, kinds]) => `<optgroup label="${esc(label)}">${kinds.map(opt).join('')}</optgroup>`).join('');
     const off = mayChange ? '' : ` disabled title="${esc(T.notAllowed)}"`;
-    return `${prow(T.kind, `<select class="select" data-size="sm" data-setkind="${esc(key)}" aria-label="${esc(T.kind)}"${off}>${opt('')}${groups}</select>`)}${hint(esc(T.kindHint))}`;
+    return `${prow(T.kind, `<select class="select" data-size="sm" data-setkind="${esc(key)}" aria-label="${esc(T.kind)}"${off}>${opt('')}${groups}</select>`)}${hint(esc(T.kindHint))}${rulesRow(key, d)}`;
   }
+
+  /** rulesRow names the rules page for agents (B-5): administrators, on a page of agent notes or the rules page itself. */
+  function rulesRow(key, d) {
+    if (!S.user || !S.user.admin || (d.kind !== 'agent-notes' && !d.rulesPage)) return '';
+    const label = d.rulesPage ? T.rulesOff : T.rulesMake;
+    const state = d.rulesPage ? `<span class="badge" data-variant="secondary" data-rules-page>✅ ${esc(T.rulesOn)}</span> ` : '';
+    return `${prow(T.rules, `${state}<button type="button" class="btn" data-variant="outline" data-size="xs" data-setrules="${esc(key)}" aria-pressed="${!!d.rulesPage}">${esc(label)}</button>`)}${hint(esc(T.rulesHint))}`;
+  }
+
+  async function saveRules(key) {
+    const d = D[key];
+    if (!d) return;
+    const was = !!d.rulesPage;
+    try {
+      const r = await fetch('/api/rules-page', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ page: was ? '' : d.sid }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      Object.keys(D).forEach((k) => {
+        if (D[k] && D[k].rulesPage) D[k].rulesPage = false;
+      });
+      d.rulesPage = !was;
+    } catch (e) {
+      toast(T.rulesFailed);
+    }
+    render();
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target && e.target.closest && e.target.closest('[data-setrules]');
+    if (b) saveRules(b.dataset.setrules);
+  });
 
   async function saveKind(key, kind) {
     const d = D[key];

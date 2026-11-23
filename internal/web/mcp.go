@@ -47,7 +47,7 @@ const (
 	// mcpMaxDepth is how deep the tree of context goes, mcpDepth its depth unless asked, mcpMaxTree the most entries.
 	mcpMaxDepth = 4
 	mcpDepth    = 2
-	mcpMaxTree  = 200
+	mcpMaxTree  = 50
 	// mcpMaxBody is the most a request to the MCP server may carry.
 	mcpMaxBody = 2 << 20
 	// mcpSearchDepth is how many hits a search counts at most for its total.

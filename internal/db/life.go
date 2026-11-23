@@ -557,8 +557,21 @@ func redirectAll(ctx context.Context, tx pgx.Tx, page, viewer string, moved map[
 	return nil
 }
 
-// Redirect follows the redirects of an address to where its content lives now, or reports false.
-func (db *DB) Redirect(ctx context.Context, a Address) (Address, bool) {
+// Redirect follows the redirects of an address to where its content lives now, or reports false. It reports false too
+// where the viewer may not see the page it leads to, so an answer never names a place the viewer cannot see (ADR-29,
+// B-5).
+func (db *DB) Redirect(ctx context.Context, a Address, viewer string) (Address, bool) {
+	to, moved := db.redirect(ctx, a)
+	if !moved {
+		return a, false
+	}
+	if _, err := db.Object(ctx, to.Object, viewer); err != nil {
+		return a, false
+	}
+	return to, true
+}
+
+func (db *DB) redirect(ctx context.Context, a Address) (Address, bool) {
 	moved := false
 	for range 10 {
 		var to Address
@@ -908,6 +921,10 @@ func (db *DB) MoveBlockTo(ctx context.Context, pageID, blockID, viewer, toPage, 
 		return "", err
 	}
 	if err := db.mayDo(ctx, to, viewer, ActWrite); err != nil {
+		return "", err
+	}
+	// An agent publishes no block by moving it to a page more people read (B-5).
+	if err := db.agentNoWider(ctx, pageID, toPage); err != nil {
 		return "", err
 	}
 	var id string

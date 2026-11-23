@@ -297,3 +297,33 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// PseudoPage is about how long a page of a text without page breaks is (B-5): a long text file is read and found in
+// pages of this size, cut at a paragraph or a line, so an agent reads it page by page and a hit names its page.
+const PseudoPage = 20 << 10
+
+// Pages splits a text taken out of a file into its pages: at the page breaks of a PDF, or, for a text without them that
+// is longer than PseudoPage, into pseudo pages of about that size, cut at the last paragraph or line before the size where
+// there is one in its second half, else within the line at a whole character.
+func Pages(text string) []string {
+	if strings.Contains(text, PageBreak) || len(text) <= PseudoPage {
+		return strings.Split(text, PageBreak)
+	}
+	var pages []string
+	for len(text) > PseudoPage {
+		window := text[:PseudoPage]
+		cut := strings.LastIndex(window, "\n\n")
+		if cut < PseudoPage/2 {
+			cut = strings.LastIndex(window, "\n")
+		}
+		if cut < PseudoPage/2 {
+			cut = PseudoPage
+			for cut > 0 && !utf8.RuneStart(text[cut]) {
+				cut--
+			}
+		}
+		pages = append(pages, text[:cut])
+		text = strings.TrimLeft(text[cut:], "\n")
+	}
+	return append(pages, text)
+}

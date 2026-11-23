@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -65,6 +66,10 @@ func (db *DB) SetTags(ctx context.Context, objectID, viewer string, tags []strin
 	}
 	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return Object{}, err
+	}
+	// The tag rules stays as a person set it: no agent adds it or takes it away (B-5).
+	if requestAgent(ctx) && slices.Contains(o.Tags, RulesTag) != slices.Contains(clean, RulesTag) {
+		return Object{}, ErrAgent
 	}
 	return scan(db.pool.QueryRow(ctx, "UPDATE objects SET tags = $2, changed = now() WHERE id = $1 RETURNING "+columns, objectID, clean))
 }
