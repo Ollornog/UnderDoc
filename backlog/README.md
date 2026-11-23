@@ -20,7 +20,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ◐ **[M-12](M-12-search.md)** Proper search — 0/3 erledigt
 * ☐ **[M-13](M-13-ai.md)** AI integration — 0/1 erledigt
-* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 1/3 erledigt
+* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 1/4 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — noch keine Aufgaben
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/2 erledigt
@@ -71,6 +71,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-29](T-29-navigation-for-people-tree-breadcrumbs-folder-over.md)** Navigation for people: tree, breadcrumbs, folder overview, used in, table of contents · M-30
 * ☐ **[T-30](T-30-data-pages-from-csv-files-and-automatic-sections.md)** Data pages from CSV files and automatic sections · M-30
 * ☐ **[T-31](T-31-connectors-to-outside-systems-through-an-extension.md)** Connectors to outside systems through an extension point · M-30
+* ☐ **[T-32](T-32-german-translation-of-the-interface.md)** German translation of the interface · M-14
 
 ## Fehler
 
