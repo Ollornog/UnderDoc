@@ -110,9 +110,9 @@ func TestFindings(t *testing.T) {
 	addresses, _ := db.AddBlock(ctx, ref.ID, anna.ID, "", "## Backup\n\nThe backup host is <!-- part t1 -->backup.example.com<!-- /part t1 -->.")
 	mine, _ := db.CreateCollection(ctx, anna, "Mine", "")
 	secret, _ := db.CreatePageOf(ctx, anna, "Hidden", mine.ID, "", pagekind.Record)
-	_, _ = db.AddBlock(ctx, secret.ID, anna.ID, "", "Vault at 10.9.8.7.")
+	_, _ = db.AddBlock(ctx, secret.ID, anna.ID, "", "Vault at 198.51.100.7.")
 	guide, _ := db.CreatePageOf(ctx, bob, "Restore", team.ID, "", pagekind.HowTo)
-	first, _ := db.AddBlock(ctx, guide.ID, bob.ID, "", "This guide brings files back from backup.example.com and from 10.9.8.7.")
+	first, _ := db.AddBlock(ctx, guide.ID, bob.ID, "", "This guide brings files back from backup.example.com and from 198.51.100.7.")
 	_, _ = db.AddBlock(ctx, guide.ID, bob.ID, first.ID, "::embed{ref=\""+ref.ID+"#b9\"}\n\n::embed{ref=\""+secret.ID+"\"}")
 
 	found, err := db.Findings(ctx, guide.ID, bob.ID)

@@ -95,7 +95,7 @@ func page(kind string, bodies ...string) Page {
 
 // TestCheckRules: each rule of ADR-33 finds what breaks it, only for the kinds it is meant for, and stays quiet otherwise.
 func TestCheckRules(t *testing.T) {
-	values := []Value{{Text: "10.0.4.12", Address: "ref0000001#b1", Title: "Network"}, {Text: "/etc/app/config.yaml", Address: "ref0000001#b2", Title: "Network"},
+	values := []Value{{Text: "192.0.2.12", Address: "ref0000001#b1", Title: "Network"}, {Text: "/etc/app/config.yaml", Address: "ref0000001#b2", Title: "Network"},
 		{Text: "backup.example.com", Address: "ref0000001#b3", Title: "Network"}}
 	cases := []struct {
 		name string
@@ -124,12 +124,12 @@ func TestCheckRules(t *testing.T) {
 		{"reference with a heading twice", page(Reference, "## Ports\n\n443", "## Ports\n\n22"), []string{CodeStable}},
 		{"reference with parts", page(Reference, "<!-- part t1 -->443<!-- /part t1 -->", "22"), nil},
 		{"reference of one block", page(Reference, "443 for the web."), nil},
-		{"copied address", page(HowTo, "Connect to the server at 10.0.4.12 first.", "1. Open /etc/app/config.yaml and change it."), []string{CodeCopy, CodeCopy}},
+		{"copied address", page(HowTo, "Connect to the server at 192.0.2.12 first.", "1. Open /etc/app/config.yaml and change it."), []string{CodeCopy, CodeCopy}},
 		{"copied host", page(Explanation, "The backups go to backup.example.com every night."), []string{CodeCopy}},
 		{"embedded, not copied", page(HowTo, "Connect to the server at :embed{ref=\"ref0000001#b1.t1\"} first.", "1. Go."), nil},
-		{"copies in a tutorial are not checked", page(Tutorial, "Connect to the server at 10.0.4.12 first."), nil},
-		{"copies in a reference are fine", page(Reference, "Server 10.0.4.12."), nil},
-		{"a value not in any reference", page(HowTo, "Connect to the server at 10.9.9.9 first.", "1. Go."), nil},
+		{"copies in a tutorial are not checked", page(Tutorial, "Connect to the server at 192.0.2.12 first."), nil},
+		{"copies in a reference are fine", page(Reference, "Server 192.0.2.12."), nil},
+		{"a value not in any reference", page(HowTo, "Connect to the server at 203.0.113.9 first.", "1. Go."), nil},
 		{"front matter as a finding", page(HowTo, "---\nkind: how-to\n---\nThis page is for people.", "1. Go."), []string{CodeStart, CodeFrontMatter}},
 	}
 	for _, c := range cases {
@@ -138,7 +138,7 @@ func TestCheckRules(t *testing.T) {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
 		}
 	}
-	copied := Check(page(HowTo, "Connect to 10.0.4.12.", "1. Go."), values)
+	copied := Check(page(HowTo, "Connect to 192.0.2.12.", "1. Go."), values)
 	if len(copied) != 1 || copied[0].Source != "ref0000001#b1" || !strings.Contains(copied[0].Message, "Network") ||
 		!strings.Contains(copied[0].Fix, "Embed instead of copying") || copied[0].Block != "b1" || copied[0].Level != Warning {
 		t.Errorf("COPY names the source and says to embed: %+v", copied)
@@ -165,9 +165,9 @@ func TestPageRules(t *testing.T) {
 }
 
 func TestValues(t *testing.T) {
-	got := Values("Open https://wiki.example.com/a?b=1, mail ops@example.com, ssh 192.168.1.20:2222 or 10.0.0.0/8, edit /srv/app/data/ and " +
+	got := Values("Open https://wiki.example.com/a?b=1, mail ops@example.com, ssh 192.0.2.20:2222 or 198.51.100.0/24, edit /srv/app/data/ and " +
 		"C:\\Tools\\app.exe, ~/.config/app; db.example.com:5432 at app.example.org. Not: README.md, v1.2.3, 1.2.3, e.g. this, /o/abcdefghjk/x, /tmp.")
-	want := []string{"https://wiki.example.com/a?b=1", "ops@example.com", "192.168.1.20:2222", "10.0.0.0/8", "/srv/app/data/",
+	want := []string{"https://wiki.example.com/a?b=1", "ops@example.com", "192.0.2.20:2222", "198.51.100.0/24", "/srv/app/data/",
 		"C:\\Tools\\app.exe", "~/.config/app", "db.example.com:5432", "app.example.org"}
 	if !slices.Equal(got, want) {
 		t.Errorf("Values:\n got %q\nwant %q", got, want)
