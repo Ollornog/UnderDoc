@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: AI documentation and human documentation
-status: erledigt
+status: offen
 id: ADR-33
 tags: [ai, pages, review]
 created: '2026-11-23'
@@ -36,13 +36,15 @@ UnderDoc wants documentation that reads as if people wrote it, while agents do m
 
 ## Decision
 
-The last option, settled with the maintainer and the team wiki on 2026-11-23.
+The last option, worked out with the maintainer and the team wiki on 2026-11-23. The maintainer gave the direction; the
+details stay open until he has seen the whole concept round (ADR-34, ADR-35, M-30).
 
 **Every page has a kind (T-20), and the kind decides its audience:**
 
 | Audience | Kinds | Who writes | Rules |
 |---|---|---|---|
-| **Agent documentation and reference** | reference, record, agent notes (conventions and instructions for agents) | agents may write and change it completely | short and dense is fine; one fact in one place; every section has a stable heading or part ID so it can be embedded |
+| **Structure and records** | overview, register, record (customer, case, person), plan, source | people and agents | no kind required, no AI hint; the check looks at structure only |
+| **Agent documentation and reference** | reference, agent notes (conventions and instructions for agents) | agents may write and change it completely | short and dense is fine; one fact in one place; every section has a stable heading or part ID so it can be embedded |
 | **Human documentation** | how-to, explanation, tutorial | people and agents | style comes first: an opening sentence for people, numbered steps with the why, "if it does not work", jargon explained, the image at its step, one heading per error; values are only embedded from the reference, never copied |
 
 **Changes by agents are visible:**
@@ -61,6 +63,14 @@ The last option, settled with the maintainer and the team wiki on 2026-11-23.
   waits.
 - The agent side shows once per page that it is maintained by AI, and has no hint per change. People may still edit it.
 
+**How agents work:** these rules stand on the rules page and are taught by the server.
+
+- Do not save every intermediate state. Move the work forward first, then ask actively whether and where to save it.
+- Choose the place, tags and names yourself, and ask the person only about facts.
+- Report an unclear rule to a feedback inbox for agents instead of asking the person.
+- **Filing:** knowledge for everyone goes into the open with tags; spaces only hold what is internal to a team or sensitive
+  (ADR-35).
+
 **Agents learn the rules from the server:**
 
 - The MCP instructions (T-21) name the audiences and the rules of every kind.
@@ -72,7 +82,8 @@ the reader is. Front matter and IDs stay hidden; the description shows on top as
 
 ## Consequences
 
-- The page kind becomes mandatory. A page without a kind counts as human documentation, which has the stricter rules.
+- The page kind becomes mandatory for prose. Structure pages and records need none. A prose page without a kind counts as
+  human documentation, which has the stricter rules. An import therefore does not flag overviews, registers or records.
 - Versions need the kind of author (person or agent), and blocks need a mark for "changed by AI, not checked".
 - The check needs a set of rules per kind. The team wiki's rules are the starting point: copied value, image only linked,
   page that starts with a list, too long a description.
