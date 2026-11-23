@@ -36,7 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 6/12 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 6/13 erledigt
 
 ## Aufgaben
 
@@ -85,6 +85,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
 * ☑ **[B-4](B-4-review-of-b-3-service-accounts-get-admin-through-g.md)** Review of B-3: service accounts get admin through gate roles, archive bypass, facet leaks · M-30
 * ☑ **[B-5](B-5-review-of-b-4-and-the-mcp-core-rules-page-archive.md)** Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves · M-30
+* ☐ **[B-6](B-6-review-of-t-34-and-b-5-agent-copies-of-restricted.md)** Review of T-34 and B-5: agent copies of restricted trees, public links, link rights on the object · M-30
 
 ## Entscheidungen (ADR)
 
