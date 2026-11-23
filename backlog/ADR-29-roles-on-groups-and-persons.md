@@ -73,7 +73,7 @@ The shares come with the Samba part of M-5, and this limit with them.
   - **Local groups** are made by administrators, who add and remove their members.
   - **Groups taken over** from OIDC (the claim of ADR-23) or the gate come from the sign-in: each name seen in a sign-in is
     a group, and its members are the accounts whose last sign-in named it. They can only be read here.
-  - Groups do not nest. A local group and a group taken over may share a name; the interface marks where each comes from.
+  - Groups do not nest. A local group and a group taken over may share a name; the interface marks where each comes from. *Replaced by ADR-36 (2026-11-23): local groups nest.*
 - **The tenant:** every account of the tenant.
 - **A link** with a token (below).
 
@@ -101,7 +101,7 @@ From the least to the most, each including those below it:
 - **An object holds what is granted on it and on everything above it**, up to the top or to an object that breaks the
   inheritance. Of all roles a person holds through themselves, their groups, the tenant and the links they used, the highest
   counts.
-- **There is only allowing.** To narrow, an object **breaks the inheritance**: it no longer takes roles from above. At that
+- *Replaced by ADR-36 (2026-11-23): rights are actions with inherit, allow and deny.* **There is only allowing.** To narrow, an object **breaks the inheritance**: it no longer takes roles from above. At that
   moment the roles that held from above are copied onto it, so nobody loses access by surprise; then the manager takes back
   what shall not hold. Restoring the inheritance takes from above again and keeps the object's own grants.
 - **A move** keeps the object's own grants and the owner; what it inherits changes with its new place. Within its parent,

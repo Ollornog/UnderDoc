@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: AI documentation and human documentation
-status: offen
+status: erledigt
 id: ADR-33
 tags: [ai, pages, review]
 created: '2026-11-23'
