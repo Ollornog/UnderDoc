@@ -135,3 +135,5 @@ security, the hoster) stays. ADR-9 is right again in what it decided: the gate i
     (`accounts.service`), so every decision about them, also on the share, knows them.
   - The role to create spaces is read like the administrator's: `UNDERDOC_SPACES_ROLE`, `underdoc-spaces` unless
     configured, compared exactly; the gate's own `admin` stops the start.
+  - The gate's Go client has a release tag now: `go.mod` pins `clients/go v0.29.0` instead of the pseudo-version of
+    commit `4bb607f`, the same commit, so nothing changes in what checks a request.

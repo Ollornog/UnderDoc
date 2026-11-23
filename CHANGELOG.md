@@ -88,6 +88,7 @@ All notable changes to this project are documented in this file. The format foll
     space without the role, a service account nobody allowed, an allowed one reading what everyone reads through the
     tree, a page, the export and the search, a missing, unknown or forged `Remote-Kind`); each guard proven by a
     mutation. Browser tests for the typed name and for restoring an archived group.
+  - The gate's Go client is pinned by its release tag `clients/go/v0.29.0` (the same commit `4bb607f` as before).
 
 - Repokit 0.63.0 (with 0.61.0 and 0.62.0): the fast pre-push vets Go packages with the build tags of
   `scripts/check.sh` (`GO_PRUEF_TAGS`), so a change of a browser test no longer stops a push; hygiene and the affected
