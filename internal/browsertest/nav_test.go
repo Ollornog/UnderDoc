@@ -387,6 +387,8 @@ func TestDropOntoAndAcross(t *testing.T) {
 	tops := func() string {
 		return b.eval(`[...document.querySelectorAll('[aria-label=Nav3] section > header[data-cdrop="` + team + `"] + ul > li > div')].map(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim()).join(' ')`)
 	}
+	// The dwell on the middle of A is read on the page's clock; held, "not yet" does not depend on how loaded the host is.
+	b.freezeClock()
 	b.dragTo(rowNamed(b, "C"), rowNamed(b, "A"), 0.5, func() {
 		// Up and down goes between entries; only waiting on the middle of A goes into it.
 		if got := b.eval(`document.querySelectorAll('[aria-label=Nav3] .drop-into').length`); got != "0" {
@@ -396,7 +398,13 @@ func TestDropOntoAndAcross(t *testing.T) {
 		if got := b.eval(`getComputedStyle(document.querySelector(` + strconv.Quote(rowNamed(b, "A")) + `)).pointerEvents`); got != "none" {
 			t.Errorf("an entry answers the pointer while dragging: %q", got)
 		}
-		time.Sleep(350 * time.Millisecond)
+		b.advanceClock(350)
+		// The page's own timer may have run while the clock was held; the pointer waits on, and a touch of it asks again.
+		a := b.rect(rowNamed(b, "A"))
+		b.mouse("mouseMoved", a.X, a.Y, 0, 0)
+		if !b.waitFor(`document.querySelectorAll('[aria-label=Nav3] .drop-into').length === 1`) {
+			t.Errorf("after waiting, A is not framed")
+		}
 		b.shot("drop-onto")
 		if got := b.eval(`[...document.querySelectorAll('[aria-label=Nav3] .drop-into')].map(n => n.textContent.trim()).join() + ' ' + getComputedStyle(document.querySelector('.dropgap')).opacity`); got != "A 0.4" {
 			t.Errorf("after waiting, A is framed and C waits faint: %q", got)

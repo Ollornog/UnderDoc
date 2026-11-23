@@ -70,6 +70,7 @@ type browser struct {
 	waiting map[int]chan message
 	events  chan message
 	session string
+	stall   time.Duration // see UNDERDOC_BROWSERTEST_STALL_MS
 	// exited closes when Chrome ends; stderr keeps the end of what it wrote, so a silent Chrome can say why.
 	exited  chan struct{}
 	exitErr error
@@ -443,8 +444,26 @@ func setupWith(t *testing.T, options web.Options, extra map[string]string) (*bro
 	if n, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_CPU_SLOWDOWN")); err == nil && n > 1 {
 		b.call("Emulation.setCPUThrottlingRate", map[string]any{"rate": n}, nil)
 	}
+	// UNDERDOC_BROWSERTEST_STALL_MS stalls the test between two pointer events, as a host does whose processes are starved
+	// (the page's own clock runs on): a test that reads a dwell on the wall clock fails with it (try 400), a test that
+	// holds the page's clock (freezeClock) does not.
+	if ms, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_STALL_MS")); err == nil && ms > 0 {
+		b.stall = time.Duration(ms) * time.Millisecond
+	}
 	b.signIn(true)
 	return b, server.URL
+}
+
+// freezeClock stops Date.now() of the page, where the app measures how long the pointer waited (the dwell): a check
+// "not yet" then does not depend on how fast the test is. advanceClock lets that time pass at once.
+func (b *browser) freezeClock() {
+	b.t.Helper()
+	b.eval(`(() => { const now = Date.now(); window.frozenAt = now; Date.now = () => window.frozenAt; return now; })()`)
+}
+
+func (b *browser) advanceClock(ms int) {
+	b.t.Helper()
+	b.eval(`(() => { window.frozenAt += ` + strconv.Itoa(ms) + `; return window.frozenAt; })()`)
 }
 
 // signIn sets the headers the gate in front would set, on every request of the browser.
@@ -480,6 +499,9 @@ func (b *browser) rect(selector string) box {
 // mouse sends one real pointer event, as a hand on a mouse would.
 func (b *browser) mouse(kind string, x, y float64, clicks int, modifiers int) {
 	b.t.Helper()
+	if kind == "mouseMoved" {
+		time.Sleep(b.stall)
+	}
 	button, buttons := "none", 0
 	if kind != "mouseMoved" {
 		button = "left"
