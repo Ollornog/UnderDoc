@@ -78,6 +78,15 @@ address is only ever looked up by its ID: nothing in it reaches a path on a disk
 | `read` | One to five pages as Markdown with front matter, the marker before each block and the version to write against; or one block or section (`#b3`); a page of the folder source as its outline |
 | `used_in` | The pages that embed a page, block, section or part |
 | `search` | One search over the sections of pages and the pages of PDFs and other files: one line per hit with its address and section and an excerpt, at most 20 hits, the total at the end; error codes exactly |
+| `write` | A page, or the section a block opens (`#b3`), as Markdown with the markers read gave, against the version read (`base`); `dry_run` answers the check and the diff without saving |
+| `replace` | One passage that stands once in the page, against `base`; `dry_run` as in `write` |
+| `set_front_matter` | The title, the tags or the kind of a page |
+| `create_page` | A page in a collection, folder or page, with its kind and text |
+| `move` | An object into a collection, folder or page, or a block into another page |
+| `trash` | An object with everything below it into the trash, where a person can restore it |
+| `list_files` | The roots of the view Files, what lies in a folder, or the attachments of a page (module Files) |
+| `read_file_page` | The text of a file page by page (`#page=2`) (module Files) |
+| `upload_link` | A one-time link to upload a file into a folder, as a new version of a file, or to a page (module Files) |
 
 Answers are compact (ADR-34): a list has at most 20 rows, an answer at most 100 KB. A page larger than that, or larger
 than its share when several are read at once, comes as its outline with the address of each section. Errors are answers
@@ -94,6 +103,57 @@ writing. People write and change it in the browser like any page.
 The server's instructions are short (well below the 4,096 characters clients take): the agent's limits, the addresses,
 the audiences of the page kinds, the limits of answers and how to work. Everything else is on the rules page.
 
+## Writing
+
+A page is read as Markdown: front matter, then each block after a marker line `<!-- block b3 -->`, and the version of
+the page, the newest change of its blocks. A write sends it back in the same form, with that version as `base`:
+
+- A block with the marker of a block of the part written keeps its ID; its text, if changed, becomes a version.
+- `<!-- block -->`, a marker without an ID, starts a new block; text before the first marker, or a text without any
+  marker, is split before its headings into new blocks. An ID that is not in the part written is never taken: that
+  block is made new.
+- A block of the part written that is left out is deleted. Something another page embeds is not deleted: the answer
+  names the pages, and a person decides in the browser what becomes of the uses, or the agent moves the block with
+  `move`, which they follow.
+- Front matter in a write is not applied; `set_front_matter` sets title, tags and kind.
+- **Conflict:** a page changed since its version was read is refused, "page changed since you read it", with both
+  versions. A write without `base` is refused too. Moving a block inside a page makes no version and is no conflict.
+- **Dry run:** the whole write runs in a transaction that is then undone; the answer is the same, with nothing saved.
+
+Every answer has the diff of the blocks and the check of the page ([page-kinds.md](page-kinds.md)): errors block the
+write, warnings come with their fix. For agents these matter most: `LINK` (a link to nowhere), `UNLINKED-FILE` (a file
+nobody links to), `PAGE-SIZE` (a page above 25 KB), `EMBED`, `COPY` and the rules of the kind. The same check runs in the
+browser.
+
+What an agent writes is an agent's version (ADR-33): on human documentation the blocks it changed carry "written by AI,
+not checked" until a person checks them, and what it took out is listed under the page. Every change is logged as a
+change of the person, once an hour per object as in the browser (ADR-11); the versions keep each one.
+
+## Structure
+
+- `create_page` makes a page inside a collection, folder or page; a space at the top is made by a person.
+- `move` keeps the address of an object, so every link still leads there. A block moved to another page leaves a
+  redirect: its old address leads to the new one, and what embedded it follows (ADR-22).
+- `trash` moves an object with everything below it to the trash, from where a person restores it within 30 days.
+  Nothing is deleted for good by an agent.
+
+## Files
+
+A file reaches an agent as text, page by page, never as its bytes: `read_file_page` gives one page of the text of a PDF,
+or the text of another file as one page, the best text first (what the content says itself before what was recognised
+in pixels).
+
+A file reaches UnderDoc through a **one-time upload link**, never inside a message:
+
+1. `upload_link` starts an upload with the person's rights, for a name and an exact size, and answers a link
+   `https://<host>/s/u/<token>` with a `curl` line.
+2. A program sends the file there as the body of one `PUT`, within 15 minutes. Its answer names what was made.
+
+The link works once: taking it removes it, also when the upload fails. It is kept only as the hash of its token. It lies
+below `/s/`, which the gate leaves open as it does for share links, since the program that sends the file is not signed
+in; the token alone says what it may do. The rights are checked when the link is made and again when the file is made,
+as an agent of the person. A request of a browser of another site is refused.
+
 ## Search
 
 The search returns sections (ADR-24): one record per heading and what follows, one hit per object, codes in fields of
@@ -103,6 +163,13 @@ pages apart, on the server and in the browser, so each page is records of its ow
 
 ## What is not here yet
 
-- Writing, moving, the trash and files come in the second part of T-21.
+- **Gaps of the browser** (a tool that the browser cannot do is a missing feature of the interface, ADR-34): the
+  description of a page has no way in the browser, so `set_front_matter` does not set it either; opening a hit of a PDF
+  at its page (`#page=3`) shows the file from its start.
+- The ways for something in use (delete everywhere, a copy for every use, a new master) are chosen by a person in the
+  browser.
+- Reading the text of an attachment of a page, history and older versions, folders, collections and groups are not
+  tools: people do them in the browser (ADR-34).
+- Moving a block inside a page makes no version, so it carries no hint of AI (T-20).
 - Other sources (`source_search`, `source_read`) and the tools of connectors come with T-31.
 - Automatic sections (T-30) do not exist yet, so `read` has nothing to count.

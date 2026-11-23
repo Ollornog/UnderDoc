@@ -1,7 +1,7 @@
 ---
 type: Task
 title: 'MCP access: agents read and write pages and files under the user''s permissions'
-status: offen
+status: erledigt
 id: T-21
 milestone: M-13
 created: '2026-11-22'
@@ -19,3 +19,5 @@ M-13 has agents read over MCP. A team wiki run by people and AI agents together 
 - Sign-in for agents: OAuth or an API key from the gate, never a password in a command line.
 
 Independent of a model on the server: this works without the AI drawer.
+
+**Done 2026-11-23** ([docs/mcp.md](../docs/mcp.md), ADR-34 "Built on"): the core tools in two parts, read and search (part 1) and writing, structure and files with one-time upload links (part 2). Not here, by ADR-34: history and older versions, attaching through restore, other sources (T-31). Gaps of the browser: the description of a page, opening a PDF at a page. Moving a block inside a page carries no hint of AI (rest of T-20).

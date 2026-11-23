@@ -34,8 +34,13 @@ const (
 	CodeDescription  = "DESCRIPTION"
 	CodeOverview     = "OVERVIEW"
 	CodeFolderSize   = "FOLDER-SIZE"
+	CodePageSize     = "PAGE-SIZE"
+	CodeLink         = "LINK"
+	CodeUnlinkedFile = "UNLINKED-FILE"
 	MaxDescription   = 120
 	MaxPagesInFolder = 25
+	// MaxPageBytes is the size a page should stay below (ADR-34): agents read it whole, people scroll it.
+	MaxPageBytes = 25 << 10
 )
 
 // Finding is one rule a page breaks: its code and level, the block it is in (empty for the page), what is wrong and how
@@ -66,6 +71,10 @@ var texts = map[string][2]string{
 	CodeDescription: {"The description has %d characters.", fmt.Sprintf("Keep it to one sentence of at most %d characters; it shows on top as the summary.", MaxDescription)},
 	CodeOverview:    {"The folder has no overview page.", "Add a page of the kind overview that says what the folder holds and where to start."},
 	CodeFolderSize:  {"The folder holds %d pages.", fmt.Sprintf("Keep at most %d pages in a folder; group them into folders below it.", MaxPagesInFolder)},
+	CodePageSize:    {"The page has %d KB.", fmt.Sprintf("Keep a page below %d KB: split it into pages and embed or link them.", MaxPageBytes>>10)},
+	CodeLink:        {"The link %s leads nowhere.", "Point it at a page that exists, or remove it."},
+	CodeUnlinkedFile: {"The file %s is attached, but nothing in the page links to it.",
+		"Show it at its place with ![…](…) or a link, or take it out of the page."},
 }
 
 // New makes a finding of a rule with its words, filled in with the details.
@@ -142,6 +151,13 @@ func Check(p Page, values []Value) []Finding {
 	}
 	if n := len([]rune(strings.TrimSpace(p.Description))); n > MaxDescription {
 		out = append(out, New(CodeDescription, "", n))
+	}
+	size := 0
+	for _, b := range p.Blocks {
+		size += len(b.Body)
+	}
+	if size > MaxPageBytes {
+		out = append(out, New(CodePageSize, "", size>>10))
 	}
 	written := slices.ContainsFunc(p.Blocks, func(b Block) bool { return strings.TrimSpace(b.Body) != "" })
 	if !written {

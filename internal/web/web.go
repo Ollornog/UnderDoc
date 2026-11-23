@@ -233,6 +233,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /s/{token}/f/{file}", h.shareFile)
 	mux.HandleFunc("GET /s/{token}/p/{page}/attachments/{attachment}", h.shareAttachment)
 	mux.HandleFunc("POST /s/{token}/upload", h.shareUpload)
+	// One-time upload links of agents (ADR-34): open at the gate like share links, the token says what it may do.
+	mux.HandleFunc("PUT "+uploadLinkPath+"{token}", h.uploadThroughOneTimeLink)
 	doc("POST /api/objects/{id}/kind", h.apiConvert)
 	doc("POST /api/pages/{id}/blocks", h.apiAddBlock)
 	doc("PUT /api/pages/{id}/blocks/{block}", h.apiEditBlock)

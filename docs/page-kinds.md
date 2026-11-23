@@ -87,6 +87,9 @@ shows them folded above its text to whoever may change it.
 | `DESCRIPTION` | warning | all | a description longer than 120 characters |
 | `OVERVIEW` | warning | folders | a folder with two pages or more and no page of the kind overview (list of problems only) |
 | `FOLDER-SIZE` | warning | folders | more than 25 pages directly in a folder (list of problems only) |
+| `PAGE-SIZE` | warning | all | a page of more than 25 KB of text (ADR-34) |
+| `LINK` | warning | all | a link to an object of UnderDoc (`/o/<id>`, `underdoc:<id>`) that finds nothing for the writer: "link to nowhere" (ADR-34) |
+| `UNLINKED-FILE` | warning | all | a file attached to the page that no block shows or links to: "file nobody links to" (ADR-34) |
 
 **Why so little blocks:** by default nothing waits (ADR-33). A page is written block by block, so a rule over the whole
 page (an opening sentence, numbered steps) cannot hold while the first block is written. The heuristics (copied values,

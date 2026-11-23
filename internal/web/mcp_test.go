@@ -107,7 +107,7 @@ func TestMCPReadAndSearch(t *testing.T) {
 	for _, tool := range tools.Tools {
 		names = append(names, tool.Name)
 	}
-	if !slices.Equal(names, []string{"context", "read", "search", "used_in"}) {
+	if !slices.Equal(names, []string{"context", "create_page", "move", "read", "replace", "search", "set_front_matter", "trash", "used_in", "write"}) {
 		t.Errorf("the tools: %v", names)
 	}
 	if got := session.InitializeResult().Instructions; !strings.Contains(got, "rules page") {

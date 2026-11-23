@@ -593,3 +593,78 @@ func isMarkdown(name string) bool {
 	}
 	return false
 }
+
+// PageFront is the front matter of a page as an agent sends it back with a write (ADR-34): what it names, and whether
+// there was any.
+type PageFront struct {
+	Found       bool
+	Title       string
+	Kind        string
+	Description string
+	Tags        []string
+}
+
+// newMarkerLine starts a new block in what an agent writes: a marker without an ID (ADR-34).
+var newMarkerLine = regexp.MustCompile(`^ {0,3}<!-- block(?: align=(center|right))? -->[ \t]*$`)
+
+// ParseBlocks reads the Markdown of a page or a section as an agent writes it back (ADR-34): front matter where there is
+// any, then the blocks after their markers, a marker without an ID (<!-- block -->) starting a new one, or, without any
+// marker, split before each heading of level 1 to 3 outside fenced code, as an import reads a file. Text after a marker
+// belongs to its block up to the next marker. A block keeps the ID of its marker where it is valid and not used before in
+// the text; every other block has none, so the database gives it a new one. Nothing is numbered here: an ID that only a
+// writer made up never stands for a block that is there.
+func ParseBlocks(content []byte) (PageFront, []db.Block) {
+	content = normalize(content)
+	var front PageFront
+	var meta pageMeta
+	yamlPart, body, found := markdown.SplitFrontMatter(content)
+	if found && yaml.Unmarshal(yamlPart, &meta) == nil {
+		front = PageFront{Found: true, Title: meta.Title, Kind: meta.Kind, Description: meta.Description, Tags: meta.Tags}
+	} else {
+		body = content
+	}
+	chunks := []chunk{{}}
+	marked := false
+	lines := strings.Split(string(body), "\n")
+	f := &fences{}
+	for _, line := range lines {
+		if f.inside(line) {
+			chunks[len(chunks)-1].lines = append(chunks[len(chunks)-1].lines, line)
+			continue
+		}
+		if m := markerLine.FindStringSubmatch(line); m != nil {
+			chunks = append(chunks, chunk{id: m[1], align: m[2]})
+			marked = true
+			continue
+		}
+		if m := newMarkerLine.FindStringSubmatch(line); m != nil {
+			chunks = append(chunks, chunk{align: m[1]})
+			marked = true
+			continue
+		}
+		chunks[len(chunks)-1].lines = append(chunks[len(chunks)-1].lines, line)
+	}
+	if !marked {
+		chunks = splitHeadings(lines)
+	} else if len(chunks[0].lines) > 0 {
+		// Text before the first marker is new, split at its headings.
+		chunks = append(splitHeadings(chunks[0].lines), chunks[1:]...)
+	}
+	var blocks []db.Block
+	used := map[string]bool{}
+	for _, c := range chunks {
+		text := trimBody(strings.Join(c.lines, "\n"))
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		for j, piece := range fit(text, db.MaxBlock) {
+			b := db.Block{Body: piece, Align: c.align}
+			if j == 0 && validBlock.MatchString(c.id) && !used[c.id] {
+				b.ID = c.id
+				used[c.id] = true
+			}
+			blocks = append(blocks, b)
+		}
+	}
+	return front, blocks
+}

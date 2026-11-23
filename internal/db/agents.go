@@ -4,7 +4,11 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -40,4 +44,39 @@ func (db *DB) RulesPage(ctx context.Context, viewer string) (Object, error) {
 		return Object{}, ErrNotFound
 	}
 	return o, err
+}
+
+// UploadLinkTime is how long a one-time upload link holds (ADR-34).
+const UploadLinkTime = 15 * time.Minute
+
+// LinkUpload gives an upload of the viewer, which has received nothing yet, a one-time link and returns its token. Only
+// the hash of the token is kept.
+func (db *DB) LinkUpload(ctx context.Context, uploadID, viewer string) (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	sum := sha256.Sum256([]byte(token))
+	tag, err := db.pool.Exec(ctx, `UPDATE uploads SET link_hash = $3, link_until = now() + make_interval(secs => $4)
+		WHERE id = $1 AND owner = $2 AND received = 0`, uploadID, viewer, sum[:], UploadLinkTime.Seconds())
+	if err == nil && tag.RowsAffected() == 0 {
+		err = ErrNotFound
+	}
+	return token, err
+}
+
+// TakeUploadLink finds the upload of a one-time link and takes the link away, in one step, so it works once; a link
+// past its time is not found.
+func (db *DB) TakeUploadLink(ctx context.Context, token string) (Upload, error) {
+	sum := sha256.Sum256([]byte(token))
+	var u Upload
+	err := db.pool.QueryRow(ctx, `UPDATE uploads SET link_hash = NULL, link_until = NULL, touched = now()
+		WHERE link_hash = $1 AND link_until > now() AND received = 0
+		RETURNING id, owner, coalesce(parent, ''), coalesce(file, ''), coalesce(page, ''), coalesce(root, ''), name, size, received, touched`, sum[:]).
+		Scan(&u.ID, &u.Owner, &u.Parent, &u.File, &u.Page, &u.Root, &u.Name, &u.Size, &u.Received, &u.Touched)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Upload{}, ErrNotFound
+	}
+	return u, err
 }

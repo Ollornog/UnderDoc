@@ -133,3 +133,16 @@ Proposed by the team wiki and UnderDoc on 2026-11-23. Accepted by the maintainer
     one hit per object. New: the pages of a PDF are records of their own; the type stands in for the source facet until
     other sources come (T-31). A word takes a typing error from four letters on (T-24).
   - Automatic sections (T-30) do not exist yet, so `read` has no count of them.
+- **Built on 2026-11-23, part 2** ([docs/mcp.md](../docs/mcp.md#writing), T-21, migration 036). Settled in the build:
+  - A write names the part it replaces: the whole page, or the section a block opens. Blocks are matched by the IDs of
+    their markers within that part only; a marker without an ID makes a new block, and an ID from elsewhere is never
+    taken. The whole write is one transaction against the version read; a dry run is that transaction undone.
+  - Front matter in a write is not applied; title, tags and kind have a tool of their own. The description has no way
+    in the browser, so none in MCP either (a gap of the interface, noted in docs/mcp.md).
+  - "Link to nowhere", "file nobody links to" and a page above 25 KB are warnings of the one check (`LINK`,
+    `UNLINKED-FILE`, `PAGE-SIZE`), so the browser shows them as well.
+  - Archive instead of delete is the trash: an agent moves to it, a person restores or deletes for good.
+  - The one-time upload link reuses the upload of the browser: the agent starts it with its person's rights, the link
+    holds its hash, and a program sends the file with one `PUT` below `/s/`, which the gate already leaves open for share
+    links, so the gate needs no new rule. It is no share link: it reads nothing, works once and for one file.
+  - Moving a block inside a page makes no version, so it carries no hint of AI (the rest of T-20 stays open).
