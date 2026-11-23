@@ -53,7 +53,7 @@ The state of the gate on 2026-11-23:
 
 ## Decision
 
-The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 2026-11-23. The maintainer decides.
+The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 2026-11-23. Accepted by the maintainer on 2026-11-23.
 
 **The gate decides:**
 
