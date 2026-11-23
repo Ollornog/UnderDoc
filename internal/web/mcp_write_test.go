@@ -87,7 +87,7 @@ func TestMCPWrite(t *testing.T) {
 
 	// A section, by the block that opens it; a marker of a block outside the section makes a new block there.
 	_, v = readVersion(t, s, annasAgent, page.ID)
-	got, failed = call(t, session, "write", map[string]any{"page": page.ID + "#" + ids[1], "base": v,
+	got, failed = call(t, session, "write", map[string]any{"page": page.ID + "#" + ids[1] + ".section", "base": v,
 		"markdown": "<!-- block " + ids[1] + " -->\n## Anmelden\n\n<!-- block " + ids[0] + " -->\nKarte bereithalten.\n\n<!-- block -->\n1. Karte stecken."})
 	if failed || !strings.Contains(got, "2 added") {
 		t.Errorf("write a section:\n%s", got)

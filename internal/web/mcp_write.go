@@ -39,6 +39,9 @@ func (t *mcpTools) write(_ context.Context, _ *mcp.CallToolRequest, in writeIn) 
 	if in.Base == nil {
 		return refusal("base: give the version you read (read names it); a write without it could overwrite another's."), nil, nil
 	}
+	if a.Sub == db.Section {
+		a.Sub = ""
+	}
 	if a.Sub != "" {
 		return refusal("page: write a part with replace, or its block, " + uri(db.Address{Object: a.Object, Block: a.Block}) + "."), nil, nil
 	}
