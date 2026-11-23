@@ -11,7 +11,6 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 // TestAnAdministratorTransfersWhatIsLeftBehind: a new collection is its owner's alone (ADR-29, 2026-11-19). When its
@@ -23,7 +22,6 @@ func TestAnAdministratorTransfersWhatIsLeftBehind(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	// Anna administers through the group of her gate headers; bob and carl do not.
 	s := newSite(t, Options{DB: database}, sample)
 	for _, who := range []map[string]string{plain, carlOf} {
@@ -80,7 +78,6 @@ func TestTheRetentionOfTheLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	s := newSite(t, Options{DB: database}, sample)
 	s.send(http.MethodGet, "/api/state", "", plain)
 	if got := decode[apiKeep](t, s.send(http.MethodGet, "/api/log/keep", "", plain)); got.Days != 365 || got.Min != 30 || got.Max != 3650 {

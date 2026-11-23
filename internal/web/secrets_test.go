@@ -19,7 +19,6 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
 	"github.com/Ollornog/UnderDoc/internal/folder"
 	"github.com/Ollornog/UnderDoc/internal/library"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
 )
 
@@ -69,7 +68,6 @@ func withVault(t *testing.T, key string) (*site, *lockedBuffer, *db.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	keys, err := vault.New(key)
 	if err != nil {
 		t.Fatal(err)

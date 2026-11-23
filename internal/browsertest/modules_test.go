@@ -17,25 +17,15 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
-const testPassword = "a long enough password"
-
-// signUp accepts an invitation with a password, by mouse and keyboard, and waits until the browser has gone on.
-func (b *browser) signUp(address string) {
-	b.t.Helper()
-	b.open(address)
-	b.typeInto(`#password`, testPassword)
-	b.typeInto(`#repeat`, testPassword)
-	b.pressOn(`form[action$="/password"] button[type="submit"]`)
-	if !b.waitFor(`!location.pathname.startsWith('/invite/')`) {
-		b.t.Fatalf("the invitation did not go on: %s", b.eval(`document.querySelector('[data-test="error"]')?.textContent`))
-	}
-}
-
 // An administrator switches Documents off on the page of the modules, and the workspace shows none of it; switched on
 // again, everything is back. The profile leads there (ADR-25).
 func TestSwitchingModulesWithTheMouse(t *testing.T) {
-	b, base, database := setupSignIn(t, db.MethodPassword)
-	b.signUp(base + invitation(t, database, "tom", "Tom", true))
+	database, err := db.Open(context.Background(), pgtest.URL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(database.Close)
+	b, base := setupWith(t, web.Options{DevUI: true, DB: database, GateClient: gateWithRole(t, "ops")}, nil)
 	b.open(base + "/")
 	team := makeTeam(b)
 	b.clickOn(`[data-act="view"][data-id="profile"]`, 1)
@@ -80,32 +70,20 @@ func TestTheHosterWithTheMouse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	hoster := tenant.With(context.Background(), tenant.Hoster)
-	if err := database.SetSignIn(hoster, db.SignIn{Methods: []string{db.MethodPassword}}); err != nil {
-		t.Fatal(err)
-	}
 	keys, _ := vault.New("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=") // a key for tests only
-	b, base := setupWith(t, web.Options{DB: database, Vault: keys, Tenants: tenant.ModeMany, TenantDomain: "localhost", HosterHost: "localhost"}, nil)
-	b.signIn(false)
+	b, base := setupWith(t, web.Options{DB: database, Vault: keys, Tenants: tenant.ModeMany, TenantDomain: "localhost", HosterHost: "localhost",
+		GateClient: gateWithRole(t, "ops")}, nil)
 	base = strings.Replace(base, "127.0.0.1", "localhost", 1)
-	token, hash, _ := newInviteToken(t)
-	if err := database.CreateInvite(hoster, hash, db.Invite{Login: "host", Name: "Hoster", Admin: true, Expires: inAnHour()}); err != nil {
-		t.Fatal(err)
-	}
-	b.signUp(base + "/invite/" + token)
+	clean(t, "hoster", b.open(base+"/"))
 	if !b.waitFor(`location.pathname === '/hoster'`) {
 		t.Fatalf("the hoster lands on its page: %s", b.eval(`location.href`))
 	}
-	clean(t, "hoster", b.collect())
 	b.typeInto(`#new-id`, "beta")
 	b.typeInto(`#new-name`, "Beta GmbH")
-	b.typeInto(`#new-admin-login`, "bea")
-	b.typeInto(`#new-admin-name`, "Bea")
 	b.pressOn(`form[action="/hoster/tenants"] button[type="submit"]`)
-	if !b.waitFor(`(document.querySelector('[data-test="invite-link"]')?.value || '').includes('beta.localhost')`) {
-		t.Fatalf("the link for the first administrator: %s", b.eval(`document.querySelector('[data-test="error"]')?.textContent`))
+	if !b.waitFor(`(document.querySelector('[data-test="notice"]')?.textContent || '').includes('Beta GmbH is there')`) {
+		t.Fatalf("the tenant is made: %s", b.eval(`document.querySelector('[data-test="error"]')?.textContent`))
 	}
-	link := b.eval(`document.querySelector('[data-test="invite-link"]').value`)
 	b.pressOn(`form input[value="lock"] + button`)
 	if !b.waitFor(`(document.querySelector('.card-description')?.textContent || '').includes('✗ locked')`) {
 		t.Fatal("locked")
@@ -113,17 +91,20 @@ func TestTheHosterWithTheMouse(t *testing.T) {
 	b.shot("hoster-tenant")
 	// Chrome reaches subdomains of localhost over IPv6 only, where the test server does not listen; the request goes
 	// from here, with the host name of the tenant.
-	request, err := http.NewRequest(http.MethodGet, strings.Replace(base, "localhost", "127.0.0.1", 1)+"/sign-in", nil)
+	request, err := http.NewRequest(http.MethodGet, strings.Replace(base, "localhost", "127.0.0.1", 1)+"/api/state", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Host = "beta.localhost"
+	request.Header.Set("Remote-User", "anna")
+	request.Header.Set("Remote-Id", "1007")
+	request.Header.Set("Remote-Auth", "session")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = response.Body.Close()
-	if response.StatusCode != http.StatusForbidden || !strings.Contains(link, "beta.localhost/invite/") {
-		t.Errorf("a locked tenant: %d, link %s", response.StatusCode, link)
+	if response.StatusCode != http.StatusForbidden {
+		t.Errorf("a locked tenant: %d", response.StatusCode)
 	}
 }

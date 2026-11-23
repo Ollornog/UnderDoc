@@ -289,17 +289,13 @@ func (db *DB) ExpireAllTrash(ctx context.Context, before time.Time, on func(cont
 }
 
 // KeepTrash empties the trash of every tenant where on says it is on (nil: everywhere) of what lies there longer than
-// TrashDays, removes what has run out of signing in (ExpireSignIns), and deletes the entries of the log of every tenant
-// older than it keeps them (ExpireLog), at once and then every so often, until ctx ends. What fails is told to onError
+// TrashDays, and deletes the entries of the log of every tenant older than it keeps them (ExpireLog), at once and then every so often, until ctx ends. What fails is told to onError
 // and tried again next time.
 func (db *DB) KeepTrash(ctx context.Context, every time.Duration, on func(context.Context) bool, onError func(error)) {
 	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
 		if _, err := db.ExpireAllTrash(ctx, time.Now().Add(-TrashDays*24*time.Hour), on); err != nil && ctx.Err() == nil {
-			onError(err)
-		}
-		if err := db.ForEachTenant(ctx, db.ExpireSignIns); err != nil && ctx.Err() == nil {
 			onError(err)
 		}
 		if err := db.ForEachTenant(ctx, func(ctx context.Context) error {

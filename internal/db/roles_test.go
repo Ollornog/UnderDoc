@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -354,23 +353,27 @@ func flatReaders(t *testing.T, db *DB, objectID string) []string {
 	return slices.Compact(got)
 }
 
-// TestTakingBackAnAdministrator: an administrator makes a local account an administrator and takes that back again; the
-// nobody takes their own away, so a tenant keeps one, and accounts of the gate are administrators by their group.
+// TestTakingBackAnAdministrator: the command line marks an account as an administrator (ADR-32), an administrator takes
+// the mark back in the web, nobody takes their own away, and an account without the mark has none to take: it
+// administers through the role of the app at the gate, if at all.
 func TestTakingBackAnAdministrator(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	local := func(login string, admin bool) Account {
-		hash := []byte(login + strings.Repeat("x", 32-len(login)))
-		if err := db.CreateInvite(ctx, hash, Invite{Login: login, Name: login, Admin: admin, Expires: time.Now().Add(time.Hour)}); err != nil {
-			t.Fatal(err)
-		}
-		a, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"})
+	mark := func(remoteID string, admin bool) Account {
+		a, err := db.MarkAdmin(ctx, remoteID, admin)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return a
 	}
-	dora, eve := local("dora", true), local("eve", false)
+	dora := mark("46", true)
+	eve, err := db.BindGate(ctx, account.User{RemoteID: "47", Login: "eve", Name: "Eve", AuthKind: account.AuthSession})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dora.RemoteID != "46" || !dora.Admin || dora.Login != "46" {
+		t.Errorf("the mark makes the account bound to the ID: %+v", dora)
+	}
 	boss := Actor{ID: dora.ID, Admin: true}
 	if err := db.SetAdmin(ctx, Actor{ID: eve.ID}, dora.ID, false); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("eve does not administer: %v", err)
@@ -378,23 +381,27 @@ func TestTakingBackAnAdministrator(t *testing.T) {
 	if err := db.SetAdmin(ctx, boss, dora.ID, false); !errors.Is(err, ErrLastAdmin) {
 		t.Errorf("dora takes her own away: %v", err)
 	}
-	if err := db.SetAdmin(ctx, boss, anna.ID, true); !errors.Is(err, ErrSource) {
-		t.Errorf("anna comes through the gate: %v", err)
+	if err := db.SetAdmin(ctx, boss, anna.ID, false); !errors.Is(err, ErrSource) {
+		t.Errorf("anna has no mark: %v", err)
 	}
-	if err := db.SetAdmin(ctx, boss, eve.ID, true); err != nil {
-		t.Fatal(err)
+	if err := db.SetAdmin(ctx, boss, eve.ID, true); !errors.Is(err, ErrMarkOnCommandLine) {
+		t.Errorf("the web marks eve: %v", err)
 	}
-	if a, _ := db.AccountByID(ctx, eve.ID); !a.Admin {
-		t.Error("eve administers now")
-	}
+	mark("47", true)
 	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, dora.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	if a, _ := db.AccountByID(ctx, dora.ID); a.Admin {
 		t.Error("dora no longer administers")
 	}
-	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true}, eve.ID, false); !errors.Is(err, ErrLastAdmin) {
-		t.Errorf("eve takes her own away: %v", err)
+	if a := mark("47", false); a.Admin {
+		t.Error("the command line takes the mark back")
+	}
+	if _, err := db.MarkAdmin(ctx, "4x", true); !errors.Is(err, ErrRemoteID) {
+		t.Errorf("an ID that is no number: %v", err)
+	}
+	if _, err := db.MarkAdmin(ctx, "48", false); !errors.Is(err, ErrNotFound) {
+		t.Errorf("taking the mark of nobody: %v", err)
 	}
 	people, err := db.Everyone(ctx)
 	if err != nil || len(people) != 4 {
@@ -448,22 +455,19 @@ func TestMigrationKeepsWritersInNarrowerFolders(t *testing.T) {
 
 // TestTwoAdministratorsCannotTakeEachOtherAway: two requests at the same time each found their actor an administrator
 // at the start. The database decides under a lock, so the second, whose actor no longer administers, takes nothing away
-// and the tenant keeps a local administrator. The stale actor here stands for that window.
+// and the tenant keeps a marked administrator. The stale actor here stands for that window. The web marks nobody: that is
+// the command line's (ADR-32).
 func TestTwoAdministratorsCannotTakeEachOtherAway(t *testing.T) {
 	db := open(t)
 	ctx := inMain()
-	local := func(login string) Account {
-		hash := []byte(login + strings.Repeat("x", 32-len(login)))
-		if err := db.CreateInvite(ctx, hash, Invite{Login: login, Name: login, Admin: true, Expires: time.Now().Add(time.Hour)}); err != nil {
-			t.Fatal(err)
-		}
-		a, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"})
+	local := func(remoteID string) Account {
+		a, err := db.MarkAdmin(ctx, remoteID, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return a
 	}
-	dora, eve := local("dora"), local("eve")
+	dora, eve := local("41"), local("42")
 	if err := db.SetAdmin(ctx, Actor{ID: dora.ID, Admin: true}, eve.ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -477,9 +481,22 @@ func TestTwoAdministratorsCannotTakeEachOtherAway(t *testing.T) {
 	if left != 1 {
 		t.Errorf("%d local administrators are left", left)
 	}
+	if err := db.SetAdmin(ctx, Actor{ID: dora.ID, Admin: true}, eve.ID, true); !errors.Is(err, ErrMarkOnCommandLine) {
+		t.Errorf("the web marks an administrator: %v", err)
+	}
+	if err := db.SetAdmin(ctx, Actor{ID: eve.ID, Admin: true, Role: true}, eve.ID, false); !errors.Is(err, ErrLastAdmin) {
+		t.Errorf("taking one's own mark: %v", err)
+	}
+	// An administrator through the role takes a mark even when not marked.
+	if _, err := db.MarkAdmin(ctx, "42", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetAdmin(ctx, Actor{ID: "43", Admin: true, Role: true}, eve.ID, false); err != nil {
+		t.Errorf("an administrator through the role: %v", err)
+	}
 	// Both at once: the request of dora has taken eve's administration and not yet ended when eve's begins. Eve's
 	// waits for it, and then finds eve no longer an administrator.
-	if err := db.SetAdmin(ctx, Actor{ID: dora.ID, Admin: true}, eve.ID, true); err != nil {
+	if _, err := db.MarkAdmin(ctx, "42", true); err != nil {
 		t.Fatal(err)
 	}
 	tx, err := db.pool.Begin(ctx)

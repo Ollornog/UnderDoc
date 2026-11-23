@@ -232,7 +232,7 @@ const MyNotes = "My notes"
 // SeeAccount records a user under the ID it carries, as the gate did before ADR-32: new with a private collection, and
 // up to date after. Imports and tests make accounts with it; a sign-in goes through BindGate.
 func (db *DB) SeeAccount(ctx context.Context, user account.User) error {
-	return db.SeeExternal(ctx, user, SourceGate)
+	return db.seeExternal(ctx, user, SourceGate)
 }
 
 // BindGate returns the account bound to the lasting ID the gate gave a person (ADR-32, ADR-35), and records what the

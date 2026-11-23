@@ -8,7 +8,13 @@ UnderDoc runs for one person, for a small company, or for a hoster that offers i
 | `UNDERDOC_TENANTS` | What it means |
 |---|---|
 | `one` (default) | One tenant, called Main. Nothing about tenants shows, every host name leads to it. |
-| `many` | Each tenant is found by the host name of the request. Needs the database. |
+| `many` | Each tenant is found by the host name of the request. Needs the database. **Waits for the gate** (below): an instance set so does not start. |
+
+**Many tenants wait for the gate** ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md), 2026-11-23). Everyone
+signs in through the gate, and the gate does not name a tenant yet (TinySesam's T-73): every person of the gate would
+come into every tenant whose host it reaches. Until the gate decides, UnderDoc runs one tenant. Everything below stays in
+the data model and in the code, and its tests keep proving the separation; `UNDERDOC_TENANT_DOMAIN` and
+`UNDERDOC_HOSTER_HOST` are read again once many tenants come back.
 
 With many tenants, `acme.<UNDERDOC_TENANT_DOMAIN>` leads to the tenant `acme`, and a tenant may have domains of its own
 next to that. TLS for all of them is the job of the proxy in front, which passes the `Host` header on unchanged. Paths
@@ -27,13 +33,12 @@ underdoc import --tenant acme --owner anna ./dir "Team"    # into one tenant; wi
 
 ## The hoster administration
 
-With many tenants, `UNDERDOC_HOSTER_HOST` names a host of its own for the hoster. Its administrators are accounts of the
-reserved tenant `hoster`; the first one comes from `underdoc invite --tenant hoster --admin <login> <name>`, and they
-sign in as `/admin/sign-in` of that host sets (a passkey by default). On that host `/hoster` lists the tenants with what
-they use, and nothing of a workspace answers there.
+With many tenants, `UNDERDOC_HOSTER_HOST` names a host of its own for the hoster. Its administrators come through the gate
+as accounts of the reserved tenant `hoster` with the role of the app on that host. On that host `/hoster` lists the
+tenants with what they use, and nothing of a workspace answers there.
 
-- **Make a tenant**: its ID (the subdomain), its name, and the login and name of its first administrator, who gets a
-  link that works once, for seven days. A new tenant signs in with passkeys and has no registration.
+- **Make a tenant**: its ID (the subdomain) and its name. Its administrators are those the gate gives the role of the app
+  on its host; there is no invitation.
 - **Rename** gives it another name; its ID, and with it its subdomain, stays.
 - **Lock** lets nobody of the tenant in; nothing is lost. **Archive** is the delete of the hoster: the tenant is gone
   from every host, its data stays, and **Restore** brings it back whole.
@@ -42,16 +47,16 @@ they use, and nothing of a workspace answers there.
   row-level security keeps every other one out of reach. Every table refers to `tenants`, so a row left behind would stop
   the delete instead of staying. Its ID is free again afterwards. Main and the hoster tenant cannot be deleted.
 - **Limits**: users at most and storage at most (the bytes of the current blocks of its pages, plus its files with all
-  their versions, attachments and running uploads; versions of blocks are not counted). Past the limit, no new account comes in, from the gate, OIDC or an invitation, while the accounts there keep
+  their versions, attachments and running uploads; versions of blocks are not counted). Past the limit, no new account comes in, through the gate or marked on the command line, while the accounts there keep
   signing in; and no block, copy, import, template or upload grows the storage, while shrinking always works. The quotas of the files
 (docs/files.md) hold next to it. The storage is a counter per tenant that triggers keep (`tenant_storage`, migration
 021), whichever way a block, a file version, an attachment or an upload comes or goes; a check reads one row, and a write
 holds the row of its tenant until it commits, so two writes that would each just fit cannot both pass the limit.
 - The list and the page of a tenant show used / limit with a bar, ⚠ from nine tenths on and ✗ when full.
 - **Modules** it may use, of those the instance allows ([docs/modules.md](modules.md)).
-- **Domains of its own**, next to the subdomain, and more administrators by invitation.
-- The hoster sees names, states and counts, never content. Its session is one of the tenant `hoster`, which row-level
-  security keeps from every other, and its cookie belongs to its host.
+- **Domains of its own**, next to the subdomain.
+- The hoster sees names, states and counts, never content. Its accounts belong to the tenant `hoster`, which row-level
+  security keeps from every other.
 
 ## How the separation works
 

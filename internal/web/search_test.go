@@ -37,7 +37,6 @@ func withSearch(t *testing.T, engine search.Engine) *searchSite {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	s := &searchSite{db: database}
 	options := Options{DB: database}
 	s.site = newSite(t, options, sample)

@@ -1,0 +1,19 @@
+{{/* The frame of the pages outside the workspace: the administration of modules and the hoster. */}}
+{{define "auth-head" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · {{.Tenant}}</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/c22/css/c22-underdoc.css?v={{.Version}}">
+  <script src="/assets/app/theme.js?v={{.Version}}"></script>
+  <script src="/assets/c22/js/c22.js?v={{.Version}}" defer></script>
+</head>
+{{- end}}
+
+{{define "auth-alerts" -}}
+{{if .Error}}<div class="alert" data-variant="destructive" role="alert" data-test="error"><section>{{.Error}}</section></div>{{end}}
+{{if .Notice}}<div class="alert" role="status" data-test="notice"><section>{{.Notice}}</section></div>{{end}}
+{{- end}}

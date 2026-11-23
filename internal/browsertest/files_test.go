@@ -39,9 +39,6 @@ func setupWithFiles(t *testing.T) (*browser, string, *db.DB, *store.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-		t.Fatal(err)
-	}
 	b, base := setupWith(t, web.Options{DevUI: true, DB: database, Store: s, GateClient: gateWithRole(t, "ops"), TextWays: db.Ways{Browser: true}}, nil)
 	return b, base, database, s
 }

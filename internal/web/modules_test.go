@@ -32,7 +32,7 @@ func documents(states []apiModule) apiModule {
 // TestModulesSwitchOffWithoutLoss (ADR-25): the administrator switches Documents off, and its entries, addresses and
 // API are gone for everyone, but nothing of it is deleted: switched on again, everything is back.
 func TestModulesSwitchOffWithoutLoss(t *testing.T) {
-	s, _ := signInSite(t, gateOnly, Options{})
+	s, _ := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	team := admin.sharedCollection(`{"title":"Team"}`)
@@ -84,7 +84,7 @@ func TestModulesSwitchOffWithoutLoss(t *testing.T) {
 // TestTheHosterDecidesWhatATenantMayUse: a module the hoster does not allow is off whatever the tenant switches, and
 // what the instance does not allow is off for everyone.
 func TestTheHosterDecidesWhatATenantMayUse(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	admin := newClientWith(t, s, gateHeaders)
 	if err := database.SetTenantLimits(context.Background(), tenant.Main, db.HosterLimits{Modules: []string{}}); err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestTheHosterDecidesWhatATenantMayUse(t *testing.T) {
 
 // TestUsersHideModules: a user hides Documents for themselves; the others keep it, and what is hidden still answers.
 func TestUsersHideModules(t *testing.T) {
-	s, _ := signInSite(t, gateOnly, Options{})
+	s, _ := dbSite(t, Options{})
 	anna := newClientWith(t, s, gateHeaders)
 	other := newClientWith(t, s, bob)
 	team := anna.sharedCollection(`{"title":"Team"}`)
@@ -150,7 +150,7 @@ func TestUsersHideModules(t *testing.T) {
 
 // TestTheTrashJobFollowsDocuments: where Documents is off, its job leaves the trash as it is.
 func TestTheTrashJobFollowsDocuments(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	anna := newClientWith(t, s, gateHeaders)
 	team := anna.sharedCollection(`{"title":"Team"}`)
 	anna.do(http.MethodDelete, "/api/objects/"+team.ID, "", "")

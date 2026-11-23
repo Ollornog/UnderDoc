@@ -39,7 +39,7 @@ request; entries that are no preset show as **custom**.
 **The owner** is one person per object, whoever made it. Entries go to
 
 - **a person:** an account of the tenant;
-- **a group:** a **local group**, or a **group taken over** from OIDC (the groups claim) or the gate (`Remote-Groups`):
+- **a group:** a **local group**, or a **group taken over** from the gate (its roles in `Remote-Groups`):
   each name a sign-in brings is a group, and its members are the accounts whose last sign-in named it. A group taken over
   can only be read here (below);
 - **the tenant:** every account of the tenant;
@@ -77,9 +77,8 @@ it, only for the persons and groups taken over that are directly in the group.
 
 ## The group Agents
 
-- **Who is in it:** every request whose sign-in is not an interactive session. A session in the browser (passkey,
-  password, single sign-on) is one; through the gate the way comes from `Remote-Auth` (`session`, `oauth`, `apikey`,
-  `app-password`), and a missing or unknown value counts as an agent (fail closed). The value comes only from the result
+- **Who is in it:** every request whose sign-in is not an interactive session. The way comes from the gate's
+  `Remote-Auth` (`session`, `oauth`, `apikey`, `app-password`), and a missing or unknown value counts as an agent (fail closed). The value comes only from the result
   the gate's Go client checked ([sign-in.md](sign-in.md#the-gate)), never raw from a header. In the code it is
   `account.User.AuthKind`, and `account.User.Agent()` decides.
 - **Service accounts** (`Remote-Kind: service`) are a case of their own: they get what is granted to them, not this
@@ -168,9 +167,9 @@ give it to themselves; the log keeps every transfer (`owner`).
   a group or as everyone; "who sees something": the entries of an object, and for an account, also as an agent, each
   action with ✅ or ❌, the deciding entry and the object it is on).
 - **The administration in the profile** shows Users and groups the same way (ADR-16).
-- **Taking back an administrator** works for local accounts, by another administrator, so a tenant always keeps one;
-  the database decides it under a lock, and a local administrator must still be one when it happens;
-  accounts of the gate or of OIDC administer through their group at the sign-in. Whoever stops administering the tenant
+- **Administrators** hold the role of the app in the gate ([sign-in.md](sign-in.md#the-gate)). **Taking back** works
+  for the mark the command line gives in an emergency, by another administrator, never one's own; the database decides it
+  under a lock, and an administrator without the role must still be marked when it happens. The web marks nobody. Whoever stops administering the tenant
   stops administering its organization in the time tracking where UnderDoc made them do so
   ([time-tracking.md](time-tracking.md)).
 
@@ -271,8 +270,8 @@ something private. The address `/s/<token>` carries 32 random bytes; the databas
 is shown once, when the link is made. A link has an optional expiry and an optional password (Argon2id, with the limit
 against guessing of the sign-in; a browser that gave it gets a cookie for that link alone, for a day). A link that expired,
 was revoked, lies on something in the trash, or whose maker no longer manages its object answers like one that never was,
-and lends nobody a role. The log names `/s/…` without the token, as
-it does for invitations.
+and lends nobody a role. The log names `/s/…` without the token. A link to comment or edit is taken behind the gate, at
+`/link/<token>` ([sign-in.md](sign-in.md#share-links)).
 
 | Mode | For | What it does |
 |---|---|---|

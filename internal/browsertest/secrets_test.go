@@ -15,7 +15,6 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 	"github.com/Ollornog/UnderDoc/internal/vault"
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
@@ -28,9 +27,6 @@ func setupWithVault(t *testing.T) (*browser, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	if err := database.SetSignIn(tenant.With(context.Background(), tenant.Main), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-		t.Fatal(err)
-	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		t.Fatal(err)

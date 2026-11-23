@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/tenant"
@@ -30,20 +29,17 @@ func TestLimitsHold(t *testing.T) {
 	if err := db.SeeAccount(ctx, anna); err != nil {
 		t.Errorf("a known account still signs in: %v", err)
 	}
-	hash := make([]byte, 32)
-	if err := db.CreateInvite(ctx, hash, Invite{Login: "dora", Name: "Dora", Expires: time.Now().Add(time.Hour)}); err != nil {
-		t.Fatal(err)
+	dora := account.User{RemoteID: "44", Login: "dora", Name: "Dora", AuthKind: account.AuthSession}
+	if _, err := db.BindGate(ctx, dora); !errors.Is(err, ErrQuota) {
+		t.Errorf("a third account through the gate, bound by its ID: %v", err)
 	}
-	if _, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"}); !errors.Is(err, ErrQuota) {
-		t.Errorf("a third account by invitation: %v", err)
-	}
-	if _, err := db.OpenInvite(ctx, hash); err != nil {
-		t.Errorf("the refused invitation stays open for later: %v", err)
+	if _, err := db.MarkAdmin(ctx, "45", true); !errors.Is(err, ErrQuota) {
+		t.Errorf("a third account marked on the command line: %v", err)
 	}
 	if err := db.SetTenantLimits(ctx, tenant.Main, HosterLimits{MaxUsers: ptr(3), MaxStorage: ptr(int64(40))}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.AcceptInvite(ctx, hash, NewLocal{PasswordHash: "x"}); err != nil {
+	if _, err := db.BindGate(ctx, dora); err != nil {
 		t.Errorf("with room again: %v", err)
 	}
 	team, _ := db.createShared(ctx, anna, "Team")

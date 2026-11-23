@@ -126,7 +126,7 @@ func (h *handler) saveModules(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.options.DB.SetTenantModules(ctx, on); err != nil {
-		h.passkeyFailed(w, err, "modules")
+		h.failedPage(w, err, "modules")
 		return
 	}
 	h.log.Info("modules switched", slog.String("by", h.me(r).Login), slog.Any("on", on))
@@ -154,7 +154,7 @@ func (h *handler) saveMyModules(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.options.DB.SetHiddenModules(r.Context(), h.me(r).ID, hidden); err != nil && err != db.ErrNotFound {
-		h.passkeyFailed(w, err, "modules")
+		h.failedPage(w, err, "modules")
 		return
 	}
 	h.modulesPage(w, r, "my-modules", "My modules", http.StatusOK, "Saved.")

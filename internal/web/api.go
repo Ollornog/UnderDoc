@@ -33,9 +33,8 @@ type apiUser struct {
 	Groups   []string `json:"groups"`
 	Initials string   `json:"initials"`
 	Admin    bool     `json:"admin"`
-	// Method is how the user signed in: gate, oidc, passkey, password or password_totp. With a session, the workspace
-	// signs out with POST /sign-out.
-	Method string `json:"method"`
+	// Agent tells that this request did not sign in as a session (ADR-36).
+	Agent bool `json:"agent"`
 }
 
 // apiNode is one object in a list: a collection, folder or page, with what lies inside it.
@@ -141,7 +140,7 @@ func (h *handler) apiState(w http.ResponseWriter, r *http.Request) {
 	}
 	state := apiState{
 		User: apiUser{ID: user.ID, Login: user.Login, Name: user.Name, Email: user.Email, Groups: user.Groups, Initials: user.Initials(),
-			Admin: user.Admin, Method: user.Method},
+			Admin: user.Admin, Agent: user.Agent()},
 		CanCreate: h.options.DB != nil && documents,
 		Problems:  len(lib.Problems()),
 		Files: h.options.DB != nil && h.options.Store != nil &&

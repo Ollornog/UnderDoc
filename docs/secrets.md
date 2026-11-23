@@ -98,8 +98,8 @@ pages, so the page a secret leaves keeps the trace: it names the page it went to
 
 ## The key
 
-Values are sealed with AES-256-GCM of the Go standard library under `UNDERDOC_SECRET_KEY`, the same vault that seals TOTP,
-the client secret of OIDC and the NT hashes of Samba ([sign-in.md](sign-in.md#secrets-of-other-systems)). Each version is
+Values are sealed with AES-256-GCM of the Go standard library under `UNDERDOC_SECRET_KEY`, the same vault that seals the
+secrets of other systems and the NT hashes of Samba ([sign-in.md](sign-in.md#secrets-of-other-systems)). Each version is
 bound to its tenant, its secret and its number, so a sealed value copied to another row does not open.
 
 - **Without a key** secrets are neither made nor revealed; the editor and the API say so, and nothing falls back to plain
@@ -115,7 +115,7 @@ bound to its tenant, its secret and its number, so a sealed value copied to anot
   # restart without UNDERDOC_SECRET_KEY_OLD
   ```
 
-  `underdoc rekey` takes the passwords of pages with every version, TOTP, the secrets of other systems and the Samba
+  `underdoc rekey` takes the passwords of pages with every version, the secrets of other systems and the Samba
   hashes, one transaction per tenant. A value that opens with neither key stops it, and that tenant keeps everything as it
   was. It can run again; what the new key already opens is left alone.
 

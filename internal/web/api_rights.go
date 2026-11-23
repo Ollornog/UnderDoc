@@ -74,7 +74,7 @@ func grantsOut(grants []db.Grant) []apiGrant {
 
 func (h *handler) actor(r *http.Request) db.Actor {
 	user := h.me(r)
-	return db.Actor{ID: user.ID, Admin: user.Admin}
+	return db.Actor{ID: user.ID, Admin: user.Admin, Role: user.AdminRole}
 }
 
 // apiRights returns who holds which role on an object, for whoever sees it and for administrators.
@@ -682,6 +682,7 @@ type apiAccount struct {
 	Source string   `json:"source"`
 	Admin  bool     `json:"admin"`
 	Groups []string `json:"groups"`
+	Bound  bool     `json:"bound"`
 }
 
 // apiUsers lists the accounts of the tenant for the administration of users; only administrators see it.
@@ -699,12 +700,12 @@ func (h *handler) apiUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []apiAccount{}
 	for _, u := range everyone {
-		out = append(out, apiAccount{ID: u.ID, Login: u.Login, Name: u.Name, Source: u.Source, Admin: u.Admin, Groups: u.Groups})
+		out = append(out, apiAccount{ID: u.ID, Login: u.Login, Name: u.Name, Source: u.Source, Admin: u.Admin, Groups: u.Groups, Bound: u.Bound})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
-// apiSetAdmin makes a local account an administrator or takes that back. Whoever stops administering the tenant stops
+// apiSetAdmin takes back the mark of an administrator that the command line gave (ADR-32); it marks nobody. Whoever stops administering the tenant stops
 // administering its organization in the time tracking at once, where UnderDoc made them do so (ADR-29).
 func (h *handler) apiSetAdmin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -717,9 +718,9 @@ func (h *handler) apiSetAdmin(w http.ResponseWriter, r *http.Request) {
 	err := h.options.DB.SetAdmin(r.Context(), h.actor(r), accountID, in.Admin)
 	switch {
 	case errors.Is(err, db.ErrSource):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this account is an administrator through its group at the sign-in"})
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this account has no mark: it administers through the role of the app at the gate, if at all"})
 		return
-	case errors.Is(err, db.ErrLastAdmin):
+	case errors.Is(err, db.ErrLastAdmin), errors.Is(err, db.ErrMarkOnCommandLine):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	case h.failed(w, err, "admin"):

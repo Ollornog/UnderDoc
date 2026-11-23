@@ -79,6 +79,9 @@ func grantable(role string) bool { return Rank(role) >= 1 && Rank(role) <= 4 }
 type Actor struct {
 	ID    string
 	Admin bool
+	// Role tells that the actor administers through the role of the app in the gate, not only through the mark of the
+	// command line.
+	Role bool
 }
 
 // visible is a condition on o: the viewer ($1) may read it (ADR-36). The function object_may decides, the same for
@@ -1021,8 +1024,13 @@ func (db *DB) SetAgentLimit(ctx context.Context, accountID string, actions []str
 // ErrLastAdmin is taking away one's own administration.
 var ErrLastAdmin = errors.New("nobody takes their own administration away, so a tenant keeps an administrator")
 
-// SetAdmin makes a local account an administrator of the tenant, or takes that back (ADR-29). Accounts of the gate or of
-// OIDC are administrators through their group, which their sign-in decides. Only administrators do; the caller checks.
+// ErrMarkOnCommandLine is making an administrator in the web: the role of the app in the gate does that, and in an
+// emergency the command line (ADR-32).
+var ErrMarkOnCommandLine = errors.New("an administrator holds the role of the app in the gate; in an emergency, underdoc admin grant marks one")
+
+// SetAdmin takes back the mark of an administrator from an account (ADR-32). The mark is the emergency access of the
+// command line, and only the command line gives it; whoever administers through the role of the app in the gate does so
+// while the gate gives it. Only administrators do; the caller checks.
 func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin bool) error {
 	if err := noAgent(ctx); err != nil {
 		return err
@@ -1030,38 +1038,31 @@ func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin
 	if !actor.Admin {
 		return ErrNotAllowed
 	}
-	a, err := db.AccountByID(ctx, accountID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	if a.Source != SourceLocal {
-		return ErrSource
-	}
 	if admin {
-		_, err := db.pool.Exec(ctx, "UPDATE accounts SET admin = true WHERE id = $1", accountID)
-		return err
+		return ErrMarkOnCommandLine
 	}
-	// Whoever takes it back administers the tenant and is someone else, so the tenant keeps an administrator.
 	if accountID == actor.ID {
 		return ErrLastAdmin
 	}
-	// The flag of the actor is what the request found at its start. Two requests at once could each take the other's
-	// administration away, so the database decides under a lock: a local actor must still administer, and as they are
-	// not the one taken back, a local administrator remains. An actor of the gate or of OIDC administers through the
-	// group of their sign-in, which stays theirs.
+	a, err := db.AccountByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !a.Admin {
+		return ErrSource
+	}
+	// The mark of the actor is what the request found at its start. Two marked administrators could each take the
+	// other's mark at the same moment, so the database decides under a lock: an actor without the role must still be
+	// marked.
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockAdmins); err != nil {
 			return err
 		}
-		var local, still bool
-		if err := tx.QueryRow(ctx, `SELECT coalesce((SELECT source = 'local' FROM accounts WHERE id = $1), false),
-				coalesce((SELECT admin FROM accounts WHERE id = $1), false)`, actor.ID).Scan(&local, &still); err != nil {
+		var still bool
+		if err := tx.QueryRow(ctx, "SELECT coalesce((SELECT admin FROM accounts WHERE id = $1), false)", actor.ID).Scan(&still); err != nil {
 			return err
 		}
-		if local && !still {
+		if !actor.Role && !still {
 			return ErrNotAllowed
 		}
 		_, err := tx.Exec(ctx, "UPDATE accounts SET admin = false WHERE id = $1", accountID)
@@ -1069,24 +1070,26 @@ func (db *DB) SetAdmin(ctx context.Context, actor Actor, accountID string, admin
 	})
 }
 
-// User is an account with how it signs in and whether it administers the tenant as a local account.
+// User is an account with where it came from, whether it is marked as an administrator, and its groups taken over.
 type User struct {
 	Member
 	Source string
 	Admin  bool
 	Groups []string
+	// Bound tells that the account is bound to a lasting ID of the gate (ADR-32); one that is not waits for its binding.
+	Bound bool
 }
 
-// Everyone returns every account of the tenant with its source, its local administration and its groups taken over,
+// Everyone returns every account of the tenant with its source, its mark of an administrator and its groups taken over,
 // for the administration of users (ADR-16, ADR-29).
 func (db *DB) Everyone(ctx context.Context) ([]User, error) {
-	rows, err := db.pool.Query(ctx, `SELECT id, login, name, source, admin, groups FROM accounts ORDER BY lower(name), login`)
+	rows, err := db.pool.Query(ctx, `SELECT id, login, name, source, admin, groups, remote_id IS NOT NULL FROM accounts ORDER BY lower(name), login`)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
 		var p User
-		err := row.Scan(&p.ID, &p.Login, &p.Name, &p.Source, &p.Admin, &p.Groups)
+		err := row.Scan(&p.ID, &p.Login, &p.Name, &p.Source, &p.Admin, &p.Groups, &p.Bound)
 		p.Groups = nonNil(p.Groups)
 		return p, err
 	})

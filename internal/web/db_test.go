@@ -11,7 +11,6 @@ import (
 
 	"github.com/Ollornog/UnderDoc/internal/db"
 	"github.com/Ollornog/UnderDoc/internal/db/pgtest"
-	"github.com/Ollornog/UnderDoc/internal/tenant"
 )
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Main(m)) }
@@ -23,19 +22,7 @@ func withDatabase(t *testing.T) *site {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	behindGate(t, database, tenant.Main)
 	return newSite(t, Options{DB: database}, sample)
-}
-
-// behindGate lets the tenants in through the gate, as an instance that ran behind one before ADR-23 does: most tests
-// sign in with its headers.
-func behindGate(t *testing.T, database *db.DB, tenants ...string) {
-	t.Helper()
-	for _, id := range tenants {
-		if err := database.SetSignIn(tenant.With(context.Background(), id), db.SignIn{Methods: []string{db.MethodGate}}); err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 var sameSite = map[string]string{"Sec-Fetch-Site": "same-origin"}

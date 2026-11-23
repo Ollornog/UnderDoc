@@ -80,7 +80,6 @@ func withSamba(t *testing.T) *sambaSite {
 	if err != nil {
 		t.Fatal(err)
 	}
-	behindGate(t, database, tenant.Main)
 	s := newSite(t, Options{DB: database, Store: st, Vault: v, Share: m}, sample)
 	return &sambaSite{site: s, db: database, share: m, companion: companion, shareDir: dir}
 }

@@ -21,8 +21,13 @@ const (
 	betaHost   = "beta.docs.example"
 )
 
-// hosterSite is an instance with many tenants, Main and acme behind the gate, and the hoster administration at its own
-// host, whose administrators sign in with a password.
+// hosterAdmin is an administrator of the hoster: on the hoster host, the gate gives them the role of the app.
+var hosterAdmin = map[string]string{"Remote-Auth": "session", "Remote-User": "host", "Remote-Id": "9001", "Remote-Name": "Hoster Admin",
+	"Remote-Groups": "underdoc-admin"}
+
+// hosterSite is an instance with many tenants, Main and acme, and the hoster administration at its own host. Everyone
+// comes through the gate (ADR-32). An instance does not start with many tenants yet; the code stays for when the gate
+// names the tenant.
 func hosterSite(t *testing.T) (*site, *db.DB, *client) {
 	t.Helper()
 	database, err := db.Open(context.Background(), pgtest.URL(t))
@@ -33,24 +38,15 @@ func hosterSite(t *testing.T) (*site, *db.DB, *client) {
 	if _, err := database.CreateTenant(context.Background(), "acme", "Acme Ltd"); err != nil {
 		t.Fatal(err)
 	}
-	behindGate(t, database, tenant.Main, "acme")
-	hosterCtx := tenant.With(context.Background(), tenant.Hoster)
-	if err := database.SetSignIn(hosterCtx, db.SignIn{Methods: []string{db.MethodPassword}}); err != nil {
-		t.Fatal(err)
-	}
 	s := newSite(t, Options{DB: database, Tenants: tenant.ModeMany, TenantDomain: tenantDomain, HosterHost: hosterHost,
 		Vault: testVault(t)}, sample)
-	const password = "a long enough password"
 	h := newClient(t, s, hosterHost)
-	token := invite(t, database, hosterCtx, "host", "Hoster Admin", true)
-	if got := h.form("/invite/"+token+"/password", url.Values{"password": {password}, "repeat": {password}}); got.Code != http.StatusSeeOther {
-		t.Fatalf("the hoster's administrator: %d %s", got.Code, got.Body.String())
-	}
+	h.headers = hosterAdmin
 	return s, database, h
 }
 
-// TestTheHosterManagesTenants: on its own host, the hoster makes a tenant with the link for its first administrator,
-// locks it, archives it, restores it, sets its limits, modules and domains.
+// TestTheHosterManagesTenants: on its own host, the hoster makes a tenant, locks it, archives it, restores it, sets its
+// limits, modules and domains. Its administrators come from the gate; there is no invitation.
 func TestTheHosterManagesTenants(t *testing.T) {
 	s, database, h := hosterSite(t)
 	if got := h.get("/"); got.Code != http.StatusSeeOther || got.Header().Get("Location") != "/hoster" {
@@ -70,20 +66,14 @@ func TestTheHosterManagesTenants(t *testing.T) {
 			t.Errorf("%v: %d", bad, got.Code)
 		}
 	}
-	made := h.form("/hoster/tenants", url.Values{"id": {"beta"}, "name": {"Beta GmbH"}, "admin_login": {"bea"}, "admin_name": {"Bea"}})
-	link := inviteLink(made.Body.String())
-	if !strings.Contains(made.Body.String(), `data-copy data-copy-done="Copied" aria-label="Copy the link"`) {
-		t.Error("the link has no button to copy it")
-	}
-	if made.Code != http.StatusOK || !strings.HasPrefix(link, "https://"+betaHost+"/invite/") {
-		t.Fatalf("a new tenant: %d %q", made.Code, link)
+	made := h.form("/hoster/tenants", url.Values{"id": {"beta"}, "name": {"Beta GmbH"}})
+	if made.Code != http.StatusOK || !strings.Contains(made.Body.String(), "Beta GmbH is there") || strings.Contains(made.Body.String(), "/invite/") {
+		t.Fatalf("a new tenant, without an invitation: %d", made.Code)
 	}
 	beta := newClient(t, s, betaHost)
-	if got := beta.get(strings.TrimPrefix(link, "https://"+betaHost)); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "Welcome, Bea") {
-		t.Errorf("the link works on the tenant's host: %d", got.Code)
-	}
-	if settings, _ := database.SignIn(tenant.With(context.Background(), "beta")); settings.Methods[0] != db.MethodPasskey {
-		t.Errorf("a new tenant starts with passkeys: %+v", settings)
+	beta.headers = gateHeaders
+	if got := beta.get("/api/state"); got.Code != http.StatusOK || !decode[apiState](t, got).User.Admin {
+		t.Errorf("the gate's administrator on the tenant's host: %d", got.Code)
 	}
 	change := func(id string, values url.Values) int {
 		return h.form("/hoster/tenants/"+id, values).Code
@@ -91,18 +81,18 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	if got := change("beta", url.Values{"do": {"lock"}}); got != http.StatusOK {
 		t.Fatalf("lock: %d", got)
 	}
-	if got := beta.get("/sign-in"); got.Code != http.StatusForbidden {
+	if got := beta.get("/api/state"); got.Code != http.StatusForbidden {
 		t.Errorf("a locked tenant: %d", got.Code)
 	}
 	change("beta", url.Values{"do": {"archive"}})
-	if got := beta.get("/sign-in"); got.Code != http.StatusNotFound {
+	if got := beta.get("/api/state"); got.Code != http.StatusNotFound {
 		t.Errorf("an archived tenant: %d", got.Code)
 	}
 	if !strings.Contains(h.get("/hoster").Body.String(), "✗ archived") {
 		t.Error("the list shows it archived, and keeps it")
 	}
 	change("beta", url.Values{"do": {"open"}})
-	if got := beta.get("/sign-in"); got.Code != http.StatusOK {
+	if got := beta.get("/api/state"); got.Code != http.StatusOK {
 		t.Errorf("a restored tenant: %d", got.Code)
 	}
 	if got := change("beta", url.Values{"do": {"limits"}, "max_users": {"-1"}}); got != http.StatusBadRequest {
@@ -111,10 +101,10 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	if got := change("beta", url.Values{"do": {"limits"}, "max_users": {"5"}, "max_storage_mb": {"2"}}); got != http.StatusOK {
 		t.Fatalf("limits: %d", got)
 	}
-	// What is used of a limit shows as C22's bar, used / limit beside it; no user of five yet, nothing stored.
+	// What is used of a limit shows as C22's bar, used / limit beside it; one user of five, nothing stored.
 	listed := h.get("/hoster").Body.String()
-	if !strings.Contains(listed, `<progress class="progress mt-1" value="0" max="5" aria-label="Users of the limit" data-test="meter">`) ||
-		!strings.Contains(listed, "0 / 5") || !strings.Contains(listed, `max="2000" aria-label="Storage of the limit"`) {
+	if !strings.Contains(listed, `<progress class="progress mt-1" value="1" max="5" aria-label="Users of the limit" data-test="meter">`) ||
+		!strings.Contains(listed, "1 / 5") || !strings.Contains(listed, `max="2000" aria-label="Storage of the limit"`) {
 		t.Errorf("the bars of the limits: %s", between(listed, `data-id="beta"`, "</tr>"))
 	}
 	if page := h.get("/hoster/tenants/beta").Body.String(); !strings.Contains(page, `data-test="usage"`) || strings.Count(page, `data-test="meter"`) != 2 {
@@ -135,14 +125,14 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	if got := change("beta", url.Values{"do": {"add-host"}, "host": {"wiki.beta.example"}}); got != http.StatusOK {
 		t.Fatalf("a domain: %d", got)
 	}
-	if got := newClient(t, s, "wiki.beta.example").get("/sign-in"); got.Code != http.StatusOK {
+	if got := newClientOn(t, s, "wiki.beta.example").get("/api/state"); got.Code != http.StatusOK {
 		t.Errorf("the own domain: %d", got.Code)
 	}
 	if got := change("acme", url.Values{"do": {"add-host"}, "host": {"wiki.beta.example"}}); got != http.StatusBadRequest {
 		t.Errorf("a domain twice: %d", got)
 	}
 	change("beta", url.Values{"do": {"remove-host"}, "host": {"wiki.beta.example"}})
-	if got := newClient(t, s, "wiki.beta.example").get("/sign-in"); got.Code != http.StatusNotFound {
+	if got := newClientOn(t, s, "wiki.beta.example").get("/api/state"); got.Code != http.StatusNotFound {
 		t.Errorf("a removed domain: %d", got.Code)
 	}
 	if got := change("main", url.Values{"do": {"lock"}}); got != http.StatusBadRequest {
@@ -153,8 +143,8 @@ func TestTheHosterManagesTenants(t *testing.T) {
 			t.Errorf("%s: %d", id, got)
 		}
 	}
-	if got := change("beta", url.Values{"do": {"invite"}, "admin_login": {"bea"}, "admin_name": {"Bea"}}); got != http.StatusBadRequest {
-		t.Errorf("a second invitation for a login invited: %d", got)
+	if got := change("beta", url.Values{"do": {"invite"}, "admin_login": {"bea"}, "admin_name": {"Bea"}}); got != http.StatusNotFound {
+		t.Errorf("an invitation: %d", got)
 	}
 	if got := change("beta", url.Values{"do": {"explode"}}); got != http.StatusNotFound {
 		t.Errorf("an unknown action: %d", got)
@@ -194,8 +184,8 @@ func TestTheHosterManagesTenants(t *testing.T) {
 	}
 }
 
-// TestTheHosterSeesNoContent: the hoster sees counts, never content; its host has no way into a workspace; its session
-// is worth nothing on a tenant's host; and a tenant's administrator gets nowhere on the hoster's pages.
+// TestTheHosterSeesNoContent: the hoster sees counts, never content; its host has no way into a workspace; a tenant's
+// administrator gets nowhere on the hoster's pages, nor does someone without the role of the app on the hoster host.
 func TestTheHosterSeesNoContent(t *testing.T) {
 	s, _, h := hosterSite(t)
 	acme := newClient(t, s, acmeHost)
@@ -219,26 +209,20 @@ func TestTheHosterSeesNoContent(t *testing.T) {
 			t.Errorf("%s on the hoster host: %d", target, got.Code)
 		}
 	}
-	// The hoster's session, carried to the tenant's host by hand.
-	carried := newClient(t, s, acmeHost)
-	carried.cookies = h.cookies
-	if got := carried.get("/api/state"); got.Code == http.StatusOK {
-		t.Errorf("the hoster's session opens acme: %s", got.Body.String())
-	}
 	if got := acme.get("/hoster"); got.Code != http.StatusNotFound {
 		t.Errorf("a tenant's administrator on the hoster pages: %d", got.Code)
 	}
-	gate := newClient(t, s, hosterHost)
-	gate.headers = gateHeaders
-	if got := gate.get("/hoster"); got.Code == http.StatusOK {
-		t.Error("forged gate headers on the hoster host")
+	someone := newClient(t, s, hosterHost)
+	someone.headers = bob
+	if got := someone.get("/hoster"); got.Code != http.StatusNotFound {
+		t.Errorf("someone without the role on the hoster host: %d", got.Code)
 	}
 }
 
 // TestLimitsShowInTheWeb: past its limit of users, a tenant lets no new account in, also through the gate; past its
 // limit of storage, a block is refused with a reason.
 func TestLimitsShowInTheWeb(t *testing.T) {
-	s, database := signInSite(t, gateOnly, Options{})
+	s, database := dbSite(t, Options{})
 	anna := newClientWith(t, s, gateHeaders)
 	team := anna.sharedCollection(`{"title":"Team"}`)
 	plan := decode[apiNode](t, anna.post("/api/pages", `{"title":"Plan","parent":"`+team.ID+`"}`))
@@ -259,6 +243,13 @@ func TestLimitsShowInTheWeb(t *testing.T) {
 	if got := anna.post("/api/pages/"+plan.ID+"/blocks", `{"md":"fits"}`); got.Code != http.StatusCreated && got.Code != http.StatusOK {
 		t.Errorf("a block that fits: %d", got.Code)
 	}
+}
+
+// newClientOn is a client with anna's headers of the gate on a host.
+func newClientOn(t *testing.T, s *site, host string) *client {
+	c := newClient(t, s, host)
+	c.headers = gateHeaders
+	return c
 }
 
 func TestMeters(t *testing.T) {
