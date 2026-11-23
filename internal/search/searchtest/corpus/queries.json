@@ -1002,6 +1002,54 @@
   "kind": "typo"
  },
  {
+  "q": "Kase bedienen",
+  "page": "handbuch/kasse-bedienen",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Mial Signatur",
+  "page": "handbuch/mail-signatur",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Wlna Konzept",
+  "page": "it-doku/wlan-konzept",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Bodn wechseln",
+  "page": "runbooks/bondrucker-wechseln",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Mial Konfiguration",
+  "page": "it-doku/mail-konfiguration",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Wage kalibrieren",
+  "page": "runbooks/waage-kalibrieren",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Wage Wert",
+  "page": "fehlerkatalog/e-3100",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
+  "q": "Wlna Gast",
+  "page": "runbooks/wlan-gast",
+  "heading": "",
+  "kind": "typo-short"
+ },
+ {
   "q": "Kasse druckt keinen Bon",
   "page": "fehlerkatalog/e-1050",
   "heading": "",

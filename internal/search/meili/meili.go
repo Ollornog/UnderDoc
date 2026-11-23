@@ -37,7 +37,7 @@ var settings = map[string]any{
 	"typoTolerance": map[string]any{
 		"enabled":             true,
 		"disableOnNumbers":    true,
-		"minWordSizeForTypos": map[string]int{"oneTypo": 5, "twoTypos": 9},
+		"minWordSizeForTypos": map[string]int{"oneTypo": 4, "twoTypos": 9},
 	},
 	"localizedAttributes": []map[string]any{{"attributePatterns": []string{"title", "heading", "tags", "body"}, "locales": []string{"deu"}}},
 	"pagination":          map[string]int{"maxTotalHits": search.MaxLimit},

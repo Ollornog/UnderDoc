@@ -132,8 +132,8 @@ before text, marks, exact words.
 ### The German corpus
 
 `internal/search/searchtest/corpus` holds 201 German pages of a made-up retail company: an error catalogue of 64 codes in
-many formats, 40 runbooks, 37 chapters of a handbook, 30 sets of minutes and 30 pages of IT documentation, with 179
-questions and the page, and for some the section, that should come first. The questions of the kinds `code`,
+many formats, 40 runbooks, 37 chapters of a handbook, 30 sets of minutes and 30 pages of IT documentation, with 187
+questions (179 until T-24 added eight of the kind `typo-short`) and the page, and for some the section, that should come first. The questions of the kinds `code`,
 `code-variant` (the code written otherwise, or a part of it) and `code-absent` (a code that is nowhere) are a **hard
 gate**: each one has to be the first hit, or find nothing at all. For the other kinds, a floor below the measured value
 keeps the ranking from getting worse unnoticed.
@@ -174,7 +174,7 @@ keeps the ranking from getting worse unnoticed.
 
 OpenSearch analyses German text with a light stemmer (`light_german`), the German normalisation and the same stop words.
 Title, heading and text have a second field of word parts (n-grams of four and five letters) for compounds. It searches
-every word as written, some words, words with one or two typing errors (`AUTO:5,9`, as Meilisearch) on a third field of
+every word as written, some words, words with one or two typing errors (`AUTO:4,9` since T-24, as Meilisearch) on a third field of
 the words unstemmed, the last word as a prefix and the word parts, weighted title 8, heading 4, tags 3, text 1. Variants, MRR of all 179 questions:
 
 | Variant | wordform | compound | typo | phrase | all |
@@ -190,6 +190,27 @@ the words unstemmed, the last word as a prefix and the word parts, weighted titl
 Typing errors on the stems scored best on the corpus, but missed a typing error in a short word: the stemmer cuts `Wagen`
 to a stem too short for one, so `Wafen` found nothing (a test of the shared suite now). The chosen variant gives up 0.006
 of MRR, all of it in the questions in many words, for that.
+
+#### Typing errors from four letters (T-24, 2026-11-23)
+
+Until T-24 a word took a typing error from five letters on. A team wiki on Meilisearch allows one from four, because short
+words such as `Kasa` for `Kassa` found nothing otherwise. The corpus got eight questions of the kind `typo-short`, a
+word of four letters with one typing error next to a word as written (`Kase bedienen`, `Mial Signatur`, `Wlna Konzept`,
+`Bodn wechseln`, `Wage Wert`, …). MRR measured with both settings:
+
+| | typo-short | typo | phrase | all (187) | codes |
+|---|---|---|---|---|---|
+| Meilisearch, from five letters | 0.000 (found nothing) | 0.775 | 0.611 | 0.910 | 100 % first |
+| **Meilisearch, from four letters (chosen)** | **1.000** | 0.775 | 0.593 | **0.952** | 100 % first |
+| OpenSearch, `AUTO:5,9` | 0.823 | 0.950 | 0.663 | 0.958 | 100 % first |
+| **OpenSearch, `AUTO:4,9` (chosen)** | **1.000** | 0.950 | 0.663 | **0.966** | 100 % first |
+
+Noise: the first hits of short words as written stay the same (`Kasse`, `Waage`, `Lager`, `Mail`, `Bon`, `Plan`, `Ware`),
+since exact words rank before typing errors. More records match below them: `Ware` 21 → 47, `Plan` 6 → 32, `Wage` 1 → 25
+(Meilisearch, at most 50 counted). Two questions in words moved one or two places down (`Outlook verbindet nicht`,
+`Passwort vergessen`), which costs the kind phrase 0.018. Codes stay exact: they are searched through their own fields,
+never with a typing error, and every hard gate held. Four letters stays, for both engines; the floor `typo-short` 0.95 in
+the tests keeps it.
 
 Not measured: the `hyphenation_decompounder` and `hunspell` need a German hyphenation grammar or dictionary installed in
 the cluster, which the image does not bring.
