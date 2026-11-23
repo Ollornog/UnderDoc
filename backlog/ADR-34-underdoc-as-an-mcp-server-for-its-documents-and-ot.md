@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: UnderDoc as an MCP server for its documents and other sources
-status: offen
+status: erledigt
 id: ADR-34
 tags: [ai, mcp, sources]
 created: '2026-11-23'

@@ -102,6 +102,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[ADR-29](ADR-29-roles-on-groups-and-persons.md)** Roles for persons, groups and the tenant, the same for documents and files
 * ☑ **[ADR-30](ADR-30-samba-share.md)** Samba: a working copy on disk, a watcher, and a companion that UnderDoc steers without root
 * ☑ **[ADR-31](ADR-31-spreadsheets-as-tables.md)** Spreadsheets as native tables: read by UnderDoc, embedded by a local ID, never quietly wrong
-* ☐ **[ADR-33](ADR-33-ai-documentation-and-human-documentation.md)** AI documentation and human documentation
-* ☐ **[ADR-34](ADR-34-underdoc-as-an-mcp-server-for-its-documents-and-ot.md)** UnderDoc as an MCP server for its documents and other sources
-* ☐ **[ADR-35](ADR-35-what-the-gate-decides-and-what-the-app-decides.md)** What the gate decides and what the app decides
+* ☑ **[ADR-33](ADR-33-ai-documentation-and-human-documentation.md)** AI documentation and human documentation
+* ☑ **[ADR-34](ADR-34-underdoc-as-an-mcp-server-for-its-documents-and-ot.md)** UnderDoc as an MCP server for its documents and other sources
+* ☑ **[ADR-35](ADR-35-what-the-gate-decides-and-what-the-app-decides.md)** What the gate decides and what the app decides
+* ☑ **[ADR-36](ADR-36-nested-groups-and-rights-per-action-with-allow-and.md)** Nested groups, and rights per action with allow and deny

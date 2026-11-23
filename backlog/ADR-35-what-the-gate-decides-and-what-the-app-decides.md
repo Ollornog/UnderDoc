@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: What the gate decides and what the app decides
-status: offen
+status: erledigt
 id: ADR-35
 tags: [permissions, sign-in, tenants]
 created: '2026-11-23'
