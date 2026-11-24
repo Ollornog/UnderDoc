@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -117,6 +118,11 @@ func checkBody(body string) error {
 // AddBlock puts a new block after the block named by after, or first if after is empty. The block has its ID at once. A
 // text that breaks a blocking writing rule is refused with a *RuleError (T-20).
 func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) (Block, error) {
+	return db.AddBlockFrom(ctx, pageID, viewer, after, body, "")
+}
+
+// AddBlockFrom is AddBlock with the origin its version notes, such as where a pasted text was copied from (T-41).
+func (db *DB) AddBlockFrom(ctx context.Context, pageID, viewer, after, body, origin string) (Block, error) {
 	if err := checkBody(body); err != nil {
 		return Block{}, err
 	}
@@ -151,12 +157,49 @@ func (db *DB) AddBlock(ctx context.Context, pageID, viewer, after, body string) 
 		if err := syncRefs(ctx, tx, pageID, b.ID, body); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, b.ID, body, viewer); err != nil {
+		if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author, origin) VALUES ($1, $2, $3, $4, $5)", pageID, b.ID, body, viewer, origin); err != nil {
 			return err
 		}
 		return noteChange(ctx, tx, pageID, b.ID, [2]string{})
 	})
 	return b, err
+}
+
+// maxCopiedFrom is how many places the origin of one pasted change names at most.
+const maxCopiedFrom = 20
+
+// CopiedFrom is the origin of a version whose text was pasted from blocks of pages (T-41): "copy of <page>#b3, version
+// 4", the places separated by "; ", each with the number of versions its block has now. Only blocks the viewer sees are
+// named, so an origin claims nothing the viewer could not have copied; any other address, of a block that is not there
+// or of anything else, is left out, and nothing left is no origin. The copy stays a copy (ADR-22): nothing else ties it
+// to its source.
+func (db *DB) CopiedFrom(ctx context.Context, viewer string, refs []string) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		if len(out) == maxCopiedFrom {
+			break
+		}
+		a, ok := ParseAddress(ref)
+		if !ok || a.Block == "" || a.Sub != "" || IsTableID(a.Block) || seen[a.String()] {
+			continue
+		}
+		seen[a.String()] = true
+		if _, err := db.page(ctx, a.Object, viewer); err != nil {
+			continue
+		}
+		var n int
+		err := db.pool.QueryRow(ctx, `SELECT count(*) FROM block_versions
+			WHERE page = $1 AND block = $2 AND EXISTS (SELECT 1 FROM blocks WHERE page = $1 AND id = $2)`, a.Object, a.Block).Scan(&n)
+		if err != nil || n == 0 {
+			continue
+		}
+		out = append(out, a.String()+", version "+strconv.Itoa(n))
+	}
+	if len(out) == 0 {
+		return ""
+	}
+	return "copy of " + strings.Join(out, "; ")
 }
 
 // MoveBlock puts a block after the block named by after, or first if after is empty. Its text and ID stay, so no version is
@@ -198,6 +241,12 @@ func (db *DB) EditBlock(ctx context.Context, pageID, blockID, viewer, body strin
 // EditBlockWays is EditBlock with the ways chosen for parts in use that the new text takes away, by target ("b3.t2") or
 // for all ("*").
 func (db *DB) EditBlockWays(ctx context.Context, pageID, blockID, viewer, body string, ways map[string]Way) (Block, error) {
+	return db.EditBlockFrom(ctx, pageID, blockID, viewer, body, ways, "")
+}
+
+// EditBlockFrom is EditBlockWays with the origin the new version notes, such as where a pasted text was copied from
+// (T-41).
+func (db *DB) EditBlockFrom(ctx context.Context, pageID, blockID, viewer, body string, ways map[string]Way, origin string) (Block, error) {
 	if err := checkBody(body); err != nil {
 		return Block{}, err
 	}
@@ -205,13 +254,13 @@ func (db *DB) EditBlockWays(ctx context.Context, pageID, blockID, viewer, body s
 		return Block{}, err
 	}
 	err := db.change(ctx, pageID, viewer, func(tx pgx.Tx) error {
-		return db.editBlock(ctx, tx, pageID, blockID, viewer, body, ways)
+		return db.editBlock(ctx, tx, pageID, blockID, viewer, body, ways, origin)
 	})
 	return Block{ID: blockID, Body: body}, err
 }
 
 // editBlock is the change of EditBlockWays inside the transaction of a change of the page.
-func (db *DB) editBlock(ctx context.Context, tx pgx.Tx, pageID, blockID, viewer, body string, ways map[string]Way) error {
+func (db *DB) editBlock(ctx context.Context, tx pgx.Tx, pageID, blockID, viewer, body string, ways map[string]Way, origin string) error {
 	var old string
 	if err := tx.QueryRow(ctx, "SELECT body FROM blocks WHERE page = $1 AND id = $2", pageID, blockID).Scan(&old); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -238,7 +287,7 @@ func (db *DB) editBlock(ctx context.Context, tx pgx.Tx, pageID, blockID, viewer,
 	if err := syncRefs(ctx, tx, pageID, blockID, body); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author) VALUES ($1, $2, $3, $4)", pageID, blockID, body, viewer); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO block_versions (page, block, body, author, origin) VALUES ($1, $2, $3, $4, $5)", pageID, blockID, body, viewer, origin); err != nil {
 		return err
 	}
 	return noteChange(ctx, tx, pageID, blockID, [2]string{})

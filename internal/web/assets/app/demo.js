@@ -1738,7 +1738,7 @@ function blocksHtml(d,w,i){
   const key=Object.keys(D).find(k=>D[k]===d);
   if(d.t==='notes'&&!(editing(w)&&d.canEdit))return notesHtml(d,w,i);
   /* Each block is C22's wrapper in the typeset flow: div[data-block] with its handle, then what the block renders. */
-  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-block="${b.id}"${b.align?` class="text-${b.align}"`:''}${b.parts&&b.parts.length?` data-parts="${esc(JSON.stringify(b.parts))}"`:''}>${handleHtml(d,w,i,b)}${b.html}${window.UDKinds?UDKinds.blockHint(d,b,key):''}</div>`).join('')+(window.UDKinds?UDKinds.removedHtml(d,key):''):`<p class="text-muted-foreground">Empty.${d.canEdit?' Click Reading to write.':''}</p>${window.UDKinds?UDKinds.removedHtml(d,key):''}`;
+  if(!(editing(w)&&d.canEdit))return d.blocks.length?d.blocks.map(b=>`<div id="w${i}${b.id}" data-block="${b.id}"${d.db&&d.sid?` data-page="${esc(d.sid)}"`:''}${b.align?` class="text-${b.align}"`:''}${b.parts&&b.parts.length?` data-parts="${esc(JSON.stringify(b.parts))}"`:''}>${handleHtml(d,w,i,b)}${b.html}${window.UDKinds?UDKinds.blockHint(d,b,key):''}</div>`).join('')+(window.UDKinds?UDKinds.removedHtml(d,key):''):`<p class="text-muted-foreground">Empty.${d.canEdit?' Click Reading to write.':''}</p>${window.UDKinds?UDKinds.removedHtml(d,key):''}`;
   return edHtml(d,i,key);
 }
 
@@ -1791,13 +1791,13 @@ const edAPI=key=>{
     if(!r.ok){const e=new Error(String(r.status));try{e.detail=(await r.json()).error;}catch(x){}throw e;}return r.status===204?null:r.json();};
   return {
     load:async()=>{const r=await fetch('/api/doc/'+pathOf(D[key].sid),{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));return ((await r.json()).blocks||[]).map(b=>({id:b.id,md:b.md,usedIn:b.usedIn}));},
-    edit:(id,md,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(ways?{md,ways}:{md})}),
+    edit:(id,md,ways,copied)=>call('/blocks/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({md,...(ways?{ways}:{}),...(copied?{copied}:{})})}),
     remove:(id,ways)=>call('/blocks/'+encodeURIComponent(id),{method:'DELETE',...(ways?{body:JSON.stringify({ways})}:{})}),
     mark:(id,start,end,name)=>call('/blocks/'+encodeURIComponent(id)+'/parts',{method:'POST',body:JSON.stringify({start,end,name})}),
     excerpt:async(id,start,end)=>(await call('/blocks/'+encodeURIComponent(id)+'/excerpt',{method:'POST',body:JSON.stringify({start,end})})).md,
     lost:async(id,md)=>(await call('/blocks/'+encodeURIComponent(id)+'/lost',{method:'POST',body:JSON.stringify(md===null?{delete:true}:{md})})).inUse,
     move:(id,after)=>call('/blocks/'+encodeURIComponent(id)+'/move',{method:'POST',body:JSON.stringify({after})}),
-    add:(after,md)=>call('/blocks',{method:'POST',body:JSON.stringify({after,md})}),
+    add:(after,md,copied)=>call('/blocks',{method:'POST',body:JSON.stringify({after,md,...(copied?{copied}:{})})}),
   };
 };
 /* What the editor saved, the page keeps for reading, as the server answered it. */
@@ -1817,6 +1817,8 @@ function makeEditor(key){
   e.ed=window.UnderDocEditor.create({
     blocks:d.blocks.map(b=>({id:b.id,md:b.raw,usedIn:(b.usedIn||[]).map(plain),align:b.align,parts:b.parts||[]})),
     label:'Page '+plain(d.n)+', Markdown',
+    /* Where a copy from this page comes from (T-41). */
+    page:d.sid,
     api:edAPI(key),
     handle:id=>{const b=d.blocks.find(x=>x.id===id)||{id,usedIn:[]};return handleHtml(d,at(e.w),e.w,b,true);},
     slash:SLASH.map(x=>({...x,icon:icon(x.i)})),
@@ -1929,17 +1931,52 @@ function versionsHtml(d){
   if(!d.versions)return '<p class="text-muted-foreground text-xs">Loading…</p>';
   if(!d.versions.length)return '<p class="text-muted-foreground text-xs">No changes yet.</p>';
   /* A change by an agent says so (ADR-33). */
-  return factList(d.versions.map(v=>[v.at,`${v.who}${v.ai?' (AI)':''} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}`]));
+  return factList(d.versions.map(v=>[v.at,`${v.who}${v.ai?' (AI)':''} · #${v.block} ${v.deleted?'deleted':v.excerpt||'(empty)'}${v.origin?` <span class="text-muted-foreground" data-origin>· ${v.origin}</span>`:''}`]));
+}
+/* Where a version came from (ADR-22, T-41): a copy names its source and version, moved text where it went; the pages the
+   viewer sees are links with their titles, the server already took out the others. */
+function originHtml(v){
+  if(!v.origin)return '';
+  let out=esc(v.origin);
+  for(const p of v.places||[]){const [sid,blk]=p.ref.split('#');
+    out=out.split(esc(p.ref)).join(`<a class="font-medium underline underline-offset-4" href="/o/${esc(sid)}${blk?'#'+esc(blk):''}">${esc(p.title)}${blk?' #'+esc(blk):''}</a>`);}
+  return out;
 }
 /* Marked text in the editor (ADR-22): Copy puts it on the clipboard as plain text with no tie; Embed makes it a part, or
    finds the part it already is, and puts its address on the clipboard, to paste where it should show. */
 async function markOrCopy(e,embed,name=''){
-  const put=(text,said)=>(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast(said),()=>toast(text));
-  if(!embed){put(await e.ed.copySelection(),'Copied as text, with no tie to where it came from.');return;}
+  const put=(text,said,origin)=>(origin?clipWrite(text,origin):navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(()=>toast(said),()=>toast(text));
+  /* The origin is taken once the copy saved the page, so it names the blocks as they are stored. */
+  if(!embed){const text=await e.ed.copySelection();put(text,'Copied as text, with no tie to where it came from.',e.ed.copyOrigin());return;}
   const r=await e.ed.markSelection(name);
   if(r.error){toast(r.error);return;}
   window.lastMarked=r;put(location.origin+r.url,'Address copied. Paste it into a paragraph or alone on a line to embed it there.');
 }
+/* clipWrite puts a text on the clipboard, with where it came from beside it when known (T-41): a paste into a page notes
+   that in the version, and the copy stays a copy. The origin goes only through a copy event of the page itself. */
+function clipWrite(text,origin){
+  const ORIGIN=window.UnderDocEditor&&UnderDocEditor.ORIGIN;
+  let done=false;
+  const on=ev=>{if(!ev.clipboardData)return;ev.udOwn=true;ev.clipboardData.setData('text/plain',text);
+    if(origin&&ORIGIN)ev.clipboardData.setData(ORIGIN,JSON.stringify({...origin,text}));ev.preventDefault();done=true;};
+  document.addEventListener('copy',on,true);
+  try{document.execCommand('copy');}catch(x){}
+  document.removeEventListener('copy',on,true);
+  return done?Promise.resolve():(navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject());
+}
+/* Copying while reading a page of the database carries where it came from (T-41), when the marked text lies in its
+   blocks only: the page and its blocks beside the text, as the editor does. The text and its HTML are the browser's. */
+document.addEventListener('copy',ev=>{
+  const ORIGIN=window.UnderDocEditor&&UnderDocEditor.ORIGIN,sel=getSelection();
+  if(ev.defaultPrevented||!ORIGIN||!ev.clipboardData||!sel||sel.isCollapsed||!sel.rangeCount)return;
+  const r=sel.getRangeAt(0),inBlock=n=>{const x=n&&(n.nodeType===1?n:n.parentElement);return x&&x.closest('[data-block][data-page]');};
+  if(!inBlock(r.startContainer)||!inBlock(r.endContainer))return;
+  const blocks=[...document.querySelectorAll('[data-block][data-page]')].filter(b=>r.intersectsNode(b)),page=blocks.length&&blocks[0].dataset.page;
+  if(!page||blocks.some(b=>b.dataset.page!==page))return;
+  const text=sel.toString(),box=document.createElement('div');box.append(r.cloneContents());
+  ev.clipboardData.setData('text/plain',text);ev.clipboardData.setData('text/html',box.innerHTML);
+  ev.clipboardData.setData(ORIGIN,JSON.stringify({page,blocks:blocks.map(b=>b.dataset.block),text}));ev.preventDefault();
+});
 /* The placeholder of something deleted everywhere (ADR-22): restoring it brings every use back; keeping a copy writes it
    into the page that embeds it. Every open page of the database draws again. */
 async function removedAct(id,what,page){
@@ -1954,7 +1991,7 @@ const pageURL=id=>'/api/pages/'+encodeURIComponent(D[id].sid);
 async function loadVersions(id){
   if(!D[id].canEdit)return;
   try{const r=await fetch(pageURL(id)+'/versions',{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(String(r.status));
-    D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt),ai:!!v.ai}));}
+    D[id].versions=(await r.json()).map(v=>({at:when(v.at),who:esc(v.who),block:esc(v.block),deleted:!!v.deleted,excerpt:esc(v.excerpt),ai:!!v.ai,origin:originHtml(v)}));}
   catch(e){D[id].versions=[];}
   render();
 }

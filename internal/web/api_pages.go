@@ -10,6 +10,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -75,14 +76,22 @@ type apiChecked struct {
 	At string `json:"at"`
 }
 
+// apiPlace is a page an origin names, by its address and title.
+type apiPlace struct {
+	Ref   string `json:"ref"`
+	Title string `json:"title"`
+}
+
 type apiVersion struct {
 	Block   string `json:"block"`
 	Author  string `json:"who"`
 	At      string `json:"at"`
 	Deleted bool   `json:"deleted,omitempty"`
 	Excerpt string `json:"excerpt"`
-	// Origin says where a copy came from or where moved text went (ADR-22).
-	Origin string `json:"origin,omitempty"`
+	// Origin says where a copy came from or where moved text went (ADR-22, T-41). An address of a page the viewer does
+	// not see is not in it; Places names the pages of the addresses that are.
+	Origin string     `json:"origin,omitempty"`
+	Places []apiPlace `json:"places,omitempty"`
 	// AI tells that an agent wrote the change (ADR-33).
 	AI bool `json:"ai,omitempty"`
 }
@@ -548,18 +557,31 @@ func (h *handler) apiAddBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		After string `json:"after"`
 		Body  string `json:"md"`
+		// Copied names the blocks a pasted text came from (T-41), for the origin of the version.
+		Copied []string `json:"copied"`
 	}
 	user, ok := h.change(w, r, 1<<20, &in)
 	if !ok {
 		return
 	}
-	b, err := h.options.DB.AddBlock(r.Context(), r.PathValue("id"), user.ID, in.After, in.Body)
+	b, err := h.options.DB.AddBlockFrom(r.Context(), r.PathValue("id"), user.ID, in.After, in.Body, h.copiedFrom(r, user.ID, in.Copied))
 	if h.failed(w, err, "new block") {
 		return
 	}
 	out := h.block(r, r.PathValue("id"), b, nil)
 	out.Findings = h.findings(r, r.PathValue("id"))
 	writeJSON(w, http.StatusCreated, out)
+}
+
+// copiedFrom is the origin of a change pasted from the blocks it names (T-41); more than a page could hold are not read.
+func (h *handler) copiedFrom(r *http.Request, viewer string, copied []string) string {
+	if len(copied) == 0 {
+		return ""
+	}
+	if len(copied) > 100 {
+		copied = copied[:100]
+	}
+	return h.options.DB.CopiedFrom(r.Context(), viewer, copied)
 }
 
 // apiMoveBlock puts a block after another, or first.
@@ -593,12 +615,15 @@ func (h *handler) apiEditBlock(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Body string            `json:"md"`
 		Ways map[string]db.Way `json:"ways"`
+		// Copied names the blocks a pasted text came from (T-41), for the origin of the version.
+		Copied []string `json:"copied"`
 	}
 	user, ok := h.change(w, r, 1<<20, &in)
 	if !ok {
 		return
 	}
-	b, err := h.options.DB.EditBlockWays(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Body, in.Ways)
+	b, err := h.options.DB.EditBlockFrom(r.Context(), r.PathValue("id"), r.PathValue("block"), user.ID, in.Body, in.Ways,
+		h.copiedFrom(r, user.ID, in.Copied))
 	if h.inUse(w, r, err) || h.failed(w, err, "block") {
 		return
 	}
@@ -777,14 +802,59 @@ func (h *handler) apiVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := []apiVersion{}
+	titles := map[string]string{}
 	for _, v := range versions {
 		excerpt := []rune(strings.Join(strings.Fields(v.Body), " "))
 		if len(excerpt) > 80 {
 			excerpt = append(excerpt[:79], '…')
 		}
-		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt), Origin: v.Origin, AI: v.Agent})
+		origin, places := h.originSeen(r, user.ID, v.Origin, titles)
+		out = append(out, apiVersion{Block: v.Block, Author: v.Author, At: stamp(v.At), Deleted: v.Deleted, Excerpt: string(excerpt),
+			Origin: origin, Places: places, AI: v.Agent})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// originAddress finds the addresses in the origin of a version: after "copy of", "moved from" or "moved to" at its start,
+// or after a comma or semicolon of such an origin.
+var originAddress = regexp.MustCompile(`(?:^copy of |^moved from |^moved to |, |; )([0-9a-hjkmnp-tv-z]{10}(?:#[^\s,;]+)?)`)
+
+// originSeen is the origin of a version as the viewer may read it: an address of a page they do not see becomes "a page
+// you do not see", as nothing is told of such a page (ADR-22); the pages they see come with their titles. titles keeps
+// what was looked up for the versions of one answer ("" for unseen).
+func (h *handler) originSeen(r *http.Request, viewer, origin string, titles map[string]string) (string, []apiPlace) {
+	if !strings.HasPrefix(origin, "copy of ") && !strings.HasPrefix(origin, "moved ") {
+		return origin, nil
+	}
+	var places []apiPlace
+	var out strings.Builder
+	last := 0
+	for _, m := range originAddress.FindAllStringSubmatchIndex(origin, -1) {
+		ref := origin[m[2]:m[3]]
+		a, ok := db.ParseAddress(ref)
+		if !ok {
+			continue
+		}
+		title, known := titles[a.Object]
+		if !known {
+			if o, err := h.options.DB.Object(r.Context(), a.Object, viewer); err == nil {
+				title = cmp.Or(o.Title, "Untitled")
+			}
+			titles[a.Object] = title
+		}
+		out.WriteString(origin[last:m[2]])
+		last = m[3]
+		if title == "" {
+			out.WriteString("a page you do not see")
+			continue
+		}
+		out.WriteString(ref)
+		if !slices.ContainsFunc(places, func(p apiPlace) bool { return p.Ref == ref }) {
+			places = append(places, apiPlace{Ref: ref, Title: title})
+		}
+	}
+	out.WriteString(origin[last:])
+	return out.String(), places
 }
 
 // apiCreateDivider puts a line or a space into a collection, folder or page, after the entry it names or first.

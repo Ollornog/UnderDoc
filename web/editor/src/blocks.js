@@ -120,11 +120,17 @@ export function plan(stored, segments, confirmed = new Set()) {
   const joined = new Set(stored.filter((b) => !owner.has(b.id)).map((b) => normalize(b.md)).filter(Boolean));
   const sequence = [];
   const edits = [];
+  // Where in the whole text each new block and each changed block stands, for what was pasted into it (T-41).
+  const at = new Map();
+  const put = (list, entry, from, to) => {
+    list.push(entry);
+    at.set(entry, [from, to]);
+  };
   for (const s of segments) {
     const own = s.id && owner.get(s.id) === s;
     if (!own) {
-      if (s.line) sequence.push({ new: normalize(s.text), place: { replace: s.line } });
-      else for (const [f, t] of chunks(s.text)) sequence.push({ new: s.text.slice(f, t), place: { insert: s.body[0] + f } });
+      if (s.line) put(sequence, { new: normalize(s.text), place: { replace: s.line } }, s.body[0], s.body[1]);
+      else for (const [f, t] of chunks(s.text)) put(sequence, { new: s.text.slice(f, t), place: { insert: s.body[0] + f } }, s.body[0] + f, s.body[0] + t);
       continue;
     }
     const old = byId.get(s.id);
@@ -136,7 +142,7 @@ export function plan(stored, segments, confirmed = new Set()) {
     const part = (r) => r && joined.has(normalize(s.text.slice(r[0], r[1])));
     if (split && (part(split.before) || part(split.after))) split = null;
     if (!split) {
-      edits.push({ id: s.id, md: normalize(s.text) });
+      put(edits, { id: s.id, md: normalize(s.text) }, s.body[0], s.body[1]);
       sequence.push({ old: s.id });
       continue;
     }
@@ -146,14 +152,16 @@ export function plan(stored, segments, confirmed = new Set()) {
     const inside = (r) => chunks(s.text).filter(([f, t]) => f >= r[0] && t <= r[1]);
     if (split.before) {
       inside(split.before).forEach(([f, t], k) => {
-        sequence.push({
-          new: s.text.slice(f, t),
-          place: k ? { insert: base + f } : { before: s.id, line: s.line, keep: base + split.keep[0] },
-        });
+        put(
+          sequence,
+          { new: s.text.slice(f, t), place: k ? { insert: base + f } : { before: s.id, line: s.line, keep: base + split.keep[0] } },
+          base + f,
+          base + t,
+        );
       });
     }
     sequence.push({ old: s.id });
-    if (split.after) for (const [f, t] of inside(split.after)) sequence.push({ new: s.text.slice(f, t), place: { insert: base + f } });
+    if (split.after) for (const [f, t] of inside(split.after)) put(sequence, { new: s.text.slice(f, t), place: { insert: base + f } }, base + f, base + t);
   }
   const present = new Set(owner.keys());
   const deletes = [];
@@ -164,7 +172,25 @@ export function plan(stored, segments, confirmed = new Set()) {
     else deletes.push(b.id);
   }
   const order = sequence.filter((e) => e.old).map((e) => e.old);
-  return { sequence, edits, deletes, asks, order, moves: moves(stored.map((b) => b.id), order) };
+  return { sequence, edits, deletes, asks, order, moves: moves(stored.map((b) => b.id), order), at };
+}
+
+/**
+ * copiedInto names, for each new or changed block of plan p, the places the text pasted into it was copied from
+ * (T-41): pasted is [{from, to, copied: [address]}] in the whole text. A block gets them when a pasted stretch lies in
+ * it; it keeps a copy a copy, nothing ties it to its source. Sets e.copied on the entries of p and returns p.
+ */
+export function copiedInto(p, pasted) {
+  if (!pasted.length) return p;
+  for (const [entry, [from, to]] of p.at) {
+    const names = [];
+    for (const x of pasted) {
+      if (x.to <= from || x.from >= to) continue;
+      for (const c of x.copied) if (!names.includes(c)) names.push(c);
+    }
+    if (names.length) entry.copied = names;
+  }
+  return p;
 }
 
 /** moves returns the calls {id, after} that bring the stored order to the wanted one. */
@@ -289,4 +315,27 @@ export const stripParts = (text) => text.replace(PART_MARKER, '');
 export function imageLine(name, url) {
   const alt = String(name).replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[[\]\\]/g, '').replace(/\s+/g, ' ').trim() || 'image';
   return `![${alt}](${url})`;
+}
+
+/** ORIGIN is the clipboard format of where a copy came from (T-41): {page, blocks, text}. */
+export const ORIGIN = 'application/x-underdoc-origin';
+
+/**
+ * originOf reads the origin on a clipboard as addresses of blocks ("<page>#b3"), when its text is the text pasted;
+ * otherwise null: text from anywhere else carries none, and an origin left beside other text names nothing.
+ */
+export function originOf(data) {
+  if (!data) return null;
+  try {
+    const raw = data.getData(ORIGIN);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    const plain = (t) => String(t).replace(/\r\n?/g, '\n').trim();
+    if (!o || typeof o.page !== 'string' || !Array.isArray(o.blocks) || typeof o.text !== 'string') return null;
+    if (plain(o.text) !== plain(data.getData('text/plain'))) return null;
+    const blocks = o.blocks.filter((b) => typeof b === 'string').slice(0, 20);
+    return blocks.length ? blocks.map((b) => o.page + '#' + b) : null;
+  } catch {
+    return null;
+  }
 }

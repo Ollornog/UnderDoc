@@ -12,7 +12,7 @@ import { Decoration, EditorView, WidgetType, keymap, drawSelection, showTooltip 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 import { LanguageSupport, syntaxTree } from '@codemirror/language';
-import { MARKER, markerLine, normalize, joinBlocks, plan, idle, kindOf, turnInto, embedFor, inlineEmbedFor, EMBED, PART_MARKER, partsIn, stripParts, imageLine } from './blocks.js';
+import { MARKER, markerLine, normalize, joinBlocks, plan, copiedInto, ORIGIN, originOf, idle, kindOf, turnInto, embedFor, inlineEmbedFor, EMBED, PART_MARKER, partsIn, stripParts, imageLine } from './blocks.js';
 import { run, Conflict } from './save.js';
 import { findPlain } from './plain.js';
 import * as tables from './tables.js';
@@ -1336,6 +1336,42 @@ const pasteAddress = EditorView.domEventHandlers({
   },
 });
 
+// ---- Where a pasted text came from (T-41). Copying from a page of UnderDoc puts, beside the text, the page and its blocks
+// on the clipboard (ORIGIN); pasting it into a page notes the stretch it landed in, and saving that stretch tells the
+// server, which writes the origin into the version of the block. A copy stays a copy: nothing ties it to its source. Text
+// from anywhere else carries no origin, and neither does an origin whose text is not the text pasted.
+const setPending = StateEffect.define();
+const clearPasted = StateEffect.define();
+let pastedCount = 0;
+const pasted = StateField.define({
+  create: () => ({ pending: null, list: [] }),
+  update(v, tr) {
+    let { pending, list } = v;
+    for (const e of tr.effects) {
+      if (e.is(setPending)) pending = e.value;
+      if (e.is(clearPasted)) list = list.filter((x) => !e.value.includes(x.n));
+    }
+    if (tr.docChanged) {
+      list = list.map((x) => ({ ...x, from: tr.changes.mapPos(x.from, 1), to: tr.changes.mapPos(x.to, -1) })).filter((x) => x.to > x.from);
+      if (pending && tr.isUserEvent('input.paste')) {
+        const copied = pending;
+        tr.changes.iterChanges((_fa, _ta, from, to) => {
+          if (to > from) list = [...list, { n: ++pastedCount, from, to, copied }];
+        });
+      }
+      pending = null;
+    }
+    return pending === v.pending && list === v.list ? v : { pending, list };
+  },
+});
+
+// Every paste says whether it carries an origin, before the paste itself is handled.
+const pasteOrigin = EditorView.domEventObservers({
+  paste(event, view) {
+    view.dispatch({ effects: setPending.of(originOf(event.clipboardData)) });
+  },
+});
+
 // ---- Pasted and dropped images become attachments of the page (ADR-28): the workspace uploads each, and the editor
 // puts a line that shows it where it was pasted or dropped. Other files are left to the browser.
 function insertImages(view, files, pos) {
@@ -1472,6 +1508,8 @@ class PageEditor {
           ),
           keymap.of([...markdownKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           todoShortcut,
+          pasted,
+          pasteOrigin,
           pasteImages,
           pasteAddress,
           atomicMarkers,
@@ -1483,6 +1521,25 @@ class PageEditor {
       }),
     });
     callbacks.set(this.view, options.on || {});
+    // A copy or cut from this page carries where it came from (T-41). The blocks are read before the editor handles the
+    // event (a cut takes the text away), the clipboard is written after it, where its text is.
+    let copying = null;
+    const before = () => {
+      const sel = this.view.state.selection.main;
+      copying = sel.empty ? null : this.copiedBlocks(sel.from, sel.to);
+    };
+    const after = (event) => {
+      const data = event.clipboardData;
+      const blocks = copying;
+      copying = null;
+      if (event.udOwn || !data || !blocks || !blocks.length || !this.options.page) return;
+      const text = data.getData('text/plain');
+      if (text) data.setData(ORIGIN, JSON.stringify({ page: this.options.page, blocks, text }));
+    };
+    for (const kind of ['copy', 'cut']) {
+      this.view.dom.addEventListener(kind, before, true);
+      this.view.dom.addEventListener(kind, after);
+    }
     this.view.dom.addEventListener('mousedown', (e) => {
       if (e.target.closest && e.target.closest(':is([data-ask], [data-plain-ask], .cm-ud-marker) button')) e.preventDefault();
     });
@@ -1576,7 +1633,8 @@ class PageEditor {
         return;
       }
     }
-    const p = plan(this.stored, segments(state), this.confirmed);
+    const pastes = state.field(pasted).list;
+    const p = copiedInto(plan(this.stored, segments(state), this.confirmed), pastes);
     this.ask(p.asks);
     if (idle(p)) {
       if (!p.asks.length) this.emit('status', this.everSaved ? 'Saved' : '');
@@ -1587,6 +1645,7 @@ class PageEditor {
     this.saving = (async () => {
       try {
         const done = await run(p, this.stored, this.options.api, this.options.on && this.options.on.saved, this.ways);
+        if (pastes.length && !this.destroyed) this.view.dispatch({ effects: clearPasted.of(pastes.map((x) => x.n)) });
         this.ways = {};
         this.stored = done.stored;
         this.place(done.made);
@@ -1725,6 +1784,21 @@ class PageEditor {
   }
 
   /**
+   * copiedBlocks names the blocks of this page a stretch of the text lies in, for the origin of a copy (T-41): only
+   * blocks as they are saved, so the origin names what the source holds; none if any of them has changes not yet saved.
+   */
+  copiedBlocks(from, to) {
+    const out = [];
+    for (const s of segments(this.view.state)) {
+      if (!s.id || to <= s.line[0] || from >= s.body[1]) continue;
+      const stored = this.stored.find((b) => b.id === s.id);
+      if (!stored || normalize(s.text) !== stored.md) return [];
+      if (!out.includes(s.id)) out.push(s.id);
+    }
+    return out;
+  }
+
+  /**
    * markSelection makes the selection a part that can be embedded (ADR-22): it saves first, then the server snaps the
    * edges and puts the markers, and its answer becomes the block's text. Answers {ref, url} or {error}.
    */
@@ -1773,6 +1847,14 @@ class PageEditor {
     } catch (err) {
       return plainText();
     }
+  }
+
+  /** copyOrigin is where the selection comes from, for Copy of the marked text (T-41): {page, blocks}, or null. */
+  copyOrigin() {
+    const sel = this.view.state.selection.main;
+    if (sel.empty || !this.options.page) return null;
+    const blocks = this.copiedBlocks(sel.from, sel.to);
+    return blocks.length ? { page: this.options.page, blocks } : null;
   }
 
   /** answer deletes a block used elsewhere, or puts its marker back where it was. */
@@ -2039,6 +2121,8 @@ class PageEditor {
 
 window.UnderDocEditor = {
   create: (options) => new PageEditor(options),
+  // The clipboard format of the origin of a copy (T-41), for copies made outside the editor.
+  ORIGIN,
   // For the tests and the documentation: the pure parts.
   joinBlocks,
   markerLine,

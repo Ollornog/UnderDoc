@@ -102,7 +102,8 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
   "master": "<page>#<block>"}`. `POST /api/removed/{id}/restore`, `POST /api/removed/{id}/copy {"page"}`.
 - Notices (`notices`, `GET /api/notices`) are kept for the inbox of M-16, which shows them; until then the dialog says
   that owners are told.
-- The version history notes where a copy came from and where moved text went (`origin` of a version).
+- The version history notes where a copy came from and where moved text went (`origin` of a version), also for a text
+  copied through the clipboard ([below](#where-a-copy-came-from)).
 - **Moving a block into another page** (`POST …/blocks/{block}/move {"page", "after"}`, who may change both pages) takes
   its parts and its section along under a new block ID there; every reference is rewritten in the same transaction and
   the old addresses redirect. The menu of a block offers it while reading and while editing (**Move to page**,
@@ -161,7 +162,22 @@ of a value shows in every diagram that uses it. The browser draws it with Mermai
 - A diagram Mermaid cannot read says why and shows its text. The theme of the workspace decides the colours.
 - D2, which renders on the server, stays the way back should the frame ever not do.
 
-## Still to come in M-3
+## Where a copy came from
 
-Where a text copied through the clipboard came from (the excerpt knows it, the editor does not hand it on to the version
-of the block it lands in yet): see M-3.
+A text copied from a page of UnderDoc and pasted into a page notes its origin in the version of the block it lands in
+(T-41, ADR-22): `copy of <page>#b3, version 4`, several places separated by `;`. A copy stays a copy: nothing ties it
+to its source, the source does not count it as a use, and a change of the source does not reach it.
+
+- **Copying** while reading (the marked text lies in blocks of one page of the database), in the editor (Ctrl+C or
+  Ctrl+X) or with **Copy** of the marking bar puts, beside the text, the page and its blocks on the clipboard
+  (`application/x-underdoc-origin`, `{page, blocks, text}`). In the editor only blocks as they are saved count; a copy
+  from a block with changes not saved yet carries no origin.
+- **Pasting** into the editor notes the stretch the text landed in, when the origin's text is the text pasted. Saving
+  sends the places with the block the stretch lies in, `PUT …/blocks/{block}` or `POST …/blocks` with
+  `{"copied": ["<page>#b3", …]}`.
+- **The server** names only blocks of pages the writer sees, that are there, with the number of versions each has now,
+  at most 20; anything else is left out, and nothing left is no origin. Text from anywhere else, or an origin beside
+  another text, notes nothing.
+- **The versions** (`GET /api/pages/{id}/versions`) show an origin with links to the pages the reader sees (`places`,
+  each with `ref` and `title`); an address of a page the reader does not see reads "a page you do not see", for every
+  origin that names addresses (`copy of`, `moved from`, `moved to`).

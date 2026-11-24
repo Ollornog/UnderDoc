@@ -72,6 +72,8 @@ loaded again with a notice, which offers to copy what was written since the last
   text. A revealed value is masked again after half a minute. A value typed as text after a label like "Password:" is asked about before the page is
   saved, and can become a password in place ([secrets.md](secrets.md), `src/plain.js`).
 - Pasting the address of a block or page alone on an empty line embeds it (ADR-18).
+- Pasting a text copied from a page of UnderDoc notes where it came from in the version of the block it lands in
+  ([parts.md](parts.md#where-a-copy-came-from), T-41); the copy stays a copy.
 - Pasting or dropping an image uploads it as an attachment of the page and puts `![name](address)` on a line of its own
   where it landed ([files.md](files.md#attachments-of-pages)).
 - The handle of a block: Copy address, Move up, Move down, Delete, Comment, the alignment of the block (left, center,

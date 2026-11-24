@@ -74,6 +74,12 @@ All notable changes to this project are documented in this file. The format foll
   `unsafe-inline`. The ELK layout (elkjs, EPL-2.0 or GPL-3.0) is left out, dagre lays out instead. A diagram Mermaid
   cannot read says why. Browser tests for a diagram with a value and a hostile label, and for a broken one; 6 mutations,
   all red.
+- **Where a pasted text came from** (T-41, [docs/parts.md](docs/parts.md#where-a-copy-came-from)). A text copied from a
+  page, while reading, in the editor or with Copy of the marking bar, carries its page and blocks on the clipboard;
+  pasted into a page, the version of the block it lands in notes `copy of <page>#b3, version 4`. The copy stays a copy.
+  The server names only blocks the writer sees and that are there; text from anywhere else notes nothing. The versions
+  link the pages the reader sees and say "a page you do not see" for the others, for every origin with addresses. Tests
+  in the browser, the API and the editor; 9 mutations, all red.
 - **Who reads what an agent writes** (T-38, attack round, [docs/mcp.md](docs/mcp.md#who-reads-what-an-agent-writes),
   migration 041). Every write through MCP (`write`, `replace`, `create_page`, `move`, dry runs) ends with one short line
   about the readers of the target, such as `readers: Sales (14), 1 more person, 1 public link`, when it says something new;
