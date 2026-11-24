@@ -539,10 +539,16 @@ func (b *browser) waitFor(expression string) bool {
 
 // settled waits until no request of the page is on its way: what a drop, a click or a menu entry sends is answered, so
 // that reloading the page next shows what the server kept. A fixed pause instead fails on a loaded host.
+//
+// A save of the editor is several requests one after another (the page, then each block), and between two of them, while
+// the answer of the first is read, none is on its way: counting requests alone let a test go on in that gap, before the
+// change reached the server, so it read the version before (TestAPastedTextNotesWhereItCameFrom, PR #205, 2026-11-24).
+// It waits for the editors as well, closed ones included.
 func (b *browser) settled() {
 	b.t.Helper()
-	if !b.waitFor(`window.inflight === 0`) {
-		b.t.Fatalf("requests are still on their way: %s", b.eval(`window.inflight`))
+	if !b.waitFor(`window.inflight === 0 && !(window.UnderDocEditor && window.UnderDocEditor.busy())`) {
+		b.t.Fatalf("requests are still on their way: %s, an editor saving: %s", b.eval(`window.inflight`),
+			b.eval(`String(!!(window.UnderDocEditor && window.UnderDocEditor.busy()))`))
 	}
 }
 
