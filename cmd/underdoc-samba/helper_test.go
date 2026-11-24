@@ -142,6 +142,47 @@ func TestCommentHasNoVariables(t *testing.T) {
 	}
 }
 
+// The folders a user only passes through are hidden from them in the share of the library (T-43): each user of the share
+// has a file read through %U with their list; the share itself hides every folder it hides from anyone, so a user whose
+// file is not read sees less, never more. Every list keeps the temporary files of a save hidden. Two runs keep two lists.
+func TestPassageIsHiddenPerUser(t *testing.T) {
+	h := &helper{cfg: config{run: t.TempDir(), owner: 1000, ownerGID: 1000}}
+	users := []samba.User{{Name: "anna", UID: 20000, NTHash: samba.NTHash("x")}, {Name: "bob", UID: 20001, NTHash: samba.NTHash("y")},
+		{Name: "carl", UID: 20002, NTHash: samba.NTHash("z")}}
+	state := samba.State{Users: users, Shares: []samba.Share{{Name: "Company", Path: "/srv/share/main/c", Users: []string{"anna", "bob", "carl"},
+		Veto: map[string][]string{"bob": {"HR"}, "carl": {"Board", "HR"}}}}}
+	for range 3 {
+		if err := h.writeState(state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(h.cfg.run, "shares.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := string(raw)
+	if !strings.Contains(conf, "\tveto files = /.~underdoc-*/Board/HR/\n") {
+		t.Errorf("the share does not hide all until a user's list is read:\n%s", conf)
+	}
+	at := strings.Index(conf, "include = ")
+	if at < 0 || !strings.HasSuffix(strings.Fields(conf[at:])[2], "/%U.conf") || strings.Index(conf, "veto files") > at {
+		t.Fatalf("no include per user after the share's list:\n%s", conf)
+	}
+	dir := filepath.Dir(strings.Fields(conf[at:])[2])
+	for user, want := range map[string]string{"anna": "veto files = /.~underdoc-*/\n", "bob": "veto files = /.~underdoc-*/HR/\n", "carl": "veto files = /.~underdoc-*/Board/HR/\n"} {
+		got, err := os.ReadFile(filepath.Join(dir, user+".conf"))
+		if err != nil || string(got) != want {
+			t.Errorf("%s: %q %v", user, got, err)
+		}
+	}
+	if old, _ := filepath.Glob(filepath.Join(h.cfg.run, "veto.*")); len(old) != 2 {
+		t.Errorf("the lists kept: %q", old)
+	}
+	if samba.ValidVeto("a*") || samba.ValidVeto("50%") || samba.ValidVeto("a/b") || samba.ValidVeto(`a\b`) || !samba.ValidVeto("HR 2026") {
+		t.Error("ValidVeto")
+	}
+}
+
 // The room UnderDoc gives reaches dfree command: a directory below a library answers the room of that library in blocks
 // of 1024 bytes, never more than the disk has; a library left out of the next list answers the disk again; the
 // directory of the room can be passed but not listed (ADR-30, 2026-11-20).

@@ -201,7 +201,7 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
   stays off the disk, where the scan would have taken it for deleted.
 - **No `%` in a share path:** smb.conf reads it as a variable (`%U` is the user's name), so a folder with `%` in its path is
   no share of its own, and the helper refuses such a path; in a comment it becomes a space.
-- **Known limit: guessed names above a share of one's own.** Passage (`--x`) through the folders above a share of one's
+- ~~**Known limit: guessed names above a share of one's own.**~~ (closed on 2026-11-24, below) Passage (`--x`) through the folders above a share of one's
   own lets its user tell an existing name there from a missing one (`NT_STATUS_ACCESS_DENIED` against
   `NT_STATUS_OBJECT_NAME_NOT_FOUND`): a guessed name is confirmed, nothing more. Decided on 2026-11-20 not to fix it:
   closing it needs the share's folder outside the tree (a bind mount per share, which the companion may not make without
@@ -258,3 +258,17 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
   it over the file; the saved file is a new inode that takes the ACL of its folder, so a right on a single file does not
   survive a save, and rights stay per folder. A file without read access stays hidden. The watcher takes the save as a
   version of the same object; the recordings are fixtures of its tests. Real Excel stays the maintainer's acceptance.
+
+## Settled on 2026-11-24: the passage tells no guessed names (T-43)
+
+The maintainer chose to close the known limit of the passage (option B of four: keep it; hide names per user with Samba's
+own means; a bind mount per share in a privileged helper; a module of smbd of its own). The folders someone only passes
+through on the way to a share of their own are hidden from that user in the share of the library: the helper writes,
+per share and user, a file with the share's `veto files`, read through `include = …/%U.conf`; the share itself lists
+every folder it hides from anyone, so a user whose file is not read sees less, never more. A guessed name there answers
+the same whether it exists or not. The lists are written anew with every change of rights, with the ACLs.
+
+Samba hides by name, not by path. Where the user reads something of the same name in the library, the folder is not
+hidden, so nothing readable is taken away; that one name keeps telling a guess, as before, and the log says so. Tests:
+`TestSambaPassageTellsNoGuessedNames` (the guess closed, the own share reachable, a reader of the folder still sees it)
+and `TestSambaPassageNameLikeAReadableOne`, with the lists written by the helper in `TestPassageIsHiddenPerUser`; 8 mutations, all red.

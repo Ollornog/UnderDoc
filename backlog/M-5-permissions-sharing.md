@@ -85,4 +85,7 @@ Open: passage above a share of one's own tells existing names from missing ones 
 **Built on 2026-11-24 (T-15):** the follow-ups of the permission work: changes of rights go one after the other in a
 tenant, and breaking the inheritance deep down no longer loses a deny given above at the same time; entries of persons,
 groups, the tenant beyond its preset and the denies on Agents travel in export and import; a deny hides the passwords of
-a page. Open in M-5: the domain (T-42) and the passage above a share of one's own (T-43).
+a page. Open in M-5 then: the domain (T-42) and the passage above a share of one's own (T-43).
+
+**Built on 2026-11-24 (T-43):** the passage above a share of one's own tells no guessed names any more (veto per user
+and share, ADR-30). Open in M-5: the domain (T-42).
