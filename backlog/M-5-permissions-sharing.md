@@ -3,7 +3,7 @@ id: M-5
 type: Milestone
 title: Permissions and sharing
 status: in-arbeit
-rest_points: 2
+rest_points: 0
 rank: 4
 tags: [permissions, security]
 created: 2026-11-06

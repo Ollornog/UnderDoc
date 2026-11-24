@@ -8,10 +8,10 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Meilensteine
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 3/4 erledigt
-* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/7 erledigt
-* ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/1 erledigt
+* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/6 erledigt
+* ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 0/2 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 0/4 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -23,7 +23,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 1/5 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — 0/1 erledigt
-* ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/2 erledigt
+* ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/3 erledigt
 * ☐ **[M-18](M-18-calendar.md)** Calendar — noch keine Aufgaben
 * ☐ **[M-19](M-19-forms.md)** Forms and simple surveys — noch keine Aufgaben
 * ☐ **[M-20](M-20-review-and-git.md)** Reviewed documents and Git — 1/2 erledigt
@@ -54,7 +54,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-10](T-10-phone-layout-mockups.md)** Mock up the phone layout · M-14
 * ☑ **[T-11](T-11-time-tracking-with-eightperday.md)** Time and leave of the private area with EightPerDay · M-24
 * ☑ **[T-12](T-12-workspace-from-c22-building-blocks.md)** The workspace from C22's building blocks, the look as the pack underdoc · M-14
-* ☐ **[T-13](T-13-extract-the-spreadsheet-reader-as-its-own-public-g.md)** Extract the spreadsheet reader as its own public Go library (gridport) · M-2
+* ☐ **[T-13](T-13-extract-the-spreadsheet-reader-as-its-own-public-g.md)** Extract the spreadsheet reader as its own public Go library (gridport) · M-17
 * ☐ **[T-14](T-14-data-exchange-import-foreign-tables-print-a-view-e.md)** Data exchange: import foreign tables, print a view, export tables · M-17
 * ☐ **[T-15](T-15-follow-ups-of-the-permission-work.md)** Follow-ups of the permission work · M-5
 * ☐ **[T-16](T-16-clarify-whether-the-who-did-what-log-needs-co-dete.md)** Clarify whether the who-did-what log needs co-determination or GDPR steps · M-5
@@ -82,6 +82,9 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-38](T-38-attack-round-an-agent-makes-something-readable-to.md)** Attack round: an agent makes something readable to more people · M-30
 * ☐ **[T-39](T-39-tinysesam-built-in-its-own-gate-in-underdoc-s-comp.md)** TinySesam built in: its own gate in UnderDoc''s compose, local accounts and OIDC mixed · M-32
 * ☐ **[T-40](T-40-agents-and-widened-readers-old-versions-restore-fr.md)** Agents and widened readers: old versions, restore from trash, re-uploaded files · M-30
+* ☐ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
+* ☐ **[T-42](T-42-samba-joins-a-domain-optionally.md)** Samba joins a domain, optionally · M-5
+* ☐ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
 
 ## Fehler
 
