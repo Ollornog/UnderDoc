@@ -128,12 +128,14 @@ func (t *mcpTools) readFilePage(_ context.Context, _ *mcp.CallToolRequest, in re
 		return refusal(fmt.Sprintf("%q has %d pages of text.", f.Title, len(pages))), nil, nil
 	}
 	t.h.noteOpen(t.r, f.Object)
+	// What an agent reads of a file counts for its next write like a page (B-7).
+	t.noteRead(f.ID)
 	body := strings.TrimSpace(pages[n-1])
 	if body == "" {
 		body = "(no text on this page)"
 	}
-	return text(clip(fmt.Sprintf("file: %s · %s · page %d of %d · text from %s\n\n%s", uri(db.Address{Object: f.ID}), oneLine(f.Title, 120),
-		n, len(pages), texts[0].Source, body))), nil, nil
+	return text(clip(fmt.Sprintf("file: %s · %s · page %d of %d · text from %s\n%s", uri(db.Address{Object: f.ID}), oneLine(f.Title, 120),
+		n, len(pages), texts[0].Source, t.wrap("file text", body)))), nil, nil
 }
 
 // uploadLinkPath is where a one-time upload link takes its file: below /s/, which the gate leaves open as it does for

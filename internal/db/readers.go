@@ -4,10 +4,10 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -17,12 +17,15 @@ import (
 // is made visible instead: the agent learns the readers of a target before and after it writes, its reads are kept for a
 // while, and a write to where more people read than read what it read carries a mark until a person checks it.
 
-// AgentReadWindow is how long a read of an agent counts as what it may carry into its next write: the token context of
-// an agent, which UnderDoc does not see, taken as a time (T-38).
-const AgentReadWindow = 2 * time.Hour
+// DefaultAgentReadHours is how long a read of an agent counts as what it may carry into its next write, unless its person
+// sets another time: the token context of an agent, which UnderDoc does not see, taken as one working day (T-38, B-7).
+const DefaultAgentReadHours = 12
 
-// maxAgentReads is how many of the latest reads are compared with a target.
-const maxAgentReads = 50
+// MaxAgentReadHours is the longest a person sets it to.
+const MaxAgentReadHours = 168
+
+// ErrReadHours is a time for the reads of agents out of 1 to MaxAgentReadHours hours.
+var ErrReadHours = fmt.Errorf("the reads of agents count for 1 to %d hours", MaxAgentReadHours)
 
 // Readers is who may read an object.
 type Readers struct {
@@ -180,31 +183,61 @@ func Wider(target, source Readers) bool {
 	return false
 }
 
-// NoteAgentRead keeps that an agent of the account read objects through MCP, now (T-38).
+// NoteAgentRead keeps that an agent of the account read objects through MCP, now, with who may read each of them at this
+// moment (T-38, B-7): a later write is compared with that, also once the object went to the trash or is gone.
 func (db *DB) NoteAgentRead(ctx context.Context, accountID string, objects ...string) error {
 	if len(objects) == 0 {
 		return nil
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, "DELETE FROM agent_reads WHERE account = $1 AND at < now() - $2::interval", accountID, AgentReadWindow.String()); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM agent_reads WHERE account = $1
+			AND at < now() - make_interval(hours => coalesce((SELECT agent_read_hours FROM accounts WHERE id = $1), $2))`,
+			accountID, DefaultAgentReadHours); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO agent_reads (account, object) SELECT $1, o.id FROM objects o WHERE o.id = ANY ($2::text[])
-			ON CONFLICT (tenant, account, object) DO UPDATE SET at = now()`, accountID, objects)
+		_, err := tx.Exec(ctx, `INSERT INTO agent_reads (account, object, readers, links)
+			SELECT $1, o.id, object_readers(o.id), object_public(o.id) FROM objects o WHERE o.id = ANY ($2::text[])
+			ON CONFLICT (tenant, account, object) DO UPDATE SET at = now(), readers = EXCLUDED.readers, links = EXCLUDED.links`,
+			accountID, objects)
 		return err
 	})
 }
 
-// AgentReads returns what agents of the account read in the last AgentReadWindow, the latest first, at most
-// maxAgentReads, leaving out except.
-func (db *DB) AgentReads(ctx context.Context, accountID, except string) ([]string, error) {
-	rows, err := db.pool.Query(ctx, `SELECT r.object FROM agent_reads r JOIN objects o ON o.id = r.object
-		WHERE r.account = $1 AND r.at >= now() - $2::interval AND r.object <> $3 AND o.deleted_at IS NULL
-		ORDER BY r.at DESC LIMIT $4`, accountID, AgentReadWindow.String(), except, maxAgentReads)
-	if err != nil {
-		return nil, err
+// ReadsAgainst compares what agents of the account read within its window with the readers of a target (B-7), in one
+// query over every read: whether there are any, whether one had other readers than the target, and whether the target
+// is wider than one of them (an account reads the target that did not read it, or a live link shows the target and
+// showed none of it).
+func (db *DB) ReadsAgainst(ctx context.Context, accountID string, target Readers) (some, differ, wider bool, err error) {
+	err = db.pool.QueryRow(ctx, `WITH r AS (
+			SELECT readers, links FROM agent_reads WHERE account = $1
+			  AND at >= now() - make_interval(hours => coalesce((SELECT agent_read_hours FROM accounts WHERE id = $1), $4))
+		) SELECT EXISTS (SELECT 1 FROM r),
+			EXISTS (SELECT 1 FROM r WHERE NOT (readers @> $2::text[] AND readers <@ $2::text[]) OR links <> $3),
+			EXISTS (SELECT 1 FROM r WHERE NOT readers @> $2::text[] OR ($3 AND NOT links))`,
+		accountID, nonNil(target.IDs), target.Links > 0, DefaultAgentReadHours).Scan(&some, &differ, &wider)
+	return some, differ, wider, err
+}
+
+// AgentReadHours returns how long the reads of the account's agents count.
+func (db *DB) AgentReadHours(ctx context.Context, accountID string) (int, error) {
+	var hours int
+	err := db.pool.QueryRow(ctx, "SELECT agent_read_hours FROM accounts WHERE id = $1", accountID).Scan(&hours)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultAgentReadHours, nil
 	}
-	return pgx.CollectRows(rows, pgx.RowTo[string])
+	return hours, err
+}
+
+// SetAgentReadHours sets how long the reads of the account's agents count (B-7): the person, in the browser.
+func (db *DB) SetAgentReadHours(ctx context.Context, accountID string, hours int) error {
+	if err := browserSession(ctx, accountID); err != nil {
+		return err
+	}
+	if hours < 1 || hours > MaxAgentReadHours {
+		return ErrReadHours
+	}
+	_, err := db.pool.Exec(ctx, "UPDATE accounts SET agent_read_hours = $2 WHERE id = $1", accountID, hours)
+	return err
 }
 
 // AgentMarkOn tells whether a write of an agent to an object is marked when it read narrower content before (T-38): as the
@@ -254,16 +287,18 @@ func requestWider(ctx context.Context) bool {
 	return v
 }
 
-// BlockAuthor is who last changed a block: the account and its name, the person an agent worked for included.
+// BlockAuthor is who wrote a version of a block: the account and its name, the person an agent worked for included.
 type BlockAuthor struct {
 	Block, Account, Name string
 }
 
-// BlockAuthors returns who last changed each block of a page, in the order of the page (T-38).
+// BlockAuthors returns, for each block of a page in the order of the page, everyone who wrote any of its versions, not
+// only the last (B-7): text of someone else stays in a block when its owner changes a word of it.
 func (db *DB) BlockAuthors(ctx context.Context, pageID string) ([]BlockAuthor, error) {
-	rows, err := db.pool.Query(ctx, `SELECT b.id, coalesce(v.author, ''), coalesce(a.name, v.author, '')
-		FROM blocks b LEFT JOIN LATERAL (SELECT author FROM block_versions WHERE page = b.page AND block = b.id ORDER BY version DESC LIMIT 1) v ON true
-		LEFT JOIN accounts a ON a.id = v.author WHERE b.page = $1 ORDER BY b.position`, pageID)
+	rows, err := db.pool.Query(ctx, `SELECT b.id, v.author, coalesce(a.name, v.author, '')
+		FROM blocks b JOIN LATERAL (SELECT author, min(version) AS first FROM block_versions
+			WHERE page = b.page AND block = b.id AND author <> '' GROUP BY author) v ON true
+		LEFT JOIN accounts a ON a.id = v.author WHERE b.page = $1 ORDER BY b.position, v.first`, pageID)
 	if err != nil {
 		return nil, err
 	}

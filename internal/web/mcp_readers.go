@@ -35,23 +35,13 @@ func (t *mcpTools) beforeWrite(target string) (context.Context, string) {
 		t.h.log.Warn("the readers of a target are unknown", slog.String("error", err.Error()))
 		return ctx, ""
 	}
-	reads, err := database.AgentReads(ctx, user.ID, "")
+	// Every read of the window against the target, in one query with the readers each read had (B-7). An error leaves the
+	// write unmarked: the mark is a hint, not a guard (fail open, on purpose).
+	some, differ, wider, err := database.ReadsAgainst(ctx, user.ID, readers)
 	if err != nil {
 		t.h.log.Warn("the reads of an agent are unknown", slog.String("error", err.Error()))
 	}
-	same, differ, wider := len(reads) > 0, false, false
-	for _, read := range reads {
-		of, err := database.ReadersOf(ctx, read)
-		if err != nil {
-			continue
-		}
-		if !db.SameReaders(of, readers) {
-			same, differ = false, true
-		}
-		if db.Wider(readers, of) {
-			wider = true
-		}
-	}
+	same := some && !differ
 	if wider {
 		if on, err := database.AgentMarkOn(ctx, target); err == nil && on {
 			ctx = db.WithWider(ctx)

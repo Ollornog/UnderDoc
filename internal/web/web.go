@@ -231,6 +231,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	doc("GET /api/rules-page", h.apiRulesPage)
 	doc("PUT /api/rules-page", h.apiSetRulesPage)
 	mux.HandleFunc("PUT /api/me/agents", h.apiSetAgentLimit)
+	mux.HandleFunc("PUT /api/me/agent-reads", h.apiSetAgentReadHours)
 	mux.HandleFunc("GET /api/rights/check", h.apiCheck)
 	mux.HandleFunc("GET /api/rights/held", h.apiHeld)
 	mux.HandleFunc("GET /api/users", h.apiUsers)

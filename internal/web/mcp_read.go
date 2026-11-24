@@ -50,7 +50,7 @@ func (t *mcpTools) context(_ context.Context, _ *mcp.CallToolRequest, in context
 	}
 	if rules, err := database.RulesPage(ctx, user.ID); err == nil {
 		fmt.Fprintf(&b, "Rules page: %s %q. Its text follows as written on it: embeds in it are not followed, since agents may write what they embed, and only what stands on the rules page itself holds (B-6).\n", uri(db.Address{Object: rules.ID}), rules.Title)
-		b.WriteString(rulesText(ctx, database, rules, user.ID))
+		b.WriteString(rulesText(ctx, database, rules, user.ID, t.wrap))
 	} else {
 		b.WriteString("Rules page: none yet. An administrator names one in the browser, a page of the kind agent-notes; ask a person for it.\n")
 	}
@@ -267,9 +267,11 @@ func (t *mcpTools) readPage(a db.Address, of int) (string, *mcp.CallToolResult) 
 			what = "section"
 		}
 		fmt.Fprintf(&b, "%s %s of %q\n", what, uri(a), o.Title)
+		var part strings.Builder
 		for _, x := range blocks[at : at+n] {
-			b.WriteString(blockText(x))
+			part.WriteString(blockText(x))
 		}
+		b.WriteString(t.wrap("page text", part.String()))
 		return b.String(), nil
 	}
 	raw, err := transfer.PageMarkdown(&db.Node{Object: o, Blocks: blocks})
@@ -286,7 +288,7 @@ func (t *mcpTools) readPage(a db.Address, of int) (string, *mcp.CallToolResult) 
 		}
 		return b.String(), nil
 	}
-	b.Write(raw)
+	b.WriteString(t.wrap("page text", string(raw)))
 	return b.String(), nil
 }
 
@@ -473,7 +475,7 @@ func plainSnippet(fragments []search.Fragment) string {
 const maxRulesText = 16 << 10
 
 // rulesText is the text of the rules page as written, blocks without their embeds resolved (B-6), between markers.
-func rulesText(ctx context.Context, database *db.DB, rules db.Object, viewer string) string {
+func rulesText(ctx context.Context, database *db.DB, rules db.Object, viewer string, wrap func(what, content string) string) string {
 	blocks, err := database.Blocks(ctx, rules.ID, viewer)
 	if err != nil {
 		return "(the rules page cannot be read now)\n"
@@ -490,5 +492,5 @@ func rulesText(ctx context.Context, database *db.DB, rules db.Object, viewer str
 		}
 		text = text[:cut] + "\n[… the rules page goes on: read it whole]\n"
 	}
-	return "--- rules page, as written ---\n" + strings.TrimRight(text, "\n") + "\n--- end of the rules page ---\n"
+	return wrap("rules page", text)
 }

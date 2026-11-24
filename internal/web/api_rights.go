@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
@@ -591,7 +592,32 @@ func (h *handler) apiAgentLimit(w http.ResponseWriter, r *http.Request) {
 	if h.failed(w, err, "agents") {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string][]string{"actions": actions, "possible": db.AgentActions})
+	hours, err := h.options.DB.AgentReadHours(r.Context(), h.me(r).ID)
+	if h.failed(w, err, "agents") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"actions": actions, "possible": db.AgentActions, "readHours": hours})
+}
+
+// apiSetAgentReadHours sets how long what the viewer's agents read counts for their next write (B-7): the person, in the
+// browser.
+func (h *handler) apiSetAgentReadHours(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Hours int `json:"hours"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok {
+		return
+	}
+	err := h.options.DB.SetAgentReadHours(r.Context(), h.me(r).ID, in.Hours)
+	if errors.Is(err, db.ErrReadHours) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if h.failed(w, err, "agents") {
+		return
+	}
+	h.note(r, db.LogAgents, "", "reads of own agents count for "+strconv.Itoa(in.Hours)+" hours")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // apiSetAgentLimit sets what the viewer lets their own agents do. An agent cannot change it.

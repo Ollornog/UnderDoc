@@ -253,8 +253,9 @@ func (db *DB) ImportGroup(ctx context.Context, name, description, parent string,
 //
 // An entry holds below the object too, wherever the inheritance is not broken, so the actor must hold the action on each
 // of those as well, as mayTakeAll asks for deleting (B-6): a manager with a deny of delete on a page inside gives nobody
-// delete on the folder around it. What is private below gets no entries, so it does not count. q is the transaction of
-// the change, so that what it reads is what it changes.
+// delete on the folder around it. What is private below gets no entries, so it does not count. What lies in the trash
+// below counts too (B-7): restored, it would inherit the opening despite its deny. q is the transaction of the change,
+// so that what it reads is what it changes.
 func (db *DB) mayOpenUp(ctx context.Context, q execer, o Object, actor Actor, opened []string) error {
 	if actor.Admin || len(opened) == 0 {
 		return nil
@@ -263,7 +264,7 @@ func (db *DB) mayOpenUp(ctx context.Context, q execer, o Object, actor Actor, op
 	if err := q.QueryRow(ctx, `WITH RECURSIVE down AS (
 			SELECT id, 0 AS depth FROM objects WHERE id = $1
 			UNION ALL SELECT c.id, down.depth + 1 FROM objects c JOIN down ON c.parent = down.id
-				WHERE c.inherit AND NOT c.private AND c.deleted_at IS NULL AND down.depth < 200
+				WHERE c.inherit AND NOT c.private AND down.depth < 200
 		) SELECT EXISTS (SELECT 1 FROM down CROSS JOIN unnest($3::text[]) a WHERE NOT object_may(down.id, $2, a))`,
 		o.ID, actor.ID, opened).Scan(&shut); err != nil {
 		return err

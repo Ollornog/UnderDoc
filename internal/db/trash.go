@@ -329,13 +329,35 @@ const TrashDays = 30
 // what they deleted too. The rules of Purge hold, with TrashName typed as confirm. What someone deleted but does not own
 // stays for its owner until it goes by itself. It returns how many deletions went.
 func (db *DB) EmptyTrash(ctx context.Context, actor Actor, confirm string) (int, error) {
-	return db.EmptyTrashBefore(ctx, actor, confirm, time.Now())
+	// The moment from the clock of the database, which keeps the moments of the deletions too (B-7).
+	now, err := db.Now(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return db.EmptyTrashBefore(ctx, actor, confirm, now)
 }
+
+// Now is the time of the database, in microseconds as it keeps times: the clock deleted_at and every other moment of it
+// come from, so a cutoff and a deletion are compared on one clock (B-7).
+func (db *DB) Now(ctx context.Context) (time.Time, error) {
+	var now time.Time
+	err := db.pool.QueryRow(ctx, "SELECT now()").Scan(&now)
+	return now, err
+}
+
+// ErrSignedItems is emptying the trash when more would go than the confirmation of the gate names (B-7).
+var ErrSignedItems = fmt.Errorf("%w: more lies in the trash than the confirmation names; empty it again", ErrApproval)
 
 // EmptyTrashBefore empties the trash as EmptyTrash does, of what was deleted at or before cutoff only: the moment an
 // approval of the gate was asked for, so that nothing deleted after it goes with it (B-6). Everything is checked and
 // locked first, then the gate's approval is asked for once, bound to the cutoff, and then it all goes in one statement.
 func (db *DB) EmptyTrashBefore(ctx context.Context, actor Actor, confirm string, cutoff time.Time) (int, error) {
+	return db.EmptyTrashSigned(ctx, actor, confirm, cutoff, -1)
+}
+
+// EmptyTrashSigned is EmptyTrashBefore with the number of items the confirmation of the gate names: when more would go,
+// nothing goes (B-7). A negative number names none.
+func (db *DB) EmptyTrashSigned(ctx context.Context, actor Actor, confirm string, cutoff time.Time, signed int) (int, error) {
 	// The candidates whatever their moment; the lock below takes only those deleted at or before the cutoff.
 	purgeable, err := db.purgeableTrash(ctx, actor, confirm, nil)
 	if err != nil || len(purgeable) == 0 {
@@ -365,6 +387,9 @@ func (db *DB) EmptyTrashBefore(ctx context.Context, actor Actor, confirm string,
 		}
 		if len(take) == 0 {
 			return nil
+		}
+		if signed >= 0 && len(take) > signed {
+			return ErrSignedItems
 		}
 		// One approval of the gate covers emptying the trash, never one per item (B-5); nothing but the deletion follows.
 		if db.approver != nil {
