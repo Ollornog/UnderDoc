@@ -120,6 +120,10 @@ func NewGate(cfg GateConfig) (*Gate, error) {
 	if g.delegateRole == g.adminRole {
 		return nil, errors.New("the delegated administrator needs a role of its own, not the administrator's")
 	}
+	// Who creates spaces is no administrator: the role that makes one must not make a delegate as well (B-7).
+	if g.delegateRole == g.spacesRole {
+		return nil, errors.New("the delegated administrator needs a role of its own, not the role to create spaces")
+	}
 	for _, id := range cfg.ServiceAccounts {
 		if id = strings.TrimSpace(id); !digits(id) {
 			return nil, fmt.Errorf("a service account is named by its lasting ID in the gate, a number: %q is none", id)

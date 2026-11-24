@@ -742,8 +742,10 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 			done.Version, err = addVersion(ctx, tx, u.File, viewer, sha, size, target.Title, contentType)
 			return err
 		}
-		// The folder is locked: two uploads into it choose their name one after the other.
-		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", u.Parent); err != nil {
+		// The folder is locked: two uploads into it choose their name one after the other. FOR NO KEY UPDATE (B-7): a
+		// new upload into the folder holds it for key share while it counts its bytes, which this upload counted
+		// already above; FOR UPDATE waited for that key share and the new upload for the count, a deadlock.
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR NO KEY UPDATE", u.Parent); err != nil {
 			return err
 		}
 		if asNew {
@@ -759,7 +761,7 @@ func (db *DB) finishUpload(ctx context.Context, uploadID, viewer, sha string, si
 		}
 		var existing Object
 		existing, err = scan(tx.QueryRow(ctx, `SELECT `+columns+` FROM objects o WHERE parent = $1 AND lower(title) = lower($2) AND `+alive+`
-			ORDER BY kind = 'file' DESC LIMIT 1 FOR UPDATE`, u.Parent, u.Name))
+			ORDER BY kind = 'file' DESC LIMIT 1 FOR NO KEY UPDATE`, u.Parent, u.Name))
 		switch {
 		case err == nil && existing.Kind != KindFile:
 			return fmt.Errorf("%w: a %s has this name", ErrPlace, existing.Kind)

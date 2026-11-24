@@ -77,6 +77,9 @@ func (db *DB) deleteObject(ctx context.Context, objectID, viewer string, before 
 		if deleted {
 			return ErrNotFound
 		}
+		if err := holdSpace(ctx, tx, objectID); err != nil {
+			return err
+		}
 		var private bool
 		if err := tx.QueryRow(ctx, `WITH RECURSIVE down AS (
 				SELECT id, private FROM objects WHERE id = $1

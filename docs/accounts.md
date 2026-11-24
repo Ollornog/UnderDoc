@@ -30,16 +30,34 @@ what, before it calls the gate:
 |---|---|---|---|
 | An **administrator** (`UNDERDOC_ADMIN_ROLE`) | into every local group | every account but their own | every account, as the gate's approver |
 | A **delegated administrator** (`UNDERDOC_DELEGATE_ROLE`) | into every local group | every account but an administrator's, another delegate's or their own | no |
-| A **group admin** | into the groups they manage | the persons directly in a group they manage, or in a group inside it | no |
+| A **group admin** | into the groups they manage | the persons in none but their groups, or whom they invited ([below](#group-admins)) | no |
 | Anyone else | no | no | no |
 
 - **Only a person in the browser**, signed in as a session (`Remote-Auth: session`): never an agent, a key, an app
   password, OAuth, MCP or a service account, whatever roles it holds (ADR-36, B-4). MCP has no tool for any of it.
 - **Never a service account** as the account acted on, and never one's own account.
 - **A group** taken over from the gate, or an archived group, takes no invitation.
+- **Whether an account is an administrator's or a delegate's** comes from the mark of the command line, the roles of
+  its last sign-in, and the roles the gate gives it now, where the gate lets UnderDoc see the account (B-7): an account
+  made by `add` or `adopt`, or promoted in the gate since its last sign-in, counts as what the gate says. Where the gate
+  does not answer, only an administrator acts on it, except a lock, which works while the gate is away.
 - **Roles:** an invitation gives only roles of UnderDoc's allowlist (`UNDERDOC_ACCOUNTS_ROLES`), never a role of an
   administrator, of the delegated administrator, of who creates spaces, or the gate's approver role; the start refuses
   such a list. The gate holds its own allowlist and refuses anything off it as well.
+
+<a id="group-admins"></a>
+### Group admins (B-7)
+
+A group admin can put any account into their group, so being in it gives them nothing over the person. They manage:
+
+- the persons who are in **none but their groups** (local groups; the roles and groups the gate names do not count),
+  and
+- the persons **they invited**: UnderDoc keeps who invited an account (`accounts.invited_by`, migration 042).
+
+Of these, a **new sign-in link** is only for whom they invited; an administrator and a delegated administrator give it to
+anyone they manage. And a group admin **locks nobody**: **Remove from my groups** (the lock of a group admin) takes the
+person out of every group they administer, and neither the account in UnderDoc nor the one in the gate is locked; there
+is nothing to unlock, they put the person into the group again. Resetting access stays with administrators.
 
 ## Inviting
 
@@ -59,9 +77,11 @@ UnderDoc and in the gate, with what the viewer may do:
 
 - **New sign-in link:** only before the first sign-in, and not while the account is locked; older links die. After the
   first sign-in a link would be a takeover, and the gate refuses it.
-- **Lock** and **Unlock:** in the gate, where it lets UnderDoc (it manages only accounts UnderDoc made or was handed,
-  [below](#accounts-that-exist-already)), and **always in UnderDoc** ([the lock of UnderDoc](#the-lock-of-underdoc)). An
-  account the gate's operator locked is unlocked only by the operator.
+- **Lock** and **Unlock** (administrators and delegates): in the gate, where it lets UnderDoc (it manages only accounts
+  UnderDoc made or was handed, [below](#accounts-that-exist-already)), and **always in UnderDoc** ([the lock of
+  UnderDoc](#the-lock-of-underdoc)). A lock is set in UnderDoc first, then in the gate; an unlock goes to the gate first,
+  then to UnderDoc, so a failure on the way leaves the account locked (B-7). An account the gate's operator locked is
+  unlocked only by the operator. A group admin is offered **Remove from my groups** instead ([above](#group-admins)).
 - **Reset access** (new phone, forgotten password), after the first sign-in: UnderDoc asks the gate for its approval
   `tinysesam.account.reset_access`, and the person who asked **confirms it in the gate** with the code shown and a step-up
   of their own. The gate lets only a holder of its approver role confirm it, which ADR-35 sets to UnderDoc's administrator
@@ -78,11 +98,17 @@ like one that never was while it is locked. Nothing of it is lost; unlocking bri
 own, also where the gate does not lock (an account the gate does not let UnderDoc manage, a gate that did not answer) and
 until a gate token of the account expires. In the database: `accounts.locked`, `locked_by` (migration 040).
 
+Limits (B-7): the rights hold at once, but another instance of UnderDoc in front of the same database keeps what it
+learned of an account at its door for up to **5 minutes**, so a locked account may still open pages there for that long
+(the one check refuses it every action all the same), and a **Samba session** opened before the lock stays open until the
+share takes the user off.
+
 ## Two levels of administration
 
 - The **administrator** holds the role of the app `UNDERDOC_ADMIN_ROLE` (`underdoc-admin`), or the mark of the command
   line ([sign-in.md](sign-in.md#the-emergency-access)). They do everything below and more.
-- The **delegated administrator** holds the role of the app `UNDERDOC_DELEGATE_ROLE` (`underdoc-delegate`), its own:
+- The **delegated administrator** holds the role of the app `UNDERDOC_DELEGATE_ROLE` (`underdoc-delegate`), its own,
+  neither the administrator's nor the role to create spaces (the start refuses either, B-7):
   - manages the accounts of every group: invites into every local group, gives new sign-in links, locks and unlocks;
   - sees the users and the members of every group;
   - archives and restores groups (B-5).

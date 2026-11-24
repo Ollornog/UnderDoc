@@ -134,8 +134,13 @@ first. The folder of the workspace and the folders of users among Files, and pri
   uploads in the browser (also one started before), share links (a link lends nothing and opens nothing while its maker
   may not share, which nobody may in the archive; restoring brings them back unless they expired), copying in, moving in
   or out, restoring from the trash into it, renaming it. A write that checked its rights before the space was archived
-  does not land in it either: every write of content (blocks, versions of files, attachments, new objects) holds the
-  space in its transaction, and archiving waits for it or the write finds the archive (`holdSpace`, B-6). Read stays as
+  does not land in it either: every write of content and of the tree (blocks, also written by an agent, taken back or
+  checked; versions of files, attachments, new objects, a move where it lies and where it goes, a deletion, a new name)
+  holds the space in its transaction after it locked what it changes, and archiving locks the space for update first, so it
+  waits for such a write or the write finds the archive (`holdSpace`, B-6, B-7). The write holds the space `FOR KEY SHARE`
+  and a new place in a parent takes `FOR NO KEY UPDATE`, so a write in a page directly in a space and a move into that
+  space do not deadlock (B-7); a finishing upload locks its folder `FOR NO KEY UPDATE`, so it does not deadlock with an
+  upload starting into the same folder over the storage counter (B-7). Read stays as
   the entries say, and so does **manage**: who may
   read the archive can still be set, opening up only read and manage (above). Copying out needs read here and create
   there. The owner and administrators still transfer it.
@@ -173,11 +178,12 @@ collections at the top as whoever runs the instance.
 - **Agents never** manage rights or groups, share (links), delete for good (empty the trash) or read passwords
   (ADR-7). Read, create, write, comment and moving to the trash stay as their person may.
 - **Agents never publish** (B-5): they move or copy nothing, a page, a folder or a block, to where someone may read it
-  who may not read it where it is now (`403`); a person does that. A copy keeps of what lies below its top none of its
-  entries for persons or groups, its denies or a break of its inheritance, so every object a copy makes is checked, not
-  only its top (B-6). A live link that shows its object (read, comment or edit, not upload) on the target or above it
-  counts as readers without limit, and a link on what an agent moves that is dead where it lies, because its maker may
-  not share it there, counts where its maker may share the target (B-6). They make no space and move no space to the trash,
+  who may not read it where it is now (`403`); a person does that. A copy keeps of its original only the role it grants
+  the whole tenant, none of its entries for persons or groups, its denies or a break of its inheritance, so every copy is
+  compared with its own original, inside the transaction that makes it: if any account may read a copy but not its
+  original, nothing of the copy is kept (B-6, B-7). A live link that shows its object (read, comment or edit, not upload)
+  on the target or above it counts as readers without limit, and a link of any of these modes on what an agent moves that
+  is dead where it lies, because its maker may not share it there, counts where its maker may share the target (B-6, B-7). They make no space and move no space to the trash,
   and the **rules page** ([mcp.md](mcp.md#the-rules-page)) they only read, whatever its entries say (deciding entry
   `rules page`).
 - **What they write** where more people read than read what they read is marked for a person to check, and every write
@@ -248,7 +254,7 @@ copied: they hold as a ceiling anyway.
 
 ## Known limits
 
-What the rights do not do, on purpose or not yet (B-6):
+What the rights do not do, on purpose or not yet (B-6, B-7):
 
 - **The search may trail a new deny** for a moment: its counts come from the index until the queue is drained; the hits
   themselves are checked every time.
@@ -268,6 +274,9 @@ What the rights do not do, on purpose or not yet (B-6):
   grew while it lay in the trash (T-38, open for the maintainer).
 - **Files** an agent downloads and uploads again as a new file are a new file: nothing tells it apart from one written
   anew (T-38, open for the maintainer).
+- **A lock** holds at once for the rights (the one check refuses the account everything), but the door of another
+  instance of UnderDoc keeps what it learned of an account for up to 5 minutes, and a Samba session opened before the
+  lock stays open until the share learns of it (B-7, [accounts.md](accounts.md#the-lock-of-underdoc)).
 
 ## On the Samba share
 
@@ -287,7 +296,9 @@ everyone else. Their agents manage nothing.
 
 **Delegated administrators** (`UNDERDOC_DELEGATE_ROLE`, T-33) manage the accounts of every group through the gate,
 see the users and the members of every group, and archive and restore groups; nothing else of an administrator, and never
-the account of an administrator ([accounts.md](accounts.md#two-levels-of-administration)).
+the account of an administrator ([accounts.md](accounts.md#two-levels-of-administration)). **Group admins** manage only
+the accounts of persons in none but their groups or whom they invited, and lock nobody: their lock takes the person out of
+their groups (B-7, [accounts.md](accounts.md#who-may-do-what)).
 
 **Transferring the ownership** is for the owner and administrators, in a browser session only (T-34): never an agent, a
 service account, a key or an app password.

@@ -81,6 +81,8 @@ var (
 	errNotBound      = errors.New("this account is bound to no account of the gate")
 	errRoleAllowlist = errors.New("a role that UnderDoc may not give")
 	errAccountLocked = errors.New("this account is locked: unlock it first")
+	errAccountLink   = errors.New("a new sign-in link signs in as the person: only who invited them, an administrator or a delegated administrator gives one")
+	errAccountUnlock = errors.New("a group admin locks nobody, they take the person out of their groups: put them into the group again instead")
 )
 
 // gateRefusal says a refusal of the gate in words a person can act on, with the status UnderDoc answers.
@@ -134,35 +136,76 @@ func (h *handler) accountsGuard(w http.ResponseWriter, r *http.Request, into any
 	return user, true
 }
 
-// mayManageAccount decides whether a person manages the account of another (T-33): administrators every account,
-// delegated administrators every account but an administrator's or another delegated administrator's, a group admin the
-// persons in a group they manage. Nobody their own, and no service account.
-func (h *handler) mayManageAccount(ctx context.Context, user account.User, target db.Account) error {
+// manager is how a person manages the account of another (T-33, B-7).
+type manager int
+
+const (
+	// asAdministrator: every account.
+	asAdministrator manager = iota + 1
+	// asDelegate: every account but an administrator's or a delegated administrator's.
+	asDelegate
+	// asGroupAdmin: a person in none but the actor's groups. Locking takes them out of those groups, nothing more.
+	asGroupAdmin
+	// asInviter: a group admin who invited the person, who also gives them a new sign-in link.
+	asInviter
+)
+
+// mayManageAccount decides whether and how a person manages the account of another (T-33, B-7): administrators every
+// account, delegated administrators every account but an administrator's or another delegated administrator's, a group
+// admin only the persons in none but their groups or whom they invited. Nobody their own, and no service account. Whether
+// the account is an administrator's or a delegate's, the gate says where it manages the account (its roles now), besides
+// the mark and the roles of its last sign-in (B-7): an account made by add or adopt, or promoted since, has signed in
+// with neither. A gate that does not answer makes the account count as privileged, except for locking (lock), which
+// must work while the gate is away.
+func (h *handler) mayManageAccount(ctx context.Context, user account.User, target db.Account, lock bool) (manager, error) {
 	switch {
 	case target.ID == user.ID:
-		return errAccountSelf
+		return 0, errAccountSelf
 	case target.Service:
-		return errAccountSvc
+		return 0, errAccountSvc
 	}
-	gate := h.options.GateClient
-	privileged := target.Admin || gate.HasAdminRole(target.Groups) || gate.HasDelegateRole(target.Groups)
 	if user.Has(account.PermAdminister) {
-		return nil
+		return asAdministrator, nil
 	}
-	if privileged {
-		return errAccountAdmin
+	privileged, known := h.privileged(ctx, target)
+	if privileged || !known && !lock {
+		return 0, errAccountAdmin
 	}
 	if user.Has(account.PermAccounts) {
-		return nil
+		return asDelegate, nil
 	}
-	ok, err := h.options.DB.MayManagePerson(ctx, user.ID, target.ID)
-	if err != nil {
-		return err
+	m, err := h.options.DB.MayManagePerson(ctx, user.ID, target.ID)
+	switch {
+	case err != nil:
+		return 0, err
+	case m.Invited:
+		return asInviter, nil
+	case m.Manages:
+		return asGroupAdmin, nil
 	}
-	if !ok {
-		return errAccountOther
+	return 0, errAccountOther
+}
+
+// privileged tells whether an account is an administrator's or a delegated administrator's: by the mark of the command
+// line, the roles of its last sign-in, or the roles the gate gives it now where the gate lets UnderDoc see the account
+// (B-7). known is false when the gate did not answer.
+func (h *handler) privileged(ctx context.Context, target db.Account) (privileged, known bool) {
+	gate := h.options.GateClient
+	if target.Admin || gate.HasAdminRole(target.Groups) || gate.HasDelegateRole(target.Groups) {
+		return true, true
 	}
-	return nil
+	if !h.accountsOn() || target.RemoteID == "" {
+		return false, true
+	}
+	a, err := h.options.Gate.Client.Get(ctx, target.RemoteID)
+	switch {
+	case errors.Is(err, gateapi.ErrNotFound):
+		return false, true
+	case err != nil:
+		h.log.Warn("the gate did not answer for the roles of an account", slog.String("error", err.Error()))
+		return false, false
+	}
+	return gate.HasAdminRole(a.Roles) || gate.HasDelegateRole(a.Roles), true
 }
 
 // accountFailed answers an error of the accounts and reports whether there was one.
@@ -171,7 +214,7 @@ func (h *handler) accountFailed(w http.ResponseWriter, err error, what string) b
 	case err == nil:
 		return false
 	case errors.Is(err, errAccountSelf), errors.Is(err, errAccountOther), errors.Is(err, errAccountAdmin), errors.Is(err, errAccountSvc),
-		errors.Is(err, errAccountsAgent):
+		errors.Is(err, errAccountsAgent), errors.Is(err, errAccountLink), errors.Is(err, errAccountUnlock):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	case errors.Is(err, errNotBound), errors.Is(err, errAccountLocked):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
@@ -186,13 +229,14 @@ func (h *handler) accountFailed(w http.ResponseWriter, err error, what string) b
 	return true
 }
 
-// targetAccount returns the account of the path a person may manage.
-func (h *handler) targetAccount(r *http.Request, user account.User) (db.Account, error) {
+// targetAccount returns the account of the path a person may manage, and how; lock for locking it.
+func (h *handler) targetAccount(r *http.Request, user account.User, lock bool) (db.Account, manager, error) {
 	target, err := h.options.DB.AccountByID(r.Context(), r.PathValue("id"))
 	if err != nil {
-		return db.Account{}, err
+		return db.Account{}, 0, err
 	}
-	return target, h.mayManageAccount(r.Context(), user, target)
+	how, err := h.mayManageAccount(r.Context(), user, target, lock)
+	return target, how, err
 }
 
 // apiAccountView is an account as the group page and the users show it to whoever manages it.
@@ -205,10 +249,11 @@ type apiAccountView struct {
 	// the gate does not let UnderDoc manage it, "unbound" for an account bound to none, "unknown" when it did not answer.
 	Gate     string `json:"gate"`
 	SignedIn bool   `json:"signedIn"`
-	// What the viewer may do with it.
-	Link  bool `json:"link"`
-	Lock  bool `json:"lock"`
-	Reset bool `json:"reset"`
+	// What the viewer may do with it. A group admin removes a person from their groups instead of locking them (B-7).
+	Link   bool `json:"link"`
+	Lock   bool `json:"lock"`
+	Remove bool `json:"remove"`
+	Reset  bool `json:"reset"`
 }
 
 // apiAccountInfo shows an account and what the viewer may do with it in the gate.
@@ -222,17 +267,18 @@ func (h *handler) apiAccountInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": errAccountsAgent.Error()})
 		return
 	}
-	target, err := h.targetAccount(r, user)
+	target, how, err := h.targetAccount(r, user, false)
 	if h.accountFailed(w, err, "account") {
 		return
 	}
-	out := apiAccountView{ID: target.ID, Login: target.Login, Name: target.Name, Locked: target.Locked, Gate: "unbound", Lock: true}
+	group := how == asGroupAdmin || how == asInviter
+	out := apiAccountView{ID: target.ID, Login: target.Login, Name: target.Name, Locked: target.Locked, Gate: "unbound", Lock: !group, Remove: group}
 	if target.RemoteID != "" {
 		a, err := h.options.Gate.Client.Get(r.Context(), target.RemoteID)
 		switch {
 		case err == nil:
 			out.Gate, out.SignedIn = a.State, a.SignedIn()
-			out.Link = !a.SignedIn() && a.State == gateapi.StateActive && !target.Locked
+			out.Link = !a.SignedIn() && a.State == gateapi.StateActive && !target.Locked && how != asGroupAdmin
 			out.Reset = a.SignedIn() && a.State == gateapi.StateActive && !target.Locked && h.mayReset(user)
 		case errors.Is(err, gateapi.ErrNotFound):
 			out.Gate = "unmanaged"
@@ -303,7 +349,10 @@ func (h *handler) apiInvite(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = made.Account.Username
 	}
-	a, _, err := h.options.DB.AddAccount(ctx, made.Account.ID, made.Account.Username, name, made.Account.Email)
+	a, created, err := h.options.DB.AddAccount(ctx, made.Account.ID, made.Account.Username, name, made.Account.Email)
+	if err == nil && created {
+		err = h.options.DB.MarkInvited(ctx, a.ID, user.ID)
+	}
 	if err == nil {
 		err = h.options.DB.InviteMember(ctx, actor, groupID, a.ID)
 	}
@@ -327,9 +376,13 @@ func (h *handler) apiSigninLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, err := h.targetAccount(r, user)
+	target, how, err := h.targetAccount(r, user, false)
 	switch {
 	case h.accountFailed(w, err, "sign-in link"):
+		return
+	case how == asGroupAdmin:
+		// A new link signs in as the person: only who invited them, an administrator or a delegate gives one (B-7).
+		h.accountFailed(w, errAccountLink, "sign-in link")
 		return
 	case target.RemoteID == "":
 		h.accountFailed(w, errNotBound, "sign-in link")
@@ -356,9 +409,22 @@ func (h *handler) apiSetLocked(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, err := h.targetAccount(r, user)
+	target, how, err := h.targetAccount(r, user, in.Locked)
 	if h.accountFailed(w, err, "lock") {
 		return
+	}
+	if how == asGroupAdmin || how == asInviter {
+		h.removeFromMyGroups(w, r, user, target, in.Locked)
+		return
+	}
+	// Locked in UnderDoc first, which holds on its own, then in the gate; unlocked in the gate first, so a failure on the
+	// way leaves the account locked rather than open (B-7).
+	var locked db.Account
+	if in.Locked {
+		if locked, err = h.options.DB.SetLocked(r.Context(), target.ID, true, user.ID); h.failed(w, err, "lock") {
+			return
+		}
+		h.forget(target.RemoteID)
 	}
 	gate := "unbound"
 	if target.RemoteID != "" {
@@ -380,17 +446,34 @@ func (h *handler) apiSetLocked(w http.ResponseWriter, r *http.Request) {
 			gate = "failed"
 		}
 	}
-	locked, err := h.options.DB.SetLocked(r.Context(), target.ID, in.Locked, user.ID)
-	if h.failed(w, err, "lock") {
-		return
+	if !in.Locked {
+		if locked, err = h.options.DB.SetLocked(r.Context(), target.ID, false, user.ID); h.failed(w, err, "lock") {
+			return
+		}
+		h.forget(target.RemoteID)
 	}
-	h.forget(target.RemoteID)
 	action, word := db.LogUnlocked, "unlocked"
 	if in.Locked {
 		action, word = db.LogLocked, "locked"
 	}
 	h.note(r, action, "", fmt.Sprintf("%s %s (gate %s: %s); on behalf of %s", target.ID, word, cmpOr(target.RemoteID, "none"), gate, user.RemoteID))
 	writeJSON(w, http.StatusOK, map[string]any{"locked": locked.Locked, "gate": gate})
+}
+
+// removeFromMyGroups is the lock of a group admin (B-7): the person leaves the groups the admin administers, and
+// neither the account in UnderDoc nor the one in the gate is locked; they are not the group admin's. There is nothing
+// to unlock: the admin puts the person into the group again.
+func (h *handler) removeFromMyGroups(w http.ResponseWriter, r *http.Request, user account.User, target db.Account, lock bool) {
+	if !lock {
+		h.accountFailed(w, errAccountUnlock, "lock")
+		return
+	}
+	n, err := h.options.DB.RemoveFromMyGroups(r.Context(), h.actor(r), target.ID)
+	if h.failed(w, err, "lock") {
+		return
+	}
+	h.note(r, db.LogMember, "", fmt.Sprintf("%s taken out of %d of the groups of %s instead of a lock; on behalf of %s", target.ID, n, user.ID, user.RemoteID))
+	writeJSON(w, http.StatusOK, map[string]any{"locked": target.Locked, "removed": n, "gate": "untouched"})
 }
 
 func cmpOr(s, fallback string) string {
@@ -412,7 +495,7 @@ func (h *handler) apiReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only a holder of the gate's approver role resets the access of an account"})
 		return
 	}
-	target, err := h.targetAccount(r, user)
+	target, _, err := h.targetAccount(r, user, false)
 	switch {
 	case h.accountFailed(w, err, "reset"):
 		return

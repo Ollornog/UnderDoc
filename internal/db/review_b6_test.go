@@ -308,6 +308,10 @@ func TestWritesDoNotLandInAnArchive(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// As setArchived does: the row for update first (B-7), then the mark.
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", space.ID); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := tx.Exec(ctx, "UPDATE objects SET archived = now(), archived_by = $2 WHERE id = $1", space.ID, anna.ID); err != nil {
 			t.Fatal(err)
 		}
