@@ -54,3 +54,7 @@ each is used for files and tables, and the problems. Open: choosing a table in t
 (T-3), the origin of a text copied through the clipboard.
 Choosing a table in the workspace built the same day (the table view of a file: a marked range, a sheet, a name or an
 Excel table, Embed). Open in M-3: Mermaid (T-3), the origin of a text copied through the clipboard.
+
+**Built on 2026-11-24 (T-3, [docs/parts.md](../docs/parts.md#diagrams)):** Mermaid diagrams render under the production
+policy, also with values and parts inside: Mermaid draws in a sandboxed frame, the workspace shows the result as an image.
+Open in M-3: the origin of a text copied through the clipboard (T-41).

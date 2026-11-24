@@ -219,10 +219,11 @@ The order can change between topics, not during one. M-12 in particular can move
 ## Diagrams
 
 - **Mermaid** lives as text in the Markdown, served from our own origin.
-- Values and snippets work inside diagrams: `{{router.ip}}` is replaced and escaped before rendering.
+- Values and snippets work inside diagrams: an embedded value is replaced and escaped before rendering.
 - For network topologies, `flowchart` with `subgraph` is the stable base, since `architecture-beta` is still in beta.
-- **Open question:** Mermaid's inline styles may conflict with a strict CSP. To test: nonces, or rendering in an
-  isolated frame. D2 is the fallback, as it renders on the server.
+- **Settled on 2026-11-24 (T-3):** Mermaid's inline styles conflict with the strict CSP, so Mermaid draws in an isolated,
+  sandboxed frame and the workspace shows the result as an image ([parts.md](parts.md#diagrams)). D2 stays the fallback,
+  as it renders on the server.
 - **Later:** mind maps through Mermaid, drawing through Excalidraw and draw.io, stored as files in the folder.
 
 ## Passwords in the text

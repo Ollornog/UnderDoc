@@ -55,6 +55,15 @@ for f in worker.min.js tesseract-core-simd-lstm.js tesseract-core-simd-lstm.wasm
     curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/tesseract/$f" || fail "tesseract/$f is not in the image"
 done
 
+# The diagrams (T-3): the frame Mermaid draws in, with its own policy, its bundle and the licences.
+frame="$(curl -fsS "${gate[@]}" "$base/assets/app/mermaid/frame.html")" || fail "the frame of the diagrams does not answer"
+[[ "$frame" == *'frame.js'* ]] || fail "the frame of the diagrams does not load its script"
+headers="$(curl -fsS -o /dev/null -D - "${gate[@]}" "$base/assets/app/mermaid/frame.html")" || fail "the frame of the diagrams does not answer"
+[[ "${headers,,}" == *'content-security-policy:'*'sandbox allow-scripts'* ]] || fail "the frame of the diagrams is not sandboxed"
+for f in frame.js LICENSES.txt; do
+    curl -fsS -o /dev/null "${gate[@]}" "$base/assets/app/mermaid/$f" || fail "mermaid/$f is not in the image"
+done
+
 printf -- '---\nid: first\n---\n# Second, longer version\n' >"$notes/page.md"
 for _ in $(seq 1 40); do
     if doc="$(curl -fsS "${gate[@]}" "$base/api/doc/first")" && [[ "$doc" == *'Second, longer version'* ]]; then

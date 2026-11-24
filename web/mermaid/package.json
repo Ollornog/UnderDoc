@@ -1,0 +1,16 @@
+{
+  "name": "underdoc-mermaid",
+  "private": true,
+  "description": "Mermaid diagrams of UnderDoc: Mermaid draws in a sandboxed frame of its own, served by UnderDoc itself (T-3).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "mermaid": "12.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

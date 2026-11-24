@@ -123,6 +123,8 @@ func TestNothingExecutableSurvives(t *testing.T) {
 		"image alt":             `![<script>alert(1)</script>](pic.png)`,
 		"code block":            "```\n<script>alert(1)</script>\n```",
 		"code language":         "```\"><script>alert(1)</script>\nx\n```",
+		"mermaid block":         "```mermaid\nflowchart LR\n  A[\"<script>alert(1)</script>\"] --> B[<img src=x onerror=alert(1)>]\n```",
+		"mermaid embed":         "```mermaid\nA[:embed{ref=\"\"><script>alert(1)</script>#b1.t1\"}]\n```",
 		"autolink":              "<javascript:alert(1)>",
 	}
 	for name, source := range cases {
@@ -134,6 +136,22 @@ func TestNothingExecutableSurvives(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A Mermaid block (T-3) is marked for the browser to draw, with its text as it is; a value embedded in it becomes a
+// sentinel as in a paragraph, so the web puts its text in. Other code blocks stay plain.
+func TestMermaidBlocksAreMarked(t *testing.T) {
+	got := render(t, "```mermaid\nflowchart LR\n  A[:embed{ref=\"5bjk533cvg#b1.t1\"}] --> B[x & y]\n```\n\n```text\n:embed{ref=\"5bjk533cvg#b1.t1\"}\n```\n").HTML
+	want := "<figure data-mermaid><pre class=\"code-block w-full\"><code>flowchart LR\n  A[" + EmbedSentinel("5bjk533cvg#b1.t1") + "] --&gt; B[x &amp; y]\n</code></pre>\n</figure>"
+	if !strings.Contains(got, want) {
+		t.Errorf("the diagram is not marked:\n%s\nwant\n%s", got, want)
+	}
+	if strings.Count(got, "data-mermaid") != 1 || strings.Count(got, "data-embed-inline") != 1 {
+		t.Errorf("a plain code block is taken for a diagram, or embeds: %s", got)
+	}
+	if upper := render(t, "```Mermaid\ngraph TD\n```").HTML; !strings.Contains(upper, "data-mermaid") {
+		t.Errorf("the language is not read without case: %s", upper)
 	}
 }
 

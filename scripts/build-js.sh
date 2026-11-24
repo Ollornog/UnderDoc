@@ -24,6 +24,7 @@ packages=(
     "web/editor internal/web/assets/app/editor"
     "web/pdfjs internal/web/assets/app/pdfjs"
     "web/tesseract internal/web/assets/app/tesseract"
+    "web/mermaid internal/web/assets/app/mermaid"
 )
 for entry in "${packages[@]}"; do
     read -r dir bundle <<<"$entry"
