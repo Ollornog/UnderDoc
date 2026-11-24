@@ -20,7 +20,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-11](M-11-drawing.md)** Drawing — noch keine Aufgaben
 * ◐ **[M-12](M-12-search.md)** Proper search — 1/3 erledigt
 * ☐ **[M-13](M-13-ai.md)** AI integration — 1/1 erledigt
-* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 1/4 erledigt
+* ☐ **[M-14](M-14-workspace.md)** Workspace: three columns, views, hierarchy, settings and metadata — 1/5 erledigt
 * ☐ **[M-15](M-15-windows.md)** Windows and tabs: documents side by side — 0/1 erledigt
 * ☐ **[M-16](M-16-favorites-mentions-inbox.md)** Favorites, mentions and inbox — 0/1 erledigt
 * ☐ **[M-17](M-17-import-export.md)** Import, export and save as — 0/2 erledigt
@@ -93,6 +93,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[B-6](B-6-review-of-t-34-and-b-5-agent-copies-of-restricted.md)** Review of T-34 and B-5: agent copies of restricted trees, public links, link rights on the object · M-30
 * ☑ **[B-7](B-7-review-of-b-6-t-33-and-t-38-copies-lose-denies-gro.md)** Review of B-6, T-33 and T-38: copies lose denies, group admins manage any account, read window · M-30
 * ☐ **[B-8](B-8-review-of-b-7-move-cycles-reset-as-a-back-door-rea.md)** Review of B-7: move cycles, reset as a back door, read snapshots that do not scale, gate key break · M-30
+* ☐ **[B-9](B-9-a-redraw-in-the-background-can-swallow-a-click.md)** A redraw in the background can swallow a click · M-14
 
 ## Entscheidungen (ADR)
 
