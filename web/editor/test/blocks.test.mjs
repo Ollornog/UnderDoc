@@ -4,7 +4,7 @@
 // and carrying it out against a made-up API. Run with `node --test test/` (scripts/_js_check.sh).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { joinBlocks, markerLine, normalize, chunks, around, plan, idle, moves, turnInto, kindOf, embedFor, imageLine } from '../src/blocks.js';
+import { joinBlocks, markerLine, normalize, chunks, around, plan, idle, moves, turnInto, kindOf, embedFor, imageLine, copiedInto, originOf, ORIGIN } from '../src/blocks.js';
 import { run, Conflict } from '../src/save.js';
 
 const stored = [
@@ -231,4 +231,45 @@ test('parts: pairs in a paragraph, addresses of parts and sections, inline embed
   assert.equal(embedFor('/o/7k2m9q4x1c#b3.t2'), '::embed{ref="7k2m9q4x1c#b3.t2"}');
   assert.equal(inlineEmbedFor('https://x.example/o/7k2m9q4x1c#b3.t2'), ':embed{ref="7k2m9q4x1c#b3.t2"}');
   assert.equal(inlineEmbedFor('/o/7k2m9q4x1c#b3'), null);
+});
+
+// A made-up clipboard with the types a paste sees.
+const clip = (types) => ({ getData: (t) => types[t] ?? '' });
+
+test('the origin of a paste is read only when its text is the text pasted (T-41)', () => {
+  const origin = JSON.stringify({ page: '5bjk533cvg', blocks: ['b1', 'b3'], text: 'Two of them.' });
+  assert.deepEqual(originOf(clip({ [ORIGIN]: origin, 'text/plain': 'Two of them.\r\n' })), ['5bjk533cvg#b1', '5bjk533cvg#b3']);
+  assert.equal(originOf(clip({ 'text/plain': 'Two of them.' })), null, 'text from outside carries no origin');
+  assert.equal(originOf(clip({ [ORIGIN]: origin, 'text/plain': 'Other text.' })), null, 'an origin beside other text names nothing');
+  assert.equal(originOf(clip({ [ORIGIN]: '{not json', 'text/plain': 'x' })), null);
+  assert.equal(originOf(clip({ [ORIGIN]: JSON.stringify({ page: 'x', blocks: [], text: 'x' }), 'text/plain': 'x' })), null);
+  assert.equal(originOf(null), null);
+});
+
+test('a block gets the origins of what was pasted into it, and only it (T-41)', () => {
+  const text = joinBlocks(stored).replace('## Switches', '## Switches and routers').replace('In the rack.', 'In the rack, Pasted here.');
+  const at = text.indexOf('Pasted here.');
+  const p = copiedInto(plan(stored, segmentsOf(text)), [{ from: at, to: at + 12, copied: ['5bjk533cvg#b2'] }]);
+  assert.deepEqual(p.edits.map((e) => [e.id, e.copied]), [['b1', undefined], ['b3', ['5bjk533cvg#b2']]]);
+  const n = joinBlocks(stored).replace('## Switches', '## Switches\n\nNew block.');
+  const q = copiedInto(plan(stored, segmentsOf(n)), [{ from: 0, to: 3, copied: ['x#b1'] }]);
+  assert.deepEqual(q.sequence.filter((e) => e.new !== undefined).map((e) => e.copied), [undefined]);
+  const r = copiedInto(plan(stored, segmentsOf(n)), [{ from: n.indexOf('New'), to: n.indexOf('New') + 10, copied: ['x#b1'] }]);
+  assert.deepEqual(r.sequence.filter((e) => e.new !== undefined).map((e) => e.copied), [['x#b1']]);
+  assert.deepEqual(r.edits, [], 'the block beside it keeps no origin');
+});
+
+test('saving hands the origins to the API with the block they belong to (T-41)', async () => {
+  const calls = [];
+  const api = {
+    load: async () => stored,
+    edit: async (id, md, ways, copied) => (calls.push(['edit', id, copied]), { id, md }),
+    add: async (after, md, copied) => (calls.push(['add', md, copied]), { id: 'b9', md }),
+    remove: async () => {},
+    move: async () => {},
+  };
+  const text = joinBlocks(stored).replace('## Switches', '## Switches!') + 'Pasted.';
+  const p = copiedInto(plan(stored, segmentsOf(text)), [{ from: text.indexOf('Pasted.'), to: text.length, copied: ['5bjk533cvg#b2'] }]);
+  await run(p, stored, api);
+  assert.deepEqual(calls, [['edit', 'b1', undefined], ['edit', 'b4', ['5bjk533cvg#b2']]]);
 });

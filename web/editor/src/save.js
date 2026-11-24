@@ -14,8 +14,9 @@ const PART = /<!-- part t[1-9][0-9]{0,8}[ >]/g;
  * run carries out plan p.
  *
  * stored: the blocks as stored, [{id, md, usedIn}]; it is not changed, the answer has the new list.
- * api: {load(), edit(id, md, ways), remove(id, ways), move(id, after), add(after, md)}; edit and add answer with the
- * block. ways: {id: ways} for blocks whose change takes away something in use (ADR-22), as the workspace chose them.
+ * api: {load(), edit(id, md, ways, copied), remove(id, ways), move(id, after), add(after, md, copied)}; edit and add
+ * answer with the block. ways: {id: ways} for blocks whose change takes away something in use (ADR-22), as the workspace
+ * chose them. copied: where text pasted into the block came from (T-41, copiedInto), or undefined.
  * events: {edited(block), removed(id), moved(id, after), added(block, after)}, called after each call that succeeded.
  *
  * Returns {stored, made: [{place, id}]}: the new list, and for every new block where its marker goes. A call that fails
@@ -54,7 +55,7 @@ export async function run(p, stored, api, events = {}, ways = {}) {
     };
     for (const e of p.edits) {
       await ask('edit', e.id, e.md);
-      const b = await api.edit(e.id, e.md, ways[e.id]).catch(named('edit', e.id));
+      const b = await api.edit(e.id, e.md, ways[e.id], e.copied).catch(named('edit', e.id));
       list = list.map((x) => (x.id === e.id ? { ...x, ...b, md: b.md ?? e.md } : x));
       fire('edited', b);
     }
@@ -77,7 +78,7 @@ export async function run(p, stored, api, events = {}, ways = {}) {
         after = e.old;
         continue;
       }
-      const b = await api.add(after, e.new);
+      const b = await api.add(after, e.new, e.copied);
       const md = b.md ?? e.new;
       list.splice(after ? list.findIndex((x) => x.id === after) + 1 : 0, 0, { ...b, md: normalize(md), usedIn: b.usedIn || [] });
       fire('added', b, after);

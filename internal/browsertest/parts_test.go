@@ -151,12 +151,16 @@ func TestMarkingAPartInTheEditor(t *testing.T) {
 			if !b.edWait(`t.includes('<!-- part t1 -->disk is **ve<!-- /part t1 -->')`) {
 				t.Errorf("and the next one: %q", b.eval(edText))
 			}
-			// Copy is plain text with the formatting closed.
-			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('ve'), to = t.indexOf('now'); v.dispatch({selection: {anchor: from, head: to}}); v.focus(); window.clip = null; })()`)
+			// Copy is plain text with the formatting closed, and where it came from beside it (T-41).
+			b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('ve'), to = t.indexOf('now'); v.dispatch({selection: {anchor: from, head: to}}); v.focus(); window.clip = null;
+				window.addEventListener('copy', e => { window.clip = e.clipboardData.getData('text/plain'); window.clipOrigin = e.clipboardData.getData('application/x-underdoc-origin'); }); })()`)
 			b.waitFor(`!document.querySelector('[data-edsel]').hidden`)
 			b.clickOn(`[data-edbar] [data-act="edselcopy"]`, 1)
 			if !b.waitFor(`window.clip === '**ve full**'`) {
 				t.Errorf("the copy: %q", b.eval(`window.clip`))
+			}
+			if got, want := b.eval(`window.clipOrigin`), `{"page":"`+errors+`","blocks":["b1"],"text":"**ve full**"}`; got != want {
+				t.Errorf("the origin of the copy: %s, want %s", got, want)
 			}
 			// Pasted into a paragraph of Runbook, the address embeds the part there.
 			b.openEditing(base, runbook, "Runbook")

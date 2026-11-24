@@ -139,7 +139,7 @@ func (db *DB) WriteBlocks(ctx context.Context, pageID, viewer string, base int64
 				order = append(order, b.ID)
 				switch {
 				case old.Body != b.Body:
-					if err := db.editBlock(ctx, tx, pageID, b.ID, viewer, b.Body, nil); err != nil {
+					if err := db.editBlock(ctx, tx, pageID, b.ID, viewer, b.Body, nil, ""); err != nil {
 						return err
 					}
 					out.Changes = append(out.Changes, BlockChange{Block: b.ID, Kind: ChangeChanged, Before: old.Body, After: b.Body})

@@ -9,7 +9,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 3/4 erledigt
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/6 erledigt
-* ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 1/2 erledigt
+* ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
 * ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/5 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
@@ -82,7 +82,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-38](T-38-attack-round-an-agent-makes-something-readable-to.md)** Attack round: an agent makes something readable to more people · M-30
 * ☐ **[T-39](T-39-tinysesam-built-in-its-own-gate-in-underdoc-s-comp.md)** TinySesam built in: its own gate in UnderDoc''s compose, local accounts and OIDC mixed · M-32
 * ☐ **[T-40](T-40-agents-and-widened-readers-old-versions-restore-fr.md)** Agents and widened readers: old versions, restore from trash, re-uploaded files · M-30
-* ☐ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
+* ☑ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
 * ☐ **[T-42](T-42-samba-joins-a-domain-optionally.md)** Samba joins a domain, optionally · M-5
 * ☐ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
 * ☐ **[T-44](T-44-log-classes-retention-audit-role-and-self-disclosu.md)** Log classes, retention, audit role and self-disclosure for co-determination and GDPR · M-5

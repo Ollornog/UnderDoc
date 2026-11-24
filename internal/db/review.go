@@ -232,7 +232,7 @@ func (db *DB) TakeBack(ctx context.Context, pageID, blockID, viewer string, head
 			if err := checkBody(*base); err != nil {
 				return err
 			}
-			return db.editBlock(ctx, tx, pageID, blockID, viewer, *base, ways)
+			return db.editBlock(ctx, tx, pageID, blockID, viewer, *base, ways, "")
 		}
 	})
 }

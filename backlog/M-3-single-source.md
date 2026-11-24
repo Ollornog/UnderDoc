@@ -58,3 +58,7 @@ Excel table, Embed). Open in M-3: Mermaid (T-3), the origin of a text copied thr
 **Built on 2026-11-24 (T-3, [docs/parts.md](../docs/parts.md#diagrams)):** Mermaid diagrams render under the production
 policy, also with values and parts inside: Mermaid draws in a sandboxed frame, the workspace shows the result as an image.
 Open in M-3: the origin of a text copied through the clipboard (T-41).
+
+**Built on 2026-11-24 (T-41, [docs/parts.md](../docs/parts.md#where-a-copy-came-from)):** a text copied through the
+clipboard notes where it came from in the version of the block it lands in, and stays a copy. Nothing is left to build
+in M-3; open is the maintainer's acceptance.
