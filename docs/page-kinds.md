@@ -147,7 +147,13 @@ database, never from anything a client sends. The list of versions marks such a 
   not a session (the ceiling of the group Agents, ADR-36). An agent also may not change the kind of a page that people
   wrote to a kind of the agent side, which would hide its hints; a page only agents wrote it may class freely.
 
-**On the agent side** (reference, agent notes) the page says once **"Maintained by AI"** and carries no hint per change.
+**On the agent side** (reference, agent notes) the page says once **"Maintained by AI"** and carries no hint per change,
+but one: a change written after reading what fewer may read than read the page.
+
+**After reading what fewer may read** (T-38, [mcp.md](mcp.md#who-reads-what-an-agent-writes)): a change of an agent that
+read, shortly before, something fewer may read than read the page carries a second mark beside its hint, on every kind of
+page, and the page is among the changes to check. It stays until a person checks the block, also when a later change of an
+agent comes without it. Each space switches the mark (on by default where more than one person uses the instance).
 People may still edit it. Structure pages carry neither.
 
 | Door | What |

@@ -1,7 +1,7 @@
 ---
 type: Task
 title: 'Attack round: an agent makes something readable to more people'
-status: offen
+status: erledigt
 points: 8
 id: T-38
 milestone: M-30
@@ -31,3 +31,45 @@ Each review since B-3 found new gaps in the agent limit of the previous fix. One
 11. **Files:** download a private file and upload it as a new file into a team folder, through upload links or Samba.
 
 Every path is a test (negative case) with a mutation per limit. Findings that need design go back to the master.
+
+**Built on 2026-11-24** (migration 041; [docs/mcp.md](../docs/mcp.md#who-reads-what-an-agent-writes),
+[docs/rights.md](../docs/rights.md#known-limits), [docs/page-kinds.md](../docs/page-kinds.md)). Each path, as built:
+
+1. **Readers line** in `write`, `replace`, `create_page`, `move` and every dry run (`db.ReadersOf`, `Readers.Line`, at most
+   about 60 characters, groups with counts, others as a number, public links, never names of persons); `context` names
+   the readers once per space. Left out when the agent read only what the same readers read, or when everyone reads the
+   target, no link shows it and the agent read nothing fewer read; a restricted target with nothing read before stays
+   named. **Reads are kept** two hours per person (`agent_reads`, `db.AgentReadWindow`): UnderDoc's MCP is stateless and
+   does not see the token context, so a time stands for it (decision taken in the build, easy to change). **The mark**
+   *after reading what fewer may read* (`ai_changes.wider`) on every kind of page, among the changes to check, until a
+   person checks the block, kept through later unmarked changes; default off with one person, on otherwise, per space in
+   its rights dialog (`objects.agent_mark`, `PUT /api/objects/<id>/agent-mark`). **Text of others** labelled in `read`
+   (`written by others: …`) and in the search. **Rules:** the instructions and the built-in template *Rules for agents*.
+2. **Embeds:** nothing of a private embed reaches other readers in the page, its export, the versions or an agent's read
+   (test; held already).
+3. **Metadata:** no title denied to someone in the tree, an agent's tree, `used_in`, the way to a page or the uses of a
+   page (test; held already).
+4. **Versions:** not built, open for the maintainer (see below).
+5. **Restore from the trash:** not built, open for the maintainer.
+6. **Templates:** an agent makes no page from a template fewer may read than the new page's readers (`agentNoWider`), and
+   offers no page as a template. Export and import: an agent reaches no import (command line only).
+7. **Comments and mentions:** UnderDoc sends no mail; notices go only to the owner of the page that embeds and name titles
+   and addresses, never content (reviewed, no test). A quote in a comment is writing anew, as path 1.
+8. **Indirect rights changes:** no MCP tool and no request of an agent changes members, group admins, links, templates,
+   access, owner, entries, inheritance, the mark or the rules page (test).
+9. **Path based rules:** rights hold by the object; renamed and moved, a deny holds and nothing lists the object (test).
+10. **Search:** no snippet of a private text embedded in a readable page (embeds are not indexed), and no hit of a page
+    denied before the index learns it, in the web and in MCP (test).
+11. **Files:** not built, open for the maintainer.
+
+**Open for the maintainer** (design, not built):
+
+- Path 4: versions from before a page was opened up carry removed content to new writers. Options: show versions only from
+  the moment a reader gained access, or ask the person on opening up a page with removed content.
+- Path 5: restoring brings an object back with the readers its place has now. Options: keep the readers at the moment of
+  deletion and refuse an agent's restore to where more read, or let only persons restore.
+- Path 11: a file an agent downloads and uploads again is a new file. Option: refuse an agent's upload whose content
+  (sha256) is a file fewer may read than the target's readers, as a copy.
+
+Attack round in `internal/web/review_t38_test.go`, `internal/db/review_t38_test.go` and the browser test
+`internal/browsertest/readers_test.go`; every guard proven by a mutation.

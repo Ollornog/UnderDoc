@@ -56,6 +56,8 @@ type apiAIMark struct {
 	By      string `json:"by"`
 	At      string `json:"at"`
 	Added   bool   `json:"added,omitempty"`
+	// Wider tells that the agent wrote it after reading what fewer may read than may read here (T-38).
+	Wider bool `json:"wider,omitempty"`
 }
 
 // apiRemoved is a block an agent took out of human documentation that nobody checked yet; Moved names where it went.
@@ -416,7 +418,7 @@ func (h *handler) aiMarks(r *http.Request, o db.Object, answer *apiDocument) {
 		}
 		for i := range answer.Blocks {
 			if answer.Blocks[i].ID == c.Block {
-				answer.Blocks[i].AI = &apiAIMark{Version: c.Head, By: c.By, At: stamp(c.At), Added: c.Base == 0}
+				answer.Blocks[i].AI = &apiAIMark{Version: c.Head, By: c.By, At: stamp(c.At), Added: c.Base == 0, Wider: c.Wider}
 			}
 		}
 	}

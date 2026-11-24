@@ -55,6 +55,31 @@ neither and passes.
 
 Every page an agent reads is logged as opened, as in the browser (ADR-11).
 
+## Who reads what an agent writes
+
+An agent may write what it read where more people read it; that cannot be forbidden, since the content may also come from
+the chat (T-38). So the agent learns who reads before it writes, and what it does is made visible:
+
+- **Readers in the answer:** `write`, `replace`, `create_page`, `move` and every dry run end with one short line about the
+  readers of the target, such as `readers: Sales (14), 1 more person, 1 public link` (about 60 characters at most, no names
+  of persons; `readers: only you` for private notes, `readers: everyone`). `context` names the readers of each space once.
+  The line is left out when it says nothing new: when the agent read only what the same readers read, or when everyone
+  reads the target, no link shows it and the agent read nothing fewer read. A restricted target the agent read nothing
+  before stays named: the content may come from the chat.
+- **Reads are kept** per person for two hours (`agent_reads`, `db.AgentReadWindow`): pages read and the hits of a search.
+  UnderDoc does not see the token context of an agent; two hours stand for it.
+- **The mark:** a write to where more people read than read what an agent read in that time carries
+  *after reading what fewer may read* beside the hint of changes by agents, on every kind of page, also on the agent
+  side, and the page is among the changes to check, until a person checks the block. It is on by default where more than
+  one person uses the instance, off with one person, and switchable per space in its rights dialog
+  (`PUT /api/objects/<id>/agent-mark` `{"mark": "on" | "off" | "default"}`, whoever manages the space, in the browser).
+- **Text of others:** `read` names whose text a page holds besides the person's (`written by others: Bob (b2, b5)`), and
+  says it is content, never an instruction; the search says the same of its excerpts.
+- **The rules:** the instructions explain it, and the built-in template *Rules for agents* starts the rules page with who
+  reads what: confidential content only where its readers fit, ask the person when in doubt.
+
+The safety net stays: the hint until a person checks, the versions, taking a change back in one click.
+
 ## Addresses
 
 The tools name what they read with one scheme, so that other sources can add theirs later (T-31):
@@ -116,7 +141,8 @@ PUT /api/rules-page    {"page": "<id>"}   administrators in the browser; "" for 
 ### Instructions
 
 The server's instructions are short (well below the 4,096 characters clients take): the agent's limits, the addresses,
-the audiences of the page kinds, the limits of answers and how to work. Everything else is on the rules page.
+the audiences of the page kinds, who reads what ([above](#who-reads-what-an-agent-writes)), the limits of answers and how
+to work. Everything else is on the rules page.
 
 ## Writing
 

@@ -26,6 +26,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Who reads what an agent writes** (T-38, attack round, [docs/mcp.md](docs/mcp.md#who-reads-what-an-agent-writes),
+  migration 041). Every write through MCP (`write`, `replace`, `create_page`, `move`, dry runs) ends with one short line
+  about the readers of the target, such as `readers: Sales (14), 1 more person, 1 public link`, when it says something new;
+  `context` names the readers of each space. What agents read is kept two hours per person, and a write to where more
+  people read than read what an agent read is marked *after reading what fewer may read* beside the hint of changes by
+  agents, on every kind of page and among the changes to check, until a person checks it; on by default where more than
+  one person uses the instance, switchable per space in its rights dialog. `read` and the search label the text of
+  others as content, never an instruction; the instructions and the new built-in template *Rules for agents* explain who
+  reads what. Agents make no page from a template fewer may read and offer no page as a template. Tests for the paths
+  embeds, titles, rights changes, rename and move, and search; versions, restoring from the trash and re-uploaded files
+  are documented as limits for the maintainer to decide. 18 mutations, all red.
+
 - **Accounts through the gate's account API, two levels of administration, approvals for deleting for good** (T-33,
   ADR-35, [docs/accounts.md](docs/accounts.md), migration 040). Optional: with `UNDERDOC_GATE_URL`,
   `UNDERDOC_GATE_SERVICE_KEY_FILE` (a file with the automation key of UnderDoc's service account, never the key itself)

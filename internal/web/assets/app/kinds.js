@@ -54,6 +54,7 @@ window.UDKinds = (() => {
     what: 'What, and how to fix it',
     aiHint: 'Written by AI, not checked',
     aiAdded: 'Added by AI, not checked',
+    aiWider: 'after reading what fewer may read: check who reads it here',
     aiRemoved: 'Removed by AI, not checked',
     aiMoved: (to) => `Moved by AI to ${to}, not checked`,
     aiBy: (by, at) => `For ${by}, ${at}`,
@@ -104,7 +105,7 @@ window.UDKinds = (() => {
   function blockHint(d, b, key) {
     if (!b.ai) return '';
     const a = b.ai;
-    return `<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-ai-hint="${esc(b.id)}"><span class="badge" data-variant="outline">✦ ${esc(a.added ? T.aiAdded : T.aiHint)}</span><span>${esc(T.aiBy(a.by, moment(a.at)))}</span>${mayReview(d) ? reviewButton(key, b.id, a.version) : ''}</div>`;
+    return `<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-ai-hint="${esc(b.id)}"><span class="badge" data-variant="outline">✦ ${esc(a.added ? T.aiAdded : T.aiHint)}</span>${a.wider ? `<span class="badge" data-variant="outline" data-ai-wider>⚠ ${esc(T.aiWider)}</span>` : ''}<span>${esc(T.aiBy(a.by, moment(a.at)))}</span>${mayReview(d) ? reviewButton(key, b.id, a.version) : ''}</div>`;
   }
 
   /** removedHtml lists the blocks agents took out of human documentation that nobody checked, under the page. */

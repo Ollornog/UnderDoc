@@ -25,11 +25,11 @@ func TestTemplatesStartNewPages(t *testing.T) {
 	b.watch()
 
 	b.clickOn(`section > header[data-cdrop="`+team+`"] .btn`, 1)
-	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [data-act="addtpl"] > div > span')].map(x => x.textContent).join(',')`); got != "Meeting notes,How-to,Runbook,Decision" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [data-act="addtpl"] > div > span')].map(x => x.textContent).join(',')`); got != "Meeting notes,How-to,Runbook,Decision,Rules for agents" {
 		t.Errorf("New at a collection offers UnderDoc's templates: %q", got)
 	}
 	// Each says what it is for under its name, in C22's two lines of a menu item (C22 #123), not only in a tooltip.
-	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [data-act="addtpl"] > div > small')].filter(x => x.textContent.trim()).length + '/' + document.querySelectorAll('[data-menu="new"] [data-act="addtpl"][title]').length`); got != "4/0" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [data-act="addtpl"] > div > small')].filter(x => x.textContent.trim()).length + '/' + document.querySelectorAll('[data-menu="new"] [data-act="addtpl"][title]').length`); got != "5/0" {
 		t.Errorf("the templates in New at a collection carry their description: %q (with text / with a title)", got)
 	}
 	b.shot("templates-new-at-collection")

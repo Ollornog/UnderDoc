@@ -33,13 +33,17 @@ func noteChange(ctx context.Context, tx pgx.Tx, pageID, blockID string, near [2]
 		_, err := tx.Exec(ctx, "DELETE FROM ai_changes WHERE page = $1 AND block = $2", pageID, blockID)
 		return err
 	}
+	// A change of an agent that read narrower content before is marked on every kind of page (T-38); the mark stays
+	// until a person checks the block, also when a later change of an agent comes without it.
+	wider := requestWider(ctx)
 	_, err := tx.Exec(ctx, `
-		INSERT INTO ai_changes (page, block, base, head, follows, precedes)
-		SELECT $1, $2, (SELECT max(version) FROM block_versions WHERE page = $1 AND block = $2 AND version < h.v), h.v, $3, $4
+		INSERT INTO ai_changes (page, block, base, head, follows, precedes, wider)
+		SELECT $1, $2, (SELECT max(version) FROM block_versions WHERE page = $1 AND block = $2 AND version < h.v), h.v, $3, $4, $6
 		FROM (SELECT max(version) AS v FROM block_versions WHERE page = $1 AND block = $2) h
-		WHERE EXISTS (SELECT 1 FROM objects WHERE id = $1 AND kind = 'page' AND page_kind = ANY($5))
-		ON CONFLICT (tenant, page, block) DO UPDATE SET head = EXCLUDED.head, follows = EXCLUDED.follows, precedes = EXCLUDED.precedes, at = now()`,
-		pageID, blockID, near[0], near[1], pagekind.PeopleKinds)
+		WHERE $6 OR EXISTS (SELECT 1 FROM objects WHERE id = $1 AND kind = 'page' AND page_kind = ANY($5))
+		ON CONFLICT (tenant, page, block) DO UPDATE SET head = EXCLUDED.head, follows = EXCLUDED.follows, precedes = EXCLUDED.precedes,
+			at = now(), wider = ai_changes.wider OR EXCLUDED.wider`,
+		pageID, blockID, near[0], near[1], pagekind.PeopleKinds, wider)
 	if err != nil {
 		return err
 	}
@@ -60,6 +64,8 @@ type AIChange struct {
 	// By is the name of whom the agent works for, At when it changed the block last.
 	By string
 	At time.Time
+	// Wider tells that an agent wrote it after reading what fewer may read than may read here (T-38).
+	Wider bool
 	// Near are the blocks before and after a deleted one, where it comes back.
 	Near [2]string
 }
@@ -74,21 +80,23 @@ type Checked struct {
 // last; none on a page that is not human documentation, since the agent side carries no hint per change (ADR-33).
 func (db *DB) AIChanges(ctx context.Context, pageID, viewer string) ([]AIChange, error) {
 	o, err := db.page(ctx, pageID, viewer)
-	if err != nil || o.Kind != KindPage || !pagekind.ForPeople(o.PageKind) {
+	if err != nil || o.Kind != KindPage {
 		return nil, err
 	}
+	// The agent side carries a hint only for a change marked as written after reading narrower content (T-38).
+	onlyWider := !pagekind.ForPeople(o.PageKind)
 	rows, err := db.pool.Query(ctx, `
 		SELECT c.block, c.head, coalesce(c.base, 0), h.body IS NULL, CASE WHEN h.origin LIKE 'moved to %' THEN substr(h.origin, 10) ELSE '' END,
-			coalesce(a.name, h.author), h.at, c.follows, c.precedes
+			coalesce(a.name, h.author), h.at, c.follows, c.precedes, c.wider
 		FROM ai_changes c JOIN block_versions h ON h.version = c.head LEFT JOIN accounts a ON a.id = h.author
 		LEFT JOIN blocks b ON b.page = c.page AND b.id = c.block
-		WHERE c.page = $1 ORDER BY b.position IS NULL, b.position, c.head`, pageID)
+		WHERE c.page = $1 AND (c.wider OR NOT $2) ORDER BY b.position IS NULL, b.position, c.head`, pageID, onlyWider)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (AIChange, error) {
 		var c AIChange
-		err := row.Scan(&c.Block, &c.Head, &c.Base, &c.Deleted, &c.Moved, &c.By, &c.At, &c.Near[0], &c.Near[1])
+		err := row.Scan(&c.Block, &c.Head, &c.Base, &c.Deleted, &c.Moved, &c.By, &c.At, &c.Near[0], &c.Near[1], &c.Wider)
 		return c, err
 	})
 }
@@ -152,9 +160,11 @@ func (db *DB) review(ctx context.Context, pageID, blockID, viewer string, head i
 	if err := db.mayDo(ctx, o, viewer, ActWrite); err != nil {
 		return err
 	}
-	if o.Kind != KindPage || !pagekind.ForPeople(o.PageKind) {
+	if o.Kind != KindPage {
 		return ErrNotFound
 	}
+	// On the agent side only a change marked as written after reading narrower content is checked (T-38).
+	onlyWider := !pagekind.ForPeople(o.PageKind)
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", pageID); err != nil {
 			return err
@@ -164,7 +174,11 @@ func (db *DB) review(ctx context.Context, pageID, blockID, viewer string, head i
 		var base *string
 		err := tx.QueryRow(ctx, `SELECT c.head, coalesce(c.base, 0), c.follows, c.precedes, h.body IS NULL, h.origin, v.body
 			FROM ai_changes c JOIN block_versions h ON h.version = c.head LEFT JOIN block_versions v ON v.version = c.base
-			WHERE c.page = $1 AND c.block = $2 FOR UPDATE OF c`, pageID, blockID).Scan(&c.Head, &c.Base, &c.Near[0], &c.Near[1], &c.Deleted, &origin, &base)
+			WHERE c.page = $1 AND c.block = $2 AND (c.wider OR NOT $3) FOR UPDATE OF c`, pageID, blockID, onlyWider).Scan(&c.Head, &c.Base, &c.Near[0], &c.Near[1], &c.Deleted, &origin, &base)
+		if errors.Is(err, pgx.ErrNoRows) && onlyWider {
+			// The agent side has nothing to check but a marked change.
+			return ErrNotFound
+		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrStale
 		}
@@ -281,7 +295,7 @@ const maxToCheck = 1000
 // the search filter "AI changes to check": the newest change first.
 func (db *DB) PagesToCheck(ctx context.Context, viewer string) ([]string, error) {
 	rows, err := db.pool.Query(ctx, `SELECT o.id FROM objects o JOIN ai_changes c ON c.page = o.id
-		WHERE o.kind = 'page' AND o.page_kind = ANY($2) AND `+alive+` AND `+visible+`
+		WHERE o.kind = 'page' AND (o.page_kind = ANY($2) OR c.wider) AND `+alive+` AND `+visible+`
 		GROUP BY o.id ORDER BY max(c.at) DESC, o.id LIMIT $3`, viewer, pagekind.PeopleKinds, maxToCheck)
 	if err != nil {
 		return nil, err

@@ -937,7 +937,7 @@ func TestNewMenuFilters(t *testing.T) {
 		t.Errorf("the long list of New shows its scrollbar: %q", got)
 	}
 	// A page first, then the templates a page can start from (M-8), then tables.
-	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [role="menuitem"]')].slice(0, 7).map(n => n.dataset.filter).join(', ')`); got != "Page, Meeting notes, How-to, Runbook, Decision, Table, Excel file" {
+	if got := b.eval(`[...document.querySelectorAll('[data-menu="new"] [role="menuitem"]')].slice(0, 8).map(n => n.dataset.filter).join(', ')`); got != "Page, Meeting notes, How-to, Runbook, Decision, Rules for agents, Table, Excel file" {
 		t.Errorf("what is needed most comes first: %q", got)
 	}
 	b.typeText("lin")
