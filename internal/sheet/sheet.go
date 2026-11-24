@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -84,6 +85,36 @@ type Workbook struct {
 	Date1904 bool     `json:"date1904,omitempty"`
 	// App is the program that saved the file: "excel", "libreoffice" or "".
 	App string `json:"app,omitempty"`
+}
+
+// memory is about how many bytes a workbook takes in memory: its texts, and what a cell, a row, a hidden row or column,
+// a merged area, a name and a table take beside them (B-2). It is an estimate for the cache, not a measure.
+func (w *Workbook) memory() int {
+	const cell, row, number, rect, entry = 48, 32, 8, 32, 64
+	n := 256
+	for i := range w.Sheets {
+		s := &w.Sheets[i]
+		n += entry + len(s.Name) + rect*len(s.Merges) + number*(len(s.HiddenRows)+len(s.HiddenCols))
+		for _, r := range s.Rows {
+			n += row + cell*len(r.Cells)
+			for _, c := range r.Cells {
+				n += len(c.Value)
+			}
+		}
+	}
+	for _, x := range w.Names {
+		n += entry + len(x.Name) + len(x.Sheet) + len(x.Scope)
+	}
+	for _, t := range w.Tables {
+		n += entry + len(t.Name) + len(t.Sheet)
+		for _, c := range t.Columns {
+			n += 16 + len(c)
+		}
+	}
+	for _, f := range w.Formats {
+		n += 16 + len(f)
+	}
+	return n
 }
 
 // Sheet is one sheet. A hidden sheet keeps its name and number, never its cells.
@@ -516,6 +547,85 @@ func (w *Workbook) Grid(s *Sheet, rect Rect, l Lang, skip, limit int) Grid {
 	return g
 }
 
+// shownRows are the rows with content as the grid shows them: the text of a merged area whose first cell is hidden stands
+// in the first visible cell of the area (Grid, and Excel with a merged cell partly hidden), so the search and a CSV find
+// it where it shows (B-2). Without such an area they are the rows of the sheet.
+func (s *Sheet) shownRows() []Row {
+	shown := s.mergedShown()
+	if len(shown) == 0 {
+		return s.Rows
+	}
+	rows := slices.Clone(s.Rows)
+	at := make(map[int]int, len(rows))
+	for i, r := range rows {
+		at[r.N] = i
+	}
+	byCol := func(a, b Cell) int { return a.Col - b.Col }
+	for n, extra := range shown {
+		// The text of the area comes first, so it wins over a cell of its own the file may keep under it.
+		cells := slices.Clone(extra)
+		if i, ok := at[n]; ok {
+			cells = append(cells, rows[i].Cells...)
+		}
+		slices.SortStableFunc(cells, byCol)
+		cells = slices.CompactFunc(cells, func(a, b Cell) bool { return a.Col == b.Col })
+		if i, ok := at[n]; ok {
+			rows[i].Cells = cells
+		} else {
+			rows = append(rows, Row{N: n, Cells: cells})
+		}
+	}
+	slices.SortStableFunc(rows, func(a, b Row) int { return a.N - b.N })
+	return rows
+}
+
+// mergedShown finds the merged areas whose first cell is hidden and holds something, by the row of their first visible
+// cell: the cell, with the column it shows in.
+func (s *Sheet) mergedShown() map[int][]Cell {
+	var out, byRow map[int][]Cell
+	for _, m := range s.Merges {
+		if !hidden(s.HiddenRows, m.R1) && !hidden(s.HiddenCols, m.C1) {
+			continue
+		}
+		r, c := firstVisible(s.HiddenRows, m.R1, m.R2), firstVisible(s.HiddenCols, m.C1, m.C2)
+		if r == 0 || c == 0 {
+			continue
+		}
+		if byRow == nil {
+			byRow = make(map[int][]Cell, len(s.Rows))
+			for _, row := range s.Rows {
+				byRow[row.N] = row.Cells
+			}
+		}
+		cell := cellAt(byRow[m.R1], m.C1)
+		if cell == nil {
+			continue
+		}
+		moved := *cell
+		moved.Col = c
+		if out == nil {
+			out = map[int][]Cell{}
+		}
+		out[r] = append(out[r], moved)
+	}
+	return out
+}
+
+// firstVisible is the first row or column from a to b that is not in a sorted list of hidden ones, or 0. A run of hidden
+// ones is skipped in one step: within it, the value less its place in the list stays the same.
+func firstVisible(sorted []int, a, b int) int {
+	i, found := slices.BinarySearch(sorted, a)
+	if !found {
+		return a
+	}
+	key := sorted[i] - i
+	j := i + sort.Search(len(sorted)-i, func(k int) bool { return sorted[i+k]-(i+k) != key })
+	if n := a + j - i; n <= b {
+		return n
+	}
+	return 0
+}
+
 // hidden tells whether a row or column is in a sorted list of hidden ones.
 func hidden(sorted []int, n int) bool {
 	_, found := slices.BinarySearch(sorted, n)
@@ -671,7 +781,7 @@ func (w *Workbook) SearchText(maxWords, maxBytes int) []TextSection {
 			text.Reset()
 			words = 0
 		}
-		for _, row := range s.Rows {
+		for _, row := range s.shownRows() {
 			if hidden(s.HiddenRows, row.N) {
 				continue
 			}
