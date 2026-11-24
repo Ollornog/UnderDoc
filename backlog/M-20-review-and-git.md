@@ -3,6 +3,8 @@ id: M-20
 type: Milestone
 title: Reviewed documents and Git
 status: offen
+rest_points: 21
+rank: 12
 blocked_by: [M-5, M-8]
 tags: [review, git]
 created: 2026-11-06

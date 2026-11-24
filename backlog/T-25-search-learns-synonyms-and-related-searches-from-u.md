@@ -2,6 +2,7 @@
 type: Task
 title: Search learns synonyms and related searches from use
 status: offen
+points: 8
 id: T-25
 milestone: M-12
 created: '2026-11-23'

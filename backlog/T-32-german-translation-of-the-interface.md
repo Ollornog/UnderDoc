@@ -2,6 +2,7 @@
 type: Task
 title: German translation of the interface
 status: offen
+points: 8
 id: T-32
 milestone: M-14
 created: '2026-11-23'

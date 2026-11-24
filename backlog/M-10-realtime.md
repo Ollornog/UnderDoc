@@ -3,6 +3,8 @@ id: M-10
 type: Milestone
 title: Working together
 status: offen
+rest_points: 34
+rank: 21
 tags: [editor]
 created: 2026-11-06
 ---

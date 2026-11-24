@@ -3,6 +3,8 @@ id: M-15
 type: Milestone
 title: "Windows and tabs: documents side by side"
 status: offen
+rest_points: 21
+rank: 10
 blocked_by: [M-14]
 tags: [ui]
 created: 2026-11-06

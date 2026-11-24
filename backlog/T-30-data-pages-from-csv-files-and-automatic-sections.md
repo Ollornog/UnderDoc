@@ -2,6 +2,7 @@
 type: Task
 title: Data pages from CSV files and automatic sections
 status: offen
+points: 8
 id: T-30
 milestone: M-31
 created: '2026-11-23'

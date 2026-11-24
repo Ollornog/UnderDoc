@@ -2,6 +2,7 @@
 type: Task
 title: Extract the spreadsheet reader as its own public Go library (gridport)
 status: offen
+points: 5
 id: T-13
 milestone: M-2
 created: '2026-11-22'

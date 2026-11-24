@@ -2,6 +2,7 @@
 type: Task
 title: 'Attack round: an agent makes something readable to more people'
 status: offen
+points: 8
 id: T-38
 milestone: M-30
 created: '2026-11-23'

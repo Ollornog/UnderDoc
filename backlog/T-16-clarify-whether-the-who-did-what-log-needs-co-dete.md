@@ -2,6 +2,7 @@
 type: Task
 title: Clarify whether the who-did-what log needs co-determination or GDPR steps
 status: offen
+points: 2
 id: T-16
 milestone: M-5
 created: '2026-11-22'

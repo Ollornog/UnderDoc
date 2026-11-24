@@ -2,6 +2,7 @@
 type: Task
 title: Follow-ups of the permission work
 status: offen
+points: 5
 id: T-15
 milestone: M-5
 created: '2026-11-22'

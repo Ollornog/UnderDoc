@@ -3,6 +3,8 @@ id: M-21
 type: Milestone
 title: "Websites: build and publish"
 status: offen
+rest_points: 21
+rank: 23
 blocked_by: [M-5, M-8]
 tags: [ui, sites]
 created: 2026-11-06

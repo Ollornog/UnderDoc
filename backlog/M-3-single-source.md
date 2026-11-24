@@ -3,6 +3,8 @@ id: M-3
 type: Milestone
 title: "Single source: values, snippets, embedding"
 status: in-arbeit
+rest_points: 13
+rank: 7
 tags: [spot, mermaid]
 created: 2026-11-06
 ---

@@ -2,6 +2,7 @@
 type: Task
 title: 'Folder mode "reviewed": changes by agents to human documentation wait as a proposal'
 status: offen
+points: 5
 id: T-35
 milestone: M-20
 created: '2026-11-23'

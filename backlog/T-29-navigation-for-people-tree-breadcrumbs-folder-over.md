@@ -2,6 +2,7 @@
 type: Task
 title: 'Navigation for people: tree, breadcrumbs, folder overview, used in, table of contents'
 status: offen
+points: 8
 id: T-29
 milestone: M-31
 created: '2026-11-23'

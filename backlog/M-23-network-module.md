@@ -3,6 +3,8 @@ id: M-23
 type: Milestone
 title: IP addresses and devices
 status: offen
+rest_points: 13
+rank: 28
 blocked_by: [M-3, M-5]
 tags: [module]
 created: 2026-11-07

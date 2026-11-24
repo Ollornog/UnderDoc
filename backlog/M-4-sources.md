@@ -3,6 +3,8 @@ id: M-4
 type: Milestone
 title: External sources with cache
 status: offen
+rest_points: 21
+rank: 16
 tags: [sources]
 created: 2026-11-06
 ---

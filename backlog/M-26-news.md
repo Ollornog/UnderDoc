@@ -3,6 +3,8 @@ id: M-26
 type: Milestone
 title: News from subscribed feeds
 status: offen
+rest_points: 5
+rank: 25
 blocked_by: [M-5]
 tags: [module, people]
 created: 2026-11-07

@@ -3,6 +3,8 @@ id: M-6
 type: Milestone
 title: Native lists
 status: offen
+rest_points: 34
+rank: 15
 tags: [lists]
 created: 2026-11-06
 ---

@@ -3,6 +3,7 @@ id: T-5
 type: Task
 title: Build workspace mockups in several variants and choose
 status: offen
+points: 5
 milestone: M-14
 tags: [ui, mockup]
 created: 2026-11-06

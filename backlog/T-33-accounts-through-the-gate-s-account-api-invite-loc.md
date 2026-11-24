@@ -2,6 +2,7 @@
 type: Task
 title: 'Accounts through the gate''s account API: invite, lock, new link, delegated admin'
 status: offen
+points: 8
 id: T-33
 milestone: M-30
 created: '2026-11-23'

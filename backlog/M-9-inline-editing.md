@@ -3,6 +3,8 @@ id: M-9
 type: Milestone
 title: Inline editing
 status: offen
+rest_points: 13
+rank: 17
 tags: [editor, excel]
 created: 2026-11-06
 ---

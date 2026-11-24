@@ -2,6 +2,8 @@
 type: Milestone
 title: 'Team server parity: a team wiki of people and AI agents moves in'
 status: offen
+rest_points: 0
+rank: 1
 id: M-30
 tags: [ai, mcp, import]
 blocked_by: [M-5]

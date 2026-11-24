@@ -3,6 +3,7 @@ id: T-8
 type: Task
 title: Settle what the site builder covers
 status: offen
+points: 1
 milestone: M-21
 tags: [ui, sites]
 created: 2026-11-06
