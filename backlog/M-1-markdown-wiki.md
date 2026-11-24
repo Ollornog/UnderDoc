@@ -3,6 +3,8 @@ id: M-1
 type: Milestone
 title: "Markdown wiki: a folder becomes a website"
 status: offen
+rest_points: 0
+rank: 2
 tags: [read, markdown]
 created: 2026-11-06
 ---

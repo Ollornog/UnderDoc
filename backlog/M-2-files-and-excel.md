@@ -3,6 +3,8 @@ id: M-2
 type: Milestone
 title: "Files and Excel: the share appears in the web"
 status: in-arbeit
+rest_points: 5
+rank: 3
 tags: [read, excel, samba]
 created: 2026-11-06
 ---

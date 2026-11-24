@@ -3,6 +3,8 @@ id: M-11
 type: Milestone
 title: Drawing
 status: offen
+rest_points: 13
+rank: 20
 tags: [diagrams]
 created: 2026-11-06
 ---

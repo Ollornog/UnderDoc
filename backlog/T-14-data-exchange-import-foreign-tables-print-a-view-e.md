@@ -2,6 +2,7 @@
 type: Task
 title: 'Data exchange: import foreign tables, print a view, export tables'
 status: offen
+points: 8
 id: T-14
 milestone: M-17
 created: '2026-11-22'

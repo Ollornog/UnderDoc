@@ -3,6 +3,8 @@ id: M-16
 type: Milestone
 title: Favorites, mentions and inbox
 status: offen
+rest_points: 13
+rank: 11
 blocked_by: [M-5]
 tags: [ui, people]
 created: 2026-11-06

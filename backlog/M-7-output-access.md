@@ -3,6 +3,8 @@ id: M-7
 type: Milestone
 title: Output and more file access
 status: offen
+rest_points: 21
+rank: 18
 tags: [output, webdav]
 created: 2026-11-06
 ---

@@ -2,6 +2,8 @@
 type: Milestone
 title: 'TinySesam built in: UnderDoc brings its own gate with local accounts and OIDC'
 status: offen
+rest_points: 3
+rank: 8
 id: M-32
 created: '2026-11-24'
 ---

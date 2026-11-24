@@ -2,6 +2,7 @@
 type: Task
 title: Maintainer walkthrough of the first build and the editor
 status: offen
+points: 1
 id: T-17
 milestone: M-2
 created: '2026-11-22'

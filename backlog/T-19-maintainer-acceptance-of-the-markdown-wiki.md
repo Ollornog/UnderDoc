@@ -2,6 +2,7 @@
 type: Task
 title: Maintainer acceptance of the Markdown wiki
 status: offen
+points: 1
 id: T-19
 milestone: M-1
 created: '2026-11-22'

@@ -3,6 +3,8 @@ id: M-14
 type: Milestone
 title: "Workspace: three columns, views, hierarchy, settings and metadata"
 status: offen
+rest_points: 34
+rank: 9
 blocked_by: [M-1]
 tags: [ui, shell]
 created: 2026-11-06

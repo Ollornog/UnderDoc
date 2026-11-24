@@ -3,6 +3,8 @@ id: M-19
 type: Milestone
 title: Forms and simple surveys
 status: offen
+rest_points: 13
+rank: 27
 blocked_by: [M-6]
 tags: [lists, forms]
 created: 2026-11-06

@@ -3,6 +3,8 @@ id: M-27
 type: Milestone
 title: Further file sources
 status: offen
+rest_points: 13
+rank: 22
 blocked_by: [M-2, M-5]
 tags: [files, sources]
 created: 2026-11-07

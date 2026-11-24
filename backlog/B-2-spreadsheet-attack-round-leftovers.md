@@ -3,6 +3,7 @@ id: B-2
 type: Bug
 title: Spreadsheets, what the attack round of ADR-31 left open
 status: offen
+points: 3
 milestone: M-2
 tags: [files, excel, security]
 created: 2026-11-21

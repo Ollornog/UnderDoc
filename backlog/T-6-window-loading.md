@@ -3,6 +3,7 @@ id: T-6
 type: Task
 title: Choose how windows load their documents
 status: offen
+points: 2
 milestone: M-15
 blocked_by: [T-5]
 tags: [ui, security]

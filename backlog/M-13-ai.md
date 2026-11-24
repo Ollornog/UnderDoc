@@ -3,6 +3,8 @@ id: M-13
 type: Milestone
 title: AI integration
 status: offen
+rest_points: 21
+rank: 14
 tags: [ai]
 created: 2026-11-06
 ---

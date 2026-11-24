@@ -3,6 +3,8 @@ id: M-22
 type: Milestone
 title: Mail in the workspace
 status: offen
+rest_points: 34
+rank: 30
 blocked_by: [M-5]
 tags: [module, people]
 created: 2026-11-07

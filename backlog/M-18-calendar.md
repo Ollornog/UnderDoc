@@ -3,6 +3,8 @@ id: M-18
 type: Milestone
 title: Calendar
 status: offen
+rest_points: 13
+rank: 19
 blocked_by: [M-4, M-6]
 tags: [calendar]
 created: 2026-11-06
