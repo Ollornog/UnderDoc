@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/5 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/4 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -37,7 +37,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
 * ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 10/12 erledigt
-* ☐ **[M-31](M-31-import-navigation-data-pages-and-connectors-the-te.md)** Import, navigation, data pages and connectors: the team wiki moves in — 0/5 erledigt
+* ☐ **[M-31](M-31-import-navigation-data-pages-and-connectors-the-te.md)** Import, navigation, data pages and connectors: the team wiki moves in — 0/6 erledigt
 * ☐ **[M-32](M-32-tinysesam-built-in-underdoc-brings-its-own-gate-wi.md)** TinySesam built in: UnderDoc brings its own gate with local accounts and OIDC — 0/1 erledigt
 
 ## Aufgaben
@@ -85,7 +85,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
 * ☐ **[T-42](T-42-samba-joins-a-domain-optionally.md)** Samba joins a domain, optionally · M-5
 * ☐ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
-* ☐ **[T-44](T-44-log-classes-retention-audit-role-and-self-disclosu.md)** Log classes, retention, audit role and self-disclosure for co-determination and GDPR · M-5
+* ☐ **[T-44](T-44-log-classes-retention-audit-role-and-self-disclosu.md)** Log classes, retention, audit role and self-disclosure for co-determination and GDPR · M-31
 
 ## Fehler
 
