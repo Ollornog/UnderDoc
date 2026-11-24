@@ -1,5 +1,6 @@
 /dist/
 /underdoc
+/underdoc-samba
 *.test
 *.out
 __pycache__/
