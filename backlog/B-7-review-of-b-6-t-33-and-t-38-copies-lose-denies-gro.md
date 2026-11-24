@@ -58,5 +58,5 @@ Review of #178 (B-6), #182 (T-33) and #186 (T-38) by the team wiki, 2026-11-24. 
   the start when it is the role to create spaces; the door cache of 5 minutes and open Samba sessions are documented.
 
 Attack round in `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and
-`internal/browsertest/accounts_test.go`; 27 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
+`internal/browsertest/accounts_test.go`; 28 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
 first, then the gate), which no test can tell apart without a crash between the two.

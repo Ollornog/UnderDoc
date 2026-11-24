@@ -98,7 +98,8 @@ func TestInvitingAndLockingInTheTabRights(t *testing.T) {
 	}
 	b.eval(`window.confirm = () => true`)
 	b.clickOn(`[data-account] [data-ract="removeacct"]`, 1)
-	if !b.waitFor(`!(document.querySelector('[data-group-detail="Board"]')?.innerText || '').includes('Lena Moor')`) {
+	// The lists to add someone name everyone; the members are gone when the group has no person directly.
+	if !b.waitFor(`(document.querySelector('[data-group-detail="Board"]')?.innerText || '').includes('No person directly') && !document.querySelector('[data-group-detail="Board"] [data-ract="account"]')`) {
 		t.Fatalf("lena is still in Board: %s", b.eval(`document.querySelector('[data-group-detail="Board"]')?.innerText`))
 	}
 	b.shot("removed by a group admin")

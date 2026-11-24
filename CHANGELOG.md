@@ -22,7 +22,7 @@ All notable changes to this project are documented in this file. The format foll
   nothing lands in a space archived meanwhile; the space is held `FOR KEY SHARE` and archiving locks it for update, so a
   write in a page directly in a space no longer deadlocks with a move into it. A move finds a loop made while it waited.
   A dead link of any mode but upload counts for an agent's move. Attack round as tests in
-  `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and the browser test of accounts; 27 mutations, all
+  `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and the browser test of accounts; 28 mutations, all
   red.
 - **Review of T-34 and B-5** (B-6, migration 039, [docs/rights.md](docs/rights.md#known-limits),
   [docs/mcp.md](docs/mcp.md#the-rules-page)). An agent's copy of a folder with a page that broke its inheritance made
