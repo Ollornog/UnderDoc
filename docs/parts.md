@@ -141,7 +141,27 @@ its own embeddings get everywhere or copies. Of a page the viewer may not see no
 A sheet, a range, a defined name or an Excel table of a spreadsheet file is embedded the same way, by an address local
 to its file, `<file>#x3`, and a name of one cell inside a paragraph as a value: [tables.md](tables.md#tables-in-pages).
 
+## Diagrams
+
+A fenced block with the language `mermaid` is a diagram (T-3). The server marks it (`figure[data-mermaid]`) and keeps its
+text; a value or another part embedded in it with `:embed{ref="…"}` becomes its text, as in a paragraph, so one change
+of a value shows in every diagram that uses it. The browser draws it with Mermaid 12, bundled from the lockfile in
+`web/mermaid` and served by UnderDoc itself.
+
+- **Under the strict policy.** Mermaid writes inline styles, which the policy of the workspace forbids (no
+  `unsafe-inline`), and it reads text anyone may have written. So it draws in a frame of its own,
+  `/assets/app/mermaid/frame.html`: sandboxed without an origin of its own (`sandbox allow-scripts`, in the attribute and
+  in its own policy), its script only from UnderDoc, inline styles allowed, no inline script, no connection, and only
+  UnderDoc may hold it (`frame-ancestors 'self'`). The workspace sends the text of a diagram and gets the SVG back, as XML
+  with its own size, and shows it as an image (`img-src data:`), where nothing in it can run. Its script is the one asset
+  that may be fetched from no origin (`Cross-Origin-Resource-Policy: cross-origin`); it holds nothing but Mermaid.
+- **Strict Mermaid:** `securityLevel: strict`, labels as SVG text, at most 50,000 characters.
+- **Layouts:** Mermaid's ELK layout (elkjs, EPL-2.0 or GPL-3.0) is left out, as Mermaid's own tiny build does; a
+  diagram that asks for it, or takes it by default, is laid out with dagre.
+- A diagram Mermaid cannot read says why and shows its text. The theme of the workspace decides the colours.
+- D2, which renders on the server, stays the way back should the frame ever not do.
+
 ## Still to come in M-3
 
-Mermaid (T-3), and where a text copied through the clipboard came from (the excerpt knows it, the editor does not hand
-it on to the version of the block it lands in yet): see M-3.
+Where a text copied through the clipboard came from (the excerpt knows it, the editor does not hand it on to the version
+of the block it lands in yet): see M-3.

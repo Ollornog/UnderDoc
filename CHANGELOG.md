@@ -67,6 +67,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Mermaid diagrams under the strict policy** (T-3, [docs/parts.md](docs/parts.md#diagrams)). A ```` ```mermaid ```` block
+  draws as a diagram, with the values and parts embedded in it as their text. Mermaid 12.3.0 is bundled from the
+  lockfile in `web/mermaid` and draws in a sandboxed frame without an origin of its own, which may use inline styles but
+  no inline script and no connection; the workspace shows the SVG as an image and keeps its policy without
+  `unsafe-inline`. The ELK layout (elkjs, EPL-2.0 or GPL-3.0) is left out, dagre lays out instead. A diagram Mermaid
+  cannot read says why. Browser tests for a diagram with a value and a hostile label, and for a broken one; 6 mutations,
+  all red.
 - **Who reads what an agent writes** (T-38, attack round, [docs/mcp.md](docs/mcp.md#who-reads-what-an-agent-writes),
   migration 041). Every write through MCP (`write`, `replace`, `create_page`, `move`, dry runs) ends with one short line
   about the readers of the target, such as `readers: Sales (14), 1 more person, 1 public link`, when it says something new;

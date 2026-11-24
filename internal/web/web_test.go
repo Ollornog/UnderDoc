@@ -241,6 +241,33 @@ func TestSecurityHeadersOnEveryAnswer(t *testing.T) {
 			t.Errorf("the worker's CSP allows %s", unsafe)
 		}
 	}
+	// The frame of the diagrams (T-3) has a policy of its own: inline styles, but sandboxed without an origin, no inline
+	// script, no connection, held only by UnderDoc. Its script may be fetched from no origin; nothing else may.
+	frame := s.get(mermaidFrame)
+	if got := frame.Header().Get("Content-Security-Policy"); got != mermaidFrameCSP || frame.Header().Get("X-Frame-Options") != "" {
+		t.Errorf("the frame of the diagrams: CSP %q, X-Frame-Options %q", got, frame.Header().Get("X-Frame-Options"))
+	}
+	if !strings.Contains(frame.Body.String(), `src="/assets/app/mermaid/frame.js?v=`) {
+		t.Errorf("the frame of the diagrams does not load its script: %s", frame.Body.String())
+	}
+	for _, need := range []string{"sandbox allow-scripts", "frame-ancestors 'self'", "script-src 'self';", "default-src 'none'"} {
+		if !strings.Contains(mermaidFrameCSP, need) {
+			t.Errorf("the frame's CSP lacks %s", need)
+		}
+	}
+	for _, unsafe := range []string{"allow-same-origin", "'unsafe-eval'", "*", "http:", "https:", "blob:", "connect-src", "script-src 'unsafe-inline'"} {
+		if strings.Contains(mermaidFrameCSP, unsafe) {
+			t.Errorf("the frame's CSP allows %s", unsafe)
+		}
+	}
+	if got := s.get("/assets/" + mermaidScript).Header().Get("Cross-Origin-Resource-Policy"); got != "cross-origin" {
+		t.Errorf("the script of the frame: CORP %q", got)
+	}
+	for _, target := range []string{"/assets/app/demo.js", "/assets/app/mermaid/LICENSES.txt", "/assets/app/diagrams.js?x=/" + mermaidScript} {
+		if got := s.get(target).Header().Get("Cross-Origin-Resource-Policy"); got != "same-origin" {
+			t.Errorf("%s: CORP %q", target, got)
+		}
+	}
 	if got := s.get("/o/start").Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Errorf("content type %q", got)
 	}

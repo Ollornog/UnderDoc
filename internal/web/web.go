@@ -362,6 +362,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("POST /hoster/tenants/{id}", h.changeTenant)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", staticAssets(h.assetVersion, http.FileServerFS(assets))))
 	mux.HandleFunc("GET /assets/logo.svg", serveBytes("image/svg+xml", docs.Logo))
+	mux.HandleFunc("GET "+mermaidFrame, h.mermaidFrame)
 	mux.HandleFunc("GET /favicon.ico", serveBytes("image/vnd.microsoft.icon", docs.Favicon))
 	if options.DevUI {
 		mux.HandleFunc("GET /dev/ui", h.app)
@@ -509,11 +510,17 @@ func hashAssets() (string, error) {
 // Without the current version a day.
 //
 // The worker of Tesseract.js is the one script that may compile WebAssembly (ocrWorkerCSP): a dedicated worker takes the
-// policy of its own script, so the pages keep theirs.
+// policy of its own script, so the pages keep theirs. The script of the frame of the diagrams may be loaded from a
+// document without an origin.
 func staticAssets(version string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == ocrWorker {
 			w.Header().Set("Content-Security-Policy", ocrWorkerCSP)
+		}
+		// The frame of the diagrams has no origin of its own (T-3), so its script is fetched from no origin, which
+		// same-origin forbids. It holds nothing but Mermaid, which anyone may read.
+		if r.URL.Path == mermaidScript {
+			w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 		}
 		if version != "" && r.URL.Query().Get("v") == version {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -522,6 +529,17 @@ func staticAssets(version string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// mermaidFrame answers the page of the frame Mermaid draws in (T-3), with the policy of its own and the script of this
+// release. Only this page may be framed, and only by UnderDoc itself.
+func (h *handler) mermaidFrame(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Security-Policy", mermaidFrameCSP)
+	w.Header().Del("X-Frame-Options")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = fmt.Fprintf(w, "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Diagrams</title>"+
+		"<script src=\"/assets/app/mermaid/frame.js?v=%s\"></script></head><body></body></html>\n", template.HTMLEscapeString(h.assetVersion))
 }
 
 func serveBytes(contentType string, content []byte) http.HandlerFunc {

@@ -25,6 +25,19 @@ const ocrWorkerCSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; 
 // ocrWorker is the path of that worker below /assets/.
 const ocrWorker = "app/tesseract/worker.min.js"
 
+// mermaidFrameCSP is the policy of the frame Mermaid draws diagrams in (T-3). Mermaid writes inline styles, which CSP
+// forbids in the workspace, so it gets a document of its own that allows them: sandboxed without an origin of its own
+// (also when it is opened directly), its script only from UnderDoc, no inline script, no connection, and only the
+// workspace may hold it. The workspace shows what it draws as an image.
+const mermaidFrameCSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; font-src 'self'; " +
+	"base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
+
+// mermaidFrame is the path of that frame, mermaidScript the path of its script below /assets/.
+const (
+	mermaidFrame  = "/assets/app/mermaid/frame.html"
+	mermaidScript = "app/mermaid/frame.js"
+)
+
 // imageCSP is for images opened directly. An SVG is a document that can carry scripts, so it runs sandboxed, and its
 // own styles stay allowed because the logo needs them.
 const imageCSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"

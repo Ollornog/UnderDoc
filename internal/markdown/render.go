@@ -450,12 +450,45 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 	if !entering {
 		return ast.WalkContinue, nil
 	}
+	diagram := false
+	if fenced, ok := n.(*ast.FencedCodeBlock); ok {
+		diagram = strings.EqualFold(string(fenced.Language(source)), "mermaid")
+	}
+	if diagram {
+		_, _ = w.WriteString(`<figure data-mermaid>`)
+	}
 	_, _ = fmt.Fprintf(w, `<pre class="%s"><code>`, classCodeBlock)
 	lines := n.Lines()
 	for i := range lines.Len() {
 		segment := lines.At(i)
+		if diagram {
+			writeDiagramLine(w, string(segment.Value(source)))
+			continue
+		}
 		_, _ = w.WriteString(html.EscapeString(string(segment.Value(source))))
 	}
 	_, _ = w.WriteString("</code></pre>\n")
+	if diagram {
+		_, _ = w.WriteString("</figure>\n")
+	}
 	return ast.WalkContinue, nil
+}
+
+// writeDiagramLine writes a line of a Mermaid diagram (T-3). Values and other parts embedded in it with
+// :embed{ref="…"} become sentinels as in a paragraph, so the web puts their text in; the browser draws the diagram from
+// the text of the block, with the values in it.
+func writeDiagramLine(w util.BufWriter, line string) {
+	last := 0
+	for _, m := range InlineEmbed.FindAllStringSubmatchIndex(line, -1) {
+		_, _ = w.WriteString(html.EscapeString(line[last:m[0]]))
+		sub := make([]string, 5)
+		for k := range sub {
+			if m[2*k] >= 0 {
+				sub[k] = line[m[2*k]:m[2*k+1]]
+			}
+		}
+		_, _ = w.WriteString(EmbedSentinel(sub[1] + "#" + InlineTarget(sub)))
+		last = m[1]
+	}
+	_, _ = w.WriteString(html.EscapeString(line[last:]))
 }
