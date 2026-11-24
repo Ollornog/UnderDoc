@@ -161,6 +161,36 @@ r.check("CODE_OF_CONDUCT.md stays pure", coc.startswith("# Contributor Covenant 
         and not any(x in coc for x in ("<img", "<p align", "Deutsch", "+++")))
 r.check("CODE_OF_CONDUCT.md names the contact", "underdoc-github@ollornog.de" in coc)
 
+# ---- No compiled programs. A `go build ./cmd/<name>` without -o in the root of a working tree writes the binary there,
+# and `git add -A` takes it along; a binary carries the paths of the machine that built it (2026-11-24: underdoc-samba
+# went in with #204). The kit's artifact check goes by names and endings and its infrastructure check skips binary files,
+# so neither saw it.
+BINARY_MAGIC = (b"\x7fELF", b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xce\xfa\xed\xfe", b"\xcf\xfa\xed\xfe",
+                b"\xca\xfe\xba\xbe", b"MZ")
+
+
+def compiled_programs():
+    found = []
+    for rel in FILES:
+        path = ROOT / rel
+        if not path.is_file() or path.is_symlink():
+            continue
+        with path.open("rb") as f:
+            head = f.read(4)
+        if head.startswith(BINARY_MAGIC):
+            found.append(rel)
+    return found
+
+
+def programs_ignored():
+    ignored = set((ROOT / ".gitignore").read_text(encoding="utf-8").split())
+    return [f"/{d.name} is not in .gitignore" for d in sorted((ROOT / "cmd").iterdir())
+            if d.is_dir() and f"/{d.name}" not in ignored]
+
+
+check("no compiled program is tracked (ELF, Mach-O, PE)", compiled_programs())
+check("the binary of every cmd/* program is ignored in the root", programs_ignored())
+
 # ---- Go variant of the kit
 check("check tools pinned in .github/audit/go.mod", golang.pruefe_go_werkzeuge(str(ROOT)))
 check("Dependabot covers every go.mod and Dockerfile", golang.pruefe_dependabot_go(str(ROOT), FILES))
