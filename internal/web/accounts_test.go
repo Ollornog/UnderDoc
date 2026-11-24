@@ -35,6 +35,7 @@ type accountsSite struct {
 	*site
 	gate   *gatetest.Gate
 	db     *db.DB
+	url    string // of the database, for a test that changes a row behind UnderDoc's back
 	branch string // a group carl manages
 	office string // a group nobody but administrators manage
 }
@@ -43,7 +44,8 @@ type accountsSite struct {
 // approvals is true.
 func withAccounts(t *testing.T, approvals bool) *accountsSite {
 	t.Helper()
-	database, err := db.Open(context.Background(), pgtest.URL(t))
+	url := pgtest.URL(t)
+	database, err := db.Open(context.Background(), url)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func withAccounts(t *testing.T, approvals bool) *accountsSite {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &accountsSite{gate: g, db: database, site: newSite(t, Options{DB: database,
+	s := &accountsSite{gate: g, db: database, url: url, site: newSite(t, Options{DB: database,
 		GateClient: gateOf(t, account.GateConfig{ServiceAccounts: []string{"4242"}}),
 		Gate:       &GateAPI{Client: client, Roles: []string{"underdoc-user"}, ApproverRole: "underdoc-admin", App: "underdoc", Approvals: approvals}}, sample)}
 	for _, who := range []map[string]string{gateHeaders, plain, carlHeaders, doraHeaders} {

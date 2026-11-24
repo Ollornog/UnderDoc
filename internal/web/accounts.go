@@ -705,7 +705,13 @@ func (h *handler) approvalBack(w http.ResponseWriter, r *http.Request) {
 		subject: user.RemoteID, action: action, object: object, fields: p.Fields})
 	actor := h.actor(r)
 	if p.Kind == db.ApprovalEmpty {
-		n, err := h.options.DB.EmptyTrashBefore(ctx, actor, db.TrashName, time.UnixMicro(cutoff))
+		signed := -1
+		if n, ok := p.Fields["items"].(json.Number); ok {
+			if v, err := n.Int64(); err == nil {
+				signed = int(v)
+			}
+		}
+		n, err := h.options.DB.EmptyTrashSigned(ctx, actor, db.TrashName, time.UnixMicro(cutoff), signed)
 		if !h.purgeRefused(w, r, err, back) {
 			h.note(r, db.LogPurge, "", fmt.Sprintf("emptied the trash: %d deleted for good, confirmed in the gate", n))
 			h.message(w, http.StatusOK, message{Title: "Deleted for good", Text: strconv.Itoa(n) + " of your trash are deleted for good.", Link: "To the start"})

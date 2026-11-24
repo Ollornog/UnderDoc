@@ -259,7 +259,7 @@ window.UDRights = (() => {
     if (st.agents === null) return hint("Loading…");
     return `${head("My agents")}${hint("Agents act for you without a session of yours, such as an assistant signed in with a token. They never manage rights, share, delete for good or read passwords. Narrow here what else they may do.")}<form class="grid gap-2" data-rform="agents">${st.agents.possible
       .map((a) => `<label class="label"><input class="input" type="checkbox" name="act" value="${esc(a)}"${st.agents.actions.includes(a) ? " checked" : ""}> ${esc(ACTIONWORD[a] || a)}</label>`)
-      .join("")}<div>${submit("Save")}</div></form>`;
+      .join("")}<div>${submit("Save")}</div></form>${hint("What your agents read counts for their next write for this long: a write to where more people read than read it is marked for you to check. Checking such a mark starts it anew.")}<form class="flex items-center gap-2" data-rform="readhours"><input class="input" type="number" name="hours" min="1" max="168" value="${esc(String(st.agents.readHours || 12))}" aria-label="Hours the reads of my agents count"> hours ${submit("Save")}</form>`;
   }
 
   function usersHtml() {
@@ -897,6 +897,9 @@ window.UDRights = (() => {
         act(() => api("PUT", "/api/me/agents", { actions }), "agents");
         return;
       }
+      case "readhours":
+        act(() => api("PUT", "/api/me/agent-reads", { hours: Number(v("hours")) }), "agents");
+        return;
       case "actions": {
         const actions = {};
         f.querySelectorAll("select[data-action]").forEach((x) => {

@@ -417,12 +417,8 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 		return nil
 	}
 	// Restoring takes every entry from above again, which may open up any action: only whoever holds all of them here
-	// does it (T-34). Breaking copies what holds and never opens up anything.
-	if inherit {
-		if err := db.mayOpenUp(ctx, db.pool, o, actor, Actions); err != nil {
-			return err
-		}
-	}
+	// does it (T-34), decided under the lock of the object in the transaction that restores it (B-7), below. Breaking
+	// copies what holds and never opens up anything.
 	// In a library shared over Samba, rights hold per folder (ADR-29, ADR-30): a single file that broke the inheritance
 	// would be hidden in the web and shown on the share.
 	if !inherit && o.Kind == KindFile {
@@ -442,6 +438,14 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 		copied = r.Inherited
 	}
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
+			return err
+		}
+		if inherit {
+			if err := db.mayOpenUp(ctx, tx, o, actor, Actions); err != nil {
+				return err
+			}
+		}
 		type holder struct{ kind, who string }
 		own := map[holder]map[string]bool{}
 		rows, err := tx.Query(ctx, "SELECT kind, who, action FROM grants WHERE object = $1", objectID)

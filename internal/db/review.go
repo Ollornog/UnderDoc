@@ -200,9 +200,14 @@ func (db *DB) review(ctx context.Context, pageID, blockID, viewer string, head i
 }
 
 // CheckChange marks the open change of agents of a block as checked by the viewer: the hint goes, and the block keeps
-// who checked it and when.
+// who checked it and when. Checking a change marked as written after reading narrower content ends the window of the
+// reads of the viewer's agents (B-7): what they read before no longer counts for their next write.
 func (db *DB) CheckChange(ctx context.Context, pageID, blockID, viewer string, head int64) error {
 	return db.review(ctx, pageID, blockID, viewer, head, func(tx pgx.Tx, c AIChange, _ *string) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM agent_reads WHERE account = $1
+			AND EXISTS (SELECT 1 FROM ai_changes WHERE page = $2 AND block = $3 AND wider)`, viewer, pageID, blockID); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, "DELETE FROM ai_changes WHERE page = $1 AND block = $2", pageID, blockID); err != nil {
 			return err
 		}

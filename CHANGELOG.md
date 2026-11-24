@@ -8,6 +8,21 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **Review of B-6, T-33 and T-38, part 2** (B-7, migration 043, [docs/mcp.md](docs/mcp.md#who-reads-what-an-agent-writes)).
+  The read window compared only the last 50 reads, search hits among them, so a narrow read was out after a few
+  searches, and reads vanished with the trash: every read of the window counts now in one query, each read keeps who
+  read its object at that moment, and reads stay through the trash and deleting for good. The window is one working day
+  per person (12 hours unless they set 1 to 168 in *My agents*), and checking a marked change in the browser ends it for
+  whoever checks. `read_file_page` counts as a read, and `set_front_matter` names the readers before it writes. What
+  people wrote stands between two lines with a border drawn at random for each answer, lines that look like UnderDoc's
+  are escaped, and a write takes both back out, so page text can no longer fake "readers: only you" or the end of the
+  rules page. A rules page taken over from the tag is none for agents until an administrator confirms it. Emptying the
+  trash takes its cutoff from the database's clock and takes nothing when more would go than the confirmation names.
+  "written by others" names everyone who wrote any version of a block. Opening up an action counts what lies in the
+  trash below, and restoring the inheritance decides under the lock of the object. The contract test runs against
+  TinySesam 0.30.0 (image by digest), and the gate's Go client is `clients/go` v0.30.0. Documented: the mark covers MCP
+  only and fails open. Attack round as tests in `internal/db/review_b7b_test.go` and `internal/web/review_b7b_test.go`;
+  21 mutations, all red.
 - **Review of B-6, T-33 and T-38, part 1** (B-7, migration 042, [docs/accounts.md](docs/accounts.md#group-admins),
   [docs/rights.md](docs/rights.md#known-limits)). An agent's copy kept the tenant's role of its original but lost its
   denies for persons and groups, so a page denied to someone became readable for them in a collection of another group:

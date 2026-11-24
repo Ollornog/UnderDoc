@@ -134,7 +134,8 @@ Mit `UNDERDOC_APPROVALS=on` brauchen endgültiges Löschen aus dem Papierkorb un
 4. UnderDoc holt die Bestätigung ab, sperrt, was gelöscht wird, **prüft erneut**, prüft dann die Bestätigung (diese
    Aktion, diese Felder, diese Person, dieser Browser, einmal) und löscht. Ein Löschen, das die Prüfung auf dem Rückweg
    ablehnt, verbraucht keine Bestätigung; das Leeren nimmt nur, was bis zum Stichtag gelöscht wurde, nie, was danach kam
-   (B-6).
+   (B-6). Der Stichtag kommt von der Uhr der Datenbank, die auch die Löschzeitpunkte setzt, und würde mehr gelöscht, als
+   die Bestätigung nennt, wird nichts gelöscht (B-7).
 
 Ohne die Einstellung bleibt endgültiges Löschen wie bisher: Besitzer oder Administrator, im Browser, mit eingetipptem
 Namen.

@@ -1012,7 +1012,12 @@ func (h *handler) apiEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		// One confirmation in the gate, bound to this moment: on the way back only what lay in the trash now goes (T-33,
 		// B-6). The number is what the person reads on the gate's page.
 		// In microseconds, as the database keeps the moment of a deletion, so the cutoff takes exactly what was there.
-		cutoff := time.UnixMicro(time.Now().UnixMicro())
+		// The moment comes from the clock of the database, which keeps the moments of the deletions too (B-7).
+		now, err := h.options.DB.Now(r.Context())
+		if h.failed(w, err, "empty trash") {
+			return
+		}
+		cutoff := time.UnixMicro(now.UnixMicro())
 		items, err := h.options.DB.PurgeableTrash(r.Context(), h.actor(r), in.Confirm, cutoff)
 		if h.failed(w, err, "empty trash") {
 			return

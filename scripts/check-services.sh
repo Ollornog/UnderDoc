@@ -103,7 +103,7 @@ echo "▸ TinySesam: the account API and the approvals of a real gate (T-33)"
 # The published image of the gate, pinned by digest, runs TinySesam as a library with the app underdoc configured as
 # docs/accounts.md says (scripts/gate/gate.py): the ready gateway takes no apps from its environment. The key of the
 # service account and the sessions are made in this run, written to a folder of this run alone, and die with it.
-GATE_IMAGE="ghcr.io/ollornog/tinysesam:v0.29.1@sha256:b02ab0be5f646df71c70b0673eb01cda3721afa64e9d3266f0b57fa5952cf763"
+GATE_IMAGE="ghcr.io/ollornog/tinysesam:v0.30.0@sha256:861972c6f6f9408beda4a4d6f27d505059455f5a30ae5b11a4d9b1fe5c3450d7"
 gate_out="$work/gate"
 mkdir -m 0777 "$gate_out"
 gate_port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"

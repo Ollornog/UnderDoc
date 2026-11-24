@@ -1,7 +1,7 @@
 ---
 type: Bug
 title: 'Review of B-6, T-33 and T-38: copies lose denies, group admins manage any account, read window'
-status: offen
+status: erledigt
 points: 13
 id: B-7
 milestone: M-30
@@ -63,3 +63,31 @@ Review of #178 (B-6), #182 (T-33) and #186 (T-38) by the team wiki, 2026-11-24. 
 Attack round in `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and
 `internal/browsertest/accounts_test.go`; 29 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
 first, then the gate), which no test can tell apart without a crash between the two.
+
+**Part 2 built on 2026-11-24** (migration 043; [docs/mcp.md](../docs/mcp.md#who-reads-what-an-agent-writes)):
+
+4. `agent_reads` keeps `readers` and `links` of each read at its moment; `ReadsAgainst` compares a target with every read
+   of the window in one query (any, differ, wider), no limit. The window is `accounts.agent_read_hours` (default 12, 1 to
+   168, `PUT /api/me/agent-reads`, *My agents*); checking a marked change deletes the reads of whoever checks.
+5. The foreign key to `objects` is gone and no read is filtered by the trash: a read outlives the trash and the purge.
+   Reads kept before migration 043 had no readers and were dropped.
+6. `read_file_page` notes a read; `set_front_matter` calls the check before it writes and ends with the readers line.
+   The mark covers MCP only (REST, WebDAV, Samba with keys not), documented, and fails open.
+8. `RulesPage` gives agents none while it is taken over from the tag and unconfirmed.
+10. The cutoff comes from the database (`db.Now`), and `EmptyTrashSigned` takes nothing when more would go than the
+    confirmation's `items`.
+11. `BlockAuthors` names everyone who wrote any version of a block.
+12. A border of 12 random hex digits per answer around page text, file text and the rules page; meta prefixes inside are
+    escaped with a backslash; `write`, `replace` and `create_page` take border lines and escapes back out.
+14. `mayOpenUp` counts what lies in the trash below; `SetInherit` locks the object and decides `mayOpenUp` in its
+    transaction.
+15. With the readers kept at reading, a write runs `ReadersOf` once for its target and one query over the reads, instead
+    of `ReadersOf` for up to 50 reads.
+- The contract test runs against TinySesam 0.30.0 (`ghcr.io/ollornog/tinysesam:v0.30.0` by digest), `clients/go` v0.30.0.
+
+Attack round in `internal/db/review_b7b_test.go` and `internal/web/review_b7b_test.go`; 21 mutations, all red. Not proven
+by a mutation: that the cutoff comes from the database's clock (a test cannot set either clock apart; the signed count
+is the guard that is proven). **Not built, for the master:** finding 13 (the approval inside the open transaction), see
+the report: the decided order (check and lock, commit, approve, delete) still spends the confirmation when the delete
+after it fails; keeping the jti in the same transaction as the deletion would spend it exactly when the deletion
+commits. The data part of migration 039 is still without a test.

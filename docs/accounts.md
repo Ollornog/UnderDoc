@@ -136,7 +136,9 @@ one-time approval of the gate** (B-3): the gate's Go client checks it (`VerifyAp
    state, compared with the state the gate returns and the one UnderDoc kept), only the account that asked, once.
 4. UnderDoc picks the confirmation up, locks what goes, **checks again**, then checks the confirmation (this action, these
    fields, this person, this browser, once) and deletes. A purge the check refuses on the way back uses no confirmation;
-   emptying the trash takes only what was deleted at or before its cutoff, never what came after (B-6).
+   emptying the trash takes only what was deleted at or before its cutoff, never what came after (B-6). The cutoff comes
+   from the clock of the database, which also dates the deletions, and when more would go than the confirmation names,
+   nothing goes (B-7).
 
 Without the setting, deleting for good stays as before: owner or administrator, in the browser, with the name typed in.
 

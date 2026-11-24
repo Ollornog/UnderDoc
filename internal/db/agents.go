@@ -35,10 +35,11 @@ func (db *DB) PageVersion(ctx context.Context, pageID, viewer string) (int64, er
 
 // RulesPage returns the rules page the viewer reads: the page an administrator named (B-5; until then the oldest page of
 // the kind agent notes tagged rules, which an agent could take over). ErrNotFound when there is none, or the viewer may
-// not read it, or it lies in the trash.
+// not read it, or it lies in the trash, and for an agent while it is still the page migration 038 took over from the tag
+// and no administrator confirmed it (B-7): agents follow no rules page nobody chose.
 func (db *DB) RulesPage(ctx context.Context, viewer string) (Object, error) {
 	o, err := scan(db.pool.QueryRow(ctx, `SELECT `+columns+` FROM objects o
-		WHERE o.id = (SELECT rules_page FROM agent_settings) AND `+alive+` AND `+visible, viewer))
+		WHERE o.id = (SELECT rules_page FROM agent_settings WHERE NOT (from_tag AND $2)) AND `+alive+` AND `+visible, viewer, requestAgent(ctx)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Object{}, ErrNotFound
 	}

@@ -1,7 +1,7 @@
 github.com/Ollornog/EightPerDay v0.0.0-20261120205811-50e51209e223 h1:fi0yTcEtYOdYBv8bQTJ8etIFGLpOcN8xjo2YA2lVAHA=
 github.com/Ollornog/EightPerDay v0.0.0-20261120205811-50e51209e223/go.mod h1:OEC6no4mphqASY8axaKvVotRpoi+dbE5IQnXkOn76oQ=
-github.com/Ollornog/TinySesam/clients/go v0.29.1 h1:v2M7zkp/kJv+f8JncSUXNluG0NMEjcSvJBXq5ACQHfc=
-github.com/Ollornog/TinySesam/clients/go v0.29.1/go.mod h1:4VcqUwgkE2ioOmP6QRON69mX1yicqFIcCtCRrmxFydg=
+github.com/Ollornog/TinySesam/clients/go v0.30.0 h1:F2YU3m5CUEVq32dQlvn40vewHrD/h3YwcuuxqZZPwaI=
+github.com/Ollornog/TinySesam/clients/go v0.30.0/go.mod h1:4VcqUwgkE2ioOmP6QRON69mX1yicqFIcCtCRrmxFydg=
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc h1:biVzkmvwrH8WK8raXaxBx6fRVTlJILwEwQGL1I/ByEI=
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

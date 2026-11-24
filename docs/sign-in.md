@@ -13,7 +13,7 @@ passkey or a password, OIDC, or the gate. Migration 032 removed those tables; ho
 
 ## The gate
 
-Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by its module tag `clients/go/v0.29.1`). UnderDoc
+Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by its module tag `clients/go/v0.30.0`). UnderDoc
 never reads who someone is, how they signed in or what kind of account they have from a header on its own.
 
 | Setting | Meaning | Default |
@@ -133,5 +133,5 @@ one in `UNDERDOC_SECRET_KEY_OLD`, run `underdoc rekey`, then drop the old key ([
 
 | Library | Version | Licence | For |
 |---|---|---|---|
-| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | `v0.29.1` | MIT | the gate: headers and gate token, and the check of its approvals (`VerifyApproval`, [accounts.md](accounts.md#deleting-for-good-with-an-approval)); standard library only |
+| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | `v0.30.0` | MIT | the gate: headers and gate token, and the check of its approvals (`VerifyApproval`, [accounts.md](accounts.md#deleting-for-good-with-an-approval)); standard library only |
 | [golang.org/x/crypto](https://github.com/golang/crypto) | 0.59.0 | BSD-3-Clause | Argon2id of the passwords of share links |

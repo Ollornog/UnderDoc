@@ -274,6 +274,9 @@ What the rights do not do, on purpose or not yet (B-6, B-7):
   grew while it lay in the trash (T-38, open for the maintainer).
 - **Files** an agent downloads and uploads again as a new file are a new file: nothing tells it apart from one written
   anew (T-38, open for the maintainer).
+- **The mark of agents' writes** (T-38) follows agents through MCP only, not a key through the REST API, WebDAV or Samba,
+  and it fails open: when the readers or the reads cannot be told, the write goes without it (B-7,
+  [mcp.md](mcp.md#who-reads-what-an-agent-writes)).
 - **A lock** holds at once for the rights (the one check refuses the account everything), but the door of another
   instance of UnderDoc keeps what it learned of an account for up to 5 minutes, and a Samba session opened before the
   lock stays open until the share learns of it (B-7, [accounts.md](accounts.md#the-lock-of-underdoc)).

@@ -46,7 +46,7 @@ func (t *mcpTools) write(_ context.Context, _ *mcp.CallToolRequest, in writeIn) 
 	if a.Sub != "" {
 		return refusal("page: write a part with replace, or its block, " + uri(db.Address{Object: a.Object, Block: a.Block}) + "."), nil, nil
 	}
-	front, blocks := transfer.ParseBlocks([]byte(in.Markdown))
+	front, blocks := transfer.ParseBlocks([]byte(unescapeMeta(in.Markdown)))
 	note := ""
 	if front.Found {
 		if a.Block != "" {
@@ -79,6 +79,7 @@ func (t *mcpTools) replace(_ context.Context, _ *mcp.CallToolRequest, in replace
 	if in.Base == nil {
 		return refusal("base: give the version you read (read names it)."), nil, nil
 	}
+	in.Old, in.New = unescapeMeta(in.Old), unescapeMeta(in.New)
 	if in.Old == "" {
 		return refusal("old: name the passage to replace."), nil, nil
 	}
@@ -136,6 +137,8 @@ func (t *mcpTools) setFrontMatter(_ context.Context, _ *mcp.CallToolRequest, in 
 	if err != nil {
 		return t.failure(err, "set the front matter"), nil, nil
 	}
+	// A title or tags carry content too: the agent learns the readers before it writes, as for blocks (B-7).
+	ctx, readers := t.beforeWrite(a.Object)
 	var done []string
 	if in.Title != nil {
 		if o, err = database.Rename(ctx, a.Object, user.ID, *in.Title); err != nil {
@@ -157,8 +160,8 @@ func (t *mcpTools) setFrontMatter(_ context.Context, _ *mcp.CallToolRequest, in 
 	}
 	t.h.noteChange(t.r, o.ID, "mcp front matter: "+strings.Join(done, ", "))
 	found, _ := database.Findings(ctx, o.ID, user.ID)
-	return text(fmt.Sprintf("Set %s of %s: title %q, kind %q, tags %v.\n%s", strings.Join(done, ", "), uri(db.Address{Object: o.ID}),
-		o.Title, o.PageKind, o.Tags, findingLines(found))), nil, nil
+	return text(withReaders(fmt.Sprintf("Set %s of %s: title %q, kind %q, tags %v.\n%s", strings.Join(done, ", "), uri(db.Address{Object: o.ID}),
+		o.Title, o.PageKind, o.Tags, findingLines(found)), readers)), nil, nil
 }
 
 type createIn struct {
@@ -178,7 +181,7 @@ func (t *mcpTools) createPage(_ context.Context, _ *mcp.CallToolRequest, in crea
 	// The page and its text in one transaction (B-5): a text the checks refuse makes no page.
 	var blocks []db.Block
 	if strings.TrimSpace(in.Markdown) != "" {
-		_, blocks = transfer.ParseBlocks([]byte(in.Markdown))
+		_, blocks = transfer.ParseBlocks([]byte(unescapeMeta(in.Markdown)))
 	}
 	// The new page has the readers of its parent.
 	ctx, readers := t.beforeWrite(ref.Address.Object)

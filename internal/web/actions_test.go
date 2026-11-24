@@ -138,8 +138,10 @@ func TestAgentsThroughTheGate(t *testing.T) {
 	if got := s.send(http.MethodPut, "/api/me/agents", `{"actions":["read"]}`, sameSite).Code; got != http.StatusNoContent {
 		t.Errorf("anna limits her agents = %d", got)
 	}
-	limit := decode[map[string][]string](t, s.get("/api/me/agents"))
-	if !slices.Equal(limit["actions"], []string{"read"}) {
+	limit := decode[struct {
+		Actions []string `json:"actions"`
+	}](t, s.get("/api/me/agents"))
+	if !slices.Equal(limit.Actions, []string{"read"}) {
 		t.Errorf("the limit: %v", limit)
 	}
 }
