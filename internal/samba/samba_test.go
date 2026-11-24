@@ -138,3 +138,25 @@ func containsHash(s, hash string) bool {
 	}
 	return false
 }
+
+// A share hides names only from users who reach it, and only names a veto list can hold (T-43).
+func TestVetoIsChecked(t *testing.T) {
+	user := User{Name: "bob", UID: 20001, NTHash: NTHash("x")}
+	state := func(veto map[string][]string) Request {
+		return Request{Op: OpApply, State: &State{Users: []User{user}, Shares: []Share{{Name: "Company", Path: "/srv/share/main/c", Users: []string{"bob"}, Veto: veto}}}}
+	}
+	if err := state(map[string][]string{"bob": {"HR"}}).Check("/srv/share/main", 20000, 29999); err != nil {
+		t.Errorf("a plain name: %v", err)
+	}
+	for name, veto := range map[string]map[string][]string{
+		"a user who does not reach the share": {"carl": {"HR"}},
+		"a wildcard":                          {"bob": {"H*"}},
+		"a variable":                          {"bob": {"%U"}},
+		"a separator":                         {"bob": {"a/b"}},
+		"a line break":                        {"bob": {"HR\nx"}},
+	} {
+		if err := state(veto).Check("/srv/share/main", 20000, 29999); err == nil {
+			t.Errorf("%s passes", name)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -65,12 +66,21 @@ func (u User) GoString() string { return fmt.Sprintf("samba.User{Name:%q, UID:%d
 // String keeps the hash out of every %v.
 func (u User) String() string { return u.GoString() }
 
-// Share is a share of the companion: its name, the directory it shows, and the users that reach it.
+// Share is a share of the companion: its name, the directory it shows, and the users that reach it. Veto names, for a
+// user, the folders below the share they only pass through on the way to a share of their own (T-43): hidden from them
+// in this share, so a name there answers the same whether it exists or not.
 type Share struct {
-	Name    string   `json:"name"`
-	Path    string   `json:"path"`
-	Comment string   `json:"comment,omitempty"`
-	Users   []string `json:"users"`
+	Name    string              `json:"name"`
+	Path    string              `json:"path"`
+	Comment string              `json:"comment,omitempty"`
+	Users   []string            `json:"users"`
+	Veto    map[string][]string `json:"veto,omitempty"`
+}
+
+// ValidVeto tells whether a name can stand in a list of veto files of smb.conf: no separator of the list, no wildcard
+// that would hide more than the name, no variable, nothing that ends the line.
+func ValidVeto(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, "/*?%\\") && !strings.ContainsFunc(name, isControl)
 }
 
 // Access is what an ACL grants one UID: passage only, reading, or writing.
@@ -246,6 +256,16 @@ func (r Request) Check(root string, uidMin, uidMax int) error {
 			for _, u := range s.Users {
 				if !seen[u] {
 					return fmt.Errorf("share %q names a user that is not in the state", s.Name)
+				}
+			}
+			for u, names := range s.Veto {
+				if !slices.Contains(s.Users, u) {
+					return fmt.Errorf("share %q hides names from a user who does not reach it", s.Name)
+				}
+				for _, n := range names {
+					if !ValidVeto(n) {
+						return fmt.Errorf("share %q: %q cannot be hidden", s.Name, n)
+					}
 				}
 			}
 		}

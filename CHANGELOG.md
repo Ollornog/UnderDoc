@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **The passage above a share of one's own tells no guessed names** (T-43, ADR-30, [docs/samba.md](docs/samba.md#limits)).
+  Someone who passes through a folder on the way to a share of their own could tell over the share of the library
+  whether a guessed name existed there. Those folders are hidden from them in that share now (`veto files`, a list per
+  user and share read through `include = …/%U.conf`, the share hiding all of them until the user's list is read), so
+  both answer the same. Where the user reads something of the same name in the library, that one folder is not hidden
+  and the log says so. The known-limit test is turned into one that holds the guess closed; 8 mutations, all red.
 - **Follow-ups of the permission work** (T-15, [docs/rights.md](docs/rights.md#known-limits),
   [docs/export.md](docs/export.md)). Changes of rights in a tenant now go one after the other, and each decides again
   under the lock whether its actor manages the object: breaking the inheritance deep down while a deny was given above
