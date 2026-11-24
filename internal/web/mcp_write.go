@@ -54,11 +54,12 @@ func (t *mcpTools) write(_ context.Context, _ *mcp.CallToolRequest, in writeIn) 
 		}
 		note = "The front matter was not written: title, tags and kind are set with set_front_matter.\n"
 	}
-	written, err := t.h.options.DB.WriteBlocks(t.ctx(), a.Object, t.user().ID, *in.Base, a.Block, blocks, in.DryRun)
+	ctx, readers := t.beforeWrite(a.Object)
+	written, err := t.h.options.DB.WriteBlocks(ctx, a.Object, t.user().ID, *in.Base, a.Block, blocks, in.DryRun)
 	if err != nil {
 		return t.writeFailure(err), nil, nil
 	}
-	return text(note + t.writtenText(a.Object, written)), nil, nil
+	return text(withReaders(note+t.writtenText(a.Object, written), readers)), nil, nil
 }
 
 type replaceIn struct {
@@ -99,11 +100,12 @@ func (t *mcpTools) replace(_ context.Context, _ *mcp.CallToolRequest, in replace
 		return refusal(fmt.Sprintf("old: the passage stands %d times; take more of the text around it, so it is found once.", count)), nil, nil
 	}
 	blocks[at].Body = strings.Replace(blocks[at].Body, in.Old, in.New, 1)
+	ctx, readers := t.beforeWrite(a.Object)
 	written, err := database.WriteBlocks(ctx, a.Object, user.ID, *in.Base, "", blocks, in.DryRun)
 	if err != nil {
 		return t.writeFailure(err), nil, nil
 	}
-	return text(t.writtenText(a.Object, written)), nil, nil
+	return text(withReaders(t.writtenText(a.Object, written), readers)), nil, nil
 }
 
 type frontIn struct {
@@ -172,19 +174,21 @@ func (t *mcpTools) createPage(_ context.Context, _ *mcp.CallToolRequest, in crea
 	if err != nil || ref.Folder != "" || ref.FilePage != 0 || ref.Address.Block != "" {
 		return refusal("parent: the address of a collection, folder or page."), nil, nil
 	}
-	ctx, database, user := t.ctx(), t.h.options.DB, t.user()
+	database, user := t.h.options.DB, t.user()
 	// The page and its text in one transaction (B-5): a text the checks refuse makes no page.
 	var blocks []db.Block
 	if strings.TrimSpace(in.Markdown) != "" {
 		_, blocks = transfer.ParseBlocks([]byte(in.Markdown))
 	}
+	// The new page has the readers of its parent.
+	ctx, readers := t.beforeWrite(ref.Address.Object)
 	made, written, err := database.CreatePageWithBlocks(ctx, user, in.Title, ref.Address.Object, in.Kind, blocks)
 	if err != nil {
 		return t.writeFailure(err), nil, nil
 	}
 	t.h.noteChange(t.r, made.ID, "made through mcp")
 	return text(fmt.Sprintf("Made %s %q in %s.\n", uri(db.Address{Object: made.ID}), made.Title, uri(db.Address{Object: ref.Address.Object})) +
-		t.writtenText(made.ID, written)), nil, nil
+		withReaders(t.writtenText(made.ID, written), readers)), nil, nil
 }
 
 // bareBlock is a block named without its page, such as b3.
@@ -223,7 +227,8 @@ func (t *mcpTools) move(_ context.Context, _ *mcp.CallToolRequest, in moveIn) (*
 			after = ref.Address.Block
 		}
 	}
-	ctx, database, user := t.ctx(), t.h.options.DB, t.user()
+	database, user := t.h.options.DB, t.user()
+	ctx, readers := t.beforeWrite(to.Address.Object)
 	if what.Address.Block != "" {
 		if after == "" && in.After != "" {
 			return refusal("after: name a block of the page it goes to."), nil, nil
@@ -234,15 +239,15 @@ func (t *mcpTools) move(_ context.Context, _ *mcp.CallToolRequest, in moveIn) (*
 		}
 		t.h.noteChange(t.r, what.Address.Object, "mcp moved #"+what.Address.Block+" to "+to.Address.Object)
 		moved := db.Address{Object: to.Address.Object, Block: block}
-		return text(fmt.Sprintf("Moved %s to %s; the old address leads there, and what embedded it follows.", uri(what.Address), uri(moved))), nil, nil
+		return text(fmt.Sprintf("Moved %s to %s; the old address leads there, and what embedded it follows.\n", uri(what.Address), uri(moved)) + readers), nil, nil
 	}
 	o, err := database.Move(ctx, what.Address.Object, user.ID, to.Address.Object, after)
 	if err != nil {
 		return t.failure(err, "move"), nil, nil
 	}
 	t.h.noteChange(t.r, o.ID, "mcp moved to "+to.Address.Object)
-	return text(fmt.Sprintf("Moved %q to %s. Its address %s stays, so every link to it still leads there.", o.Title,
-		t.h.place(t.r, o), uri(db.Address{Object: o.ID}))), nil, nil
+	return text(fmt.Sprintf("Moved %q to %s. Its address %s stays, so every link to it still leads there.\n", o.Title,
+		t.h.place(t.r, o), uri(db.Address{Object: o.ID})) + readers), nil, nil
 }
 
 type trashIn struct {

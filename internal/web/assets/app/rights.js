@@ -475,13 +475,20 @@ window.UDRights = (() => {
       const agentsAbove = (r.agents || []).filter((g) => g.actions.read === "deny");
       const agentsSub = agentsAbove.length ? "No agents from above" : agentsHere ? `Denied here: ${summary(agentsHere.actions)}` : "As their persons may, but never manage, share, delete for good or read passwords";
       const agents = fact("data-agents", noAgents ? "No agents here" : "Agents", agentsSub, may ? small(`data-ract="noagents" data-on="${noAgents ? "0" : "1"}"`, noAgents ? "Let agents in" : "No agents here", true) : "");
+      // The mark of agents' writes after reading narrower content, for a space (T-38).
+      const m = r.agentMark;
+      const MARKWORD = { on: "On", off: "Off", default: `Default (${m && m.default ? "on" : "off"})` };
+      const agentMark = m
+        ? fact("data-agent-mark", "Mark agents' writes", `${m.on ? "✅" : "❌"} A write of an agent after reading what fewer may read is marked for a person to check`,
+            may ? `<select class="select" data-size="sm" data-agentmark aria-label="Mark agents' writes">${["default", "on", "off"].map((v) => `<option value="${v}"${m.set === v ? " selected" : ""}>${esc(MARKWORD[v])}</option>`).join("")}</select>` : "")
+        : "";
       const add = may ? `<form class="flex flex-wrap items-center gap-2" data-rform="grant">${whoSelect("who", true)}${roleSelect("role", "read")}<button class="btn" data-size="sm" type="submit">Grant</button></form>` : "";
       const inherited = r.inherited.length
         ? `<div class="grid gap-2"><h3 class="text-sm font-medium">From above</h3><ul class="grid gap-2 text-sm" data-inherited>${r.inherited.map((g) => `<li class="flex flex-wrap items-center justify-between gap-2">${kindName(g)}${fromAbove(g)}</li>`).join("")}</ul></div>`
         : "";
       // The note after breaking stays out of the entry: an entry cuts its line short.
       const broken = r.inherit ? "" : '<p class="text-muted-foreground text-sm">Breaking copied what held from above, the nearest entry of each, allow or deny; take back here what shall not hold, and check the access check.</p>';
-      body = `<div class="item-group" role="list">${owner}${inherit}${agents}${sambaRoot}</div>${broken}${samba}<div class="grid gap-2"><h3 class="text-sm font-medium">Rights here</h3>${own}${add}</div>${inherited}${may ? linksPart() : ""}`;
+      body = `<div class="item-group" role="list">${owner}${inherit}${agents}${agentMark}${sambaRoot}</div>${broken}${samba}<div class="grid gap-2"><h3 class="text-sm font-medium">Rights here</h3>${own}${add}</div>${inherited}${may ? linksPart() : ""}`;
     }
     // The section scrolls within the height C22 gives a dialog (the viewport less a margin), not one of its own.
     d.innerHTML = `<div><header><h2 id="udrights-title">Rights: ${esc(dlg.title)}</h2><p>Presets for people, groups and everyone, single actions on request, inherited by what lies below. The nearest entry wins, and on one level deny beats allow.</p></header><section class="scrollbar -mx-4 grid min-h-0 gap-4 overflow-y-auto px-4">${problem()}${body}</section><footer><button class="btn" data-variant="outline" data-ract="close">Close</button></footer></div>`;
@@ -828,6 +835,11 @@ window.UDRights = (() => {
     const share = e.target.closest("[data-nshare]");
     if (share) {
       nw.shares[Number(share.dataset.nshare)].role = share.value;
+      return;
+    }
+    const mark = e.target.closest("select[data-agentmark]");
+    if (mark) {
+      act(() => api("PUT", objectPath("/agent-mark"), { mark: mark.value }));
       return;
     }
     const sel = e.target.closest("[data-rform=role] select");

@@ -55,6 +55,30 @@ Browser mit einem Cookie an. Ein Programm schickt beides nicht und kommt durch.
 
 Jede Seite, die ein Agent liest, wird wie im Browser als geöffnet protokolliert (ADR-11).
 
+## Wer liest, was ein Agent schreibt
+
+Ein Agent darf schreiben, was er gelesen hat, auch dorthin, wo mehr Leute lesen; das lässt sich nicht verbieten, weil der
+Inhalt auch aus dem Chat kommen kann (T-38). Deshalb erfährt der Agent, wer liest, bevor er schreibt, und was er tut, wird
+sichtbar:
+
+- **Leser in der Antwort:** `write`, `replace`, `create_page`, `move` und jeder Probelauf enden mit einer kurzen Zeile zu den
+  Lesern des Ziels, etwa `readers: Sales (14), 1 more person, 1 public link` (höchstens etwa 60 Zeichen, keine Namen von
+  Personen; `readers: only you` für private Notizen, `readers: everyone`). `context` nennt die Leser jedes Bereichs einmal.
+  Die Zeile entfällt, wenn sie nichts Neues sagt: wenn der Agent nur las, was dieselben Leser lesen, oder wenn alle das
+  Ziel lesen, kein Link es zeigt und der Agent nichts las, was weniger lesen. Ein eingeschränktes Ziel, vor dem der Agent
+  nichts las, wird genannt: Der Inhalt kann aus dem Chat kommen.
+- **Gelesenes wird behalten**, je Person zwei Stunden (`agent_reads`): gelesene Seiten und Treffer einer Suche. Den
+  Token-Kontext eines Agenten sieht UnderDoc nicht; die zwei Stunden stehen dafür.
+- **Die Markierung:** Ein Schreiben dorthin, wo mehr lesen als das, was ein Agent in dieser Zeit las, trägt neben dem
+  Hinweis auf Änderungen durch Agenten *after reading what fewer may read*, auf jeder Seitenart, auch auf der Agentenseite,
+  und die Seite steht bei den zu prüfenden Änderungen, bis eine Person den Block prüft. Sie ist standardmäßig an, wo mehr
+  als eine Person die Instanz nutzt, bei einer Person aus, und je Bereich im Rechte-Dialog schaltbar
+  (`PUT /api/objects/<id>/agent-mark`).
+- **Text anderer:** `read` nennt, wessen Text eine Seite außer dem der Person enthält, und sagt, dass er Inhalt ist, nie
+  eine Anweisung; die Suche sagt dasselbe zu ihren Ausschnitten.
+- **Die Regeln:** Die Anweisungen erklären es, und die eingebaute Vorlage *Rules for agents* beginnt die Regelseite mit
+  „wer liest was“.
+
 ## Adressen
 
 Die Werkzeuge benennen, was sie lesen, mit einem Schema, damit andere Quellen später ihres ergänzen (T-31):

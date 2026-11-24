@@ -212,6 +212,8 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("PUT /api/objects/{id}/owner", h.apiSetOwner)
 	// The archive of spaces (T-34), of the documents and of Files alike.
 	mux.HandleFunc("PUT /api/objects/{id}/archive", h.apiSetArchived)
+	// The mark of agents' writes after reading narrower content, per space (T-38).
+	mux.HandleFunc("PUT /api/objects/{id}/agent-mark", h.apiSetAgentMark)
 	mux.HandleFunc("GET /api/people", h.apiPeople)
 	mux.HandleFunc("GET /api/groups", h.apiGroups)
 	mux.HandleFunc("POST /api/groups", h.apiCreateGroup)

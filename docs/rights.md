@@ -180,6 +180,9 @@ collections at the top as whoever runs the instance.
   not share it there, counts where its maker may share the target (B-6). They make no space and move no space to the trash,
   and the **rules page** ([mcp.md](mcp.md#the-rules-page)) they only read, whatever its entries say (deciding entry
   `rules page`).
+- **What they write** where more people read than read what they read is marked for a person to check, and every write
+  names the readers of its target ([mcp.md](mcp.md#who-reads-what-an-agent-writes), T-38). Agents offer no page as a
+  template and make no page from a template fewer may read than the new page's readers.
 - **No agents** on a space is a deny on read for Agents there, set like any entry (kind `agents`).
 - **Every person limits their own agents** (`PUT /api/me/agents`), for example to read only; only the person in a
   session changes it, never an agent.
@@ -256,9 +259,15 @@ What the rights do not do, on purpose or not yet (B-6):
 - **Group admins pass on through membership** what they do not hold themselves: putting someone into a group gives them
   what the group holds. The rule "nobody gives what they do not hold" covers entries, not memberships.
 - **A copy keeps the tags**, so an agent can make a page tagged `rules`; since B-5 the tag makes no rules page.
-- **"Agents never publish"** covers moving, copying and moving blocks. An agent that reads something and writes it anew
-  elsewhere is not stopped by it ([T-38](../backlog/T-38-attack-round-an-agent-makes-something-readable-to.md) looks at
-  marking such writes).
+- **"Agents never publish"** covers moving, copying, moving blocks and templates. An agent that reads something and
+  writes it anew elsewhere is not stopped, but such a write is marked ([T-38](../backlog/T-38-attack-round-an-agent-makes-something-readable-to.md));
+  what a person told it in the chat no mark can see, which is why every write names its readers.
+- **Versions** keep what was taken out of a page. Whoever gets write on it later reads them, also what was removed before
+  the page was opened up (T-38, open for the maintainer).
+- **Restoring from the trash** brings an object back where it lay, with the readers that place has now, also when they
+  grew while it lay in the trash (T-38, open for the maintainer).
+- **Files** an agent downloads and uploads again as a new file are a new file: nothing tells it apart from one written
+  anew (T-38, open for the maintainer).
 
 ## On the Samba share
 

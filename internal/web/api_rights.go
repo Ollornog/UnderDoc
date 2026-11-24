@@ -46,6 +46,16 @@ type apiRights struct {
 	Manage  bool     `json:"manage"`
 	// Samba says what the share makes of the object (ADR-30); nil where the tenant has no companion.
 	Samba *apiSambaRights `json:"samba,omitempty"`
+	// AgentMark is set for a space: whether a write of an agent after reading narrower content is marked there (T-38),
+	// as set ("on", "off") or "default", with what the default is.
+	AgentMark *apiAgentMark `json:"agentMark,omitempty"`
+}
+
+// apiAgentMark is the switch of the mark of agents' writes of a space (T-38).
+type apiAgentMark struct {
+	Set     string `json:"set"`
+	Default bool   `json:"default"`
+	On      bool   `json:"on"`
 }
 
 // apiSambaRights is what the rights dialog shows of Samba: whether the object lies in a shared library, that a file
@@ -104,7 +114,38 @@ func (h *handler) apiRights(w http.ResponseWriter, r *http.Request) {
 	if h.options.Share != nil && h.options.Share.On(r.Context()) {
 		out.Samba = h.sambaRights(r, r.PathValue("id"), actor.ID)
 	}
+	if o, err := h.options.DB.Object(r.Context(), r.PathValue("id"), actor.ID); err == nil && o.Parent == "" && o.Kind == db.KindCollection && !o.Private {
+		if set, def, on, err := h.options.DB.AgentMarkOf(r.Context(), o.ID); err == nil {
+			out.AgentMark = &apiAgentMark{Set: set, Default: def, On: on}
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// apiSetAgentMark switches the mark of agents' writes after reading narrower content for a space (T-38): {"mark": "on",
+// "off" or "default"}. Whoever manages the space, in the browser.
+func (h *handler) apiSetAgentMark(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Mark string `json:"mark"`
+	}
+	if _, ok := h.change(w, r, 1<<10, &in); !ok {
+		return
+	}
+	var mark *bool
+	switch in.Mark {
+	case "on", "off":
+		v := in.Mark == "on"
+		mark = &v
+	case "default":
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `the mark is "on", "off" or "default"`})
+		return
+	}
+	if h.failed(w, h.options.DB.SetAgentMark(r.Context(), r.PathValue("id"), h.actor(r), mark), "agent mark") {
+		return
+	}
+	h.note(r, db.LogAgents, r.PathValue("id"), "mark of agents' writes "+in.Mark)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // apiSetGrant sets what one holder is granted on an object: a preset ("role", empty takes every entry back), or the

@@ -136,7 +136,8 @@ their person, so a space with "no agents" stays closed and rights, share links, 
 of reach. A small core of tools: `context` to start, `read` for pages and sections with the version to write against,
 `used_in`, one `search` over sections of pages and pages of PDFs, `write` and `replace` against that version with a dry
 run, the diff and the check in every answer, front matter, a new page, `move`, `trash`, and files read page by page and
-uploaded through a one-time link. The conventions are a rules page in the wiki: [docs/mcp.md](docs/mcp.md).
+uploaded through a one-time link. Every write names who reads its target, and a write after reading what fewer may read
+is marked for a person to check. The conventions are a rules page in the wiki: [docs/mcp.md](docs/mcp.md).
 
 **The web editor** writes a page of the database in one editor with a live preview: Markdown that looks rendered away
 from the cursor, a bar above the page, `/` for the kinds of blocks, and saving as you type. It is built with Node from
