@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -187,12 +189,37 @@ func (h *helper) writeState(s samba.State) error {
 	shares.WriteString("# Written by underdoc-samba from the state UnderDoc applied (ADR-30).\n")
 	list := append([]samba.Share(nil), s.Shares...)
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
-	for _, sh := range list {
+	// The folders a user only passes through are hidden from that user in the share above them (T-43): each user of a
+	// share reads a file of their own, named after them (%U), with the veto list of the share.
+	// A new directory each time, and the one before kept, so smbd never reads an include that is gone (a missing one
+	// would hide nothing).
+	veto := filepath.Join(h.cfg.run, "veto."+strconv.FormatInt(time.Now().UnixNano(), 10))
+	for i, sh := range list {
 		if len(sh.Users) == 0 {
 			continue
 		}
 		fmt.Fprintf(&shares, "\n[%s]\n\tpath = %s\n\tread only = no\n\tbrowseable = yes\n\tvalid users = %s\n",
 			sh.Name, sh.Path, strings.Join(sh.Users, " "))
+		// Until the file of the user is read, the share hides every folder it hides from anyone: a user whose file
+		// smbd does not find sees less, never more.
+		var all []string
+		for _, names := range sh.Veto {
+			all = append(all, names...)
+		}
+		sort.Strings(all)
+		fmt.Fprintf(&shares, "\t%s", vetoLine(slices.Compact(all)))
+		dir := filepath.Join(veto, strconv.Itoa(i))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		for _, u := range sh.Users {
+			if err := os.WriteFile(filepath.Join(dir, u+".conf"), []byte(vetoLine(sh.Veto[u])), 0o644); err != nil {
+				return err
+			}
+		}
+		// %U is the account the session signed in as (smbd sets it after the sign-in; %u is not known yet when the
+		// include is read).
+		fmt.Fprintf(&shares, "\tinclude = %s\n", filepath.Join(veto, strconv.Itoa(i), "%U.conf"))
 		if sh.Comment != "" {
 			fmt.Fprintf(&shares, "\tcomment = %s\n", strings.Map(func(r rune) rune {
 				if r < ' ' || r == '\\' || r == '%' {
@@ -202,7 +229,37 @@ func (h *helper) writeState(s samba.State) error {
 			}, sh.Comment))
 		}
 	}
-	return writeFile(filepath.Join(h.cfg.run, "shares.conf"), []byte(shares.String()), 0o644)
+	if err := writeFile(filepath.Join(h.cfg.run, "shares.conf"), []byte(shares.String()), 0o644); err != nil {
+		return err
+	}
+	old, err := filepath.Glob(filepath.Join(h.cfg.run, "veto.*"))
+	if err != nil {
+		return err
+	}
+	sort.Strings(old)
+	for len(old) > 2 {
+		if err := os.RemoveAll(old[0]); err != nil {
+			return err
+		}
+		old = old[1:]
+	}
+	return nil
+}
+
+// baseVeto is the veto list of every share: the temporary files of a save (global section of smb.conf). A share that
+// sets its own list replaces it, so each list starts with it.
+const baseVeto = "/.~underdoc-*/"
+
+// vetoLine is the line of a user's file for a share: the base list and the folders hidden from them there (T-43).
+func vetoLine(names []string) string {
+	var b strings.Builder
+	b.WriteString("veto files = " + baseVeto)
+	for _, n := range names {
+		if samba.ValidVeto(n) {
+			b.WriteString(n + "/")
+		}
+	}
+	return b.String() + "\n"
 }
 
 // apply makes the companion hold the state: it writes users, passwords and shares, closes the sessions of users that are

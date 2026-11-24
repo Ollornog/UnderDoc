@@ -84,7 +84,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-40](T-40-agents-and-widened-readers-old-versions-restore-fr.md)** Agents and widened readers: old versions, restore from trash, re-uploaded files · M-30
 * ☑ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
 * ☐ **[T-42](T-42-samba-joins-a-domain-optionally.md)** Samba joins a domain, optionally · M-5
-* ☐ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
+* ☑ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
 * ☐ **[T-44](T-44-log-classes-retention-audit-role-and-self-disclosu.md)** Log classes, retention, audit role and self-disclosure for co-determination and GDPR · M-31
 
 ## Fehler

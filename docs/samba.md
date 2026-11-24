@@ -168,12 +168,16 @@ later (M-5).
 
 ## Limits
 
-- **Guessed names above a share of one's own.** Whoever reaches a folder only through passage (`--x`) on the way to a
-  share of their own cannot list the folders above it or read anything there, but can tell by the answer of the share
-  (`NT_STATUS_ACCESS_DENIED` against `NT_STATUS_OBJECT_NAME_NOT_FOUND`) whether a name they guessed exists. Contents,
-  listings and rights are not affected. Closing it would need a bind mount per share (`CAP_SYS_ADMIN` in the companion)
-  or a module of smbd of its own, which is out of proportion; see ADR-30. Tested as a known limit in
-  `TestSambaPassageKnownLimitGuessedNames`.
+- ~~**Guessed names above a share of one's own.**~~ Closed on 2026-11-24 (T-43): the folders someone only passes
+  through (`--x`) on the way to a share of their own are hidden from them in the share of the library (`veto files`, a
+  list per user and share, `include = …/%U.conf` in the share; until a user's file is read, the share hides every such
+  folder of anyone, so a missing file hides more, never less). A guessed name there answers
+  `NT_STATUS_OBJECT_PATH_NOT_FOUND` whether it exists or not; the share of their own stays reachable as before
+  (`TestSambaPassageTellsNoGuessedNames`).
+- **A name like a readable one.** Samba hides by name, not by path: where the user reads a file or folder of the same
+  name (in any case) in the library, the folder passed through is not hidden, as hiding it would take the readable one
+  away too; that one name still tells a guess, as before T-43, and the log says so ("keeps telling a guessed name"). So
+  does a name with `*`, `?`, `%`, `/` or `\`, which a veto list cannot hold (`TestSambaPassageNameLikeAReadableOne`).
 
 ## Tests
 

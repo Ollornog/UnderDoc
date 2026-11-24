@@ -295,12 +295,11 @@ func TestSambaAttackBrokenFileMovedIn(t *testing.T) {
 	}
 }
 
-// KNOWN LIMIT (ADR-30, docs/samba.md): passage (--x) through the folders above a share of one's own lets the kernel stat
-// any name in them. Bob, who may not see anything in HR, can tell a name that exists there from one that does not by the
-// answer of the share (NT_STATUS_ACCESS_DENIED against NT_STATUS_OBJECT_NAME_NOT_FOUND): a guessed name is confirmed.
-// What stays closed, and what this test holds: listing HR fails and shows no name, and reading a name that exists fails.
-// The guess is the known limit; if it ever closes, the last check fails and ADR-30 and docs/samba.md must change.
-func TestSambaPassageKnownLimitGuessedNames(t *testing.T) {
+// Closed since T-43 (ADR-30, docs/samba.md): passage (--x) through the folders above a share of one's own let the kernel
+// stat any name in them, so Bob, who may not see anything in HR, could tell a name that exists there from one that does
+// not. HR is hidden from Bob in the share of its library now (veto files, a list per user and share): both names answer
+// the same, the listing shows nothing, nothing is read, and Bob still reaches his share of his own.
+func TestSambaPassageTellsNoGuessedNames(t *testing.T) {
 	f := setupSamba(t)
 	ctx := inMain()
 	admin := db.Actor{ID: anna.ID, Admin: true}
@@ -344,8 +343,59 @@ func TestSambaPassageKnownLimitGuessedNames(t *testing.T) {
 	if status(exists) == "no error" {
 		t.Errorf("Bob reads a file in HR: %s", lastLines(exists))
 	}
-	// Known limit: the answers differ, so a guessed name shows whether it exists (never its content).
-	if status(exists) == status(missing) {
-		t.Errorf("the guess of a name in HR is closed (%s for both): move the known limit out of ADR-30 and docs/samba.md", status(exists))
+	// Closed: an existing name and a missing one answer the same, so a guess tells nothing.
+	if status(exists) != status(missing) {
+		t.Errorf("a guessed name in HR shows whether it exists: %s against %s", status(exists), status(missing))
+	}
+	// Bob still reaches his share of his own, and Anna, who reads HR, still sees it in the library.
+	if out, _ := f.smb(tenant.Main, bob, "", "Public", "ls", ""); status(out) != "no error" {
+		t.Errorf("Bob does not reach his share Public: %s", lastLines(out))
+	}
+	if out, _ := f.smb(tenant.Main, anna, "", "Company", `ls HR\*`, ""); !strings.Contains(out, "dismissal-carl") {
+		t.Errorf("HR is hidden from Anna too: %s", lastLines(out))
+	}
+}
+
+// A folder passed through is hidden by its name, and Samba hides names, not paths: where Bob reads a folder of the same
+// name elsewhere in the library, hiding would take that one from him too. So that one name keeps telling a guess (the
+// known limit of before), and what Bob may read stays readable (T-43).
+func TestSambaPassageNameLikeAReadableOne(t *testing.T) {
+	f := setupSamba(t)
+	ctx := inMain()
+	admin := db.Actor{ID: anna.ID, Admin: true}
+	hr, err := f.db.CreateFolder(ctx, anna, "HR", f.company.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetInherit(ctx, hr.ID, admin, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetGrant(ctx, hr.ID, admin, db.ToTenant, "", db.RoleNone); err != nil {
+		t.Fatal(err)
+	}
+	public, err := f.db.CreateFolder(ctx, anna, "Public", hr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.SetGrant(ctx, public.ID, admin, db.ToPerson, bob.ID, db.RoleRead); err != nil {
+		t.Fatal(err)
+	}
+	// A folder Bob reads, named like the one he passes through.
+	projects, err := f.db.CreateFolder(ctx, anna, "Projects", f.company.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db.CreateFolder(ctx, anna, "hr", projects.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(tenant.Main)
+	f.put(anna, "Company", `Projects\hr\plan.txt`, "the plan")
+	f.sync(tenant.Main)
+	f.sync(tenant.Main)
+	if out, _ := f.smb(tenant.Main, bob, "", "Company", `get Projects\hr\plan.txt /dev/stdout`, ""); !strings.Contains(out, "the plan") {
+		t.Errorf("hiding HR took the folder hr Bob reads: %s", lastLines(out))
+	}
+	if out, _ := f.smb(tenant.Main, bob, "", "Company", `ls HR\*`, ""); strings.Contains(out, "Public") {
+		t.Errorf("Bob lists HR: %s", lastLines(out))
 	}
 }

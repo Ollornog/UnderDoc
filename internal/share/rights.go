@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -78,6 +79,7 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 			return err
 		}
 		rootShare := ""
+		library := -1
 		switch root.Role {
 		case db.RootUser:
 			if n := name[root.Account]; n != "" {
@@ -98,6 +100,7 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 			}
 			sort.Strings(users)
 			shares = append(shares, samba.Share{Name: rootShare, Path: ts.full(root.ID, ""), Comment: root.Title, Users: users})
+			library = len(shares) - 1
 		}
 		for folder, ranks := range access {
 			p, ok := t.paths[folder]
@@ -120,6 +123,8 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 		}
 		// A folder someone reads without reading the folder above: a share of its own, and passage above it.
 		own := map[string][]string{}
+		// passed holds, per account, the folders it only passes through on the way to a share of its own (T-43).
+		passed := map[string][]string{}
 		for _, n := range t.order {
 			if n.Kind != db.KindFolder || n.ID == root.ID {
 				continue
@@ -159,6 +164,10 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 					}
 					if _, has := acls[full][uid[a]]; !has {
 						acls[full][uid[a]] = samba.Pass
+						// The root of the library is the share itself, which a veto cannot hide.
+						if up != root.ID {
+							passed[a] = append(passed[a], up)
+						}
 					}
 					if up == root.ID {
 						break
@@ -167,6 +176,18 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 			}
 			sort.Strings(users)
 			shares = append(shares, samba.Share{Name: shareName, Path: ts.full(root.ID, t.paths[f]), Comment: t.nodes[f].Name, Users: users})
+		}
+		if library >= 0 && len(passed) > 0 {
+			// Only who reaches the library's share is hidden anything there; the others do not reach it at all.
+			veto := ts.hidden(root.ID, t, access, passed, name)
+			for u := range veto {
+				if !slices.Contains(shares[library].Users, u) {
+					delete(veto, u)
+				}
+			}
+			if len(veto) > 0 {
+				shares[library].Veto = veto
+			}
 		}
 	}
 	state := samba.State{Shares: shares}
@@ -223,6 +244,54 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 		}
 	}
 	return nil
+}
+
+// hidden names, per Samba user, the folders of a library they only pass through, to hide them in its share (T-43): there
+// a name in such a folder answers the same whether it exists or not. Samba hides by name, not by path, so a folder is not
+// hidden when the user reads something of the same name in the library (or the name cannot stand in a veto list); it
+// keeps telling a guessed name then, and the log says so. Hiding never takes away what the user may read.
+func (ts *tenantShare) hidden(rootID string, t tree, access map[string]map[string]int, passed map[string][]string, name map[string]string) map[string][]string {
+	out := map[string][]string{}
+	for a, folders := range passed {
+		readable := map[string]bool{}
+		for _, n := range t.order {
+			if n.ID == rootID {
+				continue
+			}
+			if _, on := t.paths[n.ID]; !on {
+				continue
+			}
+			from := n.ID
+			if n.Kind != db.KindFolder {
+				from = n.Parent
+			}
+			if access[from][a] >= rankRead {
+				readable[strings.ToLower(n.Name)] = true
+			}
+		}
+		seen := map[string]bool{}
+		for _, f := range folders {
+			n := t.nodes[f].Name
+			if seen[strings.ToLower(n)] {
+				continue
+			}
+			seen[strings.ToLower(n)] = true
+			if readable[strings.ToLower(n)] || !samba.ValidVeto(n) {
+				ts.m.log.Warn("samba: a folder passed through keeps telling a guessed name, as the user reads a name like it in the library",
+					"tenant", ts.tenant, "folder", f, "account", a)
+				continue
+			}
+			out[name[a]] = append(out[name[a]], n)
+		}
+		sort.Strings(out[name[a]])
+		if len(out[name[a]]) == 0 {
+			delete(out, name[a])
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func aclKey(m map[int]samba.Access) string {
