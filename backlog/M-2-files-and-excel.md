@@ -63,3 +63,7 @@ Search over tables built the same day: the cells of the visible sheets by sheet 
 The table view in the workspace built the same day (sheets as buttons, sticky head, pages of rows, marking, Embed,
 CSV). Open in M-2: tags on files, the document types for PowerPoint, video and image collections, and the acceptance
 with real Excel (with the tables of ADR-31).
+
+**Built on 2026-11-24 (B-2, [docs/tables.md](../docs/tables.md)):** the leftovers of the attack round on spreadsheets:
+the cache bounded by size, rows hidden by default, merged areas with a hidden first cell alike in grid, search and CSV,
+and look-alikes of `=` defused in a CSV. Open in M-2: the maintainer's acceptance (T-17, T-18, T-1 with real Excel).

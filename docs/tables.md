@@ -28,11 +28,18 @@ answers why it cannot be read.
   sections with conditions, text sections, elapsed time (`[h]:mm`) and both date systems (1900 with its leap day of 1900,
   1904) are covered. Colours are left out; a negative number whose format would show it only in red keeps its minus.
   Booleans show as `TRUE`/`FALSE` or `WAHR`/`FALSCH`.
-- **Merged cells** span their rows and columns; a merge across the edge of a range is cut there.
+- **Merged cells** span their rows and columns; a merge across the edge of a range is cut there. The text of a merge
+  whose first cell is hidden shows in its first visible cell, as Excel shows a merged cell partly hidden, and the search
+  and a CSV find it there as well (B-2).
 - **Hidden stays hidden:** hidden and very hidden sheets (in OpenDocument by an automatic style of `content.xml` or a
   common style of `styles.xml`) are not listed and their cells are never read; hidden rows
   (filtered rows too) and hidden columns are left out of every grid and CSV. This is no protection of the data: whoever
   reads the file may download it.
+- **Rows hidden by default:** a sheet of SpreadsheetML may hide every row by default (`<sheetFormatPr zeroHeight="1"/>`,
+  ECMA-376 Part 1, 18.3.1.81) and write out only the rows that are not hidden; then every row not written out is hidden,
+  and a row written out only when it says so (`hidden="1"`). A row of no height (`customHeight="1" ht="0"`) is hidden
+  too. Built from the standard and a file made for the test; how Excel itself writes such a sheet is checked when Excel
+  saves over Samba (T-1).
 - Fonts, fills, borders, widths, charts, pictures, comments and conditional formats are not taken over.
 
 The number formats are held against LibreOffice: `scripts/sheets-libreoffice.sh` makes a workbook in LibreOffice in a
@@ -78,8 +85,9 @@ Each answers only to whoever may read the file (ADR-29), else 404 as for any fil
 ## CSV without formulas
 
 A CSV of a table puts an apostrophe before every text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return,
-unless it is a plain number such as `-89.90`: no spreadsheet program reads it as a formula, and no command of DDE runs
-from it. Numbers are written as the plain numbers they hold, booleans as `TRUE`/`FALSE`. Every field is quoted: German
+or with their full-width forms `＝`, `＋`, `－`, `＠`, also after white space (` =1+1`), unless it is a plain number such as
+`-89.90`: no spreadsheet program reads it as a formula, and no command of DDE runs from it. LibreOffice reads the
+full-width forms and a space before `=` as text anyway; whether Excel does was not checked, so both are defused (B-2). Numbers are written as the plain numbers they hold, booleans as `TRUE`/`FALSE`. Every field is quoted: German
 Excel and LibreOffice split a CSV at the semicolon, and a text such as `x;=1+1` written bare would start a field, and a
 formula, after it.
 
@@ -109,9 +117,10 @@ Spreadsheets come from anyone who may upload or save over Samba, so each is read
 
 - A document type in any XML part is refused, and Go's decoder expands no entity besides the five of XML, so no
   external entity is fetched and no entity grows.
-- A broken file, or one past a limit, gives its reason; the reason is kept beside the blob (`<sha>-sheet-2.err`), so it
-  is not read again. What was read is kept beside the blob too (`<sha>-sheet-2.json.gz`, `-csv-` or `-tsv-` before `sheet` for text, derived, ADR-28) and the last
-  eight workbooks in memory. A new version is a new blob and is read anew. Two files with the same bytes share what was
+- A broken file, or one past a limit, gives its reason; the reason is kept beside the blob (`<sha>-sheet-3.err`), so it
+  is not read again. What was read is kept beside the blob too (`<sha>-sheet-3.json.gz`, `-csv-` or `-tsv-` before `sheet` for text, derived, ADR-28) and the last
+  eight workbooks in memory, at most about 256 MiB of them: the cache estimates what each takes and drops the oldest
+  past that, the newest always kept (B-2). A new version is a new blob and is read anew. Two files with the same bytes share what was
   read, but the one sheet of a CSV is named after the file it is read for, never after the other file.
 - A page of a grid costs what the page costs, whatever the sheet holds: merged areas are cut at the edges of the page (a
   merge that runs on shows on the next page as an empty cell of its own), merges over cells another merge covers, as no
@@ -132,7 +141,8 @@ such as `Budget!A1:H12`, so a hit names the sheet and opens the table view at it
   sheet (ADR-24 looks codes up exactly). A hit names the range of its rows, not the single cell.
 - At most 1 MiB of text of a workbook is given, as of any file.
 - A spreadsheet that cannot be read as tables is found by the text the server reads, as other files are.
-- The source of the search raised its version (5), so every index is filled again once.
+- The source of the search raised its version (5), so every index is filled again once; it raised it again (8) when
+  merged areas and rows hidden by default were read anew (B-2).
 
 ## Tables in pages
 

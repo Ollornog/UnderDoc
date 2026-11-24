@@ -8,6 +8,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // HTML writes a grid as a table of C22: every text escaped, numbers marked data-type="number" (C22 aligns them to the
@@ -61,7 +63,8 @@ func writeRow(b *strings.Builder, r GridRow, tag string) {
 // a tab or a carriage return) gets an apostrophe in front; a number is written as the plain number it holds, which never
 // starts a formula. Every field is quoted: a program that splits at another separator than the comma, as German Excel
 // and LibreOffice split at the semicolon, would otherwise start a field, and maybe a formula, inside a text such as
-// "x;=1+1". Merged cells are written once, in their first cell.
+// "x;=1+1". Merged cells are written once, in their first cell, or in their first visible cell when the first is hidden,
+// as the grid shows them.
 func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
 	out := bufio.NewWriter(w)
 	// The rectangle is written whole, empty cells too: one far out to the right and down would be billions of them.
@@ -80,7 +83,7 @@ func WriteCSV(w io.Writer, wb *Workbook, s *Sheet, rect Rect) error {
 		return &LimitError{What: "cells in the range written out", Limit: MaxArea}
 	}
 	cells := map[int][]Cell{}
-	for _, r := range s.Rows {
+	for _, r := range s.shownRows() {
 		if r.N >= rect.R1 && r.N <= rect.R2 {
 			cells[r.N] = r.Cells
 		}
@@ -144,13 +147,23 @@ func csvField(wb *Workbook, c Cell) string {
 	return Defuse(c.Value)
 }
 
-// Defuse puts an apostrophe before a text that a spreadsheet program would read as a formula. A plain number, such as
-// -89.90, starts no formula and stays as it is.
+// formulaStart are the characters a spreadsheet program may take as the start of a formula: = + - @ and their full-width
+// forms, which an East Asian input method writes and a program may read as the narrow ones (B-2).
+const formulaStart = "=+-@＝＋－＠"
+
+// Defuse puts an apostrophe before a text that a spreadsheet program would read as a formula: one that starts with a
+// tab or a carriage return, or whose first character after any white space is one of formulaStart (a program may drop
+// the space before it). A plain number, such as -89.90, starts no formula and stays as it is.
 func Defuse(text string) string {
-	if text == "" || !strings.ContainsRune("=+-@\t\r", rune(text[0])) {
+	if text == "" {
 		return text
 	}
-	if _, err := strconv.ParseFloat(text, 64); err == nil && !strings.ContainsAny(text, "\t\r") {
+	rest := strings.TrimLeftFunc(text, unicode.IsSpace)
+	first, _ := utf8.DecodeRuneInString(rest)
+	if text[0] != '\t' && text[0] != '\r' && (rest == "" || !strings.ContainsRune(formulaStart, first)) {
+		return text
+	}
+	if _, err := strconv.ParseFloat(text, 64); err == nil {
 		return text
 	}
 	return "'" + text

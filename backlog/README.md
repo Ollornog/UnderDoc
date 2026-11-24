@@ -8,7 +8,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Meilensteine
 
 * ☐ **[M-1](M-1-markdown-wiki.md)** Markdown wiki: a folder becomes a website — 3/4 erledigt
-* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/6 erledigt
+* ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 3/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
 * ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/4 erledigt
@@ -90,7 +90,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 ## Fehler
 
 * ☑ **[B-1](B-1-folder-links-broken.md)** Links to folders count as broken · M-1
-* ☐ **[B-2](B-2-spreadsheet-attack-round-leftovers.md)** Spreadsheets, what the attack round of ADR-31 left open · M-2
+* ☑ **[B-2](B-2-spreadsheet-attack-round-leftovers.md)** Spreadsheets, what the attack round of ADR-31 left open · M-2
 * ☑ **[B-3](B-3-review-of-rights-and-sign-in-permanent-deletes-and.md)** Review of rights and sign-in: permanent deletes and service accounts · M-30
 * ☑ **[B-4](B-4-review-of-b-3-service-accounts-get-admin-through-g.md)** Review of B-3: service accounts get admin through gate roles, archive bypass, facet leaks · M-30
 * ☑ **[B-5](B-5-review-of-b-4-and-the-mcp-core-rules-page-archive.md)** Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves · M-30

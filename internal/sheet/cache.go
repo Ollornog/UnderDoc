@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -25,10 +26,14 @@ const (
 	// ReadTime is how long reading one workbook may take.
 	ReadTime = 30 * time.Second
 	// Derived is the name of what was read, after the hash of the blob (and -csv or -tsv for text); its number moves
-	// when the model or the limits change: 2 keeps no hidden rows beyond the content and counts the text of cells.
-	Derived = "-sheet-2.json.gz"
+	// when the model or the limits change: 2 keeps no hidden rows beyond the content and counts the text of cells, 3 reads
+	// rows hidden by default and rows of no height as hidden (B-2).
+	Derived = "-sheet-3.json.gz"
 	// Failed keeps why a blob could not be read, so a broken or too large file is not read again on every view.
-	Failed = "-sheet-2.err"
+	Failed = "-sheet-3.err"
+	// CacheBytes is about how much memory the workbooks kept in memory may take together (B-2): a workbook at the limits
+	// takes more than 100 MiB, so eight of them would keep about a gigabyte. The newest stays even when it alone is more.
+	CacheBytes = 256 << 20
 )
 
 // Reason is why a file cannot be shown as tables, a sentence for a person.
@@ -50,19 +55,23 @@ type Cache struct {
 	readers chan struct{}
 	mu      sync.Mutex
 	max     int
-	order   []string
-	entries map[string]cached
+	// maxBytes bounds what the entries take together, bytes what they take now (Workbook.memory).
+	maxBytes, bytes int
+	order           []string
+	entries         map[string]cached
 }
 
 type cached struct {
 	wb    *Workbook
 	err   error
 	until time.Time
+	size  int
 }
 
-// NewCache returns a cache over a content store that keeps the last eight workbooks in memory.
+// NewCache returns a cache over a content store that keeps the last eight workbooks in memory, at most about
+// CacheBytes of them.
 func NewCache(blobs Blobs, log *slog.Logger) *Cache {
-	return &Cache{blobs: blobs, log: log, readers: make(chan struct{}, 2), max: 8, entries: map[string]cached{}}
+	return &Cache{blobs: blobs, log: log, readers: make(chan struct{}, 2), max: 8, maxBytes: CacheBytes, entries: map[string]cached{}}
 }
 
 func (c *Cache) get(key string) (cached, bool) {
@@ -70,22 +79,39 @@ func (c *Cache) get(key string) (cached, bool) {
 	defer c.mu.Unlock()
 	e, ok := c.entries[key]
 	if ok && !e.until.IsZero() && time.Now().After(e.until) {
-		delete(c.entries, key)
+		c.drop(key)
 		return cached{}, false
 	}
 	return e, ok
 }
 
+// put keeps an entry as the newest, and drops the oldest while there are more than max or they take more than maxBytes;
+// the newest always stays.
 func (c *Cache) put(key string, e cached) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, ok := c.entries[key]; !ok {
-		c.order = append(c.order, key)
+	c.drop(key)
+	if e.wb != nil {
+		e.size = e.wb.memory()
 	}
+	c.order = append(c.order, key)
 	c.entries[key] = e
-	for len(c.order) > c.max {
-		delete(c.entries, c.order[0])
-		c.order = c.order[1:]
+	c.bytes += e.size
+	for len(c.order) > 1 && (len(c.order) > c.max || c.bytes > c.maxBytes) {
+		c.drop(c.order[0])
+	}
+}
+
+// drop forgets an entry; the lock is held.
+func (c *Cache) drop(key string) {
+	e, ok := c.entries[key]
+	if !ok {
+		return
+	}
+	delete(c.entries, key)
+	c.bytes -= e.size
+	if i := slices.Index(c.order, key); i >= 0 {
+		c.order = slices.Delete(c.order, i, i+1)
 	}
 }
 

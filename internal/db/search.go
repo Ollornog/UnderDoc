@@ -106,8 +106,8 @@ func (objectSource) Name() string { return SourceObjects }
 // of files and of the attachments of pages (M-2), 3 readers as persons, groups and the tenant (ADR-29), 4 paths without
 // the names of levels not every reader sees (ADR-29), 5 the cells of spreadsheets by sheet and range (ADR-31), 6 the
 // levels of entries on read with their denies and the denies on Agents (ADR-36), 7 the pages of a PDF as records of their
-// own (ADR-34).
-func (objectSource) Version() string { return "7" }
+// own (ADR-34), 8 the text of a merged area of a spreadsheet whose first cell is hidden, and rows hidden by default (B-2).
+func (objectSource) Version() string { return "8" }
 
 // Keys lists every object there is to find, outside the trash: the documents, and the files of the view Files.
 func (s objectSource) Keys(ctx context.Context) ([]string, error) {

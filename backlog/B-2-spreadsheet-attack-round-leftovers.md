@@ -2,7 +2,7 @@
 id: B-2
 type: Bug
 title: Spreadsheets, what the attack round of ADR-31 left open
-status: offen
+status: erledigt
 points: 3
 milestone: M-2
 tags: [files, excel, security]
@@ -24,3 +24,11 @@ and a CSV download. Found and not fixed there:
    leak (hidden is no protection, ADR-31), but the three disagree.
 4. **CSV and look-alike characters:** a text starting with a full-width `＝` or with a space before `=` is written as it
    is. LibreOffice 26.8 reads both as text (checked by hand); Excel was not checked.
+
+**Fixed on 2026-11-24:** (1) the cache estimates what each workbook takes and keeps at most about 256 MiB, dropping the
+oldest, the newest always kept; (2) `zeroHeight` is read after ECMA-376 Part 1, 18.3.1.81: only rows written out are
+shown, unless they say `hidden`, and a row of no height is hidden as well; built from the standard with a synthetic
+file, the check with real Excel is in T-1 and T-18; (3) the text of a merged area whose first cell is hidden stands in
+its first visible cell for the grid, the search and a CSV alike; (4) a CSV defuses the full-width `＝ ＋ － ＠` and white
+space before `= + - @` too. What was read is kept anew (`-sheet-3`), the search source is at version 8.
+Tests in `internal/sheet/leftovers_test.go`; 11 mutations, all red ([docs/tables.md](../docs/tables.md)).

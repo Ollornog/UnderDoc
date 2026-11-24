@@ -35,3 +35,8 @@ smbd's audit recorded every operation; the recordings are the fixtures in
 - Open: the same with **real Excel** on Windows (the maintainer's acceptance). Excel is known from public sources to save
   through a temporary file and renames too (`TestOfficeSaveBecomesAVersion` takes that pattern, not measured here). The
   measurement uses LibreOffice on Linux; LibreOffice on Windows may save differently.
+
+**To check with real Excel as well (B-2, 2026-11-24):** hide all rows below the data (select the rows, Hide), save over
+Samba: the web shows the same rows as Excel. If Excel writes `<sheetFormatPr zeroHeight="1"/>`, note whether a row with
+content can then be hidden without `hidden="1"` of its own; UnderDoc reads it after ECMA-376 (only rows written out are
+shown). Download a CSV of a sheet with a text `＝1+1` and one with ` =1+1` and open it in Excel: both show as text.

@@ -299,6 +299,30 @@ func (x *xlsxReader) formatIndex(id int, custom map[int]string) int {
 	return len(x.wb.Formats) - 1
 }
 
+// notWritten lists the rows from 1 to last that are not among the rows written out, which are hidden when a sheet hides
+// rows by default.
+func notWritten(written []int, last int) []int {
+	slices.Sort(written)
+	var out []int
+	k := 0
+	for r := 1; r <= last; r++ {
+		for k < len(written) && written[k] < r {
+			k++
+		}
+		if k < len(written) && written[k] == r {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// isZero tells whether a height is zero.
+func isZero(s string) bool {
+	f, err := strconv.ParseFloat(s, 64)
+	return err == nil && f == 0
+}
+
 // readSheet streams a worksheet: hidden columns, rows with their cells, merged areas, and the tables it holds.
 func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 	targets, _, err := x.relsOf(name)
@@ -309,6 +333,10 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 	row := 0
 	// A column hidden again and again is one column: the hidden columns are a set of Excel's columns.
 	hiddenCols := make([]bool, MaxCols+1)
+	// Rows hidden by default (zeroHeight of sheetFormatPr, ECMA-376 Part 1, 18.3.1.81): only the rows written out are
+	// not hidden, unless they say so themselves. written keeps which rows are written out.
+	zeroHeight := false
+	var written []int
 	err = x.walk(name, func(d *xml.Decoder, se xml.StartElement) error {
 		switch se.Name.Local {
 		case "col":
@@ -328,8 +356,13 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 			if row < 1 || row > MaxRows {
 				return &LimitError{What: "rows", Limit: MaxRows}
 			}
-			if n := len(sh.HiddenRows); truthy(attr(se, "hidden")) && (n == 0 || sh.HiddenRows[n-1] != row) {
+			// A row of no height is hidden as well, as Excel shows it (customHeight with ht 0, 18.3.1.73).
+			zero := truthy(attr(se, "customHeight")) && attr(se, "ht") != "" && isZero(attr(se, "ht"))
+			if n := len(sh.HiddenRows); (truthy(attr(se, "hidden")) || zero) && (n == 0 || sh.HiddenRows[n-1] != row) {
 				sh.HiddenRows = append(sh.HiddenRows, row)
+			}
+			if zeroHeight && (len(written) == 0 || written[len(written)-1] != row) {
+				written = append(written, row)
 			}
 			return x.readRow(d, sh, row)
 		case "mergeCell":
@@ -341,7 +374,9 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 			}
 		case "tablePart":
 			tableRels = append(tableRels, attr(se, "id"))
-		case "sheetPr", "dimension", "sheetViews", "sheetFormatPr", "cols", "sheetData", "mergeCells", "tableParts", "worksheet":
+		case "sheetFormatPr":
+			zeroHeight = truthy(attr(se, "zeroHeight"))
+		case "sheetPr", "dimension", "sheetViews", "cols", "sheetData", "mergeCells", "tableParts", "worksheet":
 		default:
 			// Everything else of a sheet (conditional formats, drawings, pictures, controls) is not read.
 			return x.skip(d)
@@ -350,6 +385,9 @@ func (x *xlsxReader) readSheet(name string, sh *Sheet) error {
 	})
 	if err != nil {
 		return err
+	}
+	if zeroHeight {
+		sh.HiddenRows = append(sh.HiddenRows, notWritten(written, sh.Used().R2)...)
 	}
 	slices.Sort(sh.HiddenRows)
 	sh.HiddenRows = slices.Compact(sh.HiddenRows)

@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **Spreadsheets, the leftovers of the attack round** (B-2, [docs/tables.md](docs/tables.md)). The cache of read
+  workbooks is bounded by what they take, about 256 MiB, not only by their count, so eight files at the limits no
+  longer keep about a gigabyte. Rows a sheet hides by default (`zeroHeight`, ECMA-376 Part 1, 18.3.1.81) and rows of no
+  height are read as hidden. The text of a merged area whose first cell is hidden stands in its first visible cell for
+  the grid, the search and a CSV alike. A CSV puts the apostrophe before the full-width `＝ ＋ － ＠` and before white space
+  ahead of `= + - @` too. What was read is kept anew (`-sheet-3`) and the search source is at version 8, so both are
+  built again once. 11 mutations, all red.
+
 - **Order kept as shown, three flaky tests** (nightly-repeat on 5d7de57). A second sort, a line or a copy started while
   the moves of a sort were still on their way mixed with them, so the database kept another order than the one shown:
   everything that places entries in a collection now waits for what was placed before it. The browser tests open the
