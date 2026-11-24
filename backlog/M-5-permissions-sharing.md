@@ -81,3 +81,8 @@ put back), hard links end, a moved file gets the ACL of its folder, a file that 
 share, a library that stops being shared gets a last pass, a Samba user never takes the name of a share, temporary
 patterns hold for files only, no `%` in share paths; a secret moved away is logged on the page it leaves (ADR-30, ADR-7).
 Open: passage above a share of one's own tells existing names from missing ones (decision of the maintainer), the domain.
+
+**Built on 2026-11-24 (T-15):** the follow-ups of the permission work: changes of rights go one after the other in a
+tenant, and breaking the inheritance deep down no longer loses a deny given above at the same time; entries of persons,
+groups, the tenant beyond its preset and the denies on Agents travel in export and import; a deny hides the passwords of
+a page. Open in M-5: the domain (T-42) and the passage above a share of one's own (T-43).

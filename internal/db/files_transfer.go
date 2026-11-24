@@ -31,7 +31,9 @@ type FileNode struct {
 	Versions []FileVersion
 	// Tables of a spreadsheet that have an ID (ADR-31).
 	Tables []FileTable
-	Kids   []*FileNode
+	// Entries are the entries of rights on it beyond the role of the tenant (T-15).
+	Entries []RightsEntry
+	Kids    []*FileNode
 }
 
 // AttachmentRecord is an attachment of a page with the login of its author.
@@ -71,6 +73,17 @@ func (db *DB) AllFiles(ctx context.Context) ([]*FileNode, []AttachmentRecord, er
 	tables, err := db.tablesForExport(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+	// The entries of rights, as for the documents (T-15).
+	asNodes := make(map[string]*Node, len(byID))
+	for id, n := range byID {
+		asNodes[id] = &Node{Object: n.Object}
+	}
+	if err := db.fillEntries(ctx, asNodes); err != nil {
+		return nil, nil, err
+	}
+	for id, n := range asNodes {
+		byID[id].Entries, byID[id].Access = n.Entries, n.Access
 	}
 	for file, list := range tables {
 		if n := byID[file]; n != nil {
@@ -171,6 +184,11 @@ func (db *DB) ImportFiles(ctx context.Context, ownerLogin string, roots []*FileN
 		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared($1)", lockBlobs); err != nil {
 			return err
 		}
+		type madeNode struct {
+			id string
+			n  *FileNode
+		}
+		var withEntries []madeNode
 		var write func(n *FileNode, parent string, position int) error
 		write = func(n *FileNode, parent string, position int) error {
 			o := n.Object
@@ -196,6 +214,9 @@ func (db *DB) ImportFiles(ctx context.Context, ownerLogin string, roots []*FileN
 			}
 			if made.ID != o.ID && o.ID != "" {
 				result.Renamed[o.ID] = made.ID
+			}
+			if len(n.Entries) > 0 {
+				withEntries = append(withEntries, madeNode{made.ID, n})
 			}
 			result.Objects++
 			for _, v := range n.Versions {
@@ -293,6 +314,23 @@ func (db *DB) ImportFiles(ctx context.Context, ownerLogin string, roots []*FileN
 			}
 			if err := write(root, "", position+i); err != nil {
 				return err
+			}
+		}
+		// The entries of rights once every root is what it becomes: nothing private, such as a folder of a user, gets any
+		// (T-15).
+		for _, m := range withEntries {
+			private, err := isPrivate(ctx, tx, m.id)
+			if err != nil {
+				return err
+			}
+			if private {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("%s: its entries of rights were left out, as nothing private has any", m.n.Title))
+				continue
+			}
+			for _, e := range m.n.Entries {
+				if why := importEntry(ctx, tx, m.id, owner, e); why != "" {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("%s: the entry of %s was left out: %s", m.n.Title, holderName(e), why))
+				}
 			}
 		}
 		for _, a := range attachments {

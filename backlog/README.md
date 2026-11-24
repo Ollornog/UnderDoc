@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 3/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/4 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 2/4 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -56,7 +56,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[T-12](T-12-workspace-from-c22-building-blocks.md)** The workspace from C22's building blocks, the look as the pack underdoc · M-14
 * ☐ **[T-13](T-13-extract-the-spreadsheet-reader-as-its-own-public-g.md)** Extract the spreadsheet reader as its own public Go library (gridport) · M-17
 * ☐ **[T-14](T-14-data-exchange-import-foreign-tables-print-a-view-e.md)** Data exchange: import foreign tables, print a view, export tables · M-17
-* ☐ **[T-15](T-15-follow-ups-of-the-permission-work.md)** Follow-ups of the permission work · M-5
+* ☑ **[T-15](T-15-follow-ups-of-the-permission-work.md)** Follow-ups of the permission work · M-5
 * ☑ **[T-16](T-16-clarify-whether-the-who-did-what-log-needs-co-dete.md)** Clarify whether the who-did-what log needs co-determination or GDPR steps · M-5
 * ☐ **[T-17](T-17-maintainer-walkthrough-of-the-first-build-and-the.md)** Maintainer walkthrough of the first build and the editor · M-2
 * ☐ **[T-18](T-18-maintainer-acceptance-of-spreadsheets-as-tables.md)** Maintainer acceptance of spreadsheets as tables · M-2

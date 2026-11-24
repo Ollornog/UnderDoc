@@ -616,3 +616,32 @@ func TestRevealsCountedAtOnce(t *testing.T) {
 		t.Errorf("%d of %d reveals at once went through, want %d", revealed, many, RevealsPerWindow)
 	}
 }
+
+// TestADenyHidesASecret: passwords follow the rights per action (ADR-7 under ADR-36, T-15): a deny of read for a person,
+// or for a group of theirs, on the page or above it, takes revealing away, though the tenant may read the page; taking the
+// deny back gives it back.
+func TestADenyHidesASecret(t *testing.T) {
+	db := open(t)
+	ctx := inMain()
+	ops, page := secretPage(t, db)
+	value := randomValue(t)
+	secretID, err := db.CreatePageSecret(ctx, page.ID, anna.ID, fakeSeal(value))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reveal(db, secretID, carl.ID); err != nil {
+		t.Fatalf("carl reads Router and reveals: %v", err)
+	}
+	if err := db.SetEntries(ctx, ops.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, map[string]string{ActRead: Deny}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reveal(db, secretID, carl.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a deny above the page leaves carl the password: %v", err)
+	}
+	if err := db.SetEntries(ctx, ops.ID, Actor{ID: anna.ID}, ToPerson, carl.ID, map[string]string{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reveal(db, secretID, carl.ID); err != nil {
+		t.Errorf("the deny taken back: %v", err)
+	}
+}

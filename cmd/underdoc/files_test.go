@@ -102,6 +102,10 @@ func TestBackupOfTheFiles(t *testing.T) {
 	roots, _ := first.FileRoots(ctx, anna.ID)
 	tenant, mine := roots[0], roots[1]
 	contracts, _ := first.CreateFolder(ctx, anna, "Contracts", tenant.ID)
+	// An entry of a person travels with its folder (T-15).
+	if err := first.SetEntries(ctx, contracts.ID, db.Actor{ID: anna.ID, Admin: true}, db.ToPerson, bob.ID, map[string]string{db.ActRead: db.Deny}, true); err != nil {
+		t.Fatal(err)
+	}
 	plan := putFile(t, first, s, anna.ID, db.UploadTarget{Parent: contracts.ID}, "plan.txt", "first").File
 	putFile(t, first, s, anna.ID, db.UploadTarget{File: plan.ID}, "plan.txt", "second")
 	putFile(t, first, s, anna.ID, db.UploadTarget{Parent: mine.ID}, "same.txt", "second") // equal content, kept once
@@ -174,6 +178,12 @@ func TestBackupOfTheFiles(t *testing.T) {
 	if table, err := second.FileTableOf(ctx, plan.ID, "x1", "u-anna"); err != nil || table.Kind != db.TableRange || table.Sheet != "Budget" ||
 		table.Range != "A1:B2" || !slices.Equal(table.Anchor, []string{"Item", "Amount"}) || table.FoundBlob != "" {
 		t.Errorf("the table of the file: %+v %v", table, err)
+	}
+	if ok, _ := second.May(ctx, contracts.ID, "u-bob", db.ActRead); ok {
+		t.Error("bob reads Contracts: the deny of the export was lost")
+	}
+	if ok, _ := second.May(ctx, tenant.ID, "u-bob", db.ActRead); !ok {
+		t.Error("bob does not read the folder of the tenant")
 	}
 	if got := content(t, second, s2, "u-bob", secret.ID, 0); got != "bob only" {
 		t.Errorf("bob's file: %q", got)

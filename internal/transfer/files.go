@@ -53,7 +53,9 @@ type fileNode struct {
 	Path        string        `yaml:"path,omitempty"`
 	Versions    []versionMeta `yaml:"versions,omitempty"`
 	Tables      []tableMeta   `yaml:"tables,omitempty"`
-	Kids        []fileNode    `yaml:"kids,omitempty"`
+	// Rights are the entries beyond the role of the tenant (T-15).
+	Rights []rightsEntry `yaml:"rights,omitempty"`
+	Kids   []fileNode    `yaml:"kids,omitempty"`
 }
 
 // tableMeta is a table of a spreadsheet with its ID (ADR-31); where it was last found is looked for anew after import.
@@ -113,7 +115,7 @@ func WriteFiles(dir *os.Root, roots []*db.FileNode, attachments []db.AttachmentR
 	var walk func(n *db.FileNode, at string, names *namer) (fileNode, error)
 	walk = func(n *db.FileNode, at string, names *namer) (fileNode, error) {
 		out := fileNode{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Owner: n.OwnerLogin, Access: n.Access, Private: n.Private,
-			Tags: n.Tags, Role: n.Role, Login: n.Login, Writers: n.Writers}
+			Tags: n.Tags, Role: n.Role, Login: n.Login, Writers: n.Writers, Rights: rightsOut(n.Entries)}
 		if n.Role != "" && n.Quota >= 0 {
 			quota := n.Quota
 			out.Quota = &quota
@@ -249,6 +251,10 @@ func ReadFiles(dir *os.Root) (FilesToImport, error) {
 			Tags: f.Tags}, OwnerLogin: f.Owner, Role: f.Role, Login: f.Login, Writers: f.Writers, Quota: -1}
 		if f.Quota != nil {
 			n.Quota = *f.Quota
+		}
+		var problems []string
+		if n.Entries, problems = rightsIn(f.Rights); len(problems) > 0 {
+			return nil, fmt.Errorf("%s: %s", f.ID, problems[0])
 		}
 		for i, v := range f.Versions {
 			if !store.ValidHash(v.SHA256) {
