@@ -3,7 +3,7 @@ id: M-12
 type: Milestone
 title: Proper search
 status: in-arbeit
-rest_points: 8
+rest_points: 5
 rank: 6
 tags: [search]
 created: 2026-11-06

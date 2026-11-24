@@ -3,7 +3,7 @@ id: T-4
 type: Task
 title: Store versions and record who changed what
 status: offen
-points: 5
+points: 1
 milestone: M-2
 blocked_by: [T-1]
 tags: [audit, samba]
