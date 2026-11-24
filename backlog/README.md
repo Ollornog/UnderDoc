@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 2/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 0/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 0/4 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 1/5 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -57,7 +57,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-13](T-13-extract-the-spreadsheet-reader-as-its-own-public-g.md)** Extract the spreadsheet reader as its own public Go library (gridport) · M-17
 * ☐ **[T-14](T-14-data-exchange-import-foreign-tables-print-a-view-e.md)** Data exchange: import foreign tables, print a view, export tables · M-17
 * ☐ **[T-15](T-15-follow-ups-of-the-permission-work.md)** Follow-ups of the permission work · M-5
-* ☐ **[T-16](T-16-clarify-whether-the-who-did-what-log-needs-co-dete.md)** Clarify whether the who-did-what log needs co-determination or GDPR steps · M-5
+* ☑ **[T-16](T-16-clarify-whether-the-who-did-what-log-needs-co-dete.md)** Clarify whether the who-did-what log needs co-determination or GDPR steps · M-5
 * ☐ **[T-17](T-17-maintainer-walkthrough-of-the-first-build-and-the.md)** Maintainer walkthrough of the first build and the editor · M-2
 * ☐ **[T-18](T-18-maintainer-acceptance-of-spreadsheets-as-tables.md)** Maintainer acceptance of spreadsheets as tables · M-2
 * ☐ **[T-19](T-19-maintainer-acceptance-of-the-markdown-wiki.md)** Maintainer acceptance of the Markdown wiki · M-1
@@ -85,6 +85,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[T-41](T-41-where-a-pasted-text-came-from-the-origin-in-the-ve.md)** Where a pasted text came from: the origin in the version of the block it lands in · M-3
 * ☐ **[T-42](T-42-samba-joins-a-domain-optionally.md)** Samba joins a domain, optionally · M-5
 * ☐ **[T-43](T-43-passage-above-a-share-of-one-s-own-tell-existing-n.md)** Passage above a share of one''s own: tell existing names from missing ones or not · M-5
+* ☐ **[T-44](T-44-log-classes-retention-audit-role-and-self-disclosu.md)** Log classes, retention, audit role and self-disclosure for co-determination and GDPR · M-5
 
 ## Fehler
 
