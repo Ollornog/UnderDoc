@@ -48,8 +48,11 @@ Review of #178 (B-6), #182 (T-33) and #186 (T-38) by the team wiki, 2026-11-24. 
    and renaming, after the lock of the object. The deadlock: `place` locked the parent `FOR UPDATE` and then shifted
    its children, while a write of a page directly in the space locked the page and then held the space `FOR SHARE`. The
    space is now held `FOR KEY SHARE`, `place` takes `FOR NO KEY UPDATE`, and archiving takes `FOR UPDATE` before its
-   update (an update alone would pass a key share). Two parallel uploads at the top level did not deadlock before
-   either (no lock on the space but the share); the test keeps it so. `Move` locks what moves and where it goes in the
+   update (an update alone would pass a key share). Two parallel uploads at the top level **did** deadlock, older than
+   B-6 and apart from `holdSpace`: a finishing upload counted its bytes (`tenant_storage`, by deleting its upload row)
+   and then locked the folder `FOR UPDATE`, while a starting upload held the folder for key share (its row refers to it)
+   and then counted its bytes. The finishing upload locks the folder and an existing file of the name `FOR NO KEY UPDATE`
+   now; found by the parallel test under load in the CI, kept by a test that plays the order step by step. `Move` locks what moves and where it goes in the
    order of their IDs and checks for a loop in its transaction.
 7. A dead link of every mode but upload counts for an agent's move.
 9. `privileged` asks the gate's roles where the gate lets UnderDoc see the account; a gate that does not answer lets only
@@ -58,5 +61,5 @@ Review of #178 (B-6), #182 (T-33) and #186 (T-38) by the team wiki, 2026-11-24. 
   the start when it is the role to create spaces; the door cache of 5 minutes and open Samba sessions are documented.
 
 Attack round in `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and
-`internal/browsertest/accounts_test.go`; 28 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
+`internal/browsertest/accounts_test.go`; 29 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
 first, then the gate), which no test can tell apart without a crash between the two.

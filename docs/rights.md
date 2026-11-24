@@ -139,7 +139,8 @@ first. The folder of the workspace and the folders of users among Files, and pri
   holds the space in its transaction after it locked what it changes, and archiving locks the space for update first, so it
   waits for such a write or the write finds the archive (`holdSpace`, B-6, B-7). The write holds the space `FOR KEY SHARE`
   and a new place in a parent takes `FOR NO KEY UPDATE`, so a write in a page directly in a space and a move into that
-  space do not deadlock (B-7). Read stays as
+  space do not deadlock (B-7); a finishing upload locks its folder `FOR NO KEY UPDATE`, so it does not deadlock with an
+  upload starting into the same folder over the storage counter (B-7). Read stays as
   the entries say, and so does **manage**: who may
   read the archive can still be set, opening up only read and manage (above). Copying out needs read here and create
   there. The owner and administrators still transfer it.

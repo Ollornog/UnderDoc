@@ -20,9 +20,11 @@ All notable changes to this project are documented in this file. The format foll
   lock. A lock is set in UnderDoc first, then in the gate. The delegate's role may not be the role to create spaces.
   Writes by agents, taking back, moves (where it lies and where it goes), deletions and new names hold their space, so
   nothing lands in a space archived meanwhile; the space is held `FOR KEY SHARE` and archiving locks it for update, so a
-  write in a page directly in a space no longer deadlocks with a move into it. A move finds a loop made while it waited.
+  write in a page directly in a space no longer deadlocks with a move into it, and two uploads into the same folder no
+  longer deadlock over the storage counter (the finishing one locks the folder `FOR NO KEY UPDATE`). A move finds a loop
+  made while it waited.
   A dead link of any mode but upload counts for an agent's move. Attack round as tests in
-  `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and the browser test of accounts; 28 mutations, all
+  `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and the browser test of accounts; 29 mutations, all
   red.
 - **Review of T-34 and B-5** (B-6, migration 039, [docs/rights.md](docs/rights.md#known-limits),
   [docs/mcp.md](docs/mcp.md#the-rules-page)). An agent's copy of a folder with a page that broke its inheritance made

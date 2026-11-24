@@ -378,3 +378,43 @@ func TestAMoveMakesNoLoopWhileItWaits(t *testing.T) {
 		t.Errorf("A moved into B, which was moved into A meanwhile: %v", err)
 	}
 }
+
+// Finding 3, two uploads into the top of a library at once: one finishing counted its bytes (the counter row), then
+// locked the folder FOR UPDATE; one starting held the folder for key share (its row refers to it), then counted its
+// bytes. Each waited for the other. The finishing upload locks the folder FOR NO KEY UPDATE now.
+func TestTwoUploadsAtTheTopDoNotDeadlock(t *testing.T) {
+	db, ctx := setup(t)
+	files, _ := db.createSharedFiles(ctx, anna, "Library")
+	u, err := db.StartUpload(ctx, anna.ID, UploadTarget{Parent: files.ID}, "first.pdf", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Received(ctx, u.ID, anna.ID, 0, 4); err != nil {
+		t.Fatal(err)
+	}
+	// The upload starting: its row refers to the folder, and it has not counted its bytes yet.
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR KEY SHARE", files.ID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := db.FinishUpload(ctx, u.ID, anna.ID, "e"+strings.Repeat("0", 63), 4, "application/pdf", func() error { return nil })
+		done <- err
+	}()
+	time.Sleep(300 * time.Millisecond)
+	// Now the starting upload counts its bytes.
+	if _, err := tx.Exec(ctx, "SELECT storage_add(current_setting('underdoc.tenant', true), 4)"); err != nil {
+		t.Errorf("the starting upload counts its bytes: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Errorf("the finishing upload: %v", err)
+	}
+}
