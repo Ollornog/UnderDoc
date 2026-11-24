@@ -50,7 +50,48 @@ type dirMeta struct {
 	// Archived marks an archived space (T-34): an import makes it archived again.
 	Archived bool          `yaml:"archived,omitempty"`
 	Tags     markdown.Tags `yaml:"tags,omitempty,flow"`
-	Order    []entry       `yaml:"order,omitempty"`
+	// Rights are the entries beyond the role of the tenant (T-15).
+	Rights []rightsEntry `yaml:"rights,omitempty"`
+	Order  []entry       `yaml:"order,omitempty"`
+}
+
+// rightsEntry is an entry of rights in an export (T-15): one holder, a person by login, a group by name, everyone (the
+// tenant, where its entries are no preset) or Agents, with the actions it allows and denies. A group holds for the groups
+// inside it unless subgroups is false.
+type rightsEntry struct {
+	Person    string   `yaml:"person,omitempty"`
+	Group     string   `yaml:"group,omitempty"`
+	Everyone  bool     `yaml:"everyone,omitempty"`
+	Agents    bool     `yaml:"agents,omitempty"`
+	Subgroups *bool    `yaml:"subgroups,omitempty"`
+	Allow     []string `yaml:"allow,omitempty,flow"`
+	Deny      []string `yaml:"deny,omitempty,flow"`
+}
+
+// rightsOut is how an export writes the entries of rights of an object.
+func rightsOut(entries []db.RightsEntry) []rightsEntry {
+	var out []rightsEntry
+	for _, e := range entries {
+		r := rightsEntry{Allow: e.Allow, Deny: e.Deny}
+		switch e.Kind {
+		case db.ToPerson:
+			r.Person = e.Name
+		case db.ToGroup:
+			r.Group = e.Name
+			if !e.Subgroups {
+				no := false
+				r.Subgroups = &no
+			}
+		case db.ToTenant:
+			r.Everyone = true
+		case db.ToAgents:
+			r.Agents = true
+		default:
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // entry is one place in the order of a directory: a file or directory by its name, or a line or a space by its ID.
@@ -75,6 +116,8 @@ type pageMeta struct {
 	Contents string `yaml:"contents,omitempty"`
 	// Template tells that the page is offered as a template for new pages (M-8).
 	Template bool `yaml:"template,omitempty"`
+	// Rights are the entries beyond the role of the tenant (T-15).
+	Rights []rightsEntry `yaml:"rights,omitempty"`
 	// NextBlock is written only when it is higher than the block after the highest, so that an ID deleted at the end is
 	// not given out again after an import.
 	NextBlock int `yaml:"next_block,omitempty"`
@@ -195,7 +238,7 @@ func (w *writer) node(dir string, names *namer, n *db.Node) (entry, error) {
 			return entry{}, err
 		}
 		m := dirMeta{ID: n.ID, Kind: n.Kind, Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Private: n.Private,
-			Archived: n.Archived && n.Parent == "", Tags: n.Tags, Order: order}
+			Archived: n.Archived && n.Parent == "", Tags: n.Tags, Rights: rightsOut(n.Entries), Order: order}
 		return entry{Name: stem}, w.meta(sub, m)
 	}
 }
@@ -227,7 +270,8 @@ func PageMarkdown(n *db.Node) ([]byte, error) { return pageText(n) }
 
 // pageText is the Markdown file of a page: front matter, then each block after its marker, one blank line apart.
 func pageText(n *db.Node) ([]byte, error) {
-	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Object), Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template}
+	m := pageMeta{ID: n.ID, Kind: kindOfPage(n.Object), Title: n.Title, Description: n.Description, Access: n.Access, Inherit: inheritOf(n.Object), Tags: n.Tags, Width: n.Width, Contents: n.Contents, Template: n.Template,
+		Rights: rightsOut(n.Entries)}
 	if next := nextAfter(n.Blocks); n.NextBlock > next {
 		m.NextBlock = n.NextBlock
 	}

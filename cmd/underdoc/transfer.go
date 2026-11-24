@@ -227,6 +227,11 @@ func importTree(ctx context.Context, owner, dir, title string, archived bool, st
 	for _, old := range slices.Sorted(maps.Keys(done.Renamed)) {
 		fmt.Fprintf(stderr, "new id: %s was taken or not valid, it is %s now\n", old, done.Renamed[old])
 	}
+	// Entries of rights whose holder is not here (T-15): nobody here holds them, so nobody gets more, but whoever
+	// imports should know.
+	for _, skipped := range done.Skipped {
+		fmt.Fprintf(stderr, "rights: %s\n", skipped)
+	}
 	state := ""
 	if done.Top.Archived {
 		state = ", archived"

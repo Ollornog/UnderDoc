@@ -5,7 +5,9 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -26,6 +28,17 @@ type Node struct {
 	NextBlock int
 	Blocks    []Block
 	Kids      []*Node
+	// Entries are the entries of rights on it beyond the role of the tenant (Access), with names that mean the same on
+	// another instance (T-15).
+	Entries []RightsEntry
+}
+
+// RightsEntry is an entry of rights as an export writes it (T-15): its holder by a name another instance knows (the login of
+// a person, the name of a group; none for the tenant and Agents), and the actions it allows and denies.
+type RightsEntry struct {
+	Kind, Name  string
+	Subgroups   bool
+	Allow, Deny []string
 }
 
 // Owned is a private collection with the login of the account it belongs to.
@@ -65,6 +78,9 @@ func (db *DB) Everything(ctx context.Context) (shared []*Node, private []Owned, 
 		byID[n.ID] = n
 	}
 	if err := db.fillBlocks(ctx, byID); err != nil {
+		return nil, nil, err
+	}
+	if err := db.fillEntries(ctx, byID); err != nil {
 		return nil, nil, err
 	}
 	logins, err := db.logins(ctx)
@@ -110,6 +126,70 @@ func (db *DB) fillBlocks(ctx context.Context, byID map[string]*Node) error {
 	return rows.Err()
 }
 
+// fillEntries gives each node the entries of rights on it (T-15): persons by their login, groups by their name, the tenant
+// where its entries are no preset that Access names, and the denies on Agents. Nothing private has entries.
+func (db *DB) fillEntries(ctx context.Context, byID map[string]*Node) error {
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	rows, err := db.pool.Query(ctx, `SELECT g.object, g.kind, g.who, g.action, g.value, g.subgroups,
+			coalesce(CASE g.kind WHEN 'person' THEN (SELECT login FROM accounts a WHERE a.id = g.who)
+				WHEN 'group' THEN (SELECT name FROM groups r WHERE r.id = g.who) END, '')
+		FROM grants g WHERE g.object = ANY ($1::text[]) ORDER BY g.object, g.kind, g.who`, ids)
+	if err != nil {
+		return err
+	}
+	type key struct{ object, kind, who string }
+	found := map[key]*RightsEntry{}
+	var order []key
+	err = func() error {
+		defer rows.Close()
+		for rows.Next() {
+			var k key
+			var action, value, name string
+			var subgroups bool
+			if err := rows.Scan(&k.object, &k.kind, &k.who, &action, &value, &subgroups, &name); err != nil {
+				return err
+			}
+			e := found[k]
+			if e == nil {
+				e = &RightsEntry{Kind: k.kind, Name: name, Subgroups: subgroups}
+				found[k] = e
+				order = append(order, k)
+			}
+			if value == Deny {
+				e.Deny = append(e.Deny, action)
+			} else {
+				e.Allow = append(e.Allow, action)
+			}
+		}
+		return rows.Err()
+	}()
+	if err != nil {
+		return err
+	}
+	byAction := func(a, b string) int { return slices.Index(Actions, a) - slices.Index(Actions, b) }
+	for _, k := range order {
+		n, e := byID[k.object], found[k]
+		if n == nil || n.Private || (k.kind != ToTenant && k.kind != ToAgents && e.Name == "") {
+			continue
+		}
+		// The role of the tenant goes out as access, when its entries are a preset; otherwise as entries, and access says
+		// nothing (an import gives the tenant what the entries say).
+		if k.kind == ToTenant && n.Access != "" && n.Access != AccessNone && n.Access != PresetCustom {
+			continue
+		}
+		if k.kind == ToTenant && n.Access == PresetCustom {
+			n.Access = ""
+		}
+		slices.SortFunc(e.Allow, byAction)
+		slices.SortFunc(e.Deny, byAction)
+		n.Entries = append(n.Entries, *e)
+	}
+	return nil
+}
+
 func (db *DB) logins(ctx context.Context) (map[string]string, error) {
 	rows, err := db.pool.Query(ctx, "SELECT id, login FROM accounts")
 	if err != nil {
@@ -138,6 +218,7 @@ func (db *DB) Subtree(ctx context.Context, objectID, viewer string) (*Node, erro
 		return nil, ErrPlace
 	}
 	count := 0
+	byID := map[string]*Node{}
 	var read func(o Object) (*Node, error)
 	read = func(o Object) (*Node, error) {
 		if count++; count > exportLimit {
@@ -163,9 +244,18 @@ func (db *DB) Subtree(ctx context.Context, objectID, viewer string) (*Node, erro
 			}
 			n.Kids = append(n.Kids, c)
 		}
+		byID[n.ID] = n
 		return n, nil
 	}
-	return read(o)
+	top, err := read(o)
+	if err != nil {
+		return nil, err
+	}
+	// Whoever sees an object reads its rights (RightsOf), so the export carries them as well.
+	if err := db.fillEntries(ctx, byID); err != nil {
+		return nil, err
+	}
+	return top, nil
 }
 
 // Imported says what an import did.
@@ -175,6 +265,9 @@ type Imported struct {
 	Objects int
 	// Renamed maps each ID that was taken or not valid to the new one it got instead.
 	Renamed map[string]string
+	// Skipped names the entries of rights that were left out, as a sentence each: a person or group not here, an entry
+	// that cannot be (T-15).
+	Skipped []string
 }
 
 var blockID = regexp.MustCompile(`^b[1-9][0-9]{0,8}$`)
@@ -256,6 +349,21 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 			m.Archived = true
 		}
 		result.Top = m
+		// The entries of rights, each holder by its name here (T-15); nothing private gets any.
+		for _, a := range all {
+			if len(a.n.Entries) == 0 {
+				continue
+			}
+			if root.Private || IsDivider(a.n.Kind) {
+				result.Skipped = append(result.Skipped, fmt.Sprintf("%s: its entries of rights were left out, as nothing private has any", a.n.Title))
+				continue
+			}
+			for _, e := range a.n.Entries {
+				if why := importEntry(ctx, tx, a.id, owner, e); why != "" {
+					result.Skipped = append(result.Skipped, fmt.Sprintf("%s: the entry of %s was left out: %s", a.n.Title, holderName(e), why))
+				}
+			}
+		}
 		for _, a := range all {
 			next := max(a.n.NextBlock, 1)
 			for i, b := range a.n.Blocks {
@@ -288,6 +396,74 @@ func (db *DB) Import(ctx context.Context, login, title string, top *Node) (Impor
 		return withinStorage(ctx, tx)
 	})
 	return result, err
+}
+
+// importEntry writes one entry of rights of an import on the object it was made as, the holder found by its name here,
+// and says why not where it cannot: no such person or group, or an entry that cannot be (an unknown action, an allow for
+// Agents, who are only ever narrowed).
+func importEntry(ctx context.Context, tx pgx.Tx, objectID, by string, e RightsEntry) string {
+	who := ""
+	switch e.Kind {
+	case ToPerson:
+		err := tx.QueryRow(ctx, "SELECT id FROM accounts WHERE login = $1 ORDER BY first_seen LIMIT 1", e.Name).Scan(&who)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "there is no such account here"
+		} else if err != nil {
+			return err.Error()
+		}
+	case ToGroup:
+		// As everywhere a group is named (groupNamed): the local one, else the one taken over from the sign-in; none is
+		// made, and an archived one gets no new entries.
+		err := tx.QueryRow(ctx, `SELECT id FROM groups WHERE name = $1 AND archived IS NULL
+			ORDER BY source = 'local' DESC LIMIT 1`, e.Name).Scan(&who)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "there is no such group here"
+		} else if err != nil {
+			return err.Error()
+		}
+	case ToTenant, ToAgents:
+	default:
+		return "no such kind of holder"
+	}
+	actions := map[string]string{}
+	for _, list := range []struct {
+		names []string
+		value string
+	}{{e.Allow, Allow}, {e.Deny, Deny}} {
+		for _, a := range list.names {
+			if !IsAction(a) || (e.Kind == ToAgents && list.value == Allow) {
+				return "the action " + strconv.Quote(a) + " cannot be " + list.value + "ed there"
+			}
+			if _, twice := actions[a]; twice {
+				return "the action " + strconv.Quote(a) + " is allowed and denied"
+			}
+			actions[a] = list.value
+		}
+	}
+	keys := make([]string, 0, len(actions))
+	for _, a := range Actions {
+		if _, ok := actions[a]; ok {
+			keys = append(keys, a)
+		}
+	}
+	if len(keys) == 0 {
+		return "it names no action"
+	}
+	if err := setEntries(ctx, tx, objectID, e.Kind, who, keys, actions, e.Subgroups || e.Kind != ToGroup, by); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+// holderName names the holder of an entry in a sentence.
+func holderName(e RightsEntry) string {
+	switch e.Kind {
+	case ToTenant:
+		return "everyone"
+	case ToAgents:
+		return "Agents"
+	}
+	return e.Kind + " " + strconv.Quote(e.Name)
 }
 
 var (

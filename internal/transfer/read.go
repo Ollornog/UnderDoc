@@ -319,6 +319,44 @@ func (r *reader) tags(name string, tags []string) []string {
 	return clean
 }
 
+// rights reads the entries of rights of an object (T-15): each names one holder, and the import looks it up by that name.
+// An entry that names none or more than one is left out with a warning; the import says which holders it does not know.
+func (r *reader) rights(file string, in []rightsEntry) []db.RightsEntry {
+	out, problems := rightsIn(in)
+	for _, p := range problems {
+		r.warn(file, p)
+	}
+	return out
+}
+
+// rightsIn turns the entries of rights of a file into those of the database, and says which it left out.
+func rightsIn(in []rightsEntry) ([]db.RightsEntry, []string) {
+	var out []db.RightsEntry
+	var problems []string
+	for i, e := range in {
+		var got []db.RightsEntry
+		if e.Person != "" {
+			got = append(got, db.RightsEntry{Kind: db.ToPerson, Name: e.Person, Subgroups: true})
+		}
+		if e.Group != "" {
+			got = append(got, db.RightsEntry{Kind: db.ToGroup, Name: e.Group, Subgroups: e.Subgroups == nil || *e.Subgroups})
+		}
+		if e.Everyone {
+			got = append(got, db.RightsEntry{Kind: db.ToTenant, Subgroups: true})
+		}
+		if e.Agents {
+			got = append(got, db.RightsEntry{Kind: db.ToAgents, Subgroups: true})
+		}
+		if len(got) != 1 {
+			problems = append(problems, fmt.Sprintf("entry %d of the rights names %d holders, not one; it was left out", i+1, len(got)))
+			continue
+		}
+		got[0].Allow, got[0].Deny = e.Allow, e.Deny
+		out = append(out, got[0])
+	}
+	return out, problems
+}
+
 func (r *reader) warn(name, message string) {
 	r.warnings = append(r.warnings, name+": "+message)
 }
@@ -454,6 +492,7 @@ func (r *reader) dir(dir, name string) (*db.Node, error) {
 		r.warn(path.Join(dir, MetaFile), fmt.Sprintf("access %q is not manage, members, edit, comment, read or none, it was left out", m.Access))
 	}
 	n.Breaks = m.Inherit != nil && !*m.Inherit
+	n.Entries = r.rights(path.Join(dir, MetaFile), m.Rights)
 	// Only a collection at the top is archived; the import makes it archived (T-34).
 	n.Archived = m.Archived && n.Kind == db.KindCollection
 	kids, err := r.children(dir, m.Order)
@@ -568,6 +607,7 @@ func (r *reader) page(file, name string) (*db.Node, error) {
 		r.warn(file, fmt.Sprintf("access %q is not manage, edit, comment, read or none, it was left out", p.Meta.Access))
 	}
 	n.Breaks = p.Meta.Inherit != nil && !*p.Meta.Inherit
+	n.Entries = r.rights(file, p.Meta.Rights)
 	n.Template = p.Meta.Template
 	switch p.Meta.Kind {
 	case "", db.KindPage:

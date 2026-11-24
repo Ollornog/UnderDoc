@@ -38,13 +38,25 @@ backup/
   (`collection` or `folder`), the exact title, the description and access level where set, and the order of the entries,
   lines and spaces included, each with its ID. The access level is the role of the whole tenant on it (ADR-29,
   [rights.md](rights.md)): `read`, `comment`, `edit` or `manage`, and `none` on a shared collection at the top that grants
-  the tenant nothing; `inherit: false` marks a directory or page that breaks the inheritance of roles:
+  the tenant nothing; `inherit: false` marks a directory or page that breaks the inheritance of roles. `rights` lists the
+  other entries (T-15): a person by login, a group by name (`subgroups: false` where it holds for its direct members
+  only), everyone where the tenant's entries are no preset, and the denies on Agents, each with what it allows and
+  denies:
 
   ```yaml
   id: 7k2m9q4x1c
   kind: collection
   title: 'Team: operations'
   access: read
+  rights:
+      - person: bob
+        allow: [read, comment]
+        deny: [write]
+      - group: Sales
+        subgroups: false
+        allow: [read]
+      - agents: true
+        deny: [write]
   order:
       - name: Network plan.md
       - line: 3h7k9m2x4c
@@ -52,8 +64,8 @@ backup/
       - space: 9x4c1m2k7q
   ```
 
-- **A page** is a Markdown file with front matter: `id`, `title`, and `kind`, `description`, `access`, `tags`, `width`,
-  `contents` and `template` where set. `kind` is the kind of the page ([page-kinds.md](page-kinds.md)), and a board of
+- **A page** is a Markdown file with front matter: `id`, `title`, and `kind`, `description`, `access`, `rights`, `tags`,
+  `width`, `contents` and `template` where set. `kind` is the kind of the page ([page-kinds.md](page-kinds.md)), and a board of
   quick notes says `kind: notes`. An import reads the kinds in English and German; one it does not know is a warning,
   and the page comes in without a kind. Its blocks
   follow in order, each after a marker that keeps its ID:
@@ -99,6 +111,11 @@ backup/
 - The directory becomes a new collection at the top, with the title given on the command line, owned by the account given
   with `--owner` (it must have signed in once). Its `.underdoc.yaml`, if any, gives the description, access level, order
   and, where it says so, privacy: imported private notes stay private to their new owner.
+- **Rights** (T-15): each entry of `rights` goes onto the object it stands at, its person found by login and its group
+  by name (the local group, else one taken over from the sign-in; none is made). An entry whose holder is not here, an
+  allow for Agents, an action there is not, or an entry on something private is left out, and the command names each
+  (`rights: …`): nobody here holds it, so nobody gets more than the export says. The files of `underdoc export` carry
+  the same `rights` per folder and file in `files.yaml`.
 - **The archive** (T-34): an archived space is exported with `archived: true` in its `.underdoc.yaml`, and imported it is
   archived again ([rights.md](rights.md#archived-spaces)); `underdoc import --archived` archives the new space whatever
   the directory says. Only the top of an import is archived, never a folder below it. The access level `members` (the

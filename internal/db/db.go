@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,9 @@ type DB struct {
 	sheets SheetReader
 	// approver confirms deleting for good with an approval of the gate (SetApprover, T-33); nil asks for none.
 	approver Approver
+	// rights makes the changes of rights of this process go one after the other before they take a connection; the
+	// lock of the database (lockRights) does the same between instances (T-15).
+	rights sync.Mutex
 }
 
 // SheetReader reads the workbook of a blob of a tenant (sheet.Cache).

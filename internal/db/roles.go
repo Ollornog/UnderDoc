@@ -277,6 +277,18 @@ func allowAll() map[string]string {
 	return m
 }
 
+// lockRights makes the changes of rights of a tenant (entries, inheritance, ownership) go one after the other (T-15). A
+// change decides on what holds above the object and below it: what the actor holds there, what breaking the inheritance
+// copies. Read while another change of an object above or below is under way, it would decide on what is about to be
+// gone, and a deny given above at that moment would be lost to a copy made from before it. Changes of rights are few and
+// made by hand, so one at a time costs nothing. The lock is taken first, before any lock of a row, and held to the end
+// of the transaction. Within one process, the mutex rights of the DB lets only one change take connections at a time, so
+// changes waiting for the lock never use up the pool that the one holding it needs for its reads.
+func lockRights(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext('underdoc rights ' || coalesce(current_setting('underdoc.tenant', true), '')))")
+	return err
+}
+
 // SetGrant grants a preset (a role of ADR-29) on an object to a person, a group or the tenant, or takes every entry of
 // that holder back with RoleNone: SetEntries with the actions of the preset, all allowed, with subgroups.
 func (db *DB) SetGrant(ctx context.Context, objectID string, actor Actor, kind, who, role string) error {
@@ -355,7 +367,17 @@ func (db *DB) SetEntries(ctx context.Context, objectID string, actor Actor, kind
 	if !known && len(keys) > 0 {
 		return ErrNotFound
 	}
+	db.rights.Lock()
+	defer db.rights.Unlock()
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		// One change of the rights of the tenant at a time (T-15), then whether the actor still manages the object, as
+		// a change above it may have taken that away meanwhile.
+		if err := lockRights(ctx, tx); err != nil {
+			return err
+		}
+		if _, err := db.forRights(ctx, objectID, actor); err != nil {
+			return err
+		}
 		// One change of the entries of an object at a time: what it reads to decide is what it replaces (B-6).
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
 			return err
@@ -429,15 +451,25 @@ func (db *DB) SetInherit(ctx context.Context, objectID string, actor Actor, inhe
 			return err
 		}
 	}
-	var copied []Grant
-	if !inherit {
-		r, err := db.RightsOf(ctx, objectID, actor)
-		if err != nil {
+	db.rights.Lock()
+	defer db.rights.Unlock()
+	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		// One change of the rights of the tenant at a time (T-15): breaking copies what holds from above, so a change
+		// above that is under way finishes first and is copied, instead of being lost to a copy read before it.
+		if err := lockRights(ctx, tx); err != nil {
 			return err
 		}
-		copied = r.Inherited
-	}
-	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if _, err := db.forRights(ctx, objectID, actor); err != nil {
+			return err
+		}
+		var copied []Grant
+		if !inherit {
+			r, err := db.RightsOf(ctx, objectID, actor)
+			if err != nil {
+				return err
+			}
+			copied = r.Inherited
+		}
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", objectID); err != nil {
 			return err
 		}
@@ -536,7 +568,12 @@ func (db *DB) TransferOwner(ctx context.Context, objectID string, actor Actor, t
 	if !known {
 		return ErrNotFound
 	}
+	db.rights.Lock()
+	defer db.rights.Unlock()
 	return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if err := lockRights(ctx, tx); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, "UPDATE objects SET owner = $2, changed = now() WHERE id = $1", objectID, to); err != nil {
 			return err
 		}

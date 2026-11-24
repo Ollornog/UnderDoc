@@ -256,6 +256,11 @@ copied: they hold as a ceiling anyway.
 
 What the rights do not do, on purpose or not yet (B-6, B-7):
 
+- **Changes of rights go one after the other** in a tenant (T-15): entries, breaking or restoring the inheritance and
+  transferring the ownership wait for each other (a lock of the database, and within one instance before they take a
+  connection), and each decides again under that lock whether its actor manages the object. So breaking the inheritance
+  deep down copies a deny given above at the same moment instead of losing it. They are made by hand and few; whoever
+  changes rights while another change runs waits for it.
 - **The search may trail a new deny** for a moment: its counts come from the index until the queue is drained; the hits
   themselves are checked every time.
 - **Members on Samba:** a holder of Members writes in the browser, but the share knows rights per folder only and shows
@@ -480,9 +485,12 @@ GET    /s/<token>/p/<page>/attachments/<id>  an attachment the frozen page shows
 
 The export holds what the exporter may read, a deny included, and writes the preset of the tenant on an object as
 `access` (`none` on a shared collection at the top that grants the tenant nothing) and `inherit: false` where an object
-breaks the inheritance. Entries of persons and groups, entries of the tenant that are no preset (custom) and denies are
-not written yet, since accounts and groups differ between instances; an import gives the tenant what `access` says, and
-edit at the top of an export made before ADR-29.
+breaks the inheritance. ~~Entries of persons and groups, entries of the tenant that are no preset (custom) and denies are
+not written yet~~ (until 2026-11-24): every other entry goes out as `rights` (T-15, [export.md](export.md)), persons by
+login and groups by name, since IDs differ between instances; the tenant's entries that are no preset and the denies
+on Agents as well. An import gives the tenant what `access` says (edit at the top of an export made before ADR-29) and
+each entry to the holder of that name here; an entry whose holder is not here is left out and named, so nobody gets more
+than the export says. A group is found as everywhere by its name: the local one, else the one taken over.
 
 ## From ADR-20
 
