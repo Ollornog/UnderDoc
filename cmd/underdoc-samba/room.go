@@ -22,6 +22,10 @@ import (
 // library that a limit binds, named by a hash of its path in a directory that can be passed but not listed, so whoever
 // runs the command (smbd, as the connected user) reads the room of a library only by knowing its path.
 
+// statfs reads the disk below a directory. A test puts a disk of its own here: the free space of the real one moves with
+// whatever else runs on the host, so an answer read a moment later is not comparable with it.
+var statfs = unix.Statfs
+
 // roomDir is where the files of the room lie.
 func roomDir() string { return env("UNDERDOC_SAMBA_RUN", "/run/underdoc-samba/state") + "/room" }
 
@@ -74,7 +78,7 @@ func dfree(out io.Writer, dir string) {
 	dir = filepath.Clean(dir)
 	var st unix.Statfs_t
 	total, free := uint64(0), uint64(0)
-	if unix.Statfs(dir, &st) == nil {
+	if statfs(dir, &st) == nil {
 		total, free = st.Blocks*uint64(st.Bsize), st.Bavail*uint64(st.Bsize) // #nosec G115 -- sizes of a file system
 	}
 	if t, f, ok := roomOf(roomDir(), dir); ok {

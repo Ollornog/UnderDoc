@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **Order kept as shown, three flaky tests** (nightly-repeat on 5d7de57). A second sort, a line or a copy started while
+  the moves of a sort were still on their way mixed with them, so the database kept another order than the one shown:
+  everything that places entries in a collection now waits for what was placed before it. The browser tests open the
+  settings of a page and wait until the versions they load are drawn, as a click into the drawer whose press and release
+  that redraw fell between lost its button, and the passwords dialog never opened; the sort test waits until every request
+  is answered instead of a fixed pause. The test of `dfree command` answers from a disk of its own, as the free space of
+  the real one moved with whatever else ran on the host. New knob `UNDERDOC_BROWSERTEST_JITTER_MS` holds each answer back
+  by a random time, as a loaded host does.
 - **Review of B-6, T-33 and T-38, part 2** (B-7, migration 043, [docs/mcp.md](docs/mcp.md#who-reads-what-an-agent-writes)).
   The read window compared only the last 50 reads, search hits among them, so a narrow read was out after a few
   searches, and reads vanished with the trash: every read of the window counts now in one query, each read keeps who

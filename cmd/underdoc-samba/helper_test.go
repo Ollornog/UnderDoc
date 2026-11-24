@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/Ollornog/UnderDoc/internal/samba"
 )
 
@@ -159,8 +161,16 @@ func TestTheRoomAnswersDfree(t *testing.T) {
 		}
 		return
 	}
+	if total, free, _ := answer(below); total == 0 || free == 0 {
+		t.Fatalf("without a room, the real disk: %d %d", total, free)
+	}
+	// From here a disk of the test's own: the free space of the real one moves whenever something else on the host writes
+	// or deletes, so it is no measure for an answer read a moment later (nightly-repeat, 2026-11-24).
+	disk := unix.Statfs_t{Bsize: 4096, Blocks: 1 << 20, Bavail: 1 << 18}
+	statfs = func(_ string, st *unix.Statfs_t) error { *st = disk; return nil }
+	t.Cleanup(func() { statfs = unix.Statfs })
 	diskTotal, diskFree, _ := answer(below)
-	if diskTotal == 0 || diskFree == 0 {
+	if diskTotal != 4<<20 || diskFree != 1<<20 {
 		t.Fatalf("without a room, the disk: %d %d", diskTotal, diskFree)
 	}
 	h := &helper{}
@@ -174,8 +184,8 @@ func TestTheRoomAnswersDfree(t *testing.T) {
 	if err := h.applyRoom([]samba.Room{{Path: library, Free: 1 << 60, Total: 1 << 60}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, free, _ := answer(below); free > diskFree+(1<<10) {
-		t.Errorf("more free than the disk: %d > %d", free, diskFree)
+	if _, free, _ := answer(below); free != diskFree {
+		t.Errorf("more room than the disk has, so the disk: %d, want %d", free, diskFree)
 	}
 	if fi, err := os.Stat(roomDir()); err != nil || fi.Mode().Perm() != 0o711 {
 		t.Errorf("the directory of the room: %v %v", fi.Mode(), err)

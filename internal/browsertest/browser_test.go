@@ -438,8 +438,17 @@ func setupWith(t *testing.T, options web.Options, extra map[string]string) (*bro
 	// Without the cache every page loads its own assets, otherwise only the first would show an error.
 	b.call("Network.setCacheDisabled", map[string]any{"cacheDisabled": true}, nil)
 	// Every fetch of the page is counted while it runs, so a test can wait for the server to have answered (settled).
-	b.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": `(() => { const f = window.fetch; window.inflight = 0;
-		window.fetch = function () { window.inflight++; const done = () => { window.inflight--; }; const p = f.apply(this, arguments); p.then(done, done); return p; }; })()`}, nil)
+	// UNDERDOC_BROWSERTEST_JITTER_MS holds each answer back by a random time up to that many milliseconds, as a loaded host
+	// answers: an answer that draws the workspace again then lands anywhere between two steps of the test, also between
+	// the press and the release of a click, where it takes the button away (try 40; nightly-repeat 2026-11-24).
+	jitter := 0
+	if ms, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_JITTER_MS")); err == nil && ms > 0 {
+		jitter = ms
+	}
+	b.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": `(() => { const f = window.fetch, jitter = ` + strconv.Itoa(jitter) + `; window.inflight = 0;
+		window.fetch = function () { window.inflight++; const done = () => { window.inflight--; }; let p = f.apply(this, arguments);
+			if (jitter) p = p.then((r) => new Promise((ok) => setTimeout(() => ok(r), Math.random() * jitter)));
+			p.then(done, done); return p; }; })()`}, nil)
 	// UNDERDOC_BROWSERTEST_LATENCY_MS adds a delay to every request, as a loaded host does: a test that waits a fixed time
 	// for the server instead of for the state it needs fails with it (try 1500), a test that waits for the state does not.
 	if ms, err := strconv.Atoi(os.Getenv("UNDERDOC_BROWSERTEST_LATENCY_MS")); err == nil && ms > 0 {
@@ -543,6 +552,19 @@ func (b *browser) settingsSent() {
 	b.t.Helper()
 	if !b.waitFor(`sentSettings !== null && sentSettings === localStorage.getItem('ud.workspace')`) {
 		b.t.Fatal("the settings did not go to the server")
+	}
+}
+
+// openSettings opens the settings of the page in the first window and waits until its drawer holds what the gear loads:
+// on a page of the database the versions, which draw the whole workspace again when they come. A click into the drawer
+// whose press and release that redraw falls between loses its button, and nothing opens (nightly-repeat on 5d7de57,
+// 2026-11-24: the passwords dialog never came). For a gear opened the first time on the page: the versions of an earlier
+// opening are there already and say nothing.
+func (b *browser) openSettings() {
+	b.t.Helper()
+	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	if !b.waitFor(`(() => { const d = D[at(0).d]; return !!document.querySelector('[data-win="0"] aside[data-drawer][aria-label="Document settings"]') && (!d.blocks || !d.canEdit || !!d.versions); })()`) {
+		b.t.Fatalf("the settings did not open with the versions: %s", b.eval(`document.querySelector('aside[data-drawer]')?.innerText.slice(0, 200) || 'none'`))
 	}
 }
 

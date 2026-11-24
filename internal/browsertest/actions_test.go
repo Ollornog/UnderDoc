@@ -26,7 +26,7 @@ func TestActionsInTheRightsDialog(t *testing.T) {
 	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
 	b.ready("A")
 	page := b.eval(`location.pathname.split('/').pop()`)
-	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.openSettings()
 	b.clickOn(`[data-act="rights"]`, 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-rform="grant"]')`) {
 		t.Fatalf("the dialog opens: %s", b.eval(`document.getElementById('udrights')?.innerText`))

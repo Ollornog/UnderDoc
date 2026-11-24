@@ -15,7 +15,7 @@ func TestTheAgentMarkIsSwitchedPerSpace(t *testing.T) {
 	team := makeTeam(b)
 	b.open(base + "/o/" + team)
 	b.ready("Team")
-	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.openSettings()
 	b.clickOn(`[data-act="rights"]`, 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights select[data-agentmark]')`) {
 		t.Fatalf("the space offers no switch of the mark: %s", b.eval(`document.getElementById('udrights')?.innerText`))
