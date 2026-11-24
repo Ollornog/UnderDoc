@@ -33,3 +33,30 @@ Review of #178 (B-6), #182 (T-33) and #186 (T-38) by the team wiki, 2026-11-24. 
 15. ReadersOf runs object_decide per account, up to 51 times per write; use EXISTS with early exit.
 
 **Notes to document or small:** lock locally first, then in the gate; the door cache of other instances lets a locked account in for up to 5 minutes (rights apply at once); open SMB sessions after a lock; check the delegate role against the spaces role at start; marks fail open on errors (deliberate). Raise the contract test to TinySesam 0.30.x (the last version with migrations; the team wiki runs reset_access and VerifyApproval on 0.30.0).
+
+**Part 1 built on 2026-11-24** (migration 042; [docs/accounts.md](../docs/accounts.md#group-admins),
+[docs/rights.md](../docs/rights.md#known-limits)):
+
+1. `agentCopiesNoWider` compares each copy with its own original inside the copy's transaction (every account, and a
+   link that shows the copy where none shows the original); the check before the transaction is gone, so nothing is
+   checked against a state that can change before the copy is kept.
+2. `accounts.invited_by` keeps the inviter; `MayManagePerson` gives a group admin the persons in none but their local
+   groups, or whom they invited. The web: a new sign-in link only for the inviter (besides administrators and
+   delegates); the lock of a group admin is `RemoveFromMyGroups`, never a lock, and nothing to unlock. The workspace
+   offers *Remove from my groups* instead of *Lock*.
+3. `holdSpace` in `WriteBlocks`, `review` (take back, check), `Move` (both spaces, in the order of their IDs), deleting
+   and renaming, after the lock of the object. The deadlock: `place` locked the parent `FOR UPDATE` and then shifted
+   its children, while a write of a page directly in the space locked the page and then held the space `FOR SHARE`. The
+   space is now held `FOR KEY SHARE`, `place` takes `FOR NO KEY UPDATE`, and archiving takes `FOR UPDATE` before its
+   update (an update alone would pass a key share). Two parallel uploads at the top level did not deadlock before
+   either (no lock on the space but the share); the test keeps it so. `Move` locks what moves and where it goes in the
+   order of their IDs and checks for a loop in its transaction.
+7. A dead link of every mode but upload counts for an agent's move.
+9. `privileged` asks the gate's roles where the gate lets UnderDoc see the account; a gate that does not answer lets only
+   administrators act, except a lock.
+- Notes: the lock goes to UnderDoc first, then the gate (unlock the other way round); the delegate's role is refused at
+  the start when it is the role to create spaces; the door cache of 5 minutes and open Samba sessions are documented.
+
+Attack round in `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and
+`internal/browsertest/accounts_test.go`; 27 mutations, all red. Not proven by a mutation: the order of the lock (UnderDoc
+first, then the gate), which no test can tell apart without a crash between the two.

@@ -163,6 +163,7 @@ window.UDRights = (() => {
     const words = `${a.locked ? "❌ locked in UnderDoc" : "✅ not locked in UnderDoc"} · ${esc(GATE[a.gate] || a.gate)}${a.gate === "active" || a.gate === "disabled" ? (a.signedIn ? " · has signed in" : " · has not signed in yet") : ""}`;
     const buttons = [
       a.lock ? small(`data-ract="lock" data-id="${esc(id)}" data-on="${a.locked ? "0" : "1"}" data-name="${esc(a.name)}"`, a.locked ? "Unlock" : "Lock") : "",
+      a.remove ? small(`data-ract="removeacct" data-id="${esc(id)}" data-name="${esc(a.name)}"`, "Remove from my groups") : "",
       a.link ? small(`data-ract="signinlink" data-id="${esc(id)}"`, "New sign-in link") : "",
       a.reset ? small(`data-ract="reset" data-id="${esc(id)}" data-name="${esc(a.name)}"`, "Reset access") : "",
     ].join("");
@@ -726,6 +727,15 @@ window.UDRights = (() => {
         }, "users");
         return;
       }
+      case "removeacct":
+        // A group admin locks nobody: they take the person out of the groups they administer (B-7).
+        if (!window.confirm(`Take ${a.name} out of every group you administer? Their account stays as it is.`)) return;
+        act(async () => {
+          await api("PUT", `/api/accounts/${encodeURIComponent(a.id)}/lock`, { locked: true });
+          delete st.acct[a.id];
+          for (const g of Object.keys(st.members)) await refreshMembers(g);
+        }, "groups");
+        return;
       case "signinlink":
         act(async () => {
           const l = await api("POST", `/api/accounts/${encodeURIComponent(a.id)}/signin-link`);

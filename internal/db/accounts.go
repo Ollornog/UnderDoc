@@ -190,17 +190,60 @@ func (db *DB) SetLocked(ctx context.Context, accountID string, locked bool, by s
 		RETURNING `+accountColumns, accountID))
 }
 
-// MayManagePerson tells whether an account manages the account of a person as a group admin (T-33): the person is
-// directly in a local group the actor administers, or in one inside it, and no group on the way is archived.
-func (db *DB) MayManagePerson(ctx context.Context, actorID, personID string) (bool, error) {
+// Managed is how a group admin may manage the account of a person (B-7).
+type Managed struct {
+	// Manages tells that they may manage it at all: the person is in a group they administer and in no other local
+	// group, or they invited the person.
+	Manages bool
+	// Invited tells that they invited the person: only then do they give them a new sign-in link.
+	Invited bool
+}
+
+// MayManagePerson tells how an account manages the account of a person as a group admin (T-33, B-7): the person is in a
+// local group the actor administers (directly, or in a group inside one, none on the way archived) and in no local group
+// they do not administer, or the actor invited them. A group admin can put any account into their group, so being in it
+// alone gives them nothing over the person; the groups the gate names are its roles and its groups, which the gate
+// manages, and do not count here.
+func (db *DB) MayManagePerson(ctx context.Context, actorID, personID string) (Managed, error) {
 	mine, err := db.AdministeredGroups(ctx, actorID)
 	if err != nil || len(mine) == 0 {
-		return false, err
+		return Managed{}, err
 	}
-	var found bool
-	err = db.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM group_members m JOIN groups g ON g.id = m.grp
-		WHERE m.account = $1 AND g.archived IS NULL AND m.grp = ANY ($2::text[]))`, personID, mine).Scan(&found)
-	return found, err
+	var inMine, onlyMine, invited bool
+	err = db.pool.QueryRow(ctx, `SELECT
+			EXISTS (SELECT 1 FROM group_members m JOIN groups g ON g.id = m.grp
+				WHERE m.account = $1 AND g.archived IS NULL AND m.grp = ANY ($2::text[])),
+			NOT EXISTS (SELECT 1 FROM group_members m WHERE m.account = $1 AND NOT m.grp = ANY ($2::text[])),
+			coalesce((SELECT invited_by = $3 AND $3 <> '' FROM accounts WHERE id = $1), false)`,
+		personID, mine, actorID).Scan(&inMine, &onlyMine, &invited)
+	if err != nil {
+		return Managed{}, err
+	}
+	return Managed{Manages: invited || inMine && onlyMine, Invited: invited}, nil
+}
+
+// MarkInvited keeps who invited an account, once: the account made for an invitation (B-7).
+func (db *DB) MarkInvited(ctx context.Context, accountID, by string) error {
+	_, err := db.pool.Exec(ctx, "UPDATE accounts SET invited_by = $2 WHERE id = $1 AND invited_by = ''", accountID, by)
+	return err
+}
+
+// RemoveFromMyGroups takes a person out of every group the actor administers that they are directly in, and returns
+// how many: what a lock by a group admin does (B-7), since the account itself is not theirs to lock.
+func (db *DB) RemoveFromMyGroups(ctx context.Context, actor Actor, personID string) (int, error) {
+	if err := noAgent(ctx); err != nil {
+		return 0, err
+	}
+	mine, err := db.AdministeredGroups(ctx, actor.ID)
+	if err != nil {
+		return 0, err
+	}
+	tag, err := db.pool.Exec(ctx, `DELETE FROM group_members m USING groups g
+		WHERE g.id = m.grp AND g.source = 'local' AND m.account = $1 AND m.grp = ANY ($2::text[])`, personID, mine)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // seeExternal records a user under the ID it carries, never under the key or the login of an account made locally before.

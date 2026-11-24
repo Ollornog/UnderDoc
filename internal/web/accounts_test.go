@@ -221,7 +221,8 @@ func TestANewSignInLink(t *testing.T) {
 }
 
 // Locking holds in the gate and in UnderDoc: the locked person comes in through no way, MCP and a share link of theirs
-// included. Nobody locks themselves, a group admin no administrator, the delegate no administrator.
+// included. Nobody locks themselves, a group admin no administrator, the delegate no administrator. A group admin locks
+// nobody at all since B-7 (TestGroupAdminsTakeOverNobody).
 func TestLockingHoldsEverywhere(t *testing.T) {
 	s := withAccounts(t, false)
 	_, out := s.invite(s.branch, `{"login":"lena"}`, carlHeaders)
@@ -258,9 +259,10 @@ func TestLockingHoldsEverywhere(t *testing.T) {
 			t.Errorf("%s locks = %d", name, got)
 		}
 	}
-	got := decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":true}`, carlHeaders))
+	// The lock of a group admin takes the person out of their groups only (B-7); the delegate locks.
+	got := decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":true}`, doraHeaders))
 	if got["locked"] != true || got["gate"] != "done" {
-		t.Fatalf("carl locks lena: %v", got)
+		t.Fatalf("dora locks lena: %v", got)
 	}
 	if ga, _ := s.gate.Get(a.RemoteID); ga.State != gateapi.StateDisabled {
 		t.Errorf("lena is not locked in the gate: %+v", ga)
@@ -281,11 +283,11 @@ func TestLockingHoldsEverywhere(t *testing.T) {
 	if got := s.getWith(share.Path, nil).Code; got != http.StatusNotFound {
 		t.Errorf("lena's share link while she is locked = %d", got)
 	}
-	if got := s.send(http.MethodPost, "/api/accounts/"+lena+"/signin-link", "", carlHeaders).Code; got != http.StatusConflict {
+	if got := s.send(http.MethodPost, "/api/accounts/"+lena+"/signin-link", "", doraHeaders).Code; got != http.StatusConflict {
 		t.Errorf("a sign-in link for a locked account = %d", got)
 	}
 	// Unlocked, all of it comes back.
-	if got := decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":false}`, carlHeaders)); got["locked"] != false {
+	if got := decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":false}`, doraHeaders)); got["locked"] != false {
 		t.Fatalf("unlock: %v", got)
 	}
 	if got := s.getWith("/api/state", lenaHeaders).Code; got != http.StatusOK {
@@ -296,15 +298,15 @@ func TestLockingHoldsEverywhere(t *testing.T) {
 	}
 	// A gate that does not lock keeps nobody open: the lock of UnderDoc holds, and no new sign-in link is given.
 	s.gate.Refuse(http.StatusBadGateway, "")
-	got = decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":true}`, carlHeaders))
+	got = decode[map[string]any](t, s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":true}`, doraHeaders))
 	s.gate.Refuse(0, "")
 	if got["locked"] != true || got["gate"] != "failed" {
 		t.Errorf("locked while the gate fails: %v", got)
 	}
-	if got := s.send(http.MethodPost, "/api/accounts/"+lena+"/signin-link", "", carlHeaders).Code; got != http.StatusConflict {
+	if got := s.send(http.MethodPost, "/api/accounts/"+lena+"/signin-link", "", doraHeaders).Code; got != http.StatusConflict {
 		t.Errorf("a sign-in link for an account locked in UnderDoc only = %d", got)
 	}
-	if got := s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":false}`, carlHeaders).Code; got != http.StatusOK {
+	if got := s.send(http.MethodPut, "/api/accounts/"+lena+"/lock", `{"locked":false}`, doraHeaders).Code; got != http.StatusOK {
 		t.Fatalf("unlock = %d", got)
 	}
 	// An account the gate does not let UnderDoc manage is locked in UnderDoc all the same.
@@ -316,7 +318,7 @@ func TestLockingHoldsEverywhere(t *testing.T) {
 		t.Errorf("bob while locked in UnderDoc only = %d", got)
 	}
 	log := s.send(http.MethodGet, "/api/log?limit=50", "", sameSite).Body.String()
-	if !strings.Contains(log, `"locked"`) || !strings.Contains(log, `"unlocked"`) || !strings.Contains(log, "on behalf of 1003") {
+	if !strings.Contains(log, `"locked"`) || !strings.Contains(log, `"unlocked"`) || !strings.Contains(log, "on behalf of 1004") {
 		t.Errorf("the log of locking: %s", log)
 	}
 }

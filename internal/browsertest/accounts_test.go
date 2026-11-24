@@ -63,6 +63,45 @@ func TestInvitingAndLockingInTheTabRights(t *testing.T) {
 		t.Fatalf("locked, it does not say so: %s", b.eval(`document.querySelector('[data-account]')?.innerText`))
 	}
 	b.shot("locked")
+	// A group admin locks nobody (B-7): carl, admin of Board, takes lena out of his groups, and she stays as she is.
+	b.signInWith("carl", "Carl", "")
+	b.eval(`window.done = null; fetch('/api/state').then(r => { window.done = r.status; })`)
+	if !b.waitFor(`window.done === 200`) {
+		t.Fatalf("carl does not come in: %s", b.eval(`String(window.done)`))
+	}
+	b.signInWith("anna", "Anna Berg", "ops,underdoc-admin")
+	b.eval(`window.done = null; (async () => {
+		const json = {'Content-Type': 'application/json'};
+		await fetch('/api/accounts/' + document.querySelector('[data-account]').dataset.account + '/lock', {method: 'PUT', headers: json, body: JSON.stringify({locked: false})});
+		const groups = await (await fetch('/api/groups')).json();
+		const board = (groups.groups || groups).find(g => g.name === 'Board');
+		const r = await fetch('/api/groups/' + board.id + '/admins/` + remoteID("carl") + `', {method: 'PUT', headers: json, body: JSON.stringify({admin: true})});
+		window.done = r.status;
+	})()`)
+	if !b.waitFor(`window.done === 204`) {
+		t.Fatalf("carl was not made admin of Board: %s", b.eval(`String(window.done)`))
+	}
+	b.signInWith("carl", "Carl", "")
+	b.open(base + "/o/plan")
+	b.ready("Network plan")
+	b.clickOn(`[data-act="view"][data-id="rights"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-group="Board"] [data-ract="members"]')`) {
+		t.Fatalf("carl does not see Board: %s", b.eval(`document.querySelector('[aria-label=Nav3] aside.card')?.innerText`))
+	}
+	b.clickOn(`[data-group="Board"] [data-ract="members"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-group-detail="Board"] [data-ract="account"]')`) {
+		t.Fatalf("no account offered to carl: %s", b.eval(`document.querySelector('[data-rights="groups"]')?.innerText`))
+	}
+	b.clickOn(`[data-group-detail="Board"] [data-ract="account"]`, 1)
+	if !b.waitFor(`!!document.querySelector('[data-account] [data-ract="removeacct"]') && !document.querySelector('[data-account] [data-ract="lock"]') && !document.querySelector('[data-account] [data-ract="signinlink"]')`) {
+		t.Fatalf("carl is not offered only to remove lena: %s", b.eval(`document.querySelector('[data-group-detail="Board"]')?.innerText`))
+	}
+	b.eval(`window.confirm = () => true`)
+	b.clickOn(`[data-account] [data-ract="removeacct"]`, 1)
+	if !b.waitFor(`!(document.querySelector('[data-group-detail="Board"]')?.innerText || '').includes('Lena Moor')`) {
+		t.Fatalf("lena is still in Board: %s", b.eval(`document.querySelector('[data-group-detail="Board"]')?.innerText`))
+	}
+	b.shot("removed by a group admin")
 }
 
 // Without the account API the tab Rights offers neither invitations nor accounts.

@@ -155,12 +155,11 @@ var ErrPublish = fmt.Errorf("%w: an agent moves or copies nothing to where more 
 // reads more than before when every reader of target reads the source already. A person may; the check counts persons,
 // not agents.
 //
-// A copy keeps of an object below its top only the role it grants everyone, not its entries for persons or groups, its
-// denies or a break of its inheritance, so every copied object is a source of its own (B-6). A move keeps them, so its
-// top is enough. A live read link on target or above it serves target to anyone with the link: that counts as readers
-// without limit, so only what such a link serves already goes there (B-6). A read link on what an agent moves that is
-// dead where it lies, because its maker may not share it there, comes alive where its maker may share target: that
-// counts too (B-6).
+// A move keeps the entries of what it moves, so its top is enough; a copy is checked against its originals instead, in
+// its own transaction (agentCopiesNoWider). A live link that shows target, on it or above it, serves target to anyone
+// with the link: that counts as readers without limit, so only what such a link serves already goes there (B-6). A link
+// on what an agent moves that is dead where it lies, because its maker may not share it there, comes alive where its
+// maker may share target: that counts too, in every mode that shows its object, all but upload (B-6, B-7).
 func (db *DB) agentNoWider(ctx context.Context, sources []string, target string, move bool) error {
 	if !requestAgent(ctx) || target == "" || len(sources) == 0 {
 		return nil
@@ -173,10 +172,32 @@ func (db *DB) agentNoWider(ctx context.Context, sources []string, target string,
 				SELECT id FROM objects WHERE id = ANY ($1::text[])
 				UNION ALL SELECT c.id FROM objects c JOIN down ON c.parent = down.id
 			) SELECT 1 FROM share_links l JOIN down ON down.id = l.object
-			WHERE l.mode = 'read' AND (l.expires IS NULL OR l.expires > now())
+			WHERE l.mode <> 'upload' AND (l.expires IS NULL OR l.expires > now())
 			  AND NOT (object_decide(l.object, l.created_by, 'share', false, false)).allowed
 			  AND (object_decide($2, l.created_by, 'share', false, false)).allowed))`,
 		sources, target, move).Scan(&wider); err != nil {
+		return err
+	}
+	if wider {
+		return ErrPublish
+	}
+	return nil
+}
+
+// agentCopiesNoWider refuses, for a request of an agent, a copy that someone may read who may not read its original
+// (B-7): each copy against its own original, inside the transaction that made them, so what the check sees is what is
+// kept. A copy keeps of its original only the role it grants the whole tenant: a page readable for the tenant with a deny
+// for a person, copied into a collection of a group, would otherwise become readable for that person. A link that shows
+// a copy where none shows its original counts as readers without limit, as in agentNoWider.
+func agentCopiesNoWider(ctx context.Context, tx pgx.Tx, originals, copies []string) error {
+	if !requestAgent(ctx) || len(copies) == 0 {
+		return nil
+	}
+	var wider bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM unnest($1::text[], $2::text[]) AS p(orig, copy) CROSS JOIN accounts a
+			WHERE (object_decide(p.copy, a.id, 'read', false, true)).allowed AND NOT (object_decide(p.orig, a.id, 'read', false, true)).allowed)
+		OR EXISTS (SELECT 1 FROM unnest($1::text[], $2::text[]) AS p(orig, copy) WHERE object_public(p.copy) AND NOT object_public(p.orig))`,
+		originals, copies).Scan(&wider); err != nil {
 		return err
 	}
 	if wider {

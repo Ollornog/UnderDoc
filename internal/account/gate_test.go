@@ -341,4 +341,11 @@ func TestTheDelegatedAdministratorRole(t *testing.T) {
 	if _, err := NewGate(GateConfig{DelegateRole: "underdoc-admin"}); err == nil {
 		t.Error("the administrator's role as the delegate's role")
 	}
+	// B-7: who creates spaces is no delegate.
+	if _, err := NewGate(GateConfig{DelegateRole: DefaultSpacesRole}); err == nil {
+		t.Error("the role to create spaces as the delegate's role")
+	}
+	if _, err := NewGate(GateConfig{DelegateRole: "staff", SpacesRole: "staff"}); err == nil {
+		t.Error("one role for the delegate and for who creates spaces")
+	}
 }

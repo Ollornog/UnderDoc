@@ -42,19 +42,25 @@ var (
 // LogArchive is archiving or restoring a space; its detail says which.
 const LogArchive = "archive"
 
-// holdSpace takes the space an object lies in for share, inside a write transaction, and refuses when it is archived
-// (B-6). Archiving updates that row, so it waits for the write, and a write that checked its rights before archiving
-// came finds the archive here instead of landing in it. Every write of content goes through it: the blocks of a page,
-// versions of files, attachments and new objects.
-func holdSpace(ctx context.Context, q execer, objectID string) error {
+// holdSpace takes the space an object lies in, inside a write transaction, and refuses when it is archived (B-6). Every
+// write of content and of the tree goes through it after it locked what it changes (B-7): the blocks of a page (also
+// written by an agent, taken back or checked), versions of files, attachments, new objects, a move (where it lies and
+// where it goes), a deletion and a new name. Archiving locks that row for update first (setArchived), so it waits for
+// such a write, and a write that checked its rights before archiving came finds the archive here instead of landing in
+// it.
+//
+// The lock is FOR KEY SHARE (B-7): it conflicts with the update lock of archiving, not with the lock place takes on a
+// parent to put something at a position (FOR NO KEY UPDATE), so a write that holds a page directly in a space and then
+// holds the space does not deadlock with a move or a new entry into that space, which holds the space and then shifts
+// the page. Spaces of several objects are taken in the order of their IDs.
+func holdSpace(ctx context.Context, q execer, objectIDs ...string) error {
 	var archived bool
 	err := q.QueryRow(ctx, `WITH RECURSIVE up AS (
-			SELECT id, parent, 0 AS depth FROM objects WHERE id = $1
+			SELECT id, parent, 0 AS depth FROM objects WHERE id = ANY ($1::text[])
 			UNION ALL SELECT o.id, o.parent, up.depth + 1 FROM objects o JOIN up ON o.id = up.parent WHERE up.depth < 200
-		) SELECT archived IS NOT NULL FROM objects WHERE id = (SELECT id FROM up WHERE parent IS NULL) FOR SHARE`, objectID).Scan(&archived)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
+		), held AS (
+			SELECT archived FROM objects WHERE id IN (SELECT id FROM up WHERE parent IS NULL) ORDER BY id FOR KEY SHARE
+		) SELECT coalesce(bool_or(archived IS NOT NULL), false) FROM held`, objectIDs).Scan(&archived)
 	if err != nil {
 		return err
 	}
@@ -146,10 +152,16 @@ func (db *DB) SetArchived(ctx context.Context, objectID string, actor Actor, arc
 
 func (db *DB) setArchived(ctx context.Context, objectID, by string, archived bool) error {
 	if archived {
-		// The update waits for every write that holds the space (holdSpace), and those after it find it archived.
-		_, err := db.pool.Exec(ctx, `UPDATE objects SET archived = coalesce(archived, now()), archived_by = $2, changed = now()
-			WHERE id = $1 AND parent IS NULL`, objectID, by)
-		return err
+		// The lock for update waits for every write that holds the space (holdSpace, FOR KEY SHARE), and those after it
+		// find it archived.
+		return pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 AND parent IS NULL FOR UPDATE", objectID); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `UPDATE objects SET archived = coalesce(archived, now()), archived_by = $2, changed = now()
+				WHERE id = $1 AND parent IS NULL`, objectID, by)
+			return err
+		})
 	}
 	// What lay in its trash gets the time back that the space was archived, so its 30 days pause while archived (B-6).
 	// Everything deleted together moves by the same span, so it stays together.

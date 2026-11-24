@@ -23,16 +23,37 @@ selbst**, wer was darf, bevor es die Schranke ruft:
 |---|---|---|---|
 | **Administrator** (`UNDERDOC_ADMIN_ROLE`) | in jede lokale Gruppe | jedes Konto außer dem eigenen | jedes Konto, als Freigeber der Schranke |
 | **Delegierter Administrator** (`UNDERDOC_DELEGATE_ROLE`) | in jede lokale Gruppe | jedes Konto außer dem eines Administrators, eines anderen Delegierten oder dem eigenen | nein |
-| **Gruppen-Admin** | in die Gruppen, die er verwaltet | die Personen direkt in einer Gruppe, die er verwaltet, oder in einer Gruppe darin | nein |
+| **Gruppen-Admin** | in die Gruppen, die er verwaltet | die Personen, die nur in seinen Gruppen sind oder die er eingeladen hat ([unten](#gruppen-admins)) | nein |
 | Alle anderen | nein | nein | nein |
 
 - **Nur eine Person im Browser**, angemeldet als Sitzung (`Remote-Auth: session`): nie ein Agent, ein Schlüssel, ein
   App-Passwort, OAuth, MCP oder ein Dienstkonto, gleich welche Rollen es trägt (ADR-36, B-4). MCP hat dafür kein Werkzeug.
 - **Nie ein Dienstkonto** als betroffenes Konto, und nie das eigene Konto.
 - **Eine Gruppe** aus der Schranke oder eine archivierte Gruppe nimmt keine Einladung.
+- **Ob ein Konto einem Administrator oder Delegierten gehört**, sagen die Markierung der Kommandozeile, die Rollen seiner
+  letzten Anmeldung und die Rollen, die die Schranke ihm jetzt gibt, wo sie UnderDoc das Konto sehen lässt (B-7): Ein
+  Konto aus `add` oder `adopt` oder eines, das seit seiner letzten Anmeldung befördert wurde, zählt als das, was die
+  Schranke sagt. Antwortet die Schranke nicht, handelt nur ein Administrator daran, außer beim Sperren, das auch ohne
+  Schranke geht.
 - **Rollen:** Eine Einladung gibt nur Rollen der Allowlist von UnderDoc (`UNDERDOC_ACCOUNTS_ROLES`), nie die Rolle eines
   Administrators, des delegierten Administrators, derer, die Bereiche anlegen, oder die Freigeber-Rolle der Schranke; der
   Start lehnt eine solche Liste ab. Die Schranke führt ihre eigene Allowlist und lehnt alles außerhalb ebenfalls ab.
+
+<a id="gruppen-admins"></a>
+### Gruppen-Admins (B-7)
+
+Ein Gruppen-Admin kann jedes Konto in seine Gruppe aufnehmen; das allein gibt ihm also nichts über die Person. Er verwaltet:
+
+- die Personen, die **nur in seinen Gruppen** sind (lokale Gruppen; Rollen und Gruppen aus der Schranke zählen nicht),
+  und
+- die Personen, **die er eingeladen hat**: UnderDoc merkt sich, wer ein Konto eingeladen hat (`accounts.invited_by`,
+  Migration 042).
+
+Davon bekommt einen **neuen Anmeldelink** nur, wen er eingeladen hat; Administrator und delegierter Administrator geben ihn
+jedem, den sie verwalten. Und ein Gruppen-Admin **sperrt niemanden**: **Remove from my groups** (die Sperre eines
+Gruppen-Admins) nimmt die Person aus jeder Gruppe, die er verwaltet, und sperrt weder das Konto in UnderDoc noch das in der
+Schranke; zu entsperren gibt es nichts, er nimmt die Person wieder in die Gruppe auf. Zugang zurücksetzen bleibt bei den
+Administratoren.
 
 ## Einladen
 
@@ -51,9 +72,11 @@ in UnderDoc und in der Schranke, mit dem, was der Betrachter darf:
 
 - **New sign-in link:** nur vor der ersten Anmeldung und nicht, solange das Konto gesperrt ist; ältere Links verfallen.
   Nach der ersten Anmeldung wäre ein Link eine Übernahme, und die Schranke lehnt ihn ab.
-- **Lock** und **Unlock:** in der Schranke, wo sie es UnderDoc erlaubt (sie verwaltet nur Konten, die UnderDoc angelegt
-  hat oder übergeben bekam), und **immer in UnderDoc** (die Sperre von UnderDoc). Ein Konto, das der Betreiber der
-  Schranke gesperrt hat, entsperrt nur der Betreiber.
+- **Lock** und **Unlock** (Administratoren und Delegierte): in der Schranke, wo sie es UnderDoc erlaubt (sie verwaltet nur
+  Konten, die UnderDoc angelegt hat oder übergeben bekam), und **immer in UnderDoc** (die Sperre von UnderDoc). Gesperrt
+  wird erst in UnderDoc, dann in der Schranke; entsperrt erst in der Schranke, dann in UnderDoc, so bleibt das Konto bei
+  einem Fehler unterwegs gesperrt (B-7). Ein Konto, das der Betreiber der Schranke gesperrt hat, entsperrt nur der
+  Betreiber. Einem Gruppen-Admin wird stattdessen **Remove from my groups** angeboten ([oben](#gruppen-admins)).
 - **Reset access** (neues Telefon, vergessenes Passwort), nach der ersten Anmeldung: UnderDoc bittet die Schranke um ihre
   Freigabe `tinysesam.account.reset_access`, und wer gefragt hat, **bestätigt sie in der Schranke** mit dem angezeigten
   Code und einem eigenen Step-up. Die Schranke lässt nur einen Inhaber ihrer Freigeber-Rolle bestätigen, die ADR-35 auf die
@@ -70,11 +93,17 @@ genommen hat, etwas her: Ein Freigabelink von ihm antwortet, solange es gesperrt
 geht verloren; Entsperren bringt alles zurück. Die Sperre gilt für sich, auch wo die Schranke nicht sperrt, und bis ein
 Schranken-Token des Kontos abläuft. In der Datenbank: `accounts.locked`, `locked_by` (Migration 040).
 
+Grenzen (B-7): Die Rechte gelten sofort, aber eine andere Instanz von UnderDoc vor derselben Datenbank behält an ihrer Tür
+bis zu **5 Minuten**, was sie über ein Konto weiß; ein gesperrtes Konto kann dort so lange noch Seiten öffnen (die eine
+Prüfung verweigert ihm trotzdem jede Aktion), und eine **Samba-Sitzung**, die vor der Sperre offen war, bleibt offen, bis
+die Freigabe den Benutzer abnimmt.
+
 ## Zwei Stufen der Verwaltung
 
 - Der **Administrator** trägt die Rolle der App `UNDERDOC_ADMIN_ROLE` (`underdoc-admin`) oder die Marke der
   Kommandozeile. Er darf alles unten und mehr.
-- Der **delegierte Administrator** trägt die eigene Rolle der App `UNDERDOC_DELEGATE_ROLE` (`underdoc-delegate`):
+- Der **delegierte Administrator** trägt die eigene Rolle der App `UNDERDOC_DELEGATE_ROLE` (`underdoc-delegate`), weder
+  die des Administrators noch die zum Anlegen von Bereichen (der Start lehnt beides ab, B-7):
   - verwaltet die Konten aller Gruppen: lädt in jede lokale Gruppe ein, gibt neue Anmeldelinks, sperrt und entsperrt;
   - sieht die Benutzer und die Mitglieder jeder Gruppe;
   - archiviert Gruppen und stellt sie wieder her (B-5).

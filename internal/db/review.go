@@ -169,6 +169,9 @@ func (db *DB) review(ctx context.Context, pageID, blockID, viewer string, head i
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", pageID); err != nil {
 			return err
 		}
+		if err := holdSpace(ctx, tx, pageID); err != nil {
+			return err
+		}
 		var c AIChange
 		var origin string
 		var base *string

@@ -116,20 +116,6 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 	if err != nil {
 		return Object{}, err
 	}
-	// An agent publishes nothing by copying it either (B-5): every copy is checked, since one below the top keeps none
-	// of the entries of its original (B-6).
-	var ids []string
-	var walk func(n *node)
-	walk = func(n *node) {
-		ids = append(ids, n.o.ID)
-		for _, k := range n.kids {
-			walk(k)
-		}
-	}
-	walk(tree)
-	if err := db.agentNoWider(ctx, ids, parent, false); err != nil {
-		return Object{}, err
-	}
 	var top Object
 	root := ""
 	if o.Area == AreaFiles {
@@ -153,6 +139,8 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 		if err != nil {
 			return err
 		}
+		// Each original with its copy, for the check of an agent's copy below.
+		var originals, copies []string
 		var write func(n *node, parent, title string) (Object, error)
 		write = func(n *node, parent, title string) (Object, error) {
 			// A copy at the top is a new collection of the viewer, theirs alone until they share it (ADR-29, 2026-11-19);
@@ -166,6 +154,7 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			if err != nil {
 				return Object{}, err
 			}
+			originals, copies = append(originals, n.o.ID), append(copies, made.ID)
 			if _, err := tx.Exec(ctx, `UPDATE objects SET (next_block, next_attachment) = (SELECT next_block, next_attachment FROM objects WHERE id = $2)
 				WHERE id = $1`, made.ID, n.o.ID); err != nil {
 				return Object{}, err
@@ -210,6 +199,12 @@ func (db *DB) Copy(ctx context.Context, objectID, viewer, parent, after string) 
 			return err
 		}
 		top.Position = position
+		// An agent publishes nothing by copying it either (B-5). A copy keeps of its original only the role it grants the
+		// whole tenant, not its entries for persons or groups, its denies or a break of its inheritance (B-6), so the
+		// copies are compared with their originals as they stand in this transaction, each with its own (B-7).
+		if err := agentCopiesNoWider(ctx, tx, originals, copies); err != nil {
+			return err
+		}
 		return withinStorage(ctx, tx)
 	})
 	return top, err

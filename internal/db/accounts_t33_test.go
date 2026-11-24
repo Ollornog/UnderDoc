@@ -128,19 +128,19 @@ func TestGroupAdminsManageTheirPeople(t *testing.T) {
 			t.Fatal(step)
 		}
 	}
-	if ok, err := db.MayManagePerson(ctx, carl.ID, dora.ID); err != nil || !ok {
-		t.Errorf("carl manages dora in a group inside his: %v %v", ok, err)
+	if m, err := db.MayManagePerson(ctx, carl.ID, dora.ID); err != nil || !m.Manages {
+		t.Errorf("carl manages dora in a group inside his: %v %v", m, err)
 	}
-	if ok, _ := db.MayManagePerson(ctx, carl.ID, bob.ID); ok {
+	if m, _ := db.MayManagePerson(ctx, carl.ID, bob.ID); m.Manages {
 		t.Error("carl manages bob in a group he does not manage")
 	}
-	if ok, _ := db.MayManagePerson(ctx, dora.ID, carl.ID); ok {
+	if m, _ := db.MayManagePerson(ctx, dora.ID, carl.ID); m.Manages {
 		t.Error("dora manages her group admin")
 	}
 	if err := db.ArchiveGroup(asPerson(anna), admin, inner.ID); err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := db.MayManagePerson(ctx, carl.ID, dora.ID); ok {
+	if m, _ := db.MayManagePerson(ctx, carl.ID, dora.ID); m.Manages {
 		t.Error("carl manages dora through an archived group")
 	}
 }

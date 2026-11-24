@@ -76,7 +76,8 @@ func (db *DB) DeleteDivider(ctx context.Context, objectID, viewer string) error 
 // parent is locked, so two moves into it do not take the same place.
 func place(ctx context.Context, tx pgx.Tx, parent, after string) (int, error) {
 	if parent != "" {
-		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", parent); err != nil {
+		// FOR NO KEY UPDATE: places in one parent one after the other, and leaves holdSpace (FOR KEY SHARE) free (B-7).
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR NO KEY UPDATE", parent); err != nil {
 			return 0, err
 		}
 	}
@@ -207,6 +208,24 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		if after == objectID {
 			return ErrPlace
 		}
+		// What moves and where it goes are locked in the order of their IDs, so two moves of each into the other wait
+		// for each other, and the second finds the first (B-7).
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = ANY ($1::text[]) ORDER BY id FOR NO KEY UPDATE",
+			[]string{objectID, parent}); err != nil {
+			return err
+		}
+		if parent != "" && parent != o.Parent {
+			var below bool
+			if err := tx.QueryRow(ctx, `WITH RECURSIVE up AS (
+					SELECT id, parent, 0 AS depth FROM objects WHERE id = $1
+					UNION ALL SELECT p.id, p.parent, up.depth + 1 FROM objects p JOIN up ON p.id = up.parent WHERE up.depth < 200
+				) SELECT EXISTS (SELECT 1 FROM up WHERE id = $2)`, parent, objectID).Scan(&below); err != nil {
+				return err
+			}
+			if below {
+				return ErrPlace
+			}
+		}
 		if intoPrivate {
 			// The whole tree is locked, so nothing new lands anywhere in it and no owner changes while this is checked.
 			if err := lockTree(ctx, tx, objectID); err != nil {
@@ -245,6 +264,10 @@ func (db *DB) Move(ctx context.Context, objectID, viewer, parent, after string) 
 		}
 		position, err := place(ctx, tx, parent, after)
 		if err != nil {
+			return err
+		}
+		// Nothing moves out of a space or into one that is archived meanwhile (B-7).
+		if err := holdSpace(ctx, tx, objectID, parent); err != nil {
 			return err
 		}
 		moved, err = scan(tx.QueryRow(ctx, `UPDATE objects SET parent = nullif($2, ''), position = $3, changed = now() WHERE id = $1 RETURNING `+columns,

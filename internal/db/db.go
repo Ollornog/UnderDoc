@@ -578,5 +578,16 @@ func (db *DB) Rename(ctx context.Context, objectID, viewer, title string) (Objec
 	if err := db.guardFile(ctx, o); err != nil {
 		return Object{}, err
 	}
-	return scan(db.pool.QueryRow(ctx, `UPDATE objects SET title = $2, changed = now() WHERE id = $1 RETURNING `+columns, objectID, title))
+	var renamed Object
+	err = pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR NO KEY UPDATE", objectID); err != nil {
+			return err
+		}
+		if err := holdSpace(ctx, tx, objectID); err != nil {
+			return err
+		}
+		renamed, err = scan(tx.QueryRow(ctx, `UPDATE objects SET title = $2, changed = now() WHERE id = $1 RETURNING `+columns, objectID, title))
+		return err
+	})
+	return renamed, err
 }

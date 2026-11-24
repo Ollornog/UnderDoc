@@ -8,6 +8,22 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **Review of B-6, T-33 and T-38, part 1** (B-7, migration 042, [docs/accounts.md](docs/accounts.md#group-admins),
+  [docs/rights.md](docs/rights.md#known-limits)). An agent's copy kept the tenant's role of its original but lost its
+  denies for persons and groups, so a page denied to someone became readable for them in a collection of another group:
+  every copy is compared with its own original inside the copy's transaction now, and the copy is undone if anyone may
+  read it who may not read the original. The admin of one group could put any account into the group, then make a new
+  sign-in link for it or lock it everywhere: group admins manage only the persons in none but their groups or whom they
+  invited (kept with the account), only the inviter gives a new sign-in link, and a group admin's lock takes the person
+  out of their groups and locks nothing. Whether an account is an administrator's or a delegate's also comes from the
+  gate's roles now, not only from the last sign-in; a gate that does not answer lets only administrators act, except a
+  lock. A lock is set in UnderDoc first, then in the gate. The delegate's role may not be the role to create spaces.
+  Writes by agents, taking back, moves (where it lies and where it goes), deletions and new names hold their space, so
+  nothing lands in a space archived meanwhile; the space is held `FOR KEY SHARE` and archiving locks it for update, so a
+  write in a page directly in a space no longer deadlocks with a move into it. A move finds a loop made while it waited.
+  A dead link of any mode but upload counts for an agent's move. Attack round as tests in
+  `internal/db/review_b7_test.go`, `internal/web/review_b7_test.go` and the browser test of accounts; 27 mutations, all
+  red.
 - **Review of T-34 and B-5** (B-6, migration 039, [docs/rights.md](docs/rights.md#known-limits),
   [docs/mcp.md](docs/mcp.md#the-rules-page)). An agent's copy of a folder with a page that broke its inheritance made
   that page readable for everyone around the copy: every object a copy makes is checked now, not only its top. A link to

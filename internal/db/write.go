@@ -91,6 +91,9 @@ func (db *DB) WriteBlocks(ctx context.Context, pageID, viewer string, base int64
 		if _, err := tx.Exec(ctx, "SELECT 1 FROM objects WHERE id = $1 FOR UPDATE", pageID); err != nil {
 			return err
 		}
+		if err := holdSpace(ctx, tx, pageID); err != nil {
+			return err
+		}
 		var now int64
 		if err := tx.QueryRow(ctx, "SELECT coalesce(max(version), 0) FROM block_versions WHERE page = $1", pageID).Scan(&now); err != nil {
 			return err
