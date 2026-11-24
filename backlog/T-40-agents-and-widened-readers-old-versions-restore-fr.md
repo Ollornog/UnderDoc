@@ -2,7 +2,7 @@
 type: Task
 title: 'Agents and widened readers: old versions, restore from trash, re-uploaded files'
 status: offen
-points: 8
+points: 13
 id: T-40
 milestone: M-30
 created: '2026-11-24'
@@ -16,3 +16,4 @@ Left open by the attack round T-38 (2026-11-24) because they need a design decis
 - **Download and upload again (path 11):** no refusal by sha256, because one changed byte or another format gets around it, and a refusal is an oracle ("this content exists where you cannot read"). Proposal: compare only with blobs the agent read in its own read window, and **mark instead of refuse**, as in T-38.
 - The read window itself (one working day per person, no limit, snapshot at read time, reset by the person) is fixed in B-7.
 - Test for the data part of migration 039 (a private rules page taken over from the tag is dropped), missing since B-6.
+- **From B-7 (finding 13), decided by the master:** the network part of VerifyApproval (signature, JWKS) runs outside any transaction; storing the jti (unique) and the delete run in one transaction, so the approval is spent exactly when the delete commits. This keeps the rule of B-6 (no outside call inside an open transaction) and closes the gap where a failed delete spends the approval.
