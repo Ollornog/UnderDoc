@@ -3,7 +3,7 @@ type: Task
 title: Connectors to outside systems through an extension point
 status: offen
 id: T-31
-milestone: M-30
+milestone: M-31
 created: '2026-11-23'
 ---
 # T-31 — Connectors to outside systems through an extension point

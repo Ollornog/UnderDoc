@@ -3,7 +3,7 @@ type: Task
 title: 'MCP tools, second round: conflict diff, move a section, search filters, attachment text'
 status: offen
 id: T-37
-milestone: M-30
+milestone: M-31
 created: '2026-11-23'
 ---
 # T-37 — MCP tools, second round: conflict diff, move a section, search filters, attachment text

@@ -3,7 +3,7 @@ type: Task
 title: 'TinySesam built in: its own gate in UnderDoc''s compose, local accounts and OIDC mixed'
 status: offen
 id: T-39
-milestone: M-30
+milestone: M-32
 created: '2026-11-23'
 ---
 # T-39 — TinySesam built in: its own gate in UnderDoc's compose, local accounts and OIDC mixed
