@@ -36,7 +36,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☐ **[M-27](M-27-file-sources.md)** Further file sources — noch keine Aufgaben
 * ☑ **[M-28](M-28-first-build.md)** First build: sign-in, account, collections and documents as objects — noch keine Aufgaben
 * ☐ **[M-29](M-29-recipes.md)** Recipes — noch keine Aufgaben
-* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 10/11 erledigt
+* ☐ **[M-30](M-30-team-server-parity-a-team-wiki-of-people-and-ai-ag.md)** Team server parity: a team wiki of people and AI agents moves in — 10/12 erledigt
 * ☐ **[M-31](M-31-import-navigation-data-pages-and-connectors-the-te.md)** Import, navigation, data pages and connectors: the team wiki moves in — 0/5 erledigt
 * ☐ **[M-32](M-32-tinysesam-built-in-underdoc-brings-its-own-gate-wi.md)** TinySesam built in: UnderDoc brings its own gate with local accounts and OIDC — 0/1 erledigt
 
@@ -92,6 +92,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[B-5](B-5-review-of-b-4-and-the-mcp-core-rules-page-archive.md)** Review of B-4 and the MCP core: rules page, archive bypass, facet regression, agent moves · M-30
 * ☑ **[B-6](B-6-review-of-t-34-and-b-5-agent-copies-of-restricted.md)** Review of T-34 and B-5: agent copies of restricted trees, public links, link rights on the object · M-30
 * ☑ **[B-7](B-7-review-of-b-6-t-33-and-t-38-copies-lose-denies-gro.md)** Review of B-6, T-33 and T-38: copies lose denies, group admins manage any account, read window · M-30
+* ☐ **[B-8](B-8-review-of-b-7-move-cycles-reset-as-a-back-door-rea.md)** Review of B-7: move cycles, reset as a back door, read snapshots that do not scale, gate key break · M-30
 
 ## Entscheidungen (ADR)
 
