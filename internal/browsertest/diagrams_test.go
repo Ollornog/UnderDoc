@@ -12,11 +12,12 @@ import (
 	"github.com/Ollornog/UnderDoc/internal/web"
 )
 
-// diagramText reads the text of the drawn diagram out of its image.
+// diagramText reads the text of the drawn diagram out of its image, as text: a document parsed in the page would take
+// the policy of the page and may report the styles of the SVG as violations (PR CI 2026-11-24).
 const diagramText = `(() => { const img = document.querySelector('figure[data-mermaid] img[data-diagram]');
 	if (!img) return '';
-	const svg = new DOMParser().parseFromString(decodeURIComponent(img.src.split(',')[1]), 'image/svg+xml');
-	return svg.documentElement.textContent.replace(/\s+/g, ' ').trim(); })()`
+	return decodeURIComponent(img.src.split(',')[1]).replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ')
+		.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim(); })()`
 
 // A Mermaid diagram draws under the production policy of the workspace (T-3): no inline style and no inline script for
 // the app. Mermaid draws in a sandboxed frame without an origin of its own, the workspace shows the result as an image, and
@@ -32,6 +33,10 @@ func TestADiagramDrawsUnderTheStrictPolicy(t *testing.T) {
 	b.ready("Diagram")
 	if !b.waitFor(`document.querySelector('figure[data-mermaid] img[data-diagram]')?.naturalWidth > 0`) {
 		t.Fatalf("no diagram is drawn: %s", b.eval(`document.querySelector('figure[data-mermaid]')?.outerHTML.slice(0, 600)`))
+	}
+	// Drawing it broke nothing of the policy of the workspace, and nothing of the diagram ran there.
+	if csp, errors := b.drain(); len(csp) > 0 || len(errors) > 0 {
+		t.Errorf("csp %v, errors %v", csp, errors)
 	}
 	text := b.eval(diagramText)
 	for _, want := range []string{"edge router", "core switch"} {
@@ -50,7 +55,7 @@ func TestADiagramDrawsUnderTheStrictPolicy(t *testing.T) {
 		t.Error("the diagram ran code in the workspace")
 	}
 	if csp, errors := b.drain(); len(csp) > 0 || len(errors) > 0 {
-		t.Errorf("csp %v, errors %v", csp, errors)
+		t.Errorf("after reading the diagram: csp %v, errors %v", csp, errors)
 	}
 	b.shot("diagram")
 
