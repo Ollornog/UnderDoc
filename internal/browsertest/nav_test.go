@@ -668,6 +668,10 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	if !b.waitFor(`[...document.querySelectorAll('[aria-label=Nav3] li > div')].some(n => n.querySelector(':scope > button:not([data-toggle])')?.textContent.trim() === 'B (copy)')`) {
 		t.Fatalf("Duplicate: %q", tops())
 	}
+	// From here each move is answered late, as on a loaded host: the line and the second sort come while the moves of
+	// the first are still on their way, and the database must still end in the order shown (2026-11-24: they mixed).
+	b.eval(`window.fetch = ((f) => function (u) { const p = f.apply(this, arguments); if (!/\/move$/.test(String(u))) return p;
+		window.inflight++; return p.then((r) => new Promise((ok) => setTimeout(() => { window.inflight--; ok(r); }, 40)), (e) => { window.inflight--; throw e; }); })(window.fetch)`)
 	b.rightClickOn(`[aria-label=Nav3] section > header[data-cdrop="` + team + `"] > a`)
 	b.clickOn(probe(b, `[data-cm-panel] button`, "Sort its children Z to A"), 1)
 	if got := tops(); got != "C (copy), C, B (copy), B, A" {
@@ -685,7 +689,8 @@ func TestCopyDuplicateAndSort(t *testing.T) {
 	if got := tops(); got != want {
 		t.Errorf("sorted A to Z around the line: %q", got)
 	}
-	time.Sleep(700 * time.Millisecond)
+	// Both sorts and the line are sent, one after the other: a fixed pause instead cut them off on a loaded host.
+	b.settled()
 	b.open(base + "/o/" + team)
 	b.ready("Team")
 	if got := tops(); got != want {

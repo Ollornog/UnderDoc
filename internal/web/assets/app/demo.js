@@ -2106,9 +2106,10 @@ async function addDivider(kind,cont,after){
   if(!canPlace(cont))return;
   const list=D[cont].kids,k=after?list.indexOf(after)+1:0;
   if(!D[cont].db){list.splice(k,0,decoDoc(decoId(),kind));rebuildPlaces();return;}
-  try{const r=await fetch('/api/dividers',{...same,method:'POST',body:JSON.stringify({kind,parent:D[cont].sid,after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));
+  /* After what is being placed already, as a sort's moves (inOrder): the line goes where the entries are shown. */
+  return inOrder(async()=>{try{const r=await fetch('/api/dividers',{...same,method:'POST',body:JSON.stringify({kind,parent:D[cont].sid,after:after?D[after].sid:''})});if(!r.ok)throw new Error(String(r.status));
     const id=addNode(await r.json());list.splice(after?list.indexOf(after)+1:0,0,id);rebuildPlaces();render();}
-  catch(e){toast(e.message==='403'?'Others may not change this collection.':'The '+kind+' could not be added.');}
+  catch(e){toast(e.message==='403'?'Others may not change this collection.':'The '+kind+' could not be added.');}});
 }
 async function removeDivider(id){
   const i=C.findIndex(c=>c.id===id);
@@ -2127,7 +2128,9 @@ async function moveObject(id,cont,after,undo){
 /* A copy lands right after what it copies, or where a drop with Ctrl puts it. In the database the server copies the
    whole tree; made-up content is copied here. Only the top copy says it is one. */
 function copyLocal(id){const n='k'+(++S.newN),d=D[id];D[n]={...d,kids:d.kids.map(copyLocal)};return n;}
-async function copyTo(ids,p,after){
+/* After what is being placed already (inOrder), so the copy lands after the entry where it is shown. */
+function copyTo(ids,p,after){return inOrder(()=>copyNow(ids,p,after));}
+async function copyNow(ids,p,after){
   let prev=after;
   for(const id of ids){
     let n;
@@ -2272,8 +2275,12 @@ function sortKids(id,dir){
   L.length=0;L.push(...out);rebuildPlaces();render();
   if(D[id].db)moveAll(out.map((x,i)=>[x,id,i?out[i-1]:'']),()=>{L.length=0;L.push(...old);rebuildPlaces();render();});
 }
-/* Several entries move one after the other, each after the one before, so the server keeps their order. */
-async function moveAll(moves,undo){for(const [id,cont,after] of moves)if(!await moveObject(id,cont,after,undo))return;}
+/* Several entries move one after the other, each after the one before, so the server keeps their order. Whatever places
+   entries waits for what was placed before it: a second sort, a line or a drop while the moves of the first are still on
+   their way would otherwise mix with them, and the server would keep another order than the one shown (2026-11-24). */
+let placing=Promise.resolve();
+function inOrder(job){const run=placing.then(job);placing=run.catch(()=>{});return run;}
+function moveAll(moves,undo){return inOrder(async()=>{for(const [id,cont,after] of moves)if(!await moveObject(id,cont,after,undo))return;});}
 /* The order of nav2 with its lines, spaces and shown collections, as the account keeps it. A collection it does not know
    yet keeps its place. */
 const n2Of=()=>C.filter(c=>!c.arch).map(c=>isDeco(c.id)?{k:D[c.id].t,id:c.id}:c.alias?{k:'show',id:c.id}:c.id);

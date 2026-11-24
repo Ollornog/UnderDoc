@@ -92,7 +92,7 @@ func TestAnAgentInTheBrowser(t *testing.T) {
 	if got := b.whoAmI(); got != "anna agent" {
 		t.Errorf("signed in as %q", got)
 	}
-	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.openSettings()
 	b.clickOn(`[data-act="rights"]`, 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open`) {
 		t.Fatal("the rights dialog opens")

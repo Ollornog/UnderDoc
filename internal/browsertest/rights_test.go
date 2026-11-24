@@ -185,7 +185,7 @@ func TestTheRightsDialog(t *testing.T) {
 	b.eval(`(() => { const x = new XMLHttpRequest(); x.open('PUT', '/api/objects/` + team + `/grants', false); x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify({kind: 'tenant', who: '', role: 'read'})); return x.status; })()`)
 	b.clickOn(rowNamed(b, "A")+` [data-act="open"]`, 1)
 	b.ready("A")
-	b.clickOn(`[data-win="0"] [data-act="gear"]`, 1)
+	b.openSettings()
 	b.clickOn(`[data-act="rights"]`, 1)
 	if !b.waitFor(`document.getElementById('udrights')?.open && !!document.querySelector('#udrights [data-rform="grant"]')`) {
 		t.Fatalf("the dialog opens with the means to grant: %s", b.eval(`document.getElementById('udrights')?.innerText`))

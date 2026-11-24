@@ -155,7 +155,7 @@ func TestPasswordsInTheEditorAndWhileReading(t *testing.T) {
 	}
 
 	// The settings list both passwords, with versions and readers.
-	b.clickOn(`[data-act="gear"]`, 1)
+	b.openSettings()
 	b.clickOn(`[data-act="secrets"]`, 1)
 	if !b.waitFor(`document.getElementById('udsecrets')?.open && document.querySelectorAll('#udsecrets [data-secret-row]').length === 2`) {
 		t.Fatalf("the passwords of the page are not listed: %s", b.eval(`document.getElementById('udsecrets')?.innerText || 'none'`))
