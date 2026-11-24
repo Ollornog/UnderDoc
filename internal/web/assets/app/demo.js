@@ -1954,11 +1954,15 @@ async function markOrCopy(e,embed,name=''){
 }
 /* clipWrite puts a text on the clipboard, with where it came from beside it when known (T-41): a paste into a page notes
    that in the version, and the copy stays a copy. The origin goes only through a copy event of the page itself. */
+/* The clipboard format of the origin of a copy (T-41), the same as ORIGIN of the editor (web/editor/src/blocks.js). Known
+   here, not taken from the editor: the editor loads when the page is idle, and a copy while reading before that carried
+   no origin (PR #205, 2026-11-24). */
+const CLIP_ORIGIN='application/x-underdoc-origin';
 function clipWrite(text,origin){
-  const ORIGIN=window.UnderDocEditor&&UnderDocEditor.ORIGIN;
+  const ORIGIN=CLIP_ORIGIN;
   let done=false;
   const on=ev=>{if(!ev.clipboardData)return;ev.udOwn=true;ev.clipboardData.setData('text/plain',text);
-    if(origin&&ORIGIN)ev.clipboardData.setData(ORIGIN,JSON.stringify({...origin,text}));ev.preventDefault();done=true;};
+    if(origin)ev.clipboardData.setData(ORIGIN,JSON.stringify({...origin,text}));ev.preventDefault();done=true;};
   document.addEventListener('copy',on,true);
   try{document.execCommand('copy');}catch(x){}
   document.removeEventListener('copy',on,true);
@@ -1967,8 +1971,8 @@ function clipWrite(text,origin){
 /* Copying while reading a page of the database carries where it came from (T-41), when the marked text lies in its
    blocks only: the page and its blocks beside the text, as the editor does. The text and its HTML are the browser's. */
 document.addEventListener('copy',ev=>{
-  const ORIGIN=window.UnderDocEditor&&UnderDocEditor.ORIGIN,sel=getSelection();
-  if(ev.defaultPrevented||!ORIGIN||!ev.clipboardData||!sel||sel.isCollapsed||!sel.rangeCount)return;
+  const ORIGIN=CLIP_ORIGIN,sel=getSelection();
+  if(ev.defaultPrevented||!ev.clipboardData||!sel||sel.isCollapsed||!sel.rangeCount)return;
   const r=sel.getRangeAt(0),inBlock=n=>{const x=n&&(n.nodeType===1?n:n.parentElement);return x&&x.closest('[data-block][data-page]');};
   if(!inBlock(r.startContainer)||!inBlock(r.endContainer))return;
   const blocks=[...document.querySelectorAll('[data-block][data-page]')].filter(b=>r.intersectsNode(b)),page=blocks.length&&blocks[0].dataset.page;

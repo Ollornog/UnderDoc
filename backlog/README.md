@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 3/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 2/4 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 3/4 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben

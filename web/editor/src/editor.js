@@ -1343,6 +1343,8 @@ const pasteAddress = EditorView.domEventHandlers({
 const setPending = StateEffect.define();
 const clearPasted = StateEffect.define();
 let pastedCount = 0;
+// The saves of all editors still underway (busy).
+let savesUnderway = 0;
 const pasted = StateField.define({
   create: () => ({ pending: null, list: [] }),
   update(v, tr) {
@@ -1642,7 +1644,10 @@ class PageEditor {
     }
     this.emit('status', 'Saving…');
     this.during = null;
-    this.saving = (async () => {
+    // Counted until the whole save is done, a change meanwhile included: its requests come one after another, and
+    // between two of them none is on its way, also after the editor was closed (busy).
+    savesUnderway++;
+    const job = (async () => {
       try {
         const done = await run(p, this.stored, this.options.api, this.options.on && this.options.on.saved, this.ways);
         if (pastes.length && !this.destroyed) this.view.dispatch({ effects: clearPasted.of(pastes.map((x) => x.n)) });
@@ -1673,6 +1678,11 @@ class PageEditor {
         await this.save();
       }
     })();
+    const done = () => {
+      savesUnderway--;
+    };
+    job.then(done, done);
+    this.saving = job;
     return this.saving;
   }
 
@@ -2121,6 +2131,9 @@ class PageEditor {
 
 window.UnderDocEditor = {
   create: (options) => new PageEditor(options),
+  // busy tells whether a save of any editor is still underway, closed editors included: a page that is left then has
+  // not reached the server yet.
+  busy: () => savesUnderway > 0,
   // The clipboard format of the origin of a copy (T-41), for copies made outside the editor.
   ORIGIN,
   // For the tests and the documentation: the pure parts.

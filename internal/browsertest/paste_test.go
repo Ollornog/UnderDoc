@@ -80,6 +80,11 @@ func TestAPastedTextNotesWhereItCameFrom(t *testing.T) {
 	if !b.waitFor(`document.activeElement?.classList.contains('cm-content')`) {
 		t.Fatal("no editor in Source")
 	}
+	// The reading view knows the format of the origin without the editor, which loads only when the page is idle: a copy
+	// while reading before that carried none (PR #205). Both name the same.
+	if got := b.eval(`String(UnderDocEditor.ORIGIN === CLIP_ORIGIN)`); got != "true" {
+		t.Errorf("the reading view and the editor name the origin differently: %s", b.eval(`UnderDocEditor.ORIGIN + ' ' + CLIP_ORIGIN`))
+	}
 	b.eval(`(() => { const v = EDS[at(0).d].ed.view, t = v.state.doc.toString(), from = t.indexOf('The router');
 		v.dispatch({selection: {anchor: from, head: from + 'The router sits in rack A.'.length}}); })()`)
 	edited := b.eval(`(() => { const dt = new DataTransfer();

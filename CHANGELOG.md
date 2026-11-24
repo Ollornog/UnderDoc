@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- **A copy while reading carries its origin from the first moment** (T-41). The reading view took the clipboard format
+  of the origin from the editor, which loads only when the page is idle; a copy before that carried no origin. The
+  workspace knows the format itself now. The browser tests also wait for a save of the editor to be done, closed editors
+  included (`UnderDocEditor.busy()`): a save is several requests one after another, and a test that waited only for no
+  request on its way read the version before (the flaky `TestAPastedTextNotesWhereItCameFrom`). Under load, 16 runs in
+  parallel with 80 ms jitter: before 3 of 96 red, now 0 of 256; three mutations red.
+- **No compiled program in the repository.** The binary `underdoc-samba` came in with T-43 (built in the root of a
+  working tree without `-o`); it is removed and ignored, and the hygiene refuses any tracked ELF, Mach-O or PE file and
+  any program under `cmd/` whose binary the root does not ignore.
 - **The passage above a share of one's own tells no guessed names** (T-43, ADR-30, [docs/samba.md](docs/samba.md#limits)).
   Someone who passes through a folder on the way to a share of their own could tell over the share of the library
   whether a guessed name existed there. Those folders are hidden from them in that share now (`veto files`, a list per
