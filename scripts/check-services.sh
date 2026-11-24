@@ -6,6 +6,8 @@
 #     upgrade the new version refuses to start, and so would the search of every installation after an update.
 #   - Gotenberg (profile office): a real spreadsheet becomes a PDF through the client of the preview
 #     (internal/files, tag office).
+#   - TinySesam: the account API and the approvals of a real gate, against the client of UnderDoc (internal/gateapi,
+#     tag gate, T-33). Not part of deploy/compose.yml: the gate runs in front of UnderDoc.
 #   - Mailpit: a mail sent over SMTP has to come out of its API with subject, recipient and text (internal/mailpit, tag
 #     mailpit). UnderDoc sends no mail yet; once M-22 does, this becomes the test of the real dispatch.
 #
@@ -96,5 +98,34 @@ api_port="$(compose port mailpit 8025 | sed 's/.*://')"
 UNDERDOC_TEST_MAILPIT_SMTP="127.0.0.1:$smtp_port" UNDERDOC_TEST_MAILPIT_API="127.0.0.1:$api_port" \
     go test -count=1 -tags mailpit -run '^TestMailpitCatchesAMail$' -v ./internal/mailpit/ ||
     fail "Mailpit does not hand a mail sent over SMTP out of its API"
+
+echo "▸ TinySesam: the account API and the approvals of a real gate (T-33)"
+# The published image of the gate, pinned by digest, runs TinySesam as a library with the app underdoc configured as
+# docs/accounts.md says (scripts/gate/gate.py): the ready gateway takes no apps from its environment. The key of the
+# service account and the sessions are made in this run, written to a folder of this run alone, and die with it.
+GATE_IMAGE="ghcr.io/ollornog/tinysesam:v0.29.1@sha256:b02ab0be5f646df71c70b0673eb01cda3721afa64e9d3266f0b57fa5952cf763"
+gate_out="$work/gate"
+mkdir -m 0777 "$gate_out"
+gate_port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+gate_base="http://127.0.0.1:$gate_port"
+gate_return="http://127.0.0.1:1/approvals/return"
+gate_name="$run-gate"
+cleanup_gate() { docker rm -f -v "$gate_name" >/dev/null 2>&1 || true; }
+trap 'cleanup_gate; cleanup' EXIT
+docker run -d --name "$gate_name" -p "127.0.0.1:$gate_port:8000" --read-only --tmpfs /tmp --cap-drop ALL \
+    --security-opt no-new-privileges -v "$PWD/scripts/gate:/gate:ro" -v "$gate_out:/out" \
+    -e GATE_BASE="$gate_base" -e GATE_RETURN="$gate_return" -e GATE_OUT=/out \
+    --entrypoint python "$GATE_IMAGE" -I /gate/gate.py >/dev/null || fail "the gate does not start"
+for _ in $(seq 1 60); do
+    # Up once the facts are written and the API answers, a 401 without a key.
+    if [[ -s "$gate_out/gate.json" ]] && code="$(curl -s -o /dev/null -w '%{http_code}' "$gate_base/auth/api/provisioning")" && [[ "$code" == 401 ]]; then
+        break
+    fi
+    sleep 0.5
+done
+[[ -s "$gate_out/gate.json" ]] || { docker logs --tail 20 "$gate_name" >&2 || true; fail "the gate made nothing"; }
+UNDERDOC_TEST_GATE_URL="$gate_base" UNDERDOC_TEST_GATE_FACTS="$gate_out/gate.json" UNDERDOC_TEST_GATE_RETURN="$gate_return" \
+    go test -count=1 -tags gate -run '^Test.*RealGate$' -v ./internal/gateapi/ ||
+    fail "the gate's account API or its approvals do not answer as UnderDoc expects"
 
 printf '✓ the services of deploy/compose.yml work\n'

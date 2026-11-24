@@ -12,7 +12,9 @@ window.UDRights = (() => {
   const MODES = [["read", "Read"], ["comment", "Comment"], ["edit", "Edit"], ["upload", "Upload only"]];
   const VALUES = [["", "Inherit"], ["allow", "Allow"], ["deny", "Deny"]];
   const VIA = { owner: "owns it", "owner above": "owns what lies above", person: "as a person", group: "through a group", tenant: "as everyone", link: "through a link" };
-  const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, agents: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false };
+  const st = { people: null, groups: null, links: null, users: null, log: null, keep: null, agents: null, held: null, heldFor: "", check: null, who: null, members: {}, open: {}, error: "", busy: false,
+    // Accounts through the gate (T-33): what each account is in the gate, a sign-in link shown once, a reset under way.
+    acct: {}, signin: null, reset: null };
   let redraw = () => {};
   let me = { id: "", admin: false };
 
@@ -147,6 +149,68 @@ window.UDRights = (() => {
     return `<div><aside class="card gap-3 px-4 py-4" data-rights="${esc(sec)}">${problem()}${body}</aside></div>`;
   }
 
+  // --- Accounts through the gate (T-33, docs/accounts.md): only where the instance has the gate's account API, only for a
+  // person in the browser. The server decides who may do what; these only show it.
+  const GATE = { active: "active in the gate", disabled: "locked in the gate", disabled_operator: "locked by the gate's operator", deleting: "being deleted in the gate",
+    unmanaged: "managed by the gate's operator, not by UnderDoc", unbound: "bound to no account of the gate", unknown: "the gate did not answer" };
+  // accountButton opens what can be done with an account in the gate.
+  const accountButton = (id) => (me.accounts ? small(`data-ract="account" data-id="${esc(id)}" aria-expanded="${!!st.acct[id]}"`, "Account") : "");
+  // accountDetail is the state of an account in UnderDoc and the gate, with its buttons, below its entry.
+  function accountDetail(id) {
+    const a = st.acct[id];
+    if (!a) return "";
+    if (a.error) return `<div class="ps-4" data-account="${esc(id)}">${hint("✗ " + esc(a.error))}</div>`;
+    const words = `${a.locked ? "❌ locked in UnderDoc" : "✅ not locked in UnderDoc"} · ${esc(GATE[a.gate] || a.gate)}${a.gate === "active" || a.gate === "disabled" ? (a.signedIn ? " · has signed in" : " · has not signed in yet") : ""}`;
+    const buttons = [
+      a.lock ? small(`data-ract="lock" data-id="${esc(id)}" data-on="${a.locked ? "0" : "1"}" data-name="${esc(a.name)}"`, a.locked ? "Unlock" : "Lock") : "",
+      a.link ? small(`data-ract="signinlink" data-id="${esc(id)}"`, "New sign-in link") : "",
+      a.reset ? small(`data-ract="reset" data-id="${esc(id)}" data-name="${esc(a.name)}"`, "Reset access") : "",
+    ].join("");
+    return `<div class="flex flex-col gap-1 ps-4" data-account="${esc(id)}">${hint(words, " data-account-state")}${buttons ? `<div class="flex flex-wrap gap-1">${buttons}</div>` : ""}${signinFor(id)}${resetFor(id)}</div>`;
+  }
+  // signinBox shows a sign-in link once, to hand over: UnderDoc keeps it nowhere.
+  const signinBox = (l) =>
+    `<div class="flex flex-col gap-1" data-signin-link>${hint(`Hand this sign-in link over yourself; it is shown once and works until ${esc(new Date(l.expires * 1000).toLocaleString())}.${l.warning ? " " + esc(l.warning) : ""}`)}<div class="flex items-center gap-2"><input class="input" readonly value="${esc(l.link)}" aria-label="Sign-in link">${small('data-ract="copy"', "Copy")}</div></div>`;
+  const signinFor = (key) => (st.signin && st.signin.for === key ? signinBox(st.signin) : "");
+  function resetFor(id) {
+    const r = st.reset;
+    if (!r || r.account !== id) return "";
+    if (r.state === "pending")
+      return `<div class="flex flex-col gap-1" data-reset>${hint(`Confirm the reset in the gate, with the code ${esc(r.matchCode)}: `)}<a class="text-sm underline" href="${esc(r.approveUrl)}" target="_blank" rel="noopener noreferrer">Open the confirmation in the gate</a>${hint("Waiting for the gate …")}</div>`;
+    if (r.state === "ok") return signinBox(r);
+    return hint(`✗ The access was not reset (${esc(r.state)}).`, " data-reset");
+  }
+  async function waitReset(id, approval) {
+    while (st.reset && st.reset.approval === approval) {
+      let r;
+      try {
+        r = await api("POST", `/api/approvals/${encodeURIComponent(approval)}/wait`);
+      } catch (e) {
+        st.reset.state = e.message;
+        redraw();
+        return;
+      }
+      if (!st.reset || st.reset.approval !== approval) return;
+      if (r.state !== "pending") {
+        Object.assign(st.reset, r);
+        delete st.acct[id];
+        redraw();
+        return;
+      }
+    }
+  }
+  async function loadAccount(id) {
+    try {
+      st.acct[id] = await api("GET", `/api/accounts/${encodeURIComponent(id)}`);
+    } catch (e) {
+      st.acct[id] = { error: e.message };
+    }
+    redraw();
+  }
+  // inviteForm invites a colleague into a local group: the gate makes the account, UnderDoc puts them into the group.
+  const inviteForm = (g) =>
+    `<form class="flex flex-wrap items-center gap-2" data-rform="invite" data-g="${esc(g.id)}"><input class="input" name="login" maxlength="200" required placeholder="Login" aria-label="Login of the colleague to invite"><input class="input" name="name" maxlength="200" placeholder="Name" aria-label="Name of the colleague"><input class="input" type="email" name="email" maxlength="320" placeholder="Mail (optional)" aria-label="Mail of the colleague">${submit("Invite")}</form>${signinFor("group:" + g.id)}`;
+
   // groupsHtml lists the groups (ADR-36): local ones contain persons, groups and groups from the sign-in; whoever manages a
   // group (administrators, its group admins and those of a group above it) changes its members, groups and admins and
   // makes groups inside it.
@@ -160,7 +224,7 @@ window.UDRights = (() => {
       const may = g.admin && local && !g.archived;
       let detail = "";
       if (open) {
-        const people = open.members.map((m) => entry("", esc(m.name), esc(m.login), may ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "")).join("");
+        const people = open.members.map((m) => entry("", esc(m.name), esc(m.login), (may ? small(`data-ract="unmember" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take out") : "") + (m.id !== me.id ? accountButton(m.id) : "")) + accountDetail(m.id)).join("");
         const inner = open.groups.map((x) => entry(`data-subgroup="${esc(x.name)}"`, `${KIND_ICON.group} ${esc(x.name)}`, x.source === "local" ? "group inside" : "from the sign-in, inside", may ? small(`data-ract="ungroup" data-g="${esc(g.id)}" data-id="${esc(x.id)}"`, "Take out") : "")).join("");
         const admins = open.admins.map((m) => entry("", esc(m.name), "group admin", may ? small(`data-ract="unadmin" data-g="${esc(g.id)}" data-id="${esc(m.id)}"`, "Take back") : "")).join("");
         const others = (st.people ? st.people.groups : []).filter((x) => x.id !== g.id && !open.groups.some((y) => y.id === x.id));
@@ -170,7 +234,8 @@ window.UDRights = (() => {
             <form class="flex flex-wrap items-center gap-2" data-rform="groupadmin" data-g="${esc(g.id)}">${personSelect("account", "")}${submit("Make group admin")}</form>
             <form class="flex flex-wrap items-center gap-2" data-rform="group" data-parent="${esc(g.id)}"><input class="input" name="name" maxlength="200" required placeholder="New group inside" aria-label="Name of the new group inside"><input type="hidden" name="description" value="">${submit("Make")}</form>`
           : "";
-        detail = `<div class="flex flex-col gap-2 ps-4" data-group-detail="${esc(g.name)}">${people ? entries("", people) : hint("No person directly.")}${inner ? entries("data-subgroups", inner) : ""}${admins ? entries("data-admins", admins) : hint("No group admin.")}${forms}</div>`;
+        const invite = me.accounts && local && !g.archived && (may || me.delegate) ? inviteForm(g) : "";
+        detail = `<div class="flex flex-col gap-2 ps-4" data-group-detail="${esc(g.name)}">${people ? entries("", people) : hint("No person directly.")}${inner ? entries("data-subgroups", inner) : ""}${admins ? entries("data-admins", admins) : hint("No group admin.")}${forms}${invite}</div>`;
       }
       const inside = (g.parents || []).map((id) => names[id] || id);
       const sub = `${g.members} ${g.members === 1 ? "person" : "persons"}${g.groups ? ` · ${g.groups} ${g.groups === 1 ? "group" : "groups"} inside` : ""} · ${local ? "local" : "from the sign-in, read only"}${inside.length ? " · inside " + inside.map(esc).join(", ") : ""}${may ? " · ✓ you manage it" : ""}${g.archived ? " · archived: what is allowed to it holds for nobody" : ""}${g.description ? " · " + esc(g.description) : ""}`;
@@ -197,6 +262,12 @@ window.UDRights = (() => {
   }
 
   function usersHtml() {
+    // A delegated administrator manages the accounts of every group, so sees the users with their accounts (T-33).
+    if (!me.admin && me.delegate && me.accounts) {
+      load("users", "/api/users");
+      if (st.users === null) return hint("Loading…");
+      return `${head("Users")}${hint("As a delegated administrator you invite, lock and give new sign-in links to the accounts of every group, but not to administrators.")}${entries("", st.users.map((u) => entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)}${u.locked ? " · ❌ locked" : ""}`, u.id !== me.id ? accountButton(u.id) : "") + accountDetail(u.id)).join(""))}`;
+    }
     if (!me.admin) {
       const p = st.people;
       if (p === null) return hint("Loading…");
@@ -207,7 +278,7 @@ window.UDRights = (() => {
     return `${head("Users")}${hint("Administrators manage rights, not content. They hold the role of the app at the sign-in gate; an account marked on the command line in an emergency shows ✓ marked, and the mark can be taken back here.")}${entries("", st.users
       .map((u) => {
         const act = u.admin ? small(`data-ract="admin" data-id="${esc(u.id)}" data-on="0"`, "Take back the mark") : "";
-        return entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)}${u.bound ? "" : " · not bound to the gate yet"}${u.admin ? " · ✓ marked administrator" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}`, act + small(`data-ract="heldby" data-id="${esc(u.id)}"`, "What may they do")) + (st.heldFor === u.id ? heldHtml() : "");
+        return entry(`data-user="${esc(u.login)}"`, esc(u.name), `${esc(u.login)}${u.bound ? "" : " · not bound to the gate yet"}${u.admin ? " · ✓ marked administrator" : ""}${u.locked ? " · ❌ locked" : ""}${u.groups.length ? " · " + u.groups.map(esc).join(", ") : ""}`, act + small(`data-ract="heldby" data-id="${esc(u.id)}"`, "What may they do") + (u.id !== me.id ? accountButton(u.id) : "")) + accountDetail(u.id) + (st.heldFor === u.id ? heldHtml() : "");
       })
       .join(""))}`;
   }
@@ -631,6 +702,37 @@ window.UDRights = (() => {
       case "admin":
         act(() => api("PUT", `/api/users/${encodeURIComponent(a.id)}/admin`, { admin: a.on === "1" }), "users");
         return;
+      case "account":
+        if (st.acct[a.id]) {
+          delete st.acct[a.id];
+          redraw();
+          return;
+        }
+        loadAccount(a.id);
+        return;
+      case "lock": {
+        const on = a.on === "1";
+        if (on && !window.confirm(`Lock the account of ${a.name}? They come into UnderDoc no more, by no way, until it is unlocked; nothing of theirs is lost.`)) return;
+        act(async () => {
+          await api("PUT", `/api/accounts/${encodeURIComponent(a.id)}/lock`, { locked: on });
+          await loadAccount(a.id);
+        }, "users");
+        return;
+      }
+      case "signinlink":
+        act(async () => {
+          const l = await api("POST", `/api/accounts/${encodeURIComponent(a.id)}/signin-link`);
+          st.signin = { for: a.id, link: l.link, expires: l.expires };
+        });
+        return;
+      case "reset":
+        if (!window.confirm(`Reset the access of ${a.name}? Their password, factors and keys go, and a new sign-in link is the way back in. You confirm it in the gate.`)) return;
+        act(async () => {
+          const r = await api("POST", `/api/accounts/${encodeURIComponent(a.id)}/reset`);
+          st.reset = { account: a.id, approval: r.approval, approveUrl: r.approveUrl, matchCode: r.matchCode, state: "pending" };
+          waitReset(a.id, r.approval);
+        });
+        return;
       case "heldby":
         st.heldFor = a.id;
         act(async () => {
@@ -782,6 +884,12 @@ window.UDRights = (() => {
         act(() => api("PUT", objectPath("/grants"), { kind: f.dataset.kind, who: f.dataset.who, actions, subgroups }));
         return;
       }
+      case "invite":
+        act(async () => {
+          const r = await api("POST", `/api/groups/${encodeURIComponent(f.dataset.g)}/invite`, { login: v("login"), name: v("name"), email: v("email") });
+          st.signin = { for: "group:" + f.dataset.g, link: r.link, expires: r.expires, warning: r.warning || "" };
+        }, "people").then(() => refreshMembers(f.dataset.g));
+        return;
       case "member":
         act(() => api("PUT", `/api/groups/${encodeURIComponent(f.dataset.g)}/members/${encodeURIComponent(v("account"))}`, { member: true }), "groups").then(() => refreshMembers(f.dataset.g));
         return;

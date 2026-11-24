@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Ollornog/UnderDoc/internal/account"
 	"github.com/Ollornog/UnderDoc/internal/db"
@@ -882,7 +883,14 @@ func (h *handler) apiPurge(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.change(w, r, 1<<10, &in); !ok {
 		return
 	}
-	if h.failed(w, h.options.DB.Purge(r.Context(), r.PathValue("id"), h.actor(r), in.Confirm), "purge") {
+	err := h.options.DB.Purge(r.Context(), r.PathValue("id"), h.actor(r), in.Confirm)
+	if errors.Is(err, db.ErrApproval) && h.approvalsOn() {
+		// Everything else allows it: the gate has the person confirm it, and the way back deletes it (T-33).
+		h.askApproval(w, r, db.PendingApproval{Kind: db.ApprovalPurge, Object: r.PathValue("id"),
+			Fields: map[string]any{"object": r.PathValue("id"), "title": strings.TrimSpace(in.Confirm)}})
+		return
+	}
+	if h.failed(w, err, "purge") {
 		return
 	}
 	h.note(r, db.LogPurge, "", "deleted for good "+r.PathValue("id"))
@@ -998,6 +1006,19 @@ func (h *handler) apiEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, err := h.options.DB.EmptyTrash(r.Context(), h.actor(r), in.Confirm)
+	if errors.Is(err, db.ErrApproval) && h.approvalsOn() {
+		// One confirmation in the gate, bound to this moment: on the way back only what lay in the trash now goes (T-33,
+		// B-6). The number is what the person reads on the gate's page.
+		// In microseconds, as the database keeps the moment of a deletion, so the cutoff takes exactly what was there.
+		cutoff := time.UnixMicro(time.Now().UnixMicro())
+		items, err := h.options.DB.PurgeableTrash(r.Context(), h.actor(r), in.Confirm, cutoff)
+		if h.failed(w, err, "empty trash") {
+			return
+		}
+		h.askApproval(w, r, db.PendingApproval{Kind: db.ApprovalEmpty,
+			Fields: map[string]any{"items": int64(len(items)), "cutoff": cutoff.UnixMicro()}})
+		return
+	}
 	if h.failed(w, err, "empty trash") {
 		return
 	}

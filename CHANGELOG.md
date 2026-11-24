@@ -26,6 +26,29 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Accounts through the gate's account API, two levels of administration, approvals for deleting for good** (T-33,
+  ADR-35, [docs/accounts.md](docs/accounts.md), migration 040). Optional: with `UNDERDOC_GATE_URL`,
+  `UNDERDOC_GATE_SERVICE_KEY_FILE` (a file with the automation key of UnderDoc's service account, never the key itself)
+  and `UNDERDOC_ACCOUNTS_ROLES`, a group admin invites a colleague from the group's page in the tab Rights: the gate makes
+  the account with roles of UnderDoc's allowlist and a one-time sign-in link, shown once; UnderDoc binds a profile to the
+  new lasting ID at once and puts it into the group. A new sign-in link before the first sign-in, locking and unlocking in
+  the gate and in UnderDoc, and for administrators the reset of an account's access as the gate's approval
+  `tinysesam.account.reset_access`, confirmed in the gate. UnderDoc checks itself who may do it (administrators, the new
+  **delegated administrator** `UNDERDOC_DELEGATE_ROLE`, group admins for the persons in their groups), only in a browser
+  session, never for an agent, a key, MCP or a service account, and names the person to the gate (`TinySesam-On-Behalf-Of`).
+  The **lock of UnderDoc** holds on its own: a locked account comes in through no way, the one check refuses it every
+  action, its share links answer nothing, and the share takes its Samba user off. The delegated administrator manages the
+  accounts of every group and archives groups, nothing else; the permissions sit in one place (`account.User.Has`). With
+  `UNDERDOC_APPROVALS=on` deleting for good and emptying the trash wait for a signed one-time approval of the gate,
+  checked with the gate's `VerifyApproval` after every other check, bound to the browser, once (table `approval_jti`),
+  emptying bound to its cutoff. `underdoc account add <remote-id> <login> <name>` and `underdoc account adopt` bind
+  accounts of the gate by their lasting ID before the first sign-in. The start checks the key against the gate
+  (`GET /auth/api/provisioning`). Every step is in the log with its On-Behalf-Of, never a link. The gate's Go client is
+  `v0.29.1`. Contract test against a real TinySesam (the published image, pinned by digest, as a library with
+  `scripts/gate/gate.py`) in `scripts/check-services.sh`; attack round in `internal/web/accounts_test.go`,
+  `internal/web/approvals_test.go`, `internal/db/accounts_t33_test.go`, the client and start tests and the browser tests;
+  34 mutations on the guards, all red.
+
 - **An archive for spaces, and the preset Members** (T-34, ADR-36 part 3, [docs/rights.md](docs/rights.md#archived-spaces),
   migration 037). A space (a collection at the top of the documents or of Files) is archived by its owner or an
   administrator in the browser, never by an agent, a service account, a key or an app password, and restored by the same

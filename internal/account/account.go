@@ -42,6 +42,9 @@ type User struct {
 	AdminRole bool
 	// Spaces tells that the gate gives the role of the app to create spaces, the collections at the top (B-3).
 	Spaces bool
+	// Delegate tells that the gate gives the role of the delegated administrator (T-33, ADR-35): accounts of every group
+	// and archiving groups, nothing else an administrator does. Never for a service account, and an agent loses it.
+	Delegate bool
 	// AuthKind is how this request signed in (AuthSession, AuthOAuth, …), as the gate's client checked it. Empty or
 	// unknown counts as an agent.
 	AuthKind string
@@ -62,6 +65,36 @@ func (u User) Agent() bool {
 		return true
 	}
 	return u.AuthKind != AuthSession
+}
+
+// Permissions of the app (T-33, ADR-35): what the two levels of administration may. They are decided here, in one
+// place, so that they can move to the gate's own permissions later (TinySesam's has_permission) without the callers
+// changing.
+type Permission string
+
+const (
+	// PermAccounts is managing the accounts of every group through the gate: invite, lock, a new sign-in link.
+	PermAccounts Permission = "accounts"
+	// PermArchiveGroups is archiving and restoring groups (B-5).
+	PermArchiveGroups Permission = "groups.archive"
+	// PermAdminister is everything else an administrator does: modules, how long the log keeps, the rules page, the marks
+	// of administrators, the rights of every object, and the accounts of administrators.
+	PermAdminister Permission = "administer"
+)
+
+// Has tells whether the user holds a permission of the app. The administrator holds every one, the delegated
+// administrator PermAccounts and PermArchiveGroups. An agent holds none, a service account included (B-4).
+func (u User) Has(p Permission) bool {
+	if u.Agent() {
+		return false
+	}
+	switch p {
+	case PermAccounts, PermArchiveGroups:
+		return u.Admin || u.Delegate
+	case PermAdminister:
+		return u.Admin
+	}
+	return false
 }
 
 // Initials are up to two letters for the avatar: the first letters of the first and the last word of the name.

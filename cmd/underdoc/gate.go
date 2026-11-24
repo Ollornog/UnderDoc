@@ -29,6 +29,7 @@ import (
 //	                            a missing one is filled in as user, with a warning at the start (header mode only)
 //	UNDERDOC_ADMIN_ROLE         the role of the app in the gate that makes an administrator ("underdoc-admin")
 //	UNDERDOC_SPACES_ROLE        the role of the app in the gate that lets a person create spaces ("underdoc-spaces")
+//	UNDERDOC_DELEGATE_ROLE      the role of the app in the gate that makes a delegated administrator ("underdoc-delegate")
 //	UNDERDOC_SERVICE_ACCOUNTS   the lasting IDs (Remote-Id) of the service accounts allowed in, separated by commas;
 //	                            any other service account is refused (none)
 func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
@@ -42,6 +43,8 @@ func readGateConfig(log *slog.Logger) (account.GateConfig, error) {
 		TokenHeader: os.Getenv("UNDERDOC_GATE_TOKEN_HEADER"),
 		AdminRole:   os.Getenv("UNDERDOC_ADMIN_ROLE"),
 		SpacesRole:  os.Getenv("UNDERDOC_SPACES_ROLE"),
+		// The delegated administrator of T-33.
+		DelegateRole: os.Getenv("UNDERDOC_DELEGATE_ROLE"),
 		// account.NewGate checks that each is a lasting ID.
 		ServiceAccounts: list(os.Getenv("UNDERDOC_SERVICE_ACCOUNTS")),
 		Headers: tinysesam.HeaderNames{

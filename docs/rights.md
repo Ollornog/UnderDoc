@@ -95,7 +95,7 @@ it, only for the persons and groups taken over that are directly in the group.
 A local group is **archived, never deleted** (B-3). It keeps its members, the groups inside it, its admins and every
 entry granted to it, and **Restore** brings all of it back. Nothing in UnderDoc deletes a group for good.
 
-- **Who:** administrators of the tenant only (B-5; the delegated administrator of T-33 will join). Group admins never
+- **Who:** administrators of the tenant and delegated administrators (B-5, T-33). Group admins never
   archive or restore a group, not even one inside theirs: through nesting (put a group inside, take oneself out as its
   admin, archive, restore, take oneself in again) any rule for them could be walked around. Agents never do.
 - **When:** only while every group inside it is archived already (or taken out); otherwise `409`. A group comes back
@@ -231,7 +231,8 @@ copied: they hold as a ceiling anyway.
   session** (`Remote-Auth: session`, never an agent, a key or an app password), with its **name typed in**, which the
   server checks exactly; emptying the trash needs `Trash` typed in and takes only what the person may delete for good.
   Whoever only deleted it waits for its owner, or for the trash to empty itself after 30 days. Once the gate signs
-  approvals for actions of an app (T-33), it will need one as well (`db.SetApprover`): what goes is locked and checked
+  approvals for actions of an app, with `UNDERDOC_APPROVALS=on` it needs one as well (T-33,
+[accounts.md](accounts.md#deleting-for-good-with-an-approval), `db.SetApprover`): what goes is locked and checked
   first, then the approval is asked for, then it goes, nothing in between, so an approval is used up only by what goes.
   Emptying the trash asks for one approval bound to a cutoff, and takes only what was deleted at or before it (B-6).
 - **Versions are for write:** the history of a page or a file holds what was taken out, so whoever only reads gets the
@@ -275,10 +276,18 @@ of every object that is not private, whatever a deny says, break and restore its
 and they make local groups and manage them. They read the content of an object only where the entries let them, like
 everyone else. Their agents manage nothing.
 
+**Delegated administrators** (`UNDERDOC_DELEGATE_ROLE`, T-33) manage the accounts of every group through the gate,
+see the users and the members of every group, and archive and restore groups; nothing else of an administrator, and never
+the account of an administrator ([accounts.md](accounts.md#two-levels-of-administration)).
+
 **Transferring the ownership** is for the owner and administrators, in a browser session only (T-34): never an agent, a
 service account, a key or an app password.
 
-**What someone left behind:** UnderDoc deactivates no account; the gate or the identity provider ends the sign-in. An
+**Locked accounts** (T-33): an account UnderDoc locked comes in through no way and may do nothing, the one check refuses
+it every action (deciding entry `locked`), and its links lend nothing until it is unlocked
+([accounts.md](accounts.md#the-lock-of-underdoc)).
+
+**What someone left behind:** the gate or the identity provider ends the sign-in, or UnderDoc locks the account. An
 administrator asks "what may they do" for that account in the tab Rights, which lists what it owns by title, and
 transfers each in place to another account, which the form leaves unchosen until the
 administrator chooses. Transferring shows the administrator nothing of the content, unless they

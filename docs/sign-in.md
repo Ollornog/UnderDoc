@@ -3,7 +3,8 @@
 UnderDoc signs in only through the gate in front of it, TinySesam
 ([ADR-32](../backlog/ADR-32-sign-in-only-through-the-gate.md)). The gate keeps the ways in (passkeys, passwords with
 TOTP, OIDC, LDAP, app passwords, API keys, OAuth for programs), the sessions, sign-out, the account lifecycle and
-approvals; UnderDoc keeps none of them and has no sign-in page of its own. What a person set up, they change on the
+approvals; UnderDoc keeps none of them and has no sign-in page of its own. Where the gate's account API is configured,
+group admins invite colleagues, give new sign-in links and lock accounts from UnderDoc ([accounts.md](accounts.md)). What a person set up, they change on the
 gate's account page. The profile signs out at the gate (`/.tinysesam/logout`).
 
 Before ADR-32, each tenant chose its way in ([ADR-23](../backlog/ADR-23-tenants-and-sign-in.md)): local accounts with a
@@ -12,7 +13,7 @@ passkey or a password, OIDC, or the gate. Migration 032 removed those tables; ho
 
 ## The gate
 
-Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by its module tag `clients/go/v0.29.0`). UnderDoc
+Whatever comes through the gate is checked by the gate's Go client (TinySesam `clients/go`, pinned by its module tag `clients/go/v0.29.1`). UnderDoc
 never reads who someone is, how they signed in or what kind of account they have from a header on its own.
 
 | Setting | Meaning | Default |
@@ -26,6 +27,7 @@ never reads who someone is, how they signed in or what kind of account they have
 | `UNDERDOC_GATE_KIND` | Empty or `required`: a request without `Remote-Kind`, or with a value other than `user` or `service`, is refused (403). `legacy`: the way back for a proxy that does not set `Remote-Kind` yet, header mode only, with a warning at the start | `required` |
 | `UNDERDOC_ADMIN_ROLE` | The role of the app in the gate whose holders administer UnderDoc (`UNDERDOC_ADMIN_GROUP` is still read as its old name). The gate's own `admin` is never one, and naming it stops the start | `underdoc-admin` |
 | `UNDERDOC_SPACES_ROLE` | The role of the app in the gate whose holders may create spaces, the collections at the top ([rights.md](rights.md#spaces)). Administrators may anyway | `underdoc-spaces` |
+| `UNDERDOC_DELEGATE_ROLE` | The role of the app in the gate whose holders are delegated administrators: the accounts of every group and archiving groups, nothing else of an administrator ([accounts.md](accounts.md#two-levels-of-administration)). Never the administrator's role or the gate's `admin` | `underdoc-delegate` |
 | `UNDERDOC_SERVICE_ACCOUNTS` | The lasting IDs (`Remote-Id`) of the service accounts allowed in, separated by commas. Any other service account is refused (403) | none |
 
 The names of the claims of a gate token (`ts_user`, `ts_id`, `ts_auth`, `ts_kind`, …) are fixed by the gate's
@@ -42,7 +44,8 @@ UnderDoc is made, keyed by that ID; a new login in the gate keeps the account. T
 that can only be read; a request that did not sign in as a session carries a part of the roles only, so only a session
 changes the groups of an account.
 
-**Administrators** hold the role of the app (`UNDERDOC_ADMIN_ROLE`), compared exactly. An account can also be marked as
+**Administrators** hold the role of the app (`UNDERDOC_ADMIN_ROLE`), compared exactly; **delegated administrators** hold
+a role of their own (`UNDERDOC_DELEGATE_ROLE`, [accounts.md](accounts.md#two-levels-of-administration)). An account can also be marked as
 an administrator on the command line, the emergency access below. Administrators in the web take such a mark back; they
 give it to nobody.
 
@@ -89,6 +92,10 @@ underdoc admin [--tenant <id>] revoke <remote-id>   # takes the mark back
 underdoc account [--tenant <id>] list               # every account, its lasting ID, its source and its mark
 ```
 
+Accounts that exist in the gate before their first sign-in, for an import or handed to UnderDoc by the gate's operator,
+are made with `underdoc account add` and `underdoc account adopt` ([accounts.md](accounts.md#accounts-that-exist-already)),
+by the lasting ID alone and without a mark.
+
 The mark holds only for a session of that ID: someone with the same login and another ID is no administrator, and its
 agent administers nothing. Take the mark back once the gate gives the role again.
 
@@ -126,5 +133,5 @@ one in `UNDERDOC_SECRET_KEY_OLD`, run `underdoc rekey`, then drop the old key ([
 
 | Library | Version | Licence | For |
 |---|---|---|---|
-| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | `v0.29.0` (commit `4bb607f`) | MIT | the gate: headers and gate token, standard library only |
+| [TinySesam gate client](https://github.com/Ollornog/TinySesam/tree/main/clients/go) | `v0.29.1` | MIT | the gate: headers and gate token, and the check of its approvals (`VerifyApproval`, [accounts.md](accounts.md#deleting-for-good-with-an-approval)); standard library only |
 | [golang.org/x/crypto](https://github.com/golang/crypto) | 0.59.0 | BSD-3-Clause | Argon2id of the passwords of share links |

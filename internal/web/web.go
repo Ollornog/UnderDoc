@@ -97,6 +97,9 @@ type Options struct {
 	Search *search.Service
 	// Share keeps the working copy of the libraries shared over Samba (ADR-30); nil without a companion.
 	Share *share.Manager
+	// Gate is what UnderDoc may do in the gate itself (T-33): accounts through its account API and approvals for
+	// deleting for good. Nil offers neither.
+	Gate *GateAPI
 }
 
 type handler struct {
@@ -148,6 +151,13 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 		}
 	default:
 		return nil, fmt.Errorf("unknown mode of tenants %q: %s or %s", options.Tenants, tenant.ModeOne, tenant.ModeMany)
+	}
+	if h.approvalsOn() {
+		approver, err := newApprover(h.options.Gate, h.options.DB)
+		if err != nil {
+			return nil, err
+		}
+		h.options.DB.SetApprover(approver)
 	}
 	var err error
 	funcs := template.FuncMap{
@@ -222,6 +232,14 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/rights/check", h.apiCheck)
 	mux.HandleFunc("GET /api/rights/held", h.apiHeld)
 	mux.HandleFunc("GET /api/users", h.apiUsers)
+	// Accounts through the gate's account API and approvals of the gate (T-33); they answer only where configured.
+	mux.HandleFunc("GET /api/accounts/{id}", h.apiAccountInfo)
+	mux.HandleFunc("POST /api/groups/{id}/invite", h.apiInvite)
+	mux.HandleFunc("POST /api/accounts/{id}/signin-link", h.apiSigninLink)
+	mux.HandleFunc("PUT /api/accounts/{id}/lock", h.apiSetLocked)
+	mux.HandleFunc("POST /api/accounts/{id}/reset", h.apiReset)
+	mux.HandleFunc("POST /api/approvals/{approval}/wait", h.apiWaitApproval)
+	mux.HandleFunc("GET "+approvalReturn, h.approvalBack)
 	mux.HandleFunc("PUT /api/users/{id}/admin", h.apiSetAdmin)
 	mux.HandleFunc("GET /api/log", h.apiLog)
 	mux.HandleFunc("GET /api/log/keep", h.apiLogKeep)
@@ -445,7 +463,7 @@ func (h *handler) signedIn(next http.Handler) http.Handler {
 		case errors.Is(err, errNotSignedIn):
 			h.notSignedIn(w)
 			return
-		case errors.Is(err, errRefused), errors.Is(err, account.ErrService):
+		case errors.Is(err, errRefused), errors.Is(err, account.ErrService), errors.Is(err, errLocked):
 			h.refused(w, err)
 			return
 		case err != nil:

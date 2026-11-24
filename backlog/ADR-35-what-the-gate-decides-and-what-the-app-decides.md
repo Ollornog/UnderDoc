@@ -114,3 +114,18 @@ The line of the maintainer. Proposed by UnderDoc, the gate and the team wiki on 
 - The account API needs a service account of UnderDoc and an allowlist in the gate's configuration.
 - Nesting local groups changes ADR-29, if the maintainer agrees.
 - Tenants stay a placeholder until the gate has decided T-73.
+- **Built on 2026-11-24** ([docs/accounts.md](../docs/accounts.md), migration 040, T-33). Settled in the build:
+  - The account API is optional: `UNDERDOC_GATE_URL`, `UNDERDOC_GATE_SERVICE_KEY_FILE` (the key only from a file) and
+    `UNDERDOC_ACCOUNTS_ROLES` turn it on; the start checks the key against the gate (`GET /auth/api/provisioning`) and
+    refuses an allowlist with the approver role or a role of administrators. The gate's Go client has no helper for the
+    account API, so package `gateapi` follows the gate's `spec/provisioning-api.md`; it never follows a redirect, never
+    puts the key or a link into an error or the log, and sends a write only with a person's lasting ID as On-Behalf-Of.
+  - The approver of `reset_access` is the gate's `approver_role`; UnderDoc offers the reset to its holders only, and warns
+    at the start where it is not `UNDERDOC_ADMIN_ROLE`.
+  - The delegated administrator is a role of its own (`UNDERDOC_DELEGATE_ROLE`, `underdoc-delegate`): accounts of every
+    group and archiving groups, never an administrator's account, nothing else. The permissions are decided in
+    `account.User.Has`, ready to move to the gate's permission layer later.
+  - A lock of UnderDoc of its own (`accounts.locked`), set with the lock in the gate and holding without it, refused at the
+    door and in the one check.
+  - The signed one-time approval for deleting for good is wired (`UNDERDOC_APPROVALS=on`), with the browser entry of the
+    gate and the order of B-6. Contract test against a real TinySesam in `scripts/check-services.sh`.
