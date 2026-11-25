@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# UnderDoc's own extra to the kit's pre-push hook (kit 0.29.0). It runs in the tree being checked, before the checks.
+#
+# The JavaScript bundles the Go binary embeds are built from web/* and never committed (ADR-21). In a temporary worktree
+# (the hook checks a state that is not the working tree) they are missing, and the tests of internal/web fail for that
+# reason alone (TestAssetsOfThisReleaseAreKept). So: build them here when they are missing. Takes seconds with a warm npm
+# cache; a missing Node fails, as in scripts/build-js.sh.
+set -euo pipefail
+
+bundles=(
+    internal/web/assets/app/editor/editor.js
+    internal/web/assets/app/pdfjs
+    internal/web/assets/app/tesseract
+    internal/web/assets/app/mermaid
+)
+for b in "${bundles[@]}"; do
+    if [[ ! -e "$b" ]]; then
+        echo "pre-push.zusatz: $b is missing, building the JavaScript bundles (scripts/build-js.sh)"
+        scripts/build-js.sh >/dev/null
+        exit 0
+    fi
+done
+echo "pre-push.zusatz: JavaScript bundles present"

@@ -299,6 +299,12 @@ All notable changes to this project are documented in this file. The format foll
     mutation. Browser tests for the typed name and for restoring an archived group.
   - The gate's Go client is pinned by its release tag `clients/go/v0.29.0` (the same commit `4bb607f` as before).
 
+- Repokit 0.66.0 (with 0.64.0 and 0.65.0): a test that lacks a prerequisite ends with exit 77 and the fast pre-push
+  shows it as not checked; shell scripts are checked with `shellcheck -x`; a red job notes the load of its runner; the
+  auto-merge also sees a pull request marked ready for review. UnderDoc's own `.githooks/pre-push.zusatz` builds the
+  JavaScript bundles when the hook checks a temporary worktree without them, so `internal/web` is no longer red there
+  for that reason alone.
+
 - Repokit 0.63.0 (with 0.61.0 and 0.62.0): the fast pre-push vets Go packages with the build tags of
   `scripts/check.sh` (`GO_PRUEF_TAGS`), so a change of a browser test no longer stops a push; hygiene and the affected
   tests choose the same Python; test scripts without a guard run in the hook; the nightly repeat run has English names.
