@@ -157,13 +157,12 @@ func TestSambaDomainSignsIn(t *testing.T) {
 	if err != nil || len(list) != 1 || list[0].Owner != dora.ID {
 		t.Fatalf("the file of Dora: %+v %v", list, err)
 	}
-	// Kerberos: a ticket of the domain for the companion's name.
-	if out := f.smb("dora", f.password, "Company", "ls", "--use-kerberos=required", "--realm=EXAMPLE.TEST"); !strings.Contains(out, "plan.txt") {
-		// smbclient takes the server from the path; Kerberos needs the name the domain knows.
-		out = kerberos(f, "Company", "ls")
-		if !strings.Contains(out, "plan.txt") {
-			t.Errorf("Kerberos: %s", out)
-		}
+	// Kerberos: a ticket of the domain for the companion's name. On failure the same again with the client's debug, so
+	// the log of the CI tells why.
+	if out := kerberos(f, "Company", "ls"); !strings.Contains(out, "plan.txt") {
+		debug := kerberos(f, "Company", "ls", "-d", "3")
+		lines := strings.Split(debug, "\n")
+		t.Errorf("Kerberos: %s\n--- with -d 3 (last lines):\n%s", out, strings.Join(lines[max(0, len(lines)-60):], "\n"))
 	}
 	// Upper case, as Windows may send it, is the same account.
 	if out := f.smb(`EXAMPLE\DORA`, f.password, "dora", "ls"); !signedIn(out) {
@@ -174,11 +173,13 @@ func TestSambaDomainSignsIn(t *testing.T) {
 	}
 }
 
-// kerberos runs smbclient with Kerberos against the companion by the name the domain knows (files.example.test).
-func kerberos(f *domainFixture, share, commands string) string {
+// kerberos runs smbclient with Kerberos against the companion by the name the domain knows (files.example.test, its
+// address given, so no lookup of the name is needed).
+func kerberos(f *domainFixture, share, commands string, extra ...string) string {
 	f.t.Helper()
-	out, _ := exec.Command(f.client, "//files.example.test/"+share, "-U", "dora@EXAMPLE.TEST%"+f.password, "--use-kerberos=required", // #nosec G204
-		"-c", commands).CombinedOutput()
+	args := append([]string{"//files.example.test/" + share, "-I", "127.0.0.1", "-U", "dora@EXAMPLE.TEST%" + f.password,
+		"--use-kerberos=required", "-c", commands}, extra...)
+	out, _ := exec.Command(f.client, args...).CombinedOutput() // #nosec G204 -- a test
 	return string(out)
 }
 

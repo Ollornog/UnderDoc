@@ -82,9 +82,6 @@ for u in dora eve daemon 4711; do
     dock exec "$run-dc" sh -c "samba-tool user create '$u' \"\$(cat /run/secret/join)\" >/dev/null" || fail "domain account $u"
 done
 dc_ip="$(dock inspect -f "{{(index .NetworkSettings.Networks \"$run-net\").IPAddress}}" "$run-dc")"
-# The address of the companion as the domain knows it, for Kerberos.
-dock exec "$run-dc" sh -c "samba-tool dns add localhost example.test files A 127.0.0.1 -U Administrator --password=\"\$(cat /run/secret/join)\" >/dev/null 2>&1" ||
-    fail "the DNS name of the companion"
 
 # corp_companion <name> <state volume> <with password file: yes|no>: each with a socket directory of its own, so a
 # companion started for a check never takes the socket of the one the tests talk to.
@@ -117,7 +114,24 @@ healthy() {
 corp_companion corp "$run-corp-state" yes || fail "the companion of corp does not start"
 healthy corp || { dock logs "$run-corp" 2>&1 | tail -30 >&2; fail "the companion of corp does not join the domain"; }
 dock logs "$run-corp" 2>&1 | grep -q "member of the domain.*joined=now" || fail "the companion of corp did not join now"
-printf '#!/usr/bin/env bash\nexec docker exec -i %q smbclient "$@"\n' "$run-corp" >"$work/bin/smbclient-corp"
+# The client's Kerberos knows the domain controller by its address: no lookup of the KDC through DNS, which behaved
+# differently on the runners of the CI (PR #209: a sign-in by Kerberos hung for a minute there and failed). Every call
+# of the client ends after 30 seconds, so a hang is red at once.
+dock exec -i "$run-corp" sh -c 'cat >/tmp/krb5.conf' <<KRB5
+[libdefaults]
+	default_realm = EXAMPLE.TEST
+	dns_lookup_realm = false
+	dns_lookup_kdc = false
+	udp_preference_limit = 1
+[realms]
+	EXAMPLE.TEST = {
+		kdc = $dc_ip
+	}
+[domain_realm]
+	.example.test = EXAMPLE.TEST
+	example.test = EXAMPLE.TEST
+KRB5
+printf '#!/usr/bin/env bash\nexec docker exec -i -e KRB5_CONFIG=/tmp/krb5.conf %q timeout 30 smbclient "$@"\n' "$run-corp" >"$work/bin/smbclient-corp"
 chmod 755 "$work/bin/smbclient-corp"
 
 # The password stands in no log and in no process of the companion (command line or environment).
