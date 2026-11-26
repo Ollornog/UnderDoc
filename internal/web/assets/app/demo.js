@@ -831,15 +831,18 @@ function sambaHtml(){
   if(S.samba===undefined){S.samba=null;fget('/api/samba').then(x=>{S.samba=x;render();}).catch(()=>{S.samba={on:false};});}
   const sm=S.samba;if(!sm||!sm.on)return '';
   const pass=S.sambaPass?note(`App password for <code>${esc(S.sambaPass.name)}</code>, shown only now: <code>${esc(S.sambaPass.password)}</code>. Windows asks for it once and keeps it.`,' data-samba-password'):'';
+  if(sm.domain&&!sm.has)return panel(`${ptitle('SMB share')}${hint(sm.suggest?`Reach your files as a network drive on Windows with your domain account <code data-samba-domain-name>${esc(sm.suggest)}</code>: no app password, the domain checks your password.`:'Your account has no name a domain account can have here: ask an administrator.')}${sm.suggest?`<div>${pbtn('data-act="sambadomain"','Use my domain account')}</div>`:''}`,' data-samba data-samba-domain');
   if(!sm.has)return panel(`${ptitle('SMB share')}${hint('Reach your files as a network drive on Windows, with a user name and an app password of their own. The password is shown once, and only its hash is kept.')}<div class="flex flex-col gap-1.5"><label class="label" for="udsamba">User name</label><input class="input" data-size="sm" id="udsamba" data-samba-name value="${esc(sm.suggest||'')}" aria-label="Samba user name"></div><div>${pbtn('data-act="sambanew"','Make an app password')}</div>${pass}`,' data-samba');
   /* Saves over SMB a quota turned away stay on the share without a version, until there is room (ADR-30). */
   const refused=(sm.refused||[]).length?`<div class="alert" data-variant="warning" role="status" data-samba-refused><h2>Not taken from the share</h2><section><ul>${sm.refused.map(x=>`<li><code>${esc(x.library)}/${esc(x.path)}</code>: ${esc(x.why)}</li>`).join('')}</ul>They stay on the share without a version. Make room, then save again.</section></div>`:'';
+  if(sm.domain)return panel(`${ptitle('SMB share')}${hint(`Domain account <code data-samba-user>${esc(sm.name)}</code>. In Windows: map a network drive to a path below; a computer of the domain signs in by itself.`)}<ul class="text-muted-foreground text-xs" data-samba-shares>${(sm.shares||[]).map(s=>`<li><code>${esc(s)}</code></li>`).join('')||'<li>No share yet: the next pass of the share gives them.</li>'}</ul>${refused}<div class="flex flex-wrap gap-1.5">${pbtn('data-act="sambadel"','Stop SMB for this account')}</div>`,' data-samba data-samba-domain');
   return panel(`${ptitle('SMB share')}${hint(`User name <code data-samba-user>${esc(sm.name)}</code>. In Windows: map a network drive to a path below, with this name and your app password.`)}<ul class="text-muted-foreground text-xs" data-samba-shares>${(sm.shares||[]).map(s=>`<li><code>${esc(s)}</code></li>`).join('')||'<li>No share yet: the next pass of the share gives them.</li>'}</ul>${refused}<div class="flex flex-wrap gap-1.5">${pbtn('data-act="sambanew"','New app password')}${pbtn('data-act="sambadel"','Remove the app password')}</div>${pass}`,' data-samba');
 }
 function sambaAct(act){
   if(act==='sambanew'){const f=document.querySelector('[data-samba-name]');
     fsend('/api/samba/password','POST',{name:f?f.value:''}).then(a=>{S.sambaPass=a;S.samba=undefined;render();}).catch(e=>toast(e.message));}
-  if(act==='sambadel'&&window.confirm('Remove the app password? SMB stops at once for this account.'))
+  if(act==='sambadomain')fsend('/api/samba/domain','POST',{}).then(()=>{S.samba=undefined;render();}).catch(e=>toast(e.message));
+  if(act==='sambadel'&&window.confirm(S.samba&&S.samba.domain?'Stop SMB for this account? The share turns it away at once.':'Remove the app password? SMB stops at once for this account.'))
     fsend('/api/samba/password','DELETE').then(()=>{S.sambaPass=null;S.samba=undefined;render();}).catch(e=>toast(e.message));
 }
 /* The account: C22's entry with the avatar, the groups as badges, then its links. */
@@ -1113,7 +1116,7 @@ document.addEventListener('click',e=>{
     case 'focus':S.focus=+a.id;break;
     case 'fdir':case 'fopen':case 'fnewdir':case 'fup':case 'frestore':case 'ftrash':if(!filesAct(act,a))return;break;
     case 'fatt':moveAttachment(a.id,a.att);break;
-    case 'sambanew':case 'sambadel':sambaAct(act);return;
+    case 'sambanew':case 'sambadel':case 'sambadomain':sambaAct(act);return;
     case 'tog':S.tog[a.id]=!kidsOpen(a.id);break;
     case 'open':{const d=D[a.id],fold=d.t==='folder'||d.t==='dir'||d.kids.length>0;
       /* A click opens the object, whatever it is. A double click, or the arrow, opens or closes its children in nav3. */

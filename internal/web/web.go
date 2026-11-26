@@ -341,6 +341,7 @@ func New(store *library.Store, log *slog.Logger, options Options) (http.Handler,
 	mux.HandleFunc("GET /api/samba", h.apiSamba)
 	mux.HandleFunc("POST /api/samba/password", h.apiNewAppPassword)
 	mux.HandleFunc("DELETE /api/samba/password", h.apiRemoveAppPassword)
+	mux.HandleFunc("POST /api/samba/domain", h.apiSambaDomain)
 	mux.HandleFunc("GET /api/samba/accounts", h.apiSambaAccounts)
 	mux.HandleFunc("DELETE /api/samba/accounts/{id}", h.apiRemoveAppPassword)
 	fil("PUT /api/files/roots/{id}/samba", h.apiSetRootSamba)

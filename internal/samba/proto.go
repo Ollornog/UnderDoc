@@ -45,18 +45,29 @@ type Room struct {
 	Total int64  `json:"total"`
 }
 
+// The ways people sign in to a companion (T-42). The mode is chosen when the share is set up, the same on both sides,
+// and never mixed: with a domain only domain accounts reach the share, since the companion maps a domain account to a
+// Unix user by name (idmap_nss), and a local user of the same name would be the same person to the kernel.
+const (
+	ModeLocal  = "local"  // an app password per account, kept as its NT hash (ADR-30)
+	ModeDomain = "domain" // the companion is a member of an Active Directory domain; people sign in with their domain account
+)
+
 // State is everything the companion shall know: its users and its shares. Applying the same state twice changes nothing.
 type State struct {
+	// Mode is ModeLocal (or empty, as before T-42) or ModeDomain; the helper refuses a state of the other mode.
+	Mode   string  `json:"mode,omitempty"`
 	Users  []User  `json:"users"`
 	Shares []Share `json:"shares"`
 }
 
-// User is a Samba user: a Unix user of the companion with the NT hash of its app password, and the directory [homes]
-// shows to it.
+// User is a Samba user: a Unix user of the companion and the directory [homes] shows to it. With app passwords it has the
+// NT hash of its app password; with a domain its name is the name of its domain account (lower case, without the
+// domain) and it has no hash: the domain checks the password, and the companion maps the account to this UID by name.
 type User struct {
 	Name   string `json:"name"`
 	UID    int    `json:"uid"`
-	NTHash string `json:"nt_hash"`
+	NTHash string `json:"nt_hash,omitempty"`
 	Home   string `json:"home,omitempty"`
 }
 
@@ -106,7 +117,10 @@ type Response struct {
 	Version string `json:"version,omitempty"`
 	Samba   string `json:"samba,omitempty"`
 	// Boot names this start of the helper; a new one means the companion forgot its users and shares.
-	Boot string  `json:"boot,omitempty"`
+	Boot string `json:"boot,omitempty"`
+	// Mode is how people sign in to this companion (ping): ModeLocal or ModeDomain. A companion from before T-42 sends
+	// none, which is ModeLocal.
+	Mode string  `json:"mode,omitempty"`
 	Open []Open  `json:"open,omitempty"`
 	Who  []Event `json:"who,omitempty"`
 	// First and Last number the oldest and the newest event the audit still keeps (who). A First beyond the Last a caller
@@ -138,12 +152,18 @@ var (
 	ErrPath = errors.New("a path of the share lies below the directory of the tenant, absolute and clean")
 	ErrUID  = errors.New("a UID of a Samba user lies in the range of the companion")
 	ErrHash = errors.New("an NT hash is 32 hexadecimal digits")
+	// ErrMixed is a state that mixes the modes: a user with an app password where the share signs in with the domain, or
+	// one without where it signs in with app passwords (T-42).
+	ErrMixed = errors.New("app passwords and a domain are never mixed: the mode of the share is chosen at its setup")
+	// ErrDomainName is a name a domain account cannot have on the share.
+	ErrDomainName = errors.New("the name of a domain account on the share has 1 to 32 characters a-z, 0-9, '.', '_' or '-', starts with a letter or a digit, and is not a user of the system")
 )
 
 var (
-	namePattern  = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,31}$`)
-	hashPattern  = regexp.MustCompile(`^[0-9A-F]{32}$`)
-	sharePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$`)
+	namePattern   = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,31}$`)
+	domainPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,31}$`)
+	hashPattern   = regexp.MustCompile(`^[0-9A-F]{32}$`)
+	sharePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$`)
 )
 
 // reserved are names Samba or the container knows already, or that Samba treats specially.
@@ -157,6 +177,14 @@ var reserved = map[string]bool{
 
 // ValidName tells whether a Samba user name is allowed.
 func ValidName(name string) bool { return namePattern.MatchString(name) && !reserved[name] }
+
+// ValidDomainName tells whether a domain account can have this name on the share (T-42): the rules of ValidName, but it
+// may start with a digit, as a number from the gate (Remote-Id) does. A name of the system, such as root or
+// administrator, never maps.
+func ValidDomainName(name string) bool { return domainPattern.MatchString(name) && !reserved[name] }
+
+// ValidMode tells whether a mode is known; empty is ModeLocal.
+func ValidMode(mode string) bool { return mode == "" || mode == ModeLocal || mode == ModeDomain }
 
 // ValidShareName tells whether a share name is allowed: letters, digits, space, '.', '_' and '-', up to 80, and none of
 // the sections Samba keeps for itself.
@@ -222,10 +250,20 @@ func (r Request) Check(root string, uidMin, uidMax int) error {
 		if r.State == nil {
 			return fmt.Errorf("apply without a state")
 		}
+		if !ValidMode(r.State.Mode) {
+			return fmt.Errorf("mode %q", r.State.Mode)
+		}
+		domain := r.State.Mode == ModeDomain
 		seen := map[string]bool{}
 		uids := map[int]bool{}
 		for _, u := range r.State.Users {
-			if !ValidName(u.Name) || seen[u.Name] {
+			switch {
+			case domain && !ValidDomainName(u.Name), !domain && !ValidName(u.Name):
+				if domain {
+					return ErrDomainName
+				}
+				return ErrName
+			case seen[u.Name]:
 				return ErrName
 			}
 			seen[u.Name] = true
@@ -233,7 +271,10 @@ func (r Request) Check(root string, uidMin, uidMax int) error {
 				return ErrUID
 			}
 			uids[u.UID] = true
-			if !hashPattern.MatchString(u.NTHash) {
+			switch {
+			case domain && u.NTHash != "", !domain && u.NTHash == "":
+				return ErrMixed
+			case !domain && !hashPattern.MatchString(u.NTHash):
 				return ErrHash
 			}
 			if u.Home != "" && (!Below(root, u.Home) || u.Home == root) {

@@ -19,15 +19,18 @@ RUN GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -ldflags "-s -w" -o /out/unde
 
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS samba
 ARG SAMBA_VERSION=2:4.24.7+dfsg-1~bpo13+1
-# Only smbd: no winbind, no AD DC, no printing. The users and groups of the image are kept as a base the helper writes
-# the Samba users after, into files below /var/lib/underdoc-samba that /etc/passwd and /etc/group point to.
+# smbd, and winbindd for a companion that joins a domain (T-42); no AD DC, no printing, and no libnss-winbind: the users
+# of the system are only those of the files, so a domain account maps to a UID only through a user UnderDoc applied
+# (idmap_nss). The users and groups of the image are kept as a base the helper writes the Samba users after, into files
+# below /var/lib/underdoc-samba that /etc/passwd and /etc/group point to.
 RUN echo 'deb http://deb.debian.org/debian trixie-backports main' > /etc/apt/sources.list.d/backports.list && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -t trixie-backports \
-      "samba=${SAMBA_VERSION}" && \
+      "samba=${SAMBA_VERSION}" "winbind=${SAMBA_VERSION}" && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/lib/samba/* /var/cache/samba/* /etc/samba/smb.conf && \
+    ! ls /usr/lib/*/libnss_winbind.so* >/dev/null 2>&1 && ! grep -q winbind /etc/nsswitch.conf && \
     cp /etc/passwd /etc/passwd.base && cp /etc/group /etc/group.base && \
-    mkdir -p /var/lib/underdoc-samba && \
+    mkdir -p /var/lib/underdoc-samba /var/lib/underdoc-samba-domain && chmod 700 /var/lib/underdoc-samba-domain && \
     cp /etc/passwd /var/lib/underdoc-samba/passwd && cp /etc/group /var/lib/underdoc-samba/group && \
     ln -sf /var/lib/underdoc-samba/passwd /etc/passwd && ln -sf /var/lib/underdoc-samba/group /etc/group && \
     ln -sf /var/lib/underdoc-samba/smb.conf /etc/samba/smb.conf
@@ -48,5 +51,15 @@ RUN echo 'deb http://deb.debian.org/debian trixie-backports main' > /etc/apt/sou
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -t trixie-backports \
       "smbclient=${SAMBA_VERSION}" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# For the tests only: a domain controller of Samba with made-up accounts (scripts/check-samba.sh, T-42). Never shipped.
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS test-dc
+ARG SAMBA_VERSION=2:4.24.7+dfsg-1~bpo13+1
+RUN echo 'deb http://deb.debian.org/debian trixie-backports main' > /etc/apt/sources.list.d/backports.list && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -t trixie-backports \
+      "samba=${SAMBA_VERSION}" "samba-ad-dc=${SAMBA_VERSION}" "samba-ad-provision=${SAMBA_VERSION}" \
+      "winbind=${SAMBA_VERSION}" "smbclient=${SAMBA_VERSION}" && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /etc/samba/smb.conf
 
 FROM samba

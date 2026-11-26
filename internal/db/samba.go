@@ -23,6 +23,9 @@ var (
 	ErrNoSamba   = errors.New("samba is not set up for this tenant")
 	// ErrPerFolder is breaking the inheritance of a single file in a library shared over Samba (ADR-29, ADR-30).
 	ErrPerFolder = errors.New("samba knows rights per folder only: a single file in a shared library cannot break the inheritance")
+	// ErrSambaMode is an app password where the share signs in with the domain, or a domain account where it signs in with
+	// app passwords (T-42): the mode is chosen at setup and never mixed.
+	ErrSambaMode = errors.New("the share signs in the other way: app passwords and a domain are never mixed")
 )
 
 // OpenError is a change of a file that is open over SMB: the web does not write it then (ADR-30).
@@ -40,7 +43,8 @@ type SambaAccount struct {
 	Account string
 	Name    string
 	UID     int
-	// Sealed is the NT hash of the app password, sealed by the vault for the tenant and samba:<account>.
+	// Sealed is the NT hash of the app password, sealed by the vault for the tenant and samba:<account>; nil for the
+	// user of a domain account (T-42).
 	Sealed []byte
 	Login  string
 	// Locked tells that UnderDoc locked the account (T-33): the share leaves its user out, so it signs in nowhere.
@@ -52,6 +56,76 @@ func SambaSecretName(account string) string { return "samba:" + account }
 
 // SetSamba names the tenants that have a Samba companion. Without one, nothing of a tenant is shared.
 func (db *DB) SetSamba(tenants map[string]bool) { db.samba = tenants }
+
+// SetSambaDomain names the tenants whose companion is a member of a domain (T-42): their Samba users are domain
+// accounts, without app passwords.
+func (db *DB) SetSambaDomain(tenants map[string]bool) { db.sambaDomain = tenants }
+
+// SambaDomain tells whether the tenant of the context signs in to its share with domain accounts.
+func (db *DB) SambaDomain(ctx context.Context) bool {
+	t, _ := tenant.From(ctx)
+	return db.sambaDomain[t]
+}
+
+// SambaModes counts the Samba users of the tenant of the context with an app password and without one (domain
+// accounts): a tenant holds only one kind, the kind of its setup (T-42).
+func (db *DB) SambaModes(ctx context.Context) (withPassword, domain int, err error) {
+	err = db.pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE nt_hash IS NOT NULL), count(*) FILTER (WHERE nt_hash IS NULL) FROM samba_accounts").
+		Scan(&withPassword, &domain)
+	return withPassword, domain, err
+}
+
+// SetSambaDomainAccount makes the Samba user of an account in a tenant that signs in with domain accounts (T-42): the
+// name of its domain account and a free UID of the range, no app password. An existing one stays as it is. The log names
+// the change.
+func (db *DB) SetSambaDomainAccount(ctx context.Context, accountID, name string, uidMin, uidMax int) (SambaAccount, error) {
+	if err := noAgent(ctx); err != nil {
+		return SambaAccount{}, err
+	}
+	if !db.SambaOn(ctx) {
+		return SambaAccount{}, ErrNoSamba
+	}
+	if !db.SambaDomain(ctx) {
+		return SambaAccount{}, ErrSambaMode
+	}
+	var a SambaAccount
+	made := false
+	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext(current_setting('underdoc.tenant', true) || ':samba'))"); err != nil {
+			return err
+		}
+		var sealed []byte
+		err := tx.QueryRow(ctx, "SELECT name, uid, nt_hash FROM samba_accounts WHERE account = $1", accountID).Scan(&a.Name, &a.UID, &sealed)
+		if err == nil {
+			if sealed != nil {
+				return ErrSambaMode
+			}
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		var uid int
+		if err := tx.QueryRow(ctx, `SELECT min(u) FROM generate_series($1::int, $2::int) u
+			WHERE NOT EXISTS (SELECT 1 FROM samba_accounts WHERE uid = u)`, uidMin, uidMax).Scan(&uid); err != nil {
+			return fmt.Errorf("no free UID for a Samba user: %w", err)
+		}
+		_, err = tx.Exec(ctx, "INSERT INTO samba_accounts (account, name, uid, nt_hash) VALUES ($1, $2, $3, NULL)", accountID, name, uid)
+		if isUnique(err, "samba_accounts_tenant_name_key") || isCheck(err) {
+			return ErrSambaName
+		}
+		a.Name, a.UID, made = name, uid, err == nil
+		return err
+	})
+	if err != nil {
+		return SambaAccount{}, err
+	}
+	a.Account = accountID
+	if !made {
+		return a, nil
+	}
+	return a, db.Log(ctx, accountID, "samba domain account", "", "Samba user "+a.Name+" for the domain account of the same name")
+}
 
 // SambaOn tells whether the tenant of the context has a Samba companion.
 func (db *DB) SambaOn(ctx context.Context) bool {
@@ -114,6 +188,10 @@ func (db *DB) SetSambaPassword(ctx context.Context, accountID, name string, seal
 	if !db.SambaOn(ctx) {
 		return SambaAccount{}, ErrNoSamba
 	}
+	// With a domain there are no app passwords (T-42).
+	if db.SambaDomain(ctx) {
+		return SambaAccount{}, ErrSambaMode
+	}
 	var a SambaAccount
 	err := pgx.BeginFunc(ctx, db.pool, func(tx pgx.Tx) error {
 		// One new Samba user at a time per tenant: the free UID and name are chosen under this lock.
@@ -162,6 +240,16 @@ func (db *DB) RemoveSambaAccount(ctx context.Context, actor Actor, accountID str
 		return err
 	}
 	return db.Log(ctx, actor.ID, "app password removed", "", "Samba user "+name+" of "+accountID)
+}
+
+// RemoveAllSambaAccounts removes every Samba user of the tenant (underdoc samba-users remove): the migration between app
+// passwords and a domain (T-42). The log names how many.
+func (db *DB) RemoveAllSambaAccounts(ctx context.Context) (int64, error) {
+	tag, err := db.pool.Exec(ctx, "DELETE FROM samba_accounts")
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), db.Log(ctx, "", "app password removed", "", fmt.Sprintf("every Samba user of the tenant (%d), by the operator for a change of the mode", tag.RowsAffected()))
 }
 
 func isCheck(err error) bool {

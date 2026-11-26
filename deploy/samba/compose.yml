@@ -31,11 +31,21 @@ services:
       UNDERDOC_SAMBA_NAME: FILES                    # NetBIOS name and server string, up to 15 letters, digits or '-'
       UNDERDOC_SAMBA_UIDS: "20000-29999"            # the UIDs of Samba users, the same range as UnderDoc's
       TZ: Europe/Berlin
+      # A member of an Active Directory domain instead of app passwords (T-42, docs/samba.md); UnderDoc then sets
+      # UNDERDOC_SAMBA_DOMAIN=main. The mode is chosen at setup and never mixed.
+      # UNDERDOC_SAMBA_DOMAIN_REALM: EXAMPLE.TEST
+      # UNDERDOC_SAMBA_DOMAIN_WORKGROUP: EXAMPLE
+      # UNDERDOC_SAMBA_DOMAIN_JOIN_USER: joiner       # only until it is joined
+      # UNDERDOC_SAMBA_DOMAIN_JOIN_PASSWORD_FILE: /run/secrets/samba-join
+    # dns: ["192.0.2.2"]                            # the domain controllers
+    # secrets: [samba-join]
     volumes:
       # Only the directory of its tenant, at the same path as UnderDoc sees it.
       - /srv/underdoc-share/main:/srv/underdoc-share/main
       # The channel: the helper makes helper.sock here for UnderDoc's UID alone.
       - /run/underdoc-samba:/run/underdoc-samba
+      # With a domain: the secret of the machine account, so a new container is still a member.
+      # - samba-domain:/var/lib/underdoc-samba-domain
     ports:
       # Port 445 never faces the internet: bind it to an address of the LAN or the mesh (ADR-28).
       - "192.0.2.10:445:445"
@@ -45,3 +55,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+# With a domain:
+# volumes:
+#   samba-domain:
+# secrets:
+#   samba-join:
+#     file: ./samba-join.txt                        # mode 0600; remove it after the join

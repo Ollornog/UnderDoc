@@ -191,7 +191,15 @@ func (ts *tenantShare) applyRights(ctx context.Context, roots []db.SharedRoot, v
 		}
 	}
 	state := samba.State{Shares: shares}
+	if ts.m.cfg.Domain[ts.tenant] {
+		// With a domain a Samba user is the domain account of its name, mapped to its UID; the domain checks the password.
+		state.Mode = samba.ModeDomain
+	}
 	for _, a := range v.accounts {
+		if state.Mode == samba.ModeDomain {
+			state.Users = append(state.Users, samba.User{Name: a.Name, UID: a.UID, Home: homes[a.Account]})
+			continue
+		}
 		secret, err := ts.m.vault.Open(ts.tenant, db.SambaSecretName(a.Account), a.Sealed)
 		if err != nil {
 			ts.m.log.Warn("samba: the app password of an account does not open", "account", a.Account, "err", err)

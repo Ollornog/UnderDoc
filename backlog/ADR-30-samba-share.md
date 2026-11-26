@@ -240,7 +240,8 @@ before (`internal/share/attack_samba_test.go`, `attack_test.go`, `hardening_test
 
 ### Not now
 
-- **A domain** (M-5, ADR-10): Kerberos instead of NTLMv2, later, next to local users.
+- ~~**A domain** (M-5, ADR-10): Kerberos instead of NTLMv2, later, next to local users.~~ Built on 2026-11-26 as a mode of
+  its own, never next to local users (below).
 - **Rights per single file on the share:** only if T-1 shows they survive a save of Excel and LibreOffice.
 - **Passwords in the text** (ADR-7): a piece of their own.
 
@@ -272,3 +273,35 @@ Samba hides by name, not by path. Where the user reads something of the same nam
 hidden, so nothing readable is taken away; that one name keeps telling a guess, as before, and the log says so. Tests:
 `TestSambaPassageTellsNoGuessedNames` (the guess closed, the own share reachable, a reader of the folder still sees it)
 and `TestSambaPassageNameLikeAReadableOne`, with the lists written by the helper in `TestPassageIsHiddenPerUser`; 8 mutations, all red.
+
+## Settled on 2026-11-26: Samba joins a domain, optionally (T-42)
+
+The companion of a tenant can be a member of an Active Directory domain instead of keeping app passwords
+([docs/samba.md](../docs/samba.md#a-domain-optional)). The maintainer decided on 2026-11-24 that the mode is chosen when the
+share is set up and is never mixed: with a domain only domain accounts reach the share, and changing the mode is a
+migration by the operator (`underdoc samba-users --tenant <id> remove`). The reason: the companion maps a domain account to
+a UID by name (`idmap_nss`), so a local user of the same name would be the same person to the kernel. UnderDoc refuses to
+start while a tenant holds Samba users of the other mode, the helper answers `ping` with its mode and refuses a state of
+the other one, and a pass gives a companion set up the other way nothing.
+
+- **The companion** joins at start with an account of the domain and a password read by Samba from a file (`net ads
+  join`, `PASSWD_FILE`), never from a command line or the environment; it checks the join (`net ads testjoin`) before
+  winbindd and smbd start, and ends, saying why, when it is not a member and has no password file. The secret of the
+  machine account lives on a volume of its own, so a new container is still a member. The image adds winbind, and no
+  `libnss-winbind`: the users of the system are only those of the files UnderDoc applies.
+- **Mapping:** `idmap config <DOMAIN> : backend = nss` within the range of Samba users, `winbind use default domain`. A
+  domain account maps only to a Samba user of its name; the users of the system lie outside the range and never map.
+  Whenever the users change, the helper empties winbindd's caches (`net cache flush`, `smbcontrol winbindd
+  reload-config`): without it a UID that passed to another account would still be reached by the domain account that
+  had it, which the tests showed is a real risk of mapping by name, and an account turned on just now would wait for the
+  negative cache.
+- **Decided while building (2026-11-25):**
+  - **The Samba user is named like the domain account.** One name for the Unix user, the session, the audit and the
+    open files: smbd names a domain user by its name without the domain, so UnderDoc's mapping of names to accounts works
+    as with app passwords, and no second name has to be kept in step.
+  - **The account turns SMB on itself** ("Use my domain account" in the profile), as it makes an app password: only the
+    libraries of those who use SMB are on disk, and nobody's folder lands there unasked. The name comes from the setup
+    (`UNDERDOC_SAMBA_DOMAIN_NAMES`: the login, or the gate's Remote-Id), never from the account, so nobody names the
+    domain account of someone else.
+- **Tests:** a domain controller of Samba in a container, made-up accounts and a password made for the run, in
+  `scripts/check-samba.sh` and the required check of the CI.

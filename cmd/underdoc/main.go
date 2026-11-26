@@ -43,6 +43,8 @@
 //	underdoc admin [--tenant <id>] grant|revoke <remote-id>        the emergency access: marks the account of that lasting ID as an
 //	                                                               administrator, or takes the mark back
 //	underdoc reindex [--tenant <id>]                               everything of a tenant queued for the search service again
+//	underdoc samba-users [--tenant <id>] remove                    every Samba user of a tenant removed: the migration between app
+//	                                                               passwords and a domain (T-42, docs/samba.md)
 //	underdoc rekey                                                 every sealed value of every tenant sealed again under
 //	                                                               UNDERDOC_SECRET_KEY, opened with UNDERDOC_SECRET_KEY_OLD
 //
@@ -78,7 +80,7 @@ import (
 )
 
 const (
-	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] [--archived] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc account [--tenant <id>] add <remote-id> <login> <name> | underdoc account [--tenant <id>] adopt [--dry-run] | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc rekey | underdoc probe | underdoc version"
+	usage             = "usage: underdoc serve [folder] | underdoc export [--tenant <id>] <dir> | underdoc import [--tenant <id>] [--archived] --owner <login> <dir> <title> | underdoc import [--tenant <id>] --files --owner <login> <dir> | underdoc tenant add <id> <name> | underdoc account [--tenant <id>] list | underdoc account [--tenant <id>] bind <key|login> <remote-id> | underdoc account [--tenant <id>] add <remote-id> <login> <name> | underdoc account [--tenant <id>] adopt [--dry-run] | underdoc admin [--tenant <id>] grant|revoke <remote-id> | underdoc reindex [--tenant <id>] | underdoc samba-users [--tenant <id>] remove | underdoc rekey | underdoc probe | underdoc version"
 	defaultAddr       = "127.0.0.1:8080"
 	defaultHealthAddr = "127.0.0.1:8081"
 )
@@ -139,6 +141,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		err = importTree(ctx, owner, rest[0], rest[1], archived, stdout, stderr)
+	case args[0] == "samba-users":
+		ctx, rest, terr := tenantFlag(context.Background(), args[1:])
+		if terr != nil || len(rest) != 1 || rest[0] != "remove" {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		err = removeSambaUsers(ctx, stdout)
 	case args[0] == "rekey" && len(args) == 1:
 		err = rekey(context.Background(), stdout)
 	case args[0] == "tenant" && len(args) == 4 && args[1] == "add":
@@ -265,6 +274,11 @@ func serve(ctx context.Context, dir string, stdout io.Writer) error {
 			}
 			if on {
 				if options.Share, err = share.New(database, options.Store, keys, sambaConfig, log); err != nil {
+					return err
+				}
+				// App passwords and a domain are never mixed: a tenant holding Samba users of the other mode stops the
+				// start, loudly (T-42).
+				if err := options.Share.CheckModes(ctx); err != nil {
 					return err
 				}
 				options.Share.Start(ctx)

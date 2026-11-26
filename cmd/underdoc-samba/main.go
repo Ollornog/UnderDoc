@@ -45,6 +45,7 @@ type config struct {
 	run      string // where the helper keeps what it writes: users, passwords, shares
 	audit    string // the syslog socket of smbd's audit
 	verbose  bool   // audit every operation, for recordings (T-1)
+	domain   *domainConfig
 }
 
 func env(name, fallback string) string {
@@ -87,7 +88,18 @@ func readConfig() (config, error) {
 	if !regexpNetbios(c.name) {
 		return c, fmt.Errorf("UNDERDOC_SAMBA_NAME: 1 to 15 letters, digits or '-'")
 	}
+	if c.domain, err = readDomainConfig(); err != nil {
+		return c, err
+	}
 	return c, nil
+}
+
+// mode is how people sign in to this companion (T-42).
+func (c config) mode() string {
+	if c.domain != nil {
+		return samba.ModeDomain
+	}
+	return samba.ModeLocal
 }
 
 func regexpNetbios(s string) bool {
@@ -108,10 +120,11 @@ type helper struct {
 	log   *slog.Logger
 	audit *ring
 
-	boot  string     // names this start, so UnderDoc knows to apply its state again
-	mu    sync.Mutex // one change at a time
-	smbd  *os.Process
-	state samba.State
+	boot     string     // names this start, so UnderDoc knows to apply its state again
+	mu       sync.Mutex // one change at a time
+	smbd     *os.Process
+	winbindd *os.Process // with a domain only (T-42)
+	state    samba.State
 }
 
 func main() {
@@ -171,6 +184,16 @@ func (h *helper) run() error {
 	if err := h.listenAudit(ctx); err != nil {
 		return err
 	}
+	// With a domain the companion is a member first: joined (or still joined) and checked, and winbindd up, before smbd
+	// takes a single connection. A join that fails ends the helper, loudly (T-42).
+	if h.cfg.domain != nil {
+		if err := h.joinDomain(ctx); err != nil {
+			return err
+		}
+		if err := h.startWinbindd(); err != nil {
+			return err
+		}
+	}
 	if err := h.startSmbd(); err != nil {
 		return err
 	}
@@ -200,6 +223,9 @@ func (h *helper) run() error {
 	h.mu.Lock()
 	if h.smbd != nil {
 		_ = h.smbd.Signal(syscall.SIGTERM)
+	}
+	if h.winbindd != nil {
+		_ = h.winbindd.Signal(syscall.SIGTERM)
 	}
 	h.mu.Unlock()
 	return nil
@@ -274,11 +300,15 @@ func (h *helper) handle(req samba.Request) (samba.Response, error) {
 	case samba.OpPing:
 		h.mu.Lock()
 		up := h.smbd != nil && h.smbd.Signal(syscall.Signal(0)) == nil
+		wb := h.cfg.domain == nil || h.winbindd != nil && h.winbindd.Signal(syscall.Signal(0)) == nil
 		h.mu.Unlock()
 		if !up {
 			return samba.Response{}, fmt.Errorf("smbd is not running")
 		}
-		return samba.Response{Version: version.Version, Samba: smbdVersion(h.cfg.smbd), Boot: h.boot}, nil
+		if !wb {
+			return samba.Response{}, fmt.Errorf("winbindd is not running")
+		}
+		return samba.Response{Version: version.Version, Samba: smbdVersion(h.cfg.smbd), Boot: h.boot, Mode: h.cfg.mode()}, nil
 	case samba.OpApply:
 		return samba.Response{}, h.apply(*req.State)
 	case samba.OpACL:
@@ -327,8 +357,14 @@ func (h *helper) watchSmbd(ctx context.Context) {
 		case <-time.After(2 * time.Second):
 		}
 		h.mu.Lock()
-		p := h.smbd
+		p, wb := h.smbd, h.winbindd
 		h.mu.Unlock()
+		if h.cfg.domain != nil && (wb == nil || wb.Signal(syscall.Signal(0)) != nil) {
+			h.log.Warn("winbindd ended, starting it again")
+			if err := h.startWinbindd(); err != nil {
+				h.log.Error("winbindd", "err", err)
+			}
+		}
 		if p != nil && p.Signal(syscall.Signal(0)) == nil {
 			continue
 		}

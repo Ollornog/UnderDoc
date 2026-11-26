@@ -44,7 +44,9 @@ type DB struct {
 	// samba names the tenants with a Samba companion, guard holds the web back from files open over SMB (ADR-30); both
 	// set once before the first request.
 	samba map[string]bool
-	guard func(ctx context.Context, objectID string) error
+	// sambaDomain names the tenants whose companion signs in with a domain (T-42); set with samba.
+	sambaDomain map[string]bool
+	guard       func(ctx context.Context, objectID string) error
 	// sheets reads spreadsheets as tables for the search (SetSheets, ADR-31); set once before the indexers start.
 	sheets SheetReader
 	// approver confirms deleting for good with an approval of the gate (SetApprover, T-33); nil asks for none.
