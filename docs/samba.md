@@ -7,8 +7,8 @@ UnderDoc never runs as root: a **companion** container runs smbd, and UnderDoc s
 ## What is shared
 
 - **Company** (`\\<server>\Company`): the folder of the tenant, once the tenant has a companion.
-- **My files** (`\\<server>\<user name>`): the folder of each account that has an app password, through `[homes]`, for that
-  account alone.
+- **My files** (`\\<server>\<user name>`): the folder of each account that has an app password (with a domain: that turned
+  SMB on), through `[homes]`, for that account alone.
 - **Collections** whose managers switched **Share over Samba** on in their rights dialog, each a share named after it.
 - **A folder in which someone holds a role without reading the folder above** is a share of its own for them, named after
   the folder, so they reach it without seeing what lies above (ADR-29).
@@ -50,7 +50,8 @@ users and remove any.
 ```text
 GET    /api/samba                       on, server, the viewer's Samba user and the shares it reaches
 POST   /api/samba/password              {"name": "anna"}  → {"name", "password", "server"}, shown once
-DELETE /api/samba/password              remove one's own
+POST   /api/samba/domain                with a domain: the Samba user of one's domain account → {"name", "server"}
+DELETE /api/samba/password              remove one's own (with a domain too)
 GET    /api/samba/accounts              administrators: every Samba user
 DELETE /api/samba/accounts/<account>    administrators
 PUT    /api/files/roots/<id>/samba      {"on": true}   managers of a collection of the files
@@ -58,6 +59,59 @@ PUT    /api/files/roots/<id>/samba      {"on": true}   managers of a collection 
 
 The facts panel of a file shows its path on the share (`\\files\Company\Contracts\plan.xlsx`) and who has it open there;
 `GET /api/files/<id>` answers it as `share`.
+
+## A domain (optional)
+
+Instead of app passwords, the companion of a tenant can be a member of an Active Directory domain (T-42, ADR-30): people
+sign in to the share with their domain account, by Kerberos from a computer of the domain or by NTLMv2 with its
+password. Without the settings below everything stays as above.
+
+- **One mode per tenant, chosen at setup, never mixed** (decided by the maintainer on 2026-11-24). With a domain only
+  domain accounts reach the share: there are no app passwords, the companion keeps no local password at all, and a
+  sign-in as a local user of the companion (`FILES\anna`) fails. The companion maps a domain account to a UID by name,
+  so a local user of the same name would be the same person to the kernel. UnderDoc refuses to start while a tenant
+  holds Samba users of the other mode, and the companion refuses a state of the other mode; changing the mode is a
+  migration (below).
+- **Who reaches the share.** In the profile, **SMB share** offers **Use my domain account**: the account gets a Samba user
+  named like its domain account and a UID of the range, without a password. The name comes from the setup, never from
+  the account: its login in lower case, or the lasting ID the gate gives it (`UNDERDOC_SAMBA_DOMAIN_NAMES`). Choose the
+  way that matches the names of the domain; the login fits where the gate takes its accounts from the same directory.
+  Stopping SMB removes the Samba user, as removing an app password does.
+- **What the companion lets in.** winbindd maps a domain account to the UID of the Samba user of the same name
+  (`idmap_nss` for the domain, within `UNDERDOC_SAMBA_UIDS`); the image has no `libnss-winbind`, so the users of the
+  system are only those UnderDoc applied. A domain account without a Samba user (one never turned on, or removed), a
+  user of the system (`root`, `daemon`, …, whose UIDs lie outside the range) and the administrator of the domain get no
+  UID and are turned away with the right password. Upper case (`EXAMPLE\DORA`) is the same account. Whenever the users
+  change, the companion empties winbindd's caches, so a UID that passes to another account is never reached by the
+  domain account that had it before, and an account turned on just now is let in at once.
+- **Rights, audit and everything else** are as with app passwords: the Samba user is the account, and its name is what
+  smbd's audit and the open files name.
+
+| Setting of UnderDoc | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_SAMBA_DOMAIN` | Tenants of `UNDERDOC_SAMBA` whose companion is a member of a domain, comma separated | none: app passwords |
+| `UNDERDOC_SAMBA_DOMAIN_NAMES` | What names the domain account of an account: `login` or `remote-id` | `login` |
+
+| Setting of the companion | Meaning | Default |
+|---|---|---|
+| `UNDERDOC_SAMBA_DOMAIN_REALM` | The realm of the domain, such as `EXAMPLE.TEST`; switches the companion to a member | none: app passwords |
+| `UNDERDOC_SAMBA_DOMAIN_WORKGROUP` | The short name of the domain, such as `EXAMPLE` | required with a realm |
+| `UNDERDOC_SAMBA_DOMAIN_JOIN_USER` | An account that may join computers to the domain; only needed while not joined | none |
+| `UNDERDOC_SAMBA_DOMAIN_JOIN_PASSWORD_FILE` | A file holding its password (a secret of the container, mounted read only) | none |
+| `UNDERDOC_SAMBA_DOMAIN_STATE` | A volume for the secret of the machine account (`secrets.tdb`) | `/var/lib/underdoc-samba-domain` |
+
+- **The join.** At start the companion checks its membership (`net ads testjoin`). Not a member, it joins with the account
+  and the password file (`net ads join`, the password read by Samba from the file, never on a command line or in the
+  environment; a password in `UNDERDOC_SAMBA_DOMAIN_JOIN_PASSWORD` is refused), checks again, and only then starts
+  winbindd and smbd. Not a member and no password file: it ends and says why. The secret of the machine account stays on
+  the volume, so a new container is still a member and needs the password file no longer; remove it after the join.
+  The join leaves the DNS of the domain alone (`--no-dns-updates`): give the name people type (`UNDERDOC_SAMBA_NAME`, in
+  the domain's zone) an address record for the address that publishes port 445, so Kerberos finds it.
+- **The container** needs the domain controllers as its DNS servers (`dns:` in compose) and reaches them on the ports of
+  Kerberos, LDAP and SMB. Its other rights stay as above; it needs no further capability.
+- **Changing the mode** is a migration by the operator: stop UnderDoc, remove every Samba user of the tenant
+  (`underdoc samba-users --tenant <id> remove`, which the log keeps), set `UNDERDOC_SAMBA_DOMAIN` and the companion the
+  other way, start both. People then turn SMB on again in their profiles.
 
 ## The working copy
 
@@ -120,7 +174,7 @@ their passwords ([secrets.md](secrets.md)).
 ### The companion
 
 The image is built from [`deploy/samba/Dockerfile`](../deploy/samba/Dockerfile): smbd of Samba 4.24 from Debian 13
-backports, the newest series a stable distribution carries, and the helper `underdoc-samba`. An example is
+backports, the newest series a stable distribution carries, winbindd for a domain, and the helper `underdoc-samba`. An example is
 [`deploy/samba/compose.yml`](../deploy/samba/compose.yml).
 
 | Setting of the companion | Meaning | Default |
@@ -148,8 +202,8 @@ anyone else is turned away. A connection carries one JSON request from a closed 
 
 | Request | Does |
 |---|---|
-| `ping` | answers while smbd runs, with the versions and a name of this start: a companion that started again gets its state at the next pass |
-| `apply` | the whole state of users (name, UID, NT hash, home) and shares (name, path, users); writes them, reloads smbd, and ends the sessions of users that are gone or whose password changed. The same state twice changes nothing |
+| `ping` | answers while smbd (and with a domain winbindd) runs, with the versions, its mode (`local` or `domain`) and a name of this start: a companion that started again gets its state at the next pass, one of the other mode gets nothing |
+| `apply` | the whole state: its mode, users (name, UID, NT hash, home; with a domain no hash) and shares (name, path, users); writes them, reloads smbd, ends the sessions of users that are gone or whose password changed, and with a domain empties winbindd's caches when the users changed. A state of the other mode is refused. The same state twice changes nothing |
 | `acl` | sets the ACL of directories, their default ACL and that of the files directly in them, and gives each to `UNDERDOC_UID`; every path is opened below the tenant's directory without following links |
 | `open` | the files open over SMB, by user, and whether for writing |
 | `who` | the latest operations of smbd's audit that change something, which the helper receives as the syslog of its container, numbered, with the numbers of the oldest and the newest it keeps |
@@ -163,8 +217,9 @@ in its path is no share of its own and stays reachable through its library; `%` 
 
 In the Explorer, **Map network drive**, folder `\\<server>\Company` (or the share the profile lists), **Connect using
 different credentials**, user name `<server>\<user name>` and the app password. Windows keeps it in its credential manager.
-Without a domain, Windows signs in with NTLMv2, which Microsoft lists as deprecated but keeps working; a domain comes
-later (M-5).
+Without a domain, Windows signs in with NTLMv2, which Microsoft lists as deprecated but keeps working. With a domain, a
+computer of the domain signs in by itself with Kerberos; elsewhere the user name is `<DOMAIN>\<user name>` with the
+password of the domain.
 
 ## Limits
 
@@ -188,6 +243,14 @@ later (M-5).
   removed app password stops at once, and a user of one tenant never reaches the other. The attack round of 2026-11-20
   (`attack_samba_test.go`) runs there too: a flood of listings, a hard link, a move with an old ACL, files that break the
   inheritance.
+  For the domain (T-42) it starts a domain controller of Samba with made-up accounts and a password made for the run
+  (never written into the repository), and a companion for the tenant corp that joins it. The script checks that the
+  join happened, that a new container on the same volume starts without the password file, that one not joined and
+  without it ends and says why, and that the password stands in no log of the companion and in none of its processes
+  (command lines and environments). `samba_domain_test.go`: a domain account signs in by NTLMv2 and Kerberos and saves
+  as its account, a number of the gate maps too; a domain account without a Samba user, `daemon`, the administrator of
+  the domain, a wrong password and a local user of the companion are turned away; the companion refuses a state with
+  app passwords; a UID that passes from one account to another is not reached by the first one's domain account.
 - `scripts/t1-libreoffice.sh` (by hand, it mounts a share inside a container): LibreOffice saves over a real share while
   smbd's audit records every operation; the recordings in `internal/share/testdata/t1` are replayed by
   `TestRecordedSaves` in every run (T-1).

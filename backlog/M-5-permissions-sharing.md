@@ -89,3 +89,6 @@ a page. Open in M-5 then: the domain (T-42) and the passage above a share of one
 
 **Built on 2026-11-24 (T-43):** the passage above a share of one's own tells no guessed names any more (veto per user
 and share, ADR-30). Open in M-5: the domain (T-42).
+
+**Built on 2026-11-26 (T-42):** Samba joins a domain, optionally: a mode of its own per tenant, never mixed with app
+passwords; domain accounts reach the share under the UIDs of their Samba users (ADR-30, docs/samba.md).

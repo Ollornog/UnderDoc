@@ -44,14 +44,25 @@ func (h *helper) writeBase() error {
 	if h.cfg.verbose {
 		verbose = "all"
 	}
+	role := "\tserver role = standalone server\n\tworkgroup = WORKGROUP\n\tsecurity = user\n"
+	private := filepath.Join(h.cfg.run, "private")
+	if h.cfg.domain != nil {
+		// A member of the domain (T-42): the secret of the machine account lives on the volume of the domain, and
+		// Kerberos reads the configuration the helper writes, since the root file system is read only.
+		role, private = h.domainGlobal(), h.cfg.domain.privateDir()
+		krb5 := filepath.Join(h.cfg.run, "krb5.conf")
+		if err := writeFile(krb5, []byte(h.krb5Conf()), 0o644); err != nil {
+			return err
+		}
+		if err := os.Setenv("KRB5_CONFIG", krb5); err != nil {
+			return err
+		}
+	}
 	conf := fmt.Sprintf(`# Written by underdoc-samba (ADR-30) at every start; the shares follow in shares.conf.
 [global]
 	netbios name = %[1]s
 	server string = %[1]s
-	server role = standalone server
-	workgroup = WORKGROUP
-	security = user
-	passdb backend = smbpasswd:%[2]s/smbpasswd
+%[5]s	passdb backend = smbpasswd:%[2]s/smbpasswd
 	map to guest = never
 	restrict anonymous = 2
 	server min protocol = SMB2_02
@@ -87,7 +98,7 @@ func (h *helper) writeBase() error {
 	directory mask = 0770
 	inherit acls = yes
 	inherit permissions = no
-	private dir = %[2]s/private
+	private dir = %[6]s
 	lock directory = %[2]s/lock
 	state directory = %[2]s/state
 	cache directory = %[2]s/cache
@@ -109,7 +120,7 @@ func (h *helper) writeBase() error {
 	valid users = %%S
 
 include = %[2]s/shares.conf
-`, h.cfg.name, h.cfg.run, verbose, filepath.Join(h.cfg.run, dfreeName))
+`, h.cfg.name, h.cfg.run, verbose, filepath.Join(h.cfg.run, dfreeName), role, private)
 	if err := h.linkDfree(); err != nil {
 		return err
 	}
@@ -174,7 +185,10 @@ func (h *helper) writeState(s samba.State) error {
 		}
 		passwd = append(passwd, fmt.Sprintf("%s:x:%d:%d:Samba user:%s:/usr/sbin/nologin", u.Name, u.UID, u.UID, home))
 		group = append(group, fmt.Sprintf("%s:x:%d:", u.Name, u.UID))
-		fmt.Fprintf(&smbpasswd, "%s:%d:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:%s:[U          ]:%s:\n", u.Name, u.UID, u.NTHash, lct)
+		// A domain account has no hash (T-42): the domain checks its password, and the companion has no local one for it.
+		if u.NTHash != "" {
+			fmt.Fprintf(&smbpasswd, "%s:%d:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:%s:[U          ]:%s:\n", u.Name, u.UID, u.NTHash, lct)
+		}
 	}
 	if err := writeFile(filepath.Join(h.cfg.run, "passwd"), []byte(strings.Join(passwd, "\n")+"\n"), 0o644); err != nil {
 		return err
@@ -265,6 +279,10 @@ func vetoLine(names []string) string {
 // apply makes the companion hold the state: it writes users, passwords and shares, closes the sessions of users that are
 // gone or whose password changed, and has smbd read its configuration again.
 func (h *helper) apply(s samba.State) error {
+	// The mode is the companion's own, from its setup: a state of the other one is refused, never half applied (T-42).
+	if mode := s.Mode; mode != h.cfg.mode() && !(mode == "" && h.cfg.domain == nil) {
+		return fmt.Errorf("%w: this companion signs in with %s, the state is for %s", samba.ErrMixed, h.cfg.mode(), modeName(mode))
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	before := map[string]samba.User{}
@@ -284,8 +302,22 @@ func (h *helper) apply(s samba.State) error {
 			end = append(end, name)
 		}
 	}
+	// With a domain, winbindd keeps what it mapped (a domain account to a UID, and that it found none) in its caches: a
+	// UID that passed to another account would still be reached by the account that had it, and an account mapped just
+	// now would still be turned away. Whenever the users change, the caches go (T-42).
+	changed := len(before) != len(s.Users)
+	for _, u := range s.Users {
+		if old, ok := before[u.Name]; !ok || old.UID != u.UID {
+			changed = true
+		}
+	}
 	if err := h.writeState(s); err != nil {
 		return err
+	}
+	if h.cfg.domain != nil && changed {
+		if err := h.flushCaches(); err != nil {
+			return err
+		}
 	}
 	h.state = s
 	if h.smbd != nil {
@@ -295,6 +327,13 @@ func (h *helper) apply(s samba.State) error {
 		h.endSessions(end)
 	}
 	return nil
+}
+
+func modeName(mode string) string {
+	if mode == "" {
+		return samba.ModeLocal
+	}
+	return mode
 }
 
 // endSessions ends the processes of smbd that serve the named users, so a removed user or an old password stops at once.

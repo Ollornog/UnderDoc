@@ -34,8 +34,11 @@ type apiSamba struct {
 	Name   string   `json:"name,omitempty"`
 	Has    bool     `json:"has"`
 	Shares []string `json:"shares"`
-	// Suggest is the name a new Samba user gets: the login where it fits the rules.
+	// Suggest is the name a new Samba user gets: the login where it fits the rules; with a domain the name of the
+	// domain account, which the profile shows and does not let change.
 	Suggest string `json:"suggest,omitempty"`
+	// Domain tells that the share signs in with domain accounts, never with app passwords (T-42).
+	Domain bool `json:"domain"`
 	// Refused are the saves of this account over SMB that a quota or the largest size turned away (ADR-30).
 	Refused []apiRefused `json:"refused"`
 }
@@ -67,13 +70,18 @@ func (h *handler) apiSamba(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	user, _ := account.From(ctx)
-	out := apiSamba{On: true, Server: h.options.Share.Server(), Shares: []string{}, Refused: h.refusedOf(ctx, user.ID)}
+	out := apiSamba{On: true, Server: h.options.Share.Server(), Shares: []string{}, Refused: h.refusedOf(ctx, user.ID),
+		Domain: h.options.Share.Domain(ctx)}
 	a, err := h.options.DB.SambaAccountOf(ctx, user.ID)
 	switch {
 	case err == nil:
 		out.Has, out.Name = true, a.Name
 		if s := h.options.Share.Reaches(ctx, user.ID); s != nil {
 			out.Shares = s
+		}
+	case errors.Is(err, db.ErrNotFound) && out.Domain:
+		if name, ok := h.options.Share.DomainName(user.Login, user.RemoteID); ok {
+			out.Suggest = name
 		}
 	case errors.Is(err, db.ErrNotFound):
 		if name := strings.ToLower(user.Login); samba.ValidName(name) {
@@ -127,6 +135,11 @@ func (h *handler) apiNewAppPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	// With a domain nobody has an app password: the share takes domain accounts only (T-42).
+	if h.options.Share.Domain(ctx) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": db.ErrSambaMode.Error() + "; here you sign in with your domain account"})
+		return
+	}
 	if !h.options.Vault.Ready() {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "app passwords need " + vault.KeyEnv})
 		return
@@ -176,6 +189,50 @@ func (h *handler) apiNewAppPassword(w http.ResponseWriter, r *http.Request) {
 	h.options.Share.FilesChanged(ctx)
 	// writeJSON answers with Cache-Control: no-store, so the password stays out of every cache.
 	writeJSON(w, http.StatusOK, map[string]string{"name": a.Name, "password": password, "server": h.options.Share.Server()})
+}
+
+// apiSambaDomain makes the Samba user of the signed-in account where the share signs in with domain accounts (T-42):
+// the name of its domain account, as the setup names it (login or Remote-Id), never one the account chooses, so nobody
+// takes the UID of another's files by naming a domain account that is not theirs.
+func (h *handler) apiSambaDomain(w http.ResponseWriter, r *http.Request) {
+	if !h.sambaOn(w, r) {
+		return
+	}
+	user, ok := h.change(w, r, 0, nil)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	if !h.options.Share.Domain(ctx) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": db.ErrSambaMode.Error() + "; here the share takes app passwords"})
+		return
+	}
+	name, valid := h.options.Share.DomainName(user.Login, user.RemoteID)
+	if !valid {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": samba.ErrDomainName.Error()})
+		return
+	}
+	if _, err := h.options.DB.SambaAccountOf(ctx, user.ID); errors.Is(err, db.ErrNotFound) {
+		taken, err := h.options.Share.NameTaken(ctx, name)
+		if h.failed(w, err, "samba") {
+			return
+		}
+		if taken {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": db.ErrSambaName.Error() + "; a share has this name"})
+			return
+		}
+	}
+	lo, hi := h.options.Share.UIDs()
+	a, err := h.options.DB.SetSambaDomainAccount(ctx, user.ID, name, lo, hi)
+	if errors.Is(err, db.ErrSambaMode) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	if h.failed(w, err, "samba") {
+		return
+	}
+	h.options.Share.FilesChanged(ctx)
+	writeJSON(w, http.StatusOK, map[string]string{"name": a.Name, "server": h.options.Share.Server()})
 }
 
 // apiRemoveAppPassword removes the Samba user of the signed-in account, or of another for an administrator

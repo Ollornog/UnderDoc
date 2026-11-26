@@ -98,6 +98,19 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- **Samba joins a domain, optionally** (T-42, ADR-30, [docs/samba.md](docs/samba.md#a-domain-optional)). The companion of
+  a tenant can be a member of an Active Directory domain instead of keeping app passwords: people sign in with their
+  domain account, by Kerberos or NTLMv2, and turn SMB on in their profile under the name of that account (their login or
+  the gate's Remote-Id, `UNDERDOC_SAMBA_DOMAIN_NAMES`). One mode per tenant, chosen at setup and never mixed: UnderDoc
+  refuses to start while a tenant holds Samba users of the other mode, the companion refuses a state of the other one,
+  and `underdoc samba-users --tenant <id> remove` is the migration. The companion joins with a password read from a file
+  only, checks the join before smbd starts, keeps the secret of the machine account on a volume, and maps a domain
+  account to the UID of its Samba user by name (`idmap_nss`, no `libnss-winbind`); accounts without one, the users of the
+  system and the administrator of the domain are turned away, and winbindd's caches are emptied whenever the users
+  change, so a UID that passes to another account is never reached by the one before. Tests against a domain controller
+  of Samba in a container (`scripts/check-samba.sh`, the CI): sign-in, turned away, never mixed, the UID changing hands,
+  the join with and without the password file, the password in no log and no process; 13 mutations, all red.
+
 - **Mermaid diagrams under the strict policy** (T-3, [docs/parts.md](docs/parts.md#diagrams)). A ```` ```mermaid ```` block
   draws as a diagram, with the values and parts embedded in it as their text. Mermaid 12.3.0 is bundled from the
   lockfile in `web/mermaid` and draws in a sandboxed frame without an origin of its own, which may use inline styles but

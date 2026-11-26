@@ -30,6 +30,7 @@ type stubCompanion struct {
 	state samba.State
 	open  []samba.Open
 	who   []samba.Event
+	mode  string // what ping answers; empty as from before T-42
 }
 
 func (c *stubCompanion) Do(_ context.Context, r samba.Request) (samba.Response, error) {
@@ -42,6 +43,8 @@ func (c *stubCompanion) Do(_ context.Context, r samba.Request) (samba.Response, 
 		return samba.Response{OK: true, Open: c.open}, nil
 	case samba.OpWho:
 		return samba.Response{OK: true, Who: c.who, First: 1, Last: uint64(len(c.who))}, nil
+	case samba.OpPing:
+		return samba.Response{OK: true, Mode: c.mode}, nil
 	}
 	return samba.Response{OK: true}, nil
 }
@@ -57,7 +60,10 @@ type sambaSite struct {
 	shareDir  string
 }
 
-func withSamba(t *testing.T) *sambaSite {
+func withSamba(t *testing.T) *sambaSite { return withSambaConfig(t, share.Config{}) }
+
+// withSambaConfig is withSamba with a setup of its own, such as a domain (T-42).
+func withSambaConfig(t *testing.T, cfg share.Config) *sambaSite {
 	t.Helper()
 	database, err := db.Open(context.Background(), pgtest.URL(t))
 	if err != nil {
@@ -75,8 +81,12 @@ func withSamba(t *testing.T) *sambaSite {
 		t.Fatal(err)
 	}
 	companion := &stubCompanion{}
+	if cfg.Domain[tenant.Main] {
+		companion.mode = samba.ModeDomain
+	}
 	dir := t.TempDir()
-	m, err := share.New(database, st, v, share.Config{Dir: dir, Helpers: map[string]share.Helper{tenant.Main: companion}, Server: "files"}, nil)
+	cfg.Dir, cfg.Helpers, cfg.Server = dir, map[string]share.Helper{tenant.Main: companion}, "files"
+	m, err := share.New(database, st, v, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

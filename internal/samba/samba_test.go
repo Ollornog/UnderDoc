@@ -160,3 +160,40 @@ func TestVetoIsChecked(t *testing.T) {
 		}
 	}
 }
+
+// With a domain (T-42) a user is a domain account without a hash, whose name may be a number; a hash, a name of the
+// system and an unknown mode are refused, and with app passwords a user without a hash is refused: never mixed.
+func TestDomainStateIsChecked(t *testing.T) {
+	root := "/srv/share/main"
+	hash := NTHash("pw")
+	check := func(mode string, users ...User) error {
+		return Request{Op: OpApply, State: &State{Mode: mode, Users: users}}.Check(root, 20000, 29999)
+	}
+	if err := check(ModeDomain, User{Name: "dora", UID: 20001}, User{Name: "4711", UID: 20002}); err != nil {
+		t.Fatalf("domain accounts: %v", err)
+	}
+	for _, c := range []struct {
+		name  string
+		mode  string
+		user  User
+		wants error
+	}{
+		{"a hash with a domain", ModeDomain, User{Name: "dora", UID: 20001, NTHash: hash}, ErrMixed},
+		{"no hash with app passwords", ModeLocal, User{Name: "dora", UID: 20001}, ErrMixed},
+		{"no hash as before T-42", "", User{Name: "dora", UID: 20001}, ErrMixed},
+		{"a number with app passwords", ModeLocal, User{Name: "4711", UID: 20001, NTHash: hash}, ErrName},
+		{"root", ModeDomain, User{Name: "root", UID: 20001}, ErrDomainName},
+		{"administrator", ModeDomain, User{Name: "administrator", UID: 20001}, ErrDomainName},
+		{"daemon", ModeDomain, User{Name: "daemon", UID: 20001}, ErrDomainName},
+		{"upper case", ModeDomain, User{Name: "Dora", UID: 20001}, ErrDomainName},
+		{"with the domain", ModeDomain, User{Name: `example\dora`, UID: 20001}, ErrDomainName},
+		{"a UID of the system", ModeDomain, User{Name: "dora", UID: 0}, ErrUID},
+	} {
+		if err := check(c.mode, c.user); err != c.wants {
+			t.Errorf("%s: %v, want %v", c.name, err, c.wants)
+		}
+	}
+	if err := check("kerberos", User{Name: "dora", UID: 20001}); err == nil {
+		t.Error("an unknown mode")
+	}
+}

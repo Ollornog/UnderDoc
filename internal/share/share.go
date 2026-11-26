@@ -7,6 +7,7 @@
 package share
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,11 +44,23 @@ type Config struct {
 	Server string
 	// UIDMin and UIDMax are the range of the UIDs of Samba users.
 	UIDMin, UIDMax int
+	// Domain names the tenants whose companion is a member of an Active Directory domain (T-42): people sign in with
+	// their domain account, never with an app password. Chosen at setup, never mixed.
+	Domain map[string]bool
+	// DomainNames is what names the domain account of an UnderDoc account: DomainByLogin (the default) or
+	// DomainByRemoteID.
+	DomainNames string
 	// Quiet is how long a path stays without an event before a pass takes it; 2 seconds by default.
 	Quiet time.Duration
 	// Every is the time between full passes without an event; an hour by default.
 	Every time.Duration
 }
+
+// The ways the domain account of an UnderDoc account is named (T-42).
+const (
+	DomainByLogin    = "login"     // its login, in lower case
+	DomainByRemoteID = "remote-id" // the lasting ID the gate gives it (Remote-Id)
+)
 
 // Manager keeps the working copies of all tenants with a companion.
 type Manager struct {
@@ -79,6 +92,17 @@ func New(database *db.DB, st *store.Store, v *vault.Vault, cfg Config, log *slog
 	if cfg.UIDMin == 0 {
 		cfg.UIDMin, cfg.UIDMax = 20000, 29999
 	}
+	if cfg.DomainNames == "" {
+		cfg.DomainNames = DomainByLogin
+	}
+	if cfg.DomainNames != DomainByLogin && cfg.DomainNames != DomainByRemoteID {
+		return nil, fmt.Errorf("samba: the domain account is named by %q or %q, not %q", DomainByLogin, DomainByRemoteID, cfg.DomainNames)
+	}
+	for t := range cfg.Domain {
+		if cfg.Helpers[t] == nil {
+			return nil, fmt.Errorf("samba: %q signs in with a domain, but has no companion", t)
+		}
+	}
 	if log == nil {
 		log = slog.Default()
 	}
@@ -98,8 +122,54 @@ func New(database *db.DB, st *store.Store, v *vault.Vault, cfg Config, log *slog
 		on[t] = true
 	}
 	database.SetSamba(on)
+	database.SetSambaDomain(cfg.Domain)
 	database.SetFileGuard(m.Guard)
 	return m, nil
+}
+
+// CheckModes refuses a start while a tenant holds Samba users of the other mode (T-42): app passwords where it is set up
+// for a domain, or domain accounts where it is set up for app passwords. Changing the mode is a migration the operator
+// does on purpose (docs/samba.md), never a switch at run time.
+func (m *Manager) CheckModes(ctx context.Context) error {
+	for t := range m.tenants {
+		withPassword, domain, err := m.db.SambaModes(tenant.With(ctx, t))
+		if err != nil {
+			return err
+		}
+		switch {
+		case m.cfg.Domain[t] && withPassword > 0:
+			return fmt.Errorf("samba: the tenant %s is set up for a domain (UNDERDOC_SAMBA_DOMAIN), but %d of its accounts have app passwords; "+
+				"app passwords and a domain are never mixed: remove them first (underdoc samba-users --tenant %s remove) or set the tenant up without the domain", t, withPassword, t)
+		case !m.cfg.Domain[t] && domain > 0:
+			return fmt.Errorf("samba: the tenant %s is set up for app passwords, but %d of its Samba users are domain accounts; "+
+				"app passwords and a domain are never mixed: remove them first (underdoc samba-users --tenant %s remove) or set the tenant up with the domain (UNDERDOC_SAMBA_DOMAIN)", t, domain, t)
+		}
+	}
+	return nil
+}
+
+// Domain tells whether the tenant of the context signs in to its share with domain accounts.
+func (m *Manager) Domain(ctx context.Context) bool {
+	t, _ := tenant.From(ctx)
+	return m.cfg.Domain[t]
+}
+
+// DomainName returns the name of the domain account of an account, as the setup names it (login or Remote-Id), and
+// whether it can be a name on the share.
+func (m *Manager) DomainName(login, remoteID string) (string, bool) {
+	name := strings.ToLower(strings.TrimSpace(login))
+	if m.cfg.DomainNames == DomainByRemoteID {
+		name = remoteID
+	}
+	return name, samba.ValidDomainName(name)
+}
+
+// mode is the mode of a tenant as the companion names it.
+func (ts *tenantShare) mode() string {
+	if ts.m.cfg.Domain[ts.tenant] {
+		return samba.ModeDomain
+	}
+	return samba.ModeLocal
 }
 
 // Dir returns the directory of a tenant's working copy.
@@ -290,8 +360,16 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// A locked account has no user on the share (T-33): it signs in nowhere until it is unlocked.
-	accounts = slices.DeleteFunc(accounts, func(a db.SambaAccount) bool { return a.Locked })
+	// A locked account has no user on the share (T-33): it signs in nowhere until it is unlocked. A Samba user of the
+	// other mode never reaches the companion (T-42; the start refuses them, CheckModes, so this holds only if one slips in).
+	domain := ts.m.cfg.Domain[ts.tenant]
+	accounts = slices.DeleteFunc(accounts, func(a db.SambaAccount) bool {
+		if domain == (a.Sealed != nil) && !a.Locked {
+			ts.m.log.Error("samba: a Samba user of the other mode is left out: app passwords and a domain are never mixed",
+				"tenant", ts.tenant, "account", a.Account, "mode", ts.mode())
+		}
+		return a.Locked || domain == (a.Sealed != nil)
+	})
 	v := &view{accounts: accounts, byName: map[string]string{}, byUID: map[int]string{}, who: map[string]string{},
 		open: map[string][]string{}, openWrite: map[string]bool{}, held: map[string]bool{}, told: ts.held, refused: map[string]refusal{}}
 	defer func() { ts.held = v.held }()
@@ -310,8 +388,16 @@ func (ts *tenantShare) pass(ctx context.Context) (bool, error) {
 	}
 	// A companion that started again has forgotten its users, its shares and its audit: they are applied again, and the
 	// numbers of the audit start anew.
-	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpPing}); err == nil && r.Boot != ts.boot {
-		ts.boot, ts.state, ts.seen, ts.room = r.Boot, "", 0, ""
+	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpPing}); err == nil {
+		// A companion set up the other way gets nothing, loudly: neither users nor ACLs (T-42).
+		if mode := cmp.Or(r.Mode, samba.ModeLocal); mode != ts.mode() {
+			ts.m.log.Error("samba: the companion signs in the other way than UnderDoc is set up; nothing is applied",
+				"tenant", ts.tenant, "companion", mode, "underdoc", ts.mode())
+			return false, fmt.Errorf("the companion of %s signs in with %s, UnderDoc is set up for %s (UNDERDOC_SAMBA_DOMAIN)", ts.tenant, mode, ts.mode())
+		}
+		if r.Boot != ts.boot {
+			ts.boot, ts.state, ts.seen, ts.room = r.Boot, "", 0, ""
+		}
 	}
 	if r, err := ts.helper.Do(ctx, samba.Request{Op: samba.OpWho}); err == nil {
 		for _, e := range r.Who {
