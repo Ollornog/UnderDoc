@@ -11,7 +11,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ◐ **[M-2](M-2-files-and-excel.md)** Files and Excel: the share appears in the web — 3/6 erledigt
 * ◐ **[M-3](M-3-single-source.md)** Single source: values, snippets, embedding — 2/2 erledigt
 * ☐ **[M-4](M-4-sources.md)** External sources with cache — noch keine Aufgaben
-* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 3/4 erledigt
+* ◐ **[M-5](M-5-permissions-sharing.md)** Permissions and sharing — 4/5 erledigt
 * ☐ **[M-6](M-6-lists.md)** Native lists — noch keine Aufgaben
 * ☐ **[M-7](M-7-output-access.md)** Output and more file access — noch keine Aufgaben
 * ☑ **[M-8](M-8-editor.md)** Web editor — noch keine Aufgaben
@@ -98,6 +98,7 @@ Konventionen: [README-KONVENTION.md](README-KONVENTION.md).
 * ☑ **[B-7](B-7-review-of-b-6-t-33-and-t-38-copies-lose-denies-gro.md)** Review of B-6, T-33 and T-38: copies lose denies, group admins manage any account, read window · M-30
 * ☐ **[B-8](B-8-review-of-b-7-move-cycles-reset-as-a-back-door-rea.md)** Review of B-7: move cycles, reset as a back door, read snapshots that do not scale, gate key break · M-30
 * ☐ **[B-9](B-9-a-redraw-in-the-background-can-swallow-a-click.md)** A redraw in the background can swallow a click · M-14
+* ☐ **[B-10](B-10-review-of-t-15-and-t-43-owner-hand-over-race-right.md)** 'Review of T-15 and T-43: owner hand-over race, rights lock without timeout, veto list per session, · M-5
 
 ## Entscheidungen (ADR)
 
