@@ -2,6 +2,7 @@
 type: Task
 title: The indexer notices an index lost while serving
 status: offen
+sprint: S2
 points: 2
 id: T-23
 milestone: M-12

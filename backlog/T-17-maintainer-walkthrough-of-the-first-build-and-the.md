@@ -2,6 +2,7 @@
 type: Task
 title: Maintainer walkthrough of the first build and the editor
 status: offen
+sprint: SA
 points: 1
 id: T-17
 milestone: M-2

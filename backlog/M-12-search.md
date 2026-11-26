@@ -3,6 +3,7 @@ id: M-12
 type: Milestone
 title: Proper search
 status: in-arbeit
+sprint: S2
 rest_points: 5
 rank: 6
 tags: [search]

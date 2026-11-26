@@ -3,6 +3,7 @@ id: M-13
 type: Milestone
 title: AI integration
 status: offen
+sprint: später
 rest_points: 21
 rank: 14
 tags: [ai]

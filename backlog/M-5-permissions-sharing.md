@@ -3,6 +3,7 @@ id: M-5
 type: Milestone
 title: Permissions and sharing
 status: in-arbeit
+sprint: S1
 rest_points: 0
 rank: 4
 tags: [permissions, security]

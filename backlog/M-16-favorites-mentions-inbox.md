@@ -3,6 +3,7 @@ id: M-16
 type: Milestone
 title: Favorites, mentions and inbox
 status: offen
+sprint: S7
 rest_points: 13
 rank: 11
 blocked_by: [M-5]

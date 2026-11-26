@@ -2,6 +2,7 @@
 type: Task
 title: Connectors to outside systems through an extension point
 status: offen
+sprint: S4
 points: 13
 id: T-31
 milestone: M-31

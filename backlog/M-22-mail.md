@@ -3,6 +3,7 @@ id: M-22
 type: Milestone
 title: Mail in the workspace
 status: offen
+sprint: später
 rest_points: 34
 rank: 30
 blocked_by: [M-5]

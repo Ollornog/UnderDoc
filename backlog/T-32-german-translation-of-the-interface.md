@@ -2,6 +2,7 @@
 type: Task
 title: German translation of the interface
 status: offen
+sprint: S6
 points: 8
 id: T-32
 milestone: M-14

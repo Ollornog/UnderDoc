@@ -2,6 +2,7 @@
 type: Task
 title: Log classes, retention, audit role and self-disclosure for co-determination and GDPR
 status: offen
+sprint: S2
 points: 13
 id: T-44
 milestone: M-31

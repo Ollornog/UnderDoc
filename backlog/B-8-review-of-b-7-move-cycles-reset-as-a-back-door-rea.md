@@ -2,6 +2,7 @@
 type: Bug
 title: 'Review of B-7: move cycles, reset as a back door, read snapshots that do not scale, gate key break'
 status: offen
+sprint: S1
 points: 13
 id: B-8
 milestone: M-30

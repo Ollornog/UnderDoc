@@ -3,6 +3,7 @@ id: M-29
 type: Milestone
 title: Recipes
 status: offen
+sprint: später
 rest_points: 8
 rank: 26
 blocked_by: [M-28]

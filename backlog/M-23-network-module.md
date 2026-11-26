@@ -3,6 +3,7 @@ id: M-23
 type: Milestone
 title: IP addresses and devices
 status: offen
+sprint: später
 rest_points: 13
 rank: 28
 blocked_by: [M-3, M-5]

@@ -2,6 +2,7 @@
 type: Task
 title: 'MCP tools, second round: conflict diff, move a section, search filters, attachment text'
 status: offen
+sprint: S3
 points: 8
 id: T-37
 milestone: M-31

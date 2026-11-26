@@ -2,6 +2,7 @@
 type: Task
 title: 'Inbox list "AI changes to check"'
 status: offen
+sprint: S7
 points: 3
 id: T-36
 milestone: M-16

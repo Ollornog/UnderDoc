@@ -2,6 +2,7 @@
 type: Bug
 title: A redraw in the background can swallow a click
 status: offen
+sprint: S6
 points: 5
 id: B-9
 milestone: M-14

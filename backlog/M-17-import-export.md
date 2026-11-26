@@ -3,6 +3,7 @@ id: M-17
 type: Milestone
 title: Import, export and save as
 status: offen
+sprint: S5
 rest_points: 13
 rank: 13
 blocked_by: [M-2]

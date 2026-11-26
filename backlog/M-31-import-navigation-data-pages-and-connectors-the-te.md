@@ -2,6 +2,7 @@
 type: Milestone
 title: 'Import, navigation, data pages and connectors: the team wiki moves in'
 status: offen
+sprint: S2
 rest_points: 3
 rank: 5
 id: M-31

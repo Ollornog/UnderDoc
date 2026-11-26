@@ -3,6 +3,7 @@ id: M-15
 type: Milestone
 title: "Windows and tabs: documents side by side"
 status: offen
+sprint: S7
 rest_points: 21
 rank: 10
 blocked_by: [M-14]
