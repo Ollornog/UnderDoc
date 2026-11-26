@@ -2,6 +2,7 @@
 type: Milestone
 title: 'Team server parity: a team wiki of people and AI agents moves in'
 status: offen
+sprint: S1
 rest_points: 0
 rank: 1
 id: M-30

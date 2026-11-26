@@ -3,6 +3,7 @@ id: M-25
 type: Milestone
 title: Bookmarks
 status: offen
+sprint: später
 rest_points: 5
 rank: 24
 blocked_by: [M-5]

@@ -3,6 +3,7 @@ id: M-26
 type: Milestone
 title: News from subscribed feeds
 status: offen
+sprint: später
 rest_points: 5
 rank: 25
 blocked_by: [M-5]

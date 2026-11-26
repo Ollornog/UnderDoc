@@ -2,6 +2,7 @@
 type: Task
 title: Maintainer acceptance of the Markdown wiki
 status: offen
+sprint: SA
 points: 1
 id: T-19
 milestone: M-1

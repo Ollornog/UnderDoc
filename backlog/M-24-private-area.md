@@ -3,6 +3,7 @@ id: M-24
 type: Milestone
 title: Private area
 status: offen
+sprint: später
 rest_points: 21
 rank: 29
 blocked_by: [M-5]

@@ -3,6 +3,7 @@ id: M-20
 type: Milestone
 title: Reviewed documents and Git
 status: offen
+sprint: S8
 rest_points: 21
 rank: 12
 blocked_by: [M-5, M-8]

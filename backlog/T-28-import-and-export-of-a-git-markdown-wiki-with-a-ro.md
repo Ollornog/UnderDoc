@@ -2,6 +2,7 @@
 type: Task
 title: Import and export of a Git Markdown wiki, with a round trip that loses nothing
 status: offen
+sprint: S4
 points: 13
 id: T-28
 milestone: M-31

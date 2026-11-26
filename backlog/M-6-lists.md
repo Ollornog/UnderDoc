@@ -3,6 +3,7 @@ id: M-6
 type: Milestone
 title: Native lists
 status: offen
+sprint: später
 rest_points: 34
 rank: 15
 tags: [lists]

@@ -2,6 +2,7 @@
 type: Task
 title: 'Agents and widened readers: old versions, restore from trash, re-uploaded files'
 status: offen
+sprint: S1
 points: 13
 id: T-40
 milestone: M-30

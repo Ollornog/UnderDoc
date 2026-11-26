@@ -3,6 +3,7 @@ id: T-10
 type: Task
 title: Mock up the phone layout
 status: offen
+sprint: S6
 points: 3
 milestone: M-14
 tags: [ui, mockup, phone]

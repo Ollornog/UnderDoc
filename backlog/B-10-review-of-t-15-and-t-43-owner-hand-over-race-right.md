@@ -3,6 +3,7 @@ type: Bug
 title: 'Review of T-15 and T-43: owner hand-over race, rights lock without timeout, veto list per session,
   veto by spelling'
 status: offen
+sprint: S1
 points: 8
 id: B-10
 milestone: M-5

@@ -2,6 +2,7 @@
 type: Task
 title: Maintainer acceptance of spreadsheets as tables
 status: offen
+sprint: SA
 points: 1
 id: T-18
 milestone: M-2

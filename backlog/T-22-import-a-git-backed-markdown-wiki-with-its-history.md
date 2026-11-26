@@ -2,6 +2,7 @@
 type: Task
 title: Import a Git-backed Markdown wiki with its history
 status: offen
+sprint: S5
 points: 3
 id: T-22
 milestone: M-17
