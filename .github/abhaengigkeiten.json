@@ -1,0 +1,4 @@
+{
+  "_comment": "Unused-dependency check of the kit (scripts/_abhaengigkeiten.py). warn_until: findings are warnings until that day, then red (S2 2026-11-27, the repo's session is paused).",
+  "warn_until": "2027-01-26"
+}
