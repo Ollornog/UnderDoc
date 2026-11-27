@@ -1,3 +1,3 @@
 # The Meilisearch the tests run against (scripts/search-engines.sh), pinned by tag and digest. Nothing builds this file:
 # it only carries the pin, so Dependabot moves it like every other image.
-FROM getmeili/meilisearch:v1.57.0@sha256:91bf09897482c17205c8faeca8daa8d57999fb9de20d862763cdfa92ba4ec790
+FROM getmeili/meilisearch:v1.58.0@sha256:cee0d2e31191594ff8e1651eb144aabd95b389a0bc3532327ecfb9ed91dffe7e
