@@ -28,6 +28,11 @@ if grund="$(scripts/_nur_text.sh)"; then
 fi
 step "$grund"
 
+# Unused dependencies (kit 0.73.0, PO 2026-11-27): the app carries only what it uses. Allow list with reasons:
+# .github/abhaengigkeiten.json. Fetches pinned tools (deptry, cargo-machete), so it runs here, not in the hook.
+step "Unused dependencies (kit, scripts/_abhaengigkeiten.py)"
+"$PY" scripts/_abhaengigkeiten.py || fail "unused dependencies (scripts/_abhaengigkeiten.py)"
+
 step "Repository hygiene (kit)"
 "$PY" tests/test_repo.py || fail "repository hygiene"
 
