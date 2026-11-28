@@ -263,6 +263,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- **Repokit kit 0.75.0; base image updates no longer merge themselves.** `scripts/check-image.sh` stays green with `FROM scratch`
+  and with a base of the wrong architecture, so it does not vet the base image: `docker` leaves the auto-merge ecosystems
+  and Dependabot PRs for the Dockerfile wait for a human. The weekly rebuild check may read pull requests.
+
 - **Nobody opens up what they do not hold** (T-34, ADR-36 part 3): whoever manages an object allows an action, or takes a
   deny of it back, only where they hold that action themselves, also for the whole tenant and through the level of the
   workspace; restoring the inheritance needs all seven actions. Taking back and denying stay open. Administrators are not
